@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>灯りの森 ─ 夜の森をあるく</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0d14;overflow:hidden;overscroll-behavior:none}
+body{font:13px/1.6 ui-monospace,Menlo,"Hiragino Sans","Yu Gothic",monospace;color:#c8d0e0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+canvas{width:100vw;height:100vh;height:100dvh;display:block;image-rendering:pixelated;touch-action:none}
+.hud{position:fixed;pointer-events:none;text-shadow:0 1px 0 #000,0 0 6px #000}
+#count{left:14px;top:12px;letter-spacing:.12em}
+#count b{color:#ffd9a0;font-weight:400}
+#compass{right:14px;top:12px;width:40px;height:40px;border:1px solid #c8d0e055;border-radius:50%}
+#needle{position:absolute;inset:0;text-align:center;font-size:11px;line-height:14px;color:#ffd9a0}
+#area{left:0;right:0;top:16%;text-align:center;font-size:20px;letter-spacing:.5em;text-indent:.5em;opacity:0;transition:opacity 1.2s}
+#msg{left:50%;bottom:92px;transform:translateX(-50%);width:min(560px,86vw);box-sizing:border-box;padding:10px 16px;background:#0a0d14cc;border:1px solid #c8d0e044;opacity:0;transition:opacity .4s;text-align:center}
+.touch #msg{bottom:calc(170px + env(safe-area-inset-bottom))}
+#prompt{left:0;right:0;bottom:56px;text-align:center;color:#ffd9a0;opacity:0;transition:opacity .2s}
+#hint{left:0;right:0;bottom:12px;text-align:center;font-size:11px;color:#8a93a8;opacity:0;transition:opacity .5s}
+#stick,#knob{position:fixed;border-radius:50%;pointer-events:none;display:none}
+#stick{width:110px;height:110px;margin:-55px;border:1px solid #c8d0e044}
+#knob{width:44px;height:44px;margin:-22px;background:#c8d0e033}
+.btn{position:fixed;right:18px;display:none;min-width:64px;padding:14px 12px;text-align:center;font:inherit;color:#c8d0e0;background:#0a0d14aa;border:1px solid #c8d0e066;border-radius:6px;touch-action:none}
+#bAct{bottom:calc(96px + env(safe-area-inset-bottom));color:#ffd9a0;border-color:#ffd9a0aa}
+#bTorch{bottom:calc(28px + env(safe-area-inset-bottom))}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:#0a0d14d9;cursor:pointer;text-align:center;transition:opacity .8s}
+#start h1{margin:0;font-size:40px;font-weight:400;letter-spacing:.4em;text-indent:.4em;color:#ffd9a0}
+#start p{margin:10px 0}
+#start .keys{color:#8a93a8;font-size:12px;line-height:2}
+#start .go{margin-top:22px;animation:bl 1.6s infinite}
+@keyframes bl{50%{opacity:.35}}
+</style>
+<canvas id="c"></canvas>
+<div class="hud" id="count"></div>
+<div class="hud" id="compass"><div id="needle">北</div></div>
+<div class="hud" id="area"></div>
+<div class="hud" id="msg"></div>
+<div class="hud" id="prompt"></div>
+<div class="hud" id="hint">クリックすると、マウスで見まわせます</div>
+<div id="stick"></div><div id="knob"></div>
+<button class="btn" id="bAct">しらべる</button>
+<button class="btn" id="bTorch">ライト</button>
+<div id="start"><div>
+  <h1>灯りの森</h1>
+  <p>夜の森をあるいて、消えた七つの灯をともす</p>
+  <p class="keys">移動 WASD／矢印　・　視点 マウス　・　走る Shift<br>しらべる E　・　懐中電灯 F　・　音 M<br>スマホ：画面の左でスティック移動、右をなぞって視点</p>
+  <p class="go" id="go">読みこみ中…</p>
+</div></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ルックは LOOK 11 と同じ: 短辺 240 画素、頂点を粗い格子に吸着、16〜32 画素の荒いテクスチャ、近い霧、32 段の減色ディザ
+const $ = id => document.getElementById(id);
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+const FOG = 0x0a0d14;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(FOG); scene.fog = new THREE.Fog(FOG, 4, 30);
+const cam = new THREE.PerspectiveCamera(60, 4 / 3, .1, 150);
+const hemi = new THREE.HemisphereLight(0x4a5a86, 0x0a0c14, 2.0); scene.add(hemi);
+const MOON_DIR = new THREE.Vector3(80, 36, -25).normalize();
+const moonL = new THREE.DirectionalLight(0x5a6a9a, .6); moonL.position.copy(MOON_DIR).multiplyScalar(10); scene.add(moonL);
+
+// ───────── 小道具
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const rnd = (() => { let s = 20241115; return () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const mix = (a, b, t) => a + (b - a) * t;
+function tex(n, fn) {
+  const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d');
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const [r, gg, b] = fn(x, y); g.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`; g.fillRect(x, y, 1, 1); }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const rep = (t, x, y) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
+const groundT = tex(32, (x, y) => { const h = hash(x, y), v = h > .8 ? 96 : h < .2 ? 44 : 66; return [v, v, v]; });
+const barkT = tex(16, (x, y) => { const v = 60 + hash(x >> 1, y) * 50 - (x % 4 === 0 ? 25 : 0); return [v, v * .8, v * .62]; });
+const leafT = tex(16, (x, y) => { const v = 40 + hash(x, y) * 60; return [v * .4, v, v * .6]; });
+const woodT = tex(16, (x, y) => { const v = 90 + hash(x, y >> 2) * 40 - (y % 4 === 0 ? 30 : 0); return [v, v * .8, v * .6]; });
+const stoneT = tex(16, (x, y) => { const v = 70 + hash(x, y) * 45 - (hash(x >> 2, y >> 2) > .75 ? 20 : 0); return [v, v * 1.02, v * 1.08]; });
+const roofT = tex(16, (x, y) => { const v = 50 + hash(x, y) * 20 - ((y + (x >> 2 & 1) * 2) % 4 === 0 ? 22 : 0); return [v * .8, v * .9, v * 1.1]; });
+const waterT = tex(32, (x, y) => { const v = 26 + Math.sin(y * .8 + Math.sin(x * .4) * 2) * 8 + hash(x, y) * 10; return [v * .45, v * .8, v * 1.25]; });
+const clothT = tex(16, (x, y) => { const v = 120 + hash(x, y) * 30 - (x % 8 === 0 ? 30 : 0); return [v, v * .95, v * .72]; });
+const redT = tex(16, (x, y) => { const v = 110 + hash(x, y >> 1) * 40; return [v, v * .36, v * .28]; });
+
+function ps1(m) {
+  m.onBeforeCompile = s => {
+    s.vertexShader = s.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n gl_Position.xy=floor(gl_Position.xy/gl_Position.w*vec2(160.,120.)+.5)/vec2(160.,120.)*gl_Position.w;');
+  };
+  return m;
+}
+const lam = o => ps1(new THREE.MeshLambertMaterial({ flatShading: true, ...o }));
+const basic = (c, o) => ps1(new THREE.MeshBasicMaterial({ color: c, ...o }));
+const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return o; };
+const boxG = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+function prismG(w, h, d) { // 棟が x 方向の三角屋根
+  const a = [-w / 2, 0, -d / 2], b = [-w / 2, 0, d / 2], c = [-w / 2, h, 0], e = [w / 2, 0, -d / 2], f = [w / 2, 0, d / 2], g = [w / 2, h, 0];
+  const tri = [a, c, g, a, g, e, b, f, g, b, g, c, a, b, c, e, g, f];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(tri.flat(), 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(tri.flatMap(v => [(v[0] + v[2]) * .5, v[1]]), 2));
+  geo.computeVertexNormals(); return geo;
+}
+
+// ───────── 地形
+const SIZE = 176, SEG = 126, EDGE = 78;
+const LAKE = { x: 42, z: 20, r: 16, y: -.6 };
+const PIER = { x0: 24.5, x1: 35, z0: 19.1, z1: 20.9, y: LAKE.y + .45 };
+const HILLS = [{ x: -48, z: -14, r: 20, h: 5 }, { x: 56, z: -14, r: 16, h: 6 }];
+const FLATS = [{ x: -38, z: 30, r: 8 }, { x: 0, z: -2, r: 7 }, { x: -12, z: -54, r: 8 }, { x: 34, z: -44, r: 7 }, { x: -48, z: -14, r: 5 }, { x: 56, z: -14, r: 4.5 }, { x: 0, z: 58, r: 6 }];
+function rawH(x, z) {
+  let h = Math.sin(x * .07 + 1.3) * Math.cos(z * .06 - .4) * 1.6 + Math.sin(x * .023 - z * .031) * 2.2 + Math.sin((x + z) * .15) * .35;
+  for (const H of HILLS) h += H.h * ss(H.r, 0, Math.hypot(x - H.x, z - H.z));
+  return h;
+}
+for (const F of FLATS) F.y = rawH(F.x, F.z);
+function terrainH(x, z) {
+  let h = rawH(x, z);
+  for (const F of FLATS) { const d = Math.hypot(x - F.x, z - F.z); if (d < F.r * 1.8) h = mix(h, F.y, ss(F.r * 1.8, F.r, d)); }
+  const d = Math.hypot(x - LAKE.x, z - LAKE.z);
+  if (d < LAKE.r + 10) { h = mix(h, LAKE.y + .35, ss(LAKE.r + 10, LAKE.r + 1, d)); h -= 3.2 * ss(LAKE.r, LAKE.r * .45, d); }
+  return h;
+}
+const onPier = (x, z) => x > PIER.x0 - .3 && x < PIER.x1 && z > PIER.z0 && z < PIER.z1;
+const groundH = (x, z) => onPier(x, z) ? Math.max(PIER.y, terrainH(x, z)) : terrainH(x, z);
+
+// 小道。大樹のひろばから各所へのびる
+const PATHS = [
+  [[0, 70], [0, 52], [1, 40], [0, 24], [0, 5]],
+  [[1, 40], [-12, 38], [-24, 33], [-33, 31]],
+  [[2, 2], [12, 10], [20, 17], [25, 20]],
+  [[-3, -3], [-16, -6], [-30, -9], [-44, -13]],
+  [[-1, -7], [-5, -22], [-9, -38], [-11, -49]],
+  [[3, -6], [12, -18], [22, -32], [30, -41]],
+  [[37, -42], [46, -34], [52, -24], [55, -17]],
+];
+const SEGS = []; for (const p of PATHS) for (let i = 0; i < p.length - 1; i++) SEGS.push([...p[i], ...p[i + 1]]);
+function pathD(x, z) {
+  let m = 1e9;
+  for (const [ax, az, bx, bz] of SEGS) { const dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1); m = Math.min(m, Math.hypot(x - ax - dx * t, z - az - dz * t)); }
+  return m;
+}
+const DIRT = [[0, -2, 5.5], [-12, -54, 6.5], [34, -44, 5], [-36, 31, 4], [56, -14, 3.5], [-48, -14, 4]];
+{
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG); geo.rotateX(-Math.PI / 2);
+  const p = geo.attributes.position, col = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), n = hash(x, z);
+    p.setY(i, terrainH(x, z));
+    let w = ss(2.1, 1.0, pathD(x, z) + (n - .5) * .8);
+    for (const [dx, dz, r] of DIRT) w = Math.max(w, ss(r, r * .6, Math.hypot(x - dx, z - dz) + (n - .5) * 1.5));
+    const mud = ss(LAKE.r + 3, LAKE.r, Math.hypot(x - LAKE.x, z - LAKE.z)), k = .85 + n * .25;
+    col[i * 3] = mix(mix(.22, 1.7, w), .5, mud) * k; col[i * 3 + 1] = mix(mix(1, 1.05, w), .5, mud) * k; col[i * 3 + 2] = mix(mix(.17, .56, w), .45, mud) * k;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  scene.add(mesh(geo, lam({ map: rep(groundT, SIZE / 2, SIZE / 2), vertexColors: true })));
+  const wm = lam({ map: rep(waterT, 6, 6), transparent: true, opacity: .84 });
+  const water = mesh(new THREE.CircleGeometry(LAKE.r + 1.5, 20), wm, LAKE.x, LAKE.y, LAKE.z); water.rotation.x = -Math.PI / 2; scene.add(water);
+  scene.userData.waterMap = wm.map;
+}
+
+// ───────── 当たり・灯り・しらべる場所
+const circles = [], boxes = [], sources = [], inter = [], tickers = [];
+const POOL = 4, pool = [];
+for (let i = 0; i < POOL; i++) { const l = new THREE.PointLight(0xffc070, 0, 11, 1.8); scene.add(l); pool.push(l); }
+const glowT = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, '#fff'); gr.addColorStop(.25, '#aaa'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+  const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t;
+})();
+function glow(color, size, x, y, z, parent = scene) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowT, color, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  s.scale.setScalar(size); s.position.set(x, y, z); parent.add(s); return s;
+}
+const place = (g, x, z, ry = 0) => { g.position.set(x, terrainH(x, z), z); g.rotation.y = ry; scene.add(g); return g; };
+const WARM = 0xffc070, LIT = 0xffd9a0;
+const stoneM = lam({ map: stoneT }), woodM = lam({ map: woodT }), darkM = lam({ color: 0x30343c }), barkM = lam({ map: barkT }), leafM = lam({ map: leafT });
+const unlitM = lam({ color: 0x14161b }), litM = basic(LIT);
+
+// ───────── 森
+const CLEAR = [[0, -2, 7.5], [-38, 30, 8], [-12, -54, 7.5], [34, -44, 6.5], [56, -14, 5], [-48, -14, 5], [0, 58, 3.5]];
+{
+  const trees = [];
+  for (let gz = -SIZE / 2; gz < SIZE / 2; gz += 4.2) for (let gx = -SIZE / 2; gx < SIZE / 2; gx += 4.2) {
+    const x = gx + rnd() * 3.6, z = gz + rnd() * 3.6, r = Math.hypot(x, z), s = .8 + rnd() * .9, keep = rnd();
+    if (r > SIZE / 2 - 2 || keep > (r > EDGE - 6 ? .95 : .62)) continue;
+    if (pathD(x, z) < 2.6 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 2.5) continue;
+    if (CLEAR.some(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) < cr)) continue;
+    trees.push({ x, z, s, ry: rnd() * 6.3 }); circles.push({ x, z, r: .3 * s });
+  }
+  const n = trees.length, d = new THREE.Object3D();
+  const parts = [[new THREE.CylinderGeometry(.2, .28, 5, 5), barkM, 2.5], [new THREE.ConeGeometry(1.6, 3, 6), leafM, 4.4], [new THREE.ConeGeometry(1.2, 2.4, 6), leafM, 6]];
+  for (const [geo, m, oy] of parts) {
+    const im = new THREE.InstancedMesh(geo, m, n); im.frustumCulled = false;
+    trees.forEach((t, i) => { d.position.set(t.x, terrainH(t.x, t.z) - .1 + oy * t.s, t.z); d.rotation.y = t.ry; d.scale.setScalar(t.s); d.updateMatrix(); im.setMatrixAt(i, d.matrix); });
+    scene.add(im);
+  }
+  // 岩としげみ
+  const rocks = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.6, 0), stoneM, 90), bush = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.55, 0), leafM, 150);
+  rocks.frustumCulled = bush.frustumCulled = false;
+  for (const [im, cnt, solid] of [[rocks, 90, true], [bush, 150, false]]) for (let i = 0; i < cnt; i++) {
+    let x, z; do { x = (rnd() - .5) * 150; z = (rnd() - .5) * 150; } while (pathD(x, z) < 2.2 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 1 || CLEAR.some(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) < cr - 1));
+    const s = .5 + rnd() * (solid ? 1.3 : .9);
+    d.position.set(x, terrainH(x, z) + (solid ? 0 : .3 * s), z); d.rotation.set(rnd() * 3, rnd() * 3, 0); d.scale.set(s, s * (solid ? .7 : .8), s); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+    if (solid && s > .9) circles.push({ x, z, r: s * .5 });
+  }
+  scene.add(rocks, bush);
+}
+
+// ───────── 灯（七つ）
+const lights = []; let litCount = 0;
+function stoneLantern() {
+  const g = new THREE.Group(), roof = mesh(new THREE.ConeGeometry(.52, .36, 4), stoneM, 0, 1.92, 0); roof.rotation.y = Math.PI / 4;
+  const bulb = mesh(boxG(.3, .3, .3), unlitM, 0, 1.52, 0);
+  g.add(mesh(boxG(.7, .2, .7), stoneM, 0, .1, 0), mesh(boxG(.26, .95, .26), stoneM, 0, .67, 0), mesh(boxG(.6, .12, .6), stoneM, 0, 1.2, 0), bulb, roof);
+  for (const [x, z] of [[-.17, -.17], [.17, -.17], [-.17, .17], [.17, .17]]) g.add(mesh(boxG(.07, .5, .07), stoneM, x, 1.5, z));
+  return { g, ly: 1.52, lit: () => bulb.material = litM };
+}
+function postLamp() {
+  const g = new THREE.Group(), bulb = mesh(boxG(.2, .26, .2), unlitM, .5, 1.78, 0);
+  g.add(mesh(boxG(.12, 2.3, .12), woodM, 0, 1.15, 0), mesh(boxG(.7, .08, .08), woodM, .3, 2.2, 0), mesh(boxG(.03, .22, .03), darkM, .5, 2.06, 0), mesh(boxG(.3, .06, .3), darkM, .5, 1.94, 0), bulb);
+  return { g, lx: .5, ly: 1.78, lit: () => bulb.material = litM };
+}
+function campfire() {
+  const g = new THREE.Group(), fl = new THREE.Group(); fl.visible = false;
+  for (let i = 0; i < 8; i++) g.add(mesh(boxG(.26, .2, .22), stoneM, Math.cos(i * .785) * .62, .08, Math.sin(i * .785) * .62));
+  for (let i = 0; i < 3; i++) { const l = mesh(boxG(.9, .14, .14), barkM, 0, .14, 0); l.rotation.y = i * 1.05; l.rotation.z = .12; g.add(l); }
+  const f1 = mesh(new THREE.ConeGeometry(.3, .8, 4), basic(0xff8a30), 0, .55, 0), f2 = mesh(new THREE.ConeGeometry(.17, .5, 4), basic(0xffe090), 0, .45, 0);
+  fl.add(f1, f2); g.add(fl);
+  tickers.push(t => { if (fl.visible) { f1.scale.set(1 + Math.sin(t * 13) * .15, 1 + Math.sin(t * 17) * .22, 1); f1.rotation.y = t * 3; f2.scale.y = 1 + Math.sin(t * 23) * .25; } });
+  return { g, ly: .7, lit: () => fl.visible = true, flick: .3, int: 26 };
+}
+function addLight(make, x, z, ry, name, y) {
+  const o = make(); if (y === undefined) place(o.g, x, z, ry); else { o.g.position.set(x, y, z); o.g.rotation.y = ry; scene.add(o.g); }
+  const lx = x + Math.cos(ry) * (o.lx || 0), lz = z - Math.sin(ry) * (o.lx || 0), ly = o.g.position.y + o.ly;
+  const src = { x: lx, y: ly + .15, z: lz, color: WARM, int: o.int || 18, range: 13, on: false, flick: o.flick || .07, seed: lights.length };
+  sources.push(src); circles.push({ x, z, r: .42 });
+  const hintS = glow(0x7f9cff, .55, lx, ly, lz), litS = glow(0xffb060, 2.4, lx, ly, lz); litS.visible = false;
+  const L = { src, hintS, litS, on: false, name };
+  const it = { x, z, r: 2.6, label: '灯をともす', act: () => { L.on = src.on = true; o.lit(); hintS.visible = false; litS.visible = true; inter.splice(inter.indexOf(it), 1); onLit(L); } };
+  inter.push(it); lights.push(L);
+}
+
+// ───────── 場所づくり
+const read = (x, z, text, r = 2.2) => inter.push({ x, z, r, label: 'しらべる', act: () => say(typeof text === 'function' ? text() : text) });
+function streetLamp(x, z, side) {
+  const g = place(new THREE.Group(), x, z);
+  g.add(mesh(boxG(.1, 3.4, .1), darkM, 0, 1.7, 0), mesh(boxG(.6, .08, .1), darkM, -side * .3, 3.4, 0), mesh(boxG(.28, .2, .28), litM, -side * .55, 3.3, 0));
+  glow(0xffb060, 1.8, x - side * .55, g.position.y + 3.3, z);
+  sources.push({ x: x - side * .55, y: g.position.y + 3.1, z, color: WARM, int: 16, range: 11, on: true, flick: .05, seed: x });
+  circles.push({ x, z, r: .2 });
+}
+function sign(x, z, ry, text) {
+  const g = place(new THREE.Group(), x, z, ry);
+  g.add(mesh(boxG(.1, 1.3, .1), woodM, 0, .65, 0), mesh(boxG(.9, .45, .06), woodM, 0, 1.2, .06));
+  circles.push({ x, z, r: .2 }); read(x, z, text);
+}
+// 入口
+addLight(stoneLantern, 2.3, 54, 0, '入口の灯籠');
+streetLamp(1.9, 62, 1);
+sign(-1.9, 59, .2, '「灯りの森」─ 七つの灯がともる夜、大樹は目をさます。');
+for (let i = 0; i < 9; i++) for (const s of [-1, 1]) {
+  if (s > 0 && i === 6) continue;
+  const g = place(new THREE.Group(), s * 1.9, 69 - i * 2.4);
+  g.add(mesh(boxG(.13, 1, .13), woodM, 0, .5, 0));
+  if (hash(i, s) > .25 && i < 8) g.add(mesh(boxG(.06, .1, 2.4), woodM, 0, .75, -1.2), mesh(boxG(.06, .1, 2.4), woodM, 0, .42, -1.2)); else g.rotation.z = s * .2;
+}
+for (const [x, z, s] of [[-1.9, 40, -1], [1.9, 17, 1], [-22, -9.6, -1], [15, -24, 1], [-7.6, -30, -1]]) streetLamp(x, z, s);
+sign(2.4, 9, -.5, '道しるべ ─ 南西：番小屋　東：湖　西：丘の祠　北：石の輪　北東：野営地、その先に見晴らしの丘');
+
+// 大樹
+const tree = { lamps: [], src: { x: 0, y: 4.2, z: -2, color: 0xffb868, int: 0, range: 16, on: false, flick: .04, seed: 9 } };
+{
+  const g = place(new THREE.Group(), 0, -2), darkLeaf = lam({ map: leafT, color: 0x9aa8a0 });
+  const trunk = mesh(new THREE.CylinderGeometry(1.1, 1.7, 9, 7), lam({ map: rep(barkT, 4, 3) }), 0, 4.5, 0); g.add(trunk);
+  for (let i = 0; i < 6; i++) { const r = mesh(boxG(.5, .6, 2.4), barkM, Math.sin(i * 1.05) * 1.9, .2, Math.cos(i * 1.05) * 1.9); r.rotation.y = i * 1.05; r.rotation.x = -.3; g.add(r); }
+  for (const [x, y, z, s] of [[0, 11.5, 0, 5], [3.2, 9.4, 1.5, 3.6], [-3, 9.8, -1.6, 3.8], [.8, 9.2, -3.4, 3.2], [-1.4, 9, 3.2, 3.3]]) { const c = mesh(new THREE.IcosahedronGeometry(1, 0), darkLeaf, x, y, z); c.scale.set(s, s * .7, s); c.rotation.y = x; g.add(c); }
+  const rope = mesh(new THREE.TorusGeometry(1.52, .09, 4, 9), lam({ color: 0xb8a878 }), 0, 1.7, 0); rope.rotation.x = Math.PI / 2; g.add(rope);
+  for (let i = 0; i < 5; i++) g.add(mesh(boxG(.16, .34, .03), lam({ color: 0xd8d8d0 }), Math.sin(i * 1.26 + .4) * 1.62, 1.45, Math.cos(i * 1.26 + .4) * 1.62));
+  for (let i = 0; i < 7; i++) {
+    const a = i * .898 + .3, x = Math.sin(a) * 3.3, z = Math.cos(a) * 3.3, y = 3 + (i % 3) * .5;
+    const b = mesh(boxG(.24, .3, .24), unlitM, x, y, z), s = glow(0xffb060, 1.5, x, y, z, g); s.visible = false;
+    g.add(mesh(boxG(.03, 7 - y, .03), darkM, x, y + (7 - y) / 2, z), mesh(boxG(.3, .05, .3), darkM, x, y + .17, z), b);
+    tree.lamps.push({ b, s });
+  }
+  tree.y = g.position.y; tree.src.y += tree.y; sources.push(tree.src); circles.push({ x: 0, z: -2, r: 1.9 });
+  read(0, -2, () => litCount >= 7 ? '大樹は、森じゅうの灯りを集めたように、あたたかく光っている。' : litCount ? `吊り灯籠が ${litCount} つ、ともっている。のこりは ${7 - litCount} つ。` : 'とても古い木。枝に、灯の消えた吊り灯籠が七つさがっている。', 3.6);
+}
+
+// 番小屋
+{
+  const g = place(new THREE.Group(), -38.5, 30), plank = lam({ map: rep(woodT, 3, 2) }), roofM = lam({ map: rep(roofT, 1, 3), side: THREE.DoubleSide });
+  g.add(mesh(boxG(6, 2.6, 5), plank, 0, 1.3, 0), mesh(prismG(6.8, 1.9, 6), roofM, 0, 2.6, 0), mesh(boxG(.6, 1.4, .6), stoneM, -1.6, 3.8, -1));
+  g.add(mesh(boxG(.08, 1.9, .95), lam({ map: woodT, color: 0x6a5a4a }), 3.02, .95, 1), mesh(boxG(.5, .14, 1.2), stoneM, 3.3, .07, 1));
+  g.add(mesh(boxG(.06, .85, 1), basic(0xffc66a), 3.01, 1.5, -1), mesh(boxG(.08, .85, .07), darkM, 3.03, 1.5, -1), mesh(boxG(.08, .07, 1), darkM, 3.03, 1.5, -1));
+  for (let i = 0; i < 5; i++) g.add(mesh(new THREE.CylinderGeometry(.14, .14, 1, 5), barkM, -1 + i * .3, .2 + (i % 2) * .26, 2.75)).children.at(-1).rotation.x = Math.PI / 2;
+  boxes.push({ x0: -41.5, x1: -35.5, z0: 27.5, z1: 32.5 });
+  glow(0xffa040, 1.6, -35.3, g.position.y + 1.5, 29);
+  sources.push({ x: -34.7, y: g.position.y + 1.5, z: 29, color: 0xffa850, int: 9, range: 9, on: true, flick: .12, seed: 4 });
+  read(-35.2, 31, '鍵がかかっている。窓から、ストーブの火がちらちらと見える。', 1.7);
+  addLight(postLamp, -34.2, 33.2, Math.PI / 2, '番小屋の軒灯');
+}
+
+// 湖と桟橋
+{
+  const g = new THREE.Group(); g.position.set(0, PIER.y, 0); scene.add(g);
+  const len = PIER.x1 - PIER.x0;
+  g.add(mesh(boxG(len, .1, 1.8), lam({ map: rep(woodT, 1, 10) }), PIER.x0 + len / 2, -.05, 20));
+  g.children[0].material.map.rotation = Math.PI / 2;
+  for (let x = PIER.x0 + 1; x < PIER.x1; x += 2.4) for (const z of [19.15, 20.85]) g.add(mesh(boxG(.16, 2.2, .16), barkM, x, -.8, z));
+  addLight(postLamp, 34.7, 20.7, Math.PI / 2, '桟橋のランプ', PIER.y);
+  const boat = new THREE.Group(), hullM = lam({ map: woodT, color: 0x8a9aa0 });
+  boat.add(mesh(boxG(2.3, .12, .8), hullM, 0, 0, 0), mesh(boxG(2.3, .34, .07), hullM, 0, .2, .42), mesh(boxG(2.3, .34, .07), hullM, 0, .2, -.42), mesh(boxG(.07, .34, .8), hullM, 1.15, .2, 0), mesh(boxG(.07, .34, .8), hullM, -1.15, .2, 0), mesh(boxG(.3, .05, .8), woodM, .2, .26, 0));
+  boat.position.set(31, LAKE.y + .05, 22); scene.add(boat);
+  tickers.push(t => { boat.position.y = LAKE.y + .05 + Math.sin(t * 1.3) * .04; boat.rotation.z = Math.sin(t * .9) * .05; boat.rotation.y = Math.sin(t * .3) * .08; });
+  read(31, 20.6, '小舟が、ゆっくりと水にゆれている。', 1.5);
+}
+
+// 丘の祠と鳥居
+{
+  const red = lam({ map: redT });
+  for (const [x, z] of [[-31.5, -9.4], [-40, -11.8]]) {
+    const g = place(new THREE.Group(), x, z, Math.PI / 2 - .17);
+    for (const s of [-1, 1]) { g.add(mesh(new THREE.CylinderGeometry(.13, .16, 3, 6), red, s * 1.25, 1.5, 0)); circles.push({ x: x + s * .21, z: z + s * 1.23, r: .22 }); }
+    g.add(mesh(boxG(3.5, .2, .32), darkM, 0, 3.05, 0), mesh(boxG(3.2, .14, .26), red, 0, 2.9, 0), mesh(boxG(2.8, .14, .16), red, 0, 2.35, 0));
+  }
+  const g = place(new THREE.Group(), -50, -14.4, Math.PI / 2);
+  g.add(mesh(boxG(1.3, .5, 1.2), stoneM, 0, .25, 0), mesh(boxG(.8, .8, .7), woodM, 0, .9, 0), mesh(prismG(1.2, .45, 1.1), lam({ map: roofT, side: THREE.DoubleSide }), 0, 1.3, 0), mesh(boxG(.3, .4, .03), darkM, 0, .85, .36));
+  for (let i = 0; i < 3; i++) g.add(mesh(boxG(.07, .09, .07), lam({ color: 0x8a6a40 }), -.12 + i * .12, .54, .5));
+  circles.push({ x: -50, z: -14.4, r: .8 });
+  read(-50, -14.4, '小さな祠。だれかが、どんぐりを三つ供えている。');
+  addLight(stoneLantern, -47, -16.6, .3, '祠の灯籠');
+}
+
+// 石の輪
+{
+  const cx = -12, cz = -54;
+  for (let i = 0; i < 10; i++) {
+    if (i === 0) continue; // 小道の入り口をあける
+    const a = i * .628 + .2, x = cx + Math.sin(a) * 5, z = cz + Math.cos(a) * 5, h = 1.6 + hash(i, 5) * 1.2;
+    const s = place(mesh(boxG(.9, h, .5), stoneM), x, z, a); s.position.y += h / 2 - .15; s.rotation.z = (hash(i, 6) - .5) * .2;
+    circles.push({ x, z, r: .55 });
+  }
+  place(mesh(boxG(1.5, .3, 1.5), stoneM), cx, cz, .4);
+  addLight(stoneLantern, cx, cz, .4, '石の輪の灯籠');
+  lights.at(-1).src.y += .2;
+  read(cx - 4.4, cz + 2.2, '石はひんやりとして、かすかに苔のにおいがする。', 1.8);
+}
+
+// 野営地
+{
+  addLight(campfire, 34, -44, 0, '焚き火');
+  const g = place(new THREE.Group(), 37, -46.6, -.6);
+  g.add(mesh(prismG(2.8, 1.5, 2.3), lam({ map: rep(clothT, 2, 1), side: THREE.DoubleSide }), 0, 0, 0), mesh(boxG(.4, .5, .3), lam({ color: 0x4a6a8a }), -1.7, .25, 1));
+  circles.push({ x: 37, z: -46.6, r: 1.3 });
+  for (const [x, z, ry] of [[32.2, -44.6, 1.2], [34.6, -42.2, -.3]]) { const l = place(mesh(new THREE.CylinderGeometry(.2, .2, 1.5, 5), barkM), x, z, ry); l.rotation.z = Math.PI / 2; l.position.y += .2; circles.push({ x, z, r: .5 }); }
+  read(36.2, -45.4, 'テントの中に、読みかけの本と、さめたコーヒー。', 1.6);
+}
+
+// 見晴らしの丘
+{
+  const g = place(new THREE.Group(), 57, -12.6, -.5);
+  g.add(mesh(boxG(1.7, .08, .45), woodM, 0, .46, 0), mesh(boxG(1.7, .4, .07), woodM, 0, .8, -.22), mesh(boxG(.1, .46, .4), darkM, -.7, .23, 0), mesh(boxG(.1, .46, .4), darkM, .7, .23, 0));
+  circles.push({ x: 57, z: -12.6, r: .7 });
+  const t = place(new THREE.Group(), 58.6, -16.4);
+  t.add(mesh(new THREE.CylinderGeometry(.3, .45, 4, 6), barkM, 0, 2, 0));
+  for (const [x, y, z, s] of [[0, 5, 0, 2.4], [1.2, 4.2, .5, 1.6], [-1, 4.4, -.6, 1.7]]) { const c = mesh(new THREE.IcosahedronGeometry(1, 0), leafM, x, y, z); c.scale.set(s, s * .75, s); t.add(c); }
+  circles.push({ x: 58.6, z: -16.4, r: .5 });
+  read(57, -12.6, 'ベンチがひとつ。ここからは、森にともった灯りがよく見える。');
+  addLight(stoneLantern, 54, -12.4, -.2, '丘の灯籠');
+}
+
+const ZONES = [[0, 60, 9, '森の入口'], [0, -2, 10, '大樹のひろば'], [-38, 30, 11, '番小屋'], [LAKE.x, LAKE.z, 23, '湖のほとり'], [-48, -14, 10, '丘の祠'], [-12, -54, 9, '石の輪'], [34, -44, 8, '野営地'], [56, -14, 8, '見晴らしの丘']];
+
+// ───────── 空: 星と月、蛍
+const sky = new THREE.Group(); scene.add(sky);
+{
+  const N = 320, p = new Float32Array(N * 3), c = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const a = rnd() * 6.283, e = .1 + rnd() * 1.4, b = .25 + rnd() * rnd() * .9;
+    p.set([Math.cos(a) * Math.cos(e) * 120, Math.sin(e) * 120, Math.sin(a) * Math.cos(e) * 120], i * 3); c.set([b * .85, b * .9, b], i * 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  const stars = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true, fog: false })); stars.frustumCulled = false; sky.add(stars);
+  const mc = document.createElement('canvas'); mc.width = mc.height = 16; const m = mc.getContext('2d');
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if (Math.hypot(x - 7.5, y - 7.5) < 7.6) { const v = 200 + hash(x >> 1, y >> 1) * 40 - (hash(x >> 2, y >> 2) > .7 ? 40 : 0); m.fillStyle = `rgb(${v * .9 | 0},${v * .95 | 0},${v | 0})`; m.fillRect(x, y, 1, 1); }
+  const mt = new THREE.CanvasTexture(mc); mt.magFilter = mt.minFilter = THREE.NearestFilter; mt.generateMipmaps = false; mt.colorSpace = THREE.SRGBColorSpace;
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: mt, fog: false })); moon.scale.setScalar(11); moon.position.copy(MOON_DIR).multiplyScalar(118); sky.add(moon);
+  sky.add(glow(0x334a80, 34, ...MOON_DIR.clone().multiplyScalar(119).toArray(), sky));
+}
+function points(n, size, home) {
+  const p = new Float32Array(n * 3), c = new Float32Array(n * 3), g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(p, 3)); g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  const o = new THREE.Points(g, new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false })); o.frustumCulled = false; scene.add(o);
+  return { o, p, c, h: Array.from({ length: n }, (_, i) => home(i)) };
+}
+const flies = points(110, 2, i => {
+  let x, z;
+  if (i < 45) { const a = rnd() * 6.283, r = LAKE.r - 3 + rnd() * 9; x = LAKE.x + Math.cos(a) * r; z = LAKE.z + Math.sin(a) * r; }
+  else if (i < 60) { x = (rnd() - .5) * 14; z = -2 + (rnd() - .5) * 14; }
+  else { x = (rnd() - .5) * 130; z = (rnd() - .5) * 130; }
+  return [x, Math.max(terrainH(x, z), LAKE.y) + .5 + rnd() * 1.8, z, rnd() * 100];
+});
+const motes = points(90, 2, () => { const a = rnd() * 6.283, r = 1.5 + rnd() * 9; return [Math.cos(a) * r, rnd() * 14, -2 + Math.sin(a) * r, rnd() * 100]; });
+motes.o.visible = false;
+
+// ───────── 鹿（近づくと、木立の奥へ走っていく）
+const deer = { g: new THREE.Group(), legs: [], wp: [[-18, 14], [16, 46], [-26, -36], [22, -4], [-16, 58], [-52, 8], [10, -34]], i: 0, run: false, ph: 0 };
+{
+  const fur = lam({ color: 0x8a6a48 }), g = deer.g, head = new THREE.Group(); head.position.set(0, 1.25, -.42);
+  g.add(mesh(boxG(.34, .42, .98), fur, 0, 1, 0), mesh(boxG(.1, .14, .1), lam({ color: 0xe0e0d8 }), 0, 1.12, .52));
+  const neck = mesh(boxG(.16, .5, .18), fur, 0, .2, -.06); neck.rotation.x = -.4;
+  head.add(neck, mesh(boxG(.18, .2, .36), fur, 0, .5, -.22), mesh(boxG(.05, .12, .04), fur, -.11, .64, -.08), mesh(boxG(.05, .12, .04), fur, .11, .64, -.08));
+  for (const s of [-1, 1]) { const a = mesh(boxG(.03, .34, .03), lam({ color: 0xc8b898 }), s * .08, .76, -.12); a.rotation.z = -s * .4; head.add(a, mesh(boxG(.03, .16, .03), a.material, s * .2, .86, -.12)); }
+  g.add(head); deer.head = head;
+  for (const [x, z] of [[-.11, -.38], [.11, -.38], [-.11, .38], [.11, .38]]) { const l = new THREE.Group(); l.position.set(x, .8, z); l.add(mesh(boxG(.08, .8, .08), fur, 0, -.4, 0)); g.add(l); deer.legs.push(l); }
+  g.position.set(deer.wp[0][0], terrainH(...deer.wp[0]), deer.wp[0][1]); scene.add(g);
+}
+
+// ───────── 主人公
+const hero = new THREE.Group(); scene.add(hero);
+const coat = lam({ color: 0x6a7a4a }), pants = lam({ color: 0x2a3040 }), skin = lam({ color: 0xd8b090 });
+hero.add(mesh(boxG(.5, .7, .3), coat, 0, 1.15, 0), mesh(boxG(.32, .32, .32), skin, 0, 1.7, 0), mesh(boxG(.34, .12, .34), lam({ color: 0x2a2018 }), 0, 1.9, 0), mesh(boxG(.36, .46, .18), lam({ color: 0x5a4030 }), 0, 1.2, .24));
+const limb = (m, w, h, x, y) => { const g = new THREE.Group(); g.position.set(x, y, 0); g.add(mesh(boxG(w, h, w), m, 0, -h / 2, 0)); hero.add(g); return g; };
+const legL = limb(pants, .2, .78, -.13, .8), legR = limb(pants, .2, .78, .13, .8), armL = limb(coat, .15, .65, -.33, 1.48), armR = limb(coat, .15, .65, .33, 1.48);
+armR.rotation.x = 1.25;
+const lens = mesh(boxG(.1, .1, .08), basic(0xfff0d0), 0, -.72, 0); armR.add(mesh(boxG(.09, .22, .09), darkM, 0, -.66, 0), lens);
+const torch = new THREE.SpotLight(0xfff0d0, 260, 26, .5, .5, 1.5); torch.position.set(.33, 1.4, -.6);
+torch.target.position.set(.33, .7, -9); hero.add(torch, torch.target);
+const blob = mesh(new THREE.CircleGeometry(.42, 8), basic(0x000000, { transparent: true, opacity: .45, depthWrite: false })); blob.rotation.x = -Math.PI / 2; scene.add(blob);
+hero.position.set(0, terrainH(0, 65), 65);
+
+// ───────── 仕上げ: 色を 32 段に減らしてディザ、ざらつき、四隅を暗く
+const rt = new THREE.WebGLRenderTarget(320, 240); rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+const post = new THREE.ShaderMaterial({
+  uniforms: { t: { value: rt.texture }, time: { value: 0 } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+  fragmentShader: `
+    uniform sampler2D t;uniform float time;varying vec2 vUv;
+    float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
+    float b4(vec2 a){return b2(.5*a)*.25+b2(a);}
+    void main(){
+      vec3 c=pow(texture2D(t,vUv).rgb,vec3(.4545));
+      c+=(fract(sin(dot(gl_FragCoord.xy+time*61.,vec2(12.9898,78.233)))*43758.5453)-.5)*.06;
+      c=floor(c*31.+b4(gl_FragCoord.xy))/31.;
+      vec2 q=vUv-.5;c*=1.-dot(q,q)*.9;
+      gl_FragColor=vec4(c,1.);
+    }`
+});
+const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
+const pc = new THREE.Camera();
+function resize() {
+  const a = innerWidth / innerHeight, RH = a >= 1 ? 240 : Math.round(240 / a), RW = a >= 1 ? Math.round(240 * a) : 240; // 短辺を 240 画素に
+  renderer.setSize(RW, RH, false); rt.setSize(RW, RH); cam.aspect = a; cam.fov = a >= 1 ? 60 : 74; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// ───────── 音（すべてその場で合成）
+let AC = null, master, windG, waterG, noiseB, muted = false;
+function initAudio() {
+  if (AC) return; const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+  AC = new A(); master = AC.createGain(); master.gain.value = .7; master.connect(AC.destination);
+  noiseB = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate); const d = noiseB.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const loop = (type, f, q) => { const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain(); s.buffer = noiseB; s.loop = true; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0; s.connect(fl).connect(g).connect(master); s.start(); return g; };
+  windG = loop('lowpass', 380, .6); waterG = loop('bandpass', 1100, .8);
+}
+function tone(f, dur, vol, when = 0, f2 = f) {
+  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime + when;
+  o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f2, t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + .05);
+}
+function thud(f, vol) {
+  if (!AC) return; const s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain(), t0 = AC.currentTime;
+  s.buffer = noiseB; fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = 1.2; g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .09);
+  s.connect(fl).connect(g).connect(master); s.start(t0, Math.random() * 1.8, .1);
+}
+const SCALE = [392, 440, 523.25, 587.33, 659.25, 783.99, 880];
+const chime = i => { const f = SCALE[i % 7]; tone(f, 2.2, .16); tone(f * 2, 1.6, .05, .03); tone(f * 1.5, 1.8, .05, .16); };
+let cricketT = 2, owlT = 14;
+function ambience(dt, t) {
+  if (!AC) return;
+  const lake = ss(LAKE.r + 14, LAKE.r, Math.hypot(hero.position.x - LAKE.x, hero.position.z - LAKE.z));
+  windG.gain.setTargetAtTime(.05 + .035 * Math.sin(t * .31) * Math.sin(t * .13 + 1), AC.currentTime, .5);
+  waterG.gain.setTargetAtTime(lake * (.012 + .008 * Math.sin(t * 1.1)), AC.currentTime, .4);
+  if ((cricketT -= dt) < 0) { cricketT = .7 + Math.random() * 2.4; const f = 4100 + Math.random() * 700, n = 3 + (Math.random() * 3 | 0); for (let i = 0; i < n; i++) tone(f, .035, .012, i * .07); }
+  if ((owlT -= dt) < 0) { owlT = 24 + Math.random() * 30; tone(350, .32, .035, 0, 330); tone(335, .5, .04, .5, 300); }
+}
+
+// ───────── 表示
+const msgEl = $('msg'), areaEl = $('area'), promptEl = $('prompt'), countEl = $('count');
+let msgT = 0, areaT = 0, zone = '';
+function say(text) { msgEl.textContent = text; msgEl.style.opacity = 1; msgT = 3.2 + text.length * .09; }
+function banner(text) { areaEl.textContent = text; areaEl.style.opacity = 1; areaT = 3.5; }
+const showCount = () => countEl.innerHTML = '灯 <b>' + '●'.repeat(litCount) + '</b>' + '○'.repeat(7 - litCount);
+showCount();
+let doneT = -1;
+function onLit(L) {
+  const k = litCount++; chime(k); showCount();
+  const tl = tree.lamps[k]; tl.b.material = litM; tl.s.visible = true;
+  tree.src.on = true; tree.src.int = 5 + litCount * 2;
+  if (litCount < 7) say(`${L.name}に、灯がともった。（${litCount} / 7）`);
+  else { say('七つの灯が、すべてともった。森の奥で、大樹があたたかく光りはじめる。'); doneT = 0; tree.src.int = 46; tree.src.range = 24; glow(0xffa850, 11, 0, tree.y + 6, -2).material.opacity = .55; motes.o.visible = true; [0, 2, 4, 6, 7, 9].forEach((n, i) => tone(SCALE[n % 7] * (n > 6 ? 2 : 1), 2.6, .09, .5 + i * .22)); }
+}
+
+// ───────── 入力
+const keys = {}; let yaw = 0, pitch = .22, started = false, touchMode = false, torchOn = true, near = null;
+const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 };
+function interact() { if (started && near) near.act(); }
+function toggleTorch() { torchOn = !torchOn; torch.visible = lens.visible = torchOn; thud(2400, .08); }
+addEventListener('keydown', e => {
+  if (e.repeat) return; keys[e.code] = true;
+  if (!started) { if (e.code === 'Enter' || e.code === 'Space') begin(); return; }
+  if (e.code === 'KeyE' || e.code === 'Enter' || e.code === 'Space') interact();
+  if (e.code === 'KeyF') toggleTorch();
+  if (e.code === 'KeyM' && AC) { muted = !muted; master.gain.value = muted ? 0 : .7; say(muted ? '音：なし' : '音：あり'); }
+  if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+});
+addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+const locked = () => document.pointerLockElement === canvas;
+let drag = false;
+canvas.addEventListener('mousedown', () => { if (touchMode) return; drag = true; if (!locked()) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } });
+addEventListener('mouseup', () => drag = false);
+addEventListener('mousemove', e => { if (started && (locked() || drag)) { yaw -= e.movementX * .0026; pitch = clamp(pitch + e.movementY * .0022, -.55, 1.1); } });
+const stickEl = $('stick'), knobEl = $('knob');
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (!touchMode) { touchMode = true; document.body.classList.add('touch'); $('bAct').style.display = $('bTorch').style.display = 'block'; }
+  for (const t of e.changedTouches) {
+    if (t.clientX < innerWidth * .45 && stick.id === null) { Object.assign(stick, { id: t.identifier, ox: t.clientX, oy: t.clientY, x: 0, y: 0 }); stickEl.style.display = knobEl.style.display = 'block'; stickEl.style.left = knobEl.style.left = t.clientX + 'px'; stickEl.style.top = knobEl.style.top = t.clientY + 'px'; }
+    else if (look.id === null) Object.assign(look, { id: t.identifier, x: t.clientX, y: t.clientY });
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === stick.id) {
+      let dx = (t.clientX - stick.ox) / 50, dy = (t.clientY - stick.oy) / 50; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; }
+      stick.x = dx; stick.y = dy; knobEl.style.left = stick.ox + dx * 50 + 'px'; knobEl.style.top = stick.oy + dy * 50 + 'px';
+    } else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * .006; pitch = clamp(pitch + (t.clientY - look.y) * .005, -.55, 1.1); look.x = t.clientX; look.y = t.clientY; }
+  }
+}, { passive: false });
+const tend = e => { for (const t of e.changedTouches) { if (t.identifier === stick.id) { stick.id = null; stick.x = stick.y = 0; stickEl.style.display = knobEl.style.display = 'none'; } if (t.identifier === look.id) look.id = null; } };
+canvas.addEventListener('touchend', tend); canvas.addEventListener('touchcancel', tend);
+const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fn(); });
+tap($('bAct'), interact); tap($('bTorch'), toggleTorch);
+function begin() {
+  if (started) return; started = true; initAudio(); if (AC && AC.state === 'suspended') AC.resume();
+  $('start').style.opacity = 0; setTimeout(() => $('start').style.display = 'none', 800);
+  setTimeout(() => say('森の灯が、みんな消えてしまっている。ひとつずつ、ともしていこう。'), 1200);
+}
+$('start').addEventListener('touchstart', () => { touchMode = true; document.body.classList.add('touch'); $('bAct').style.display = $('bTorch').style.display = 'block'; }, { passive: true });
+$('start').addEventListener('click', () => { begin(); if (!touchMode) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { }); } catch (e) { } } });
+const pad = { a: false, y: false };
+
+// ───────── 毎フレーム
+const dead = v => Math.abs(v) < .18 ? 0 : v;
+const angLerp = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
+function blocked(x, z) { return Math.hypot(x, z) > EDGE || (!onPier(x, z) && Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 1 && terrainH(x, z) < LAKE.y - .3); }
+function collide(p) {
+  for (const c of circles) { const dx = p.x - c.x, dz = p.z - c.z, r = c.r + .32, d2 = dx * dx + dz * dz; if (d2 < r * r && d2 > 1e-6) { const d = Math.sqrt(d2); p.x = c.x + dx / d * r; p.z = c.z + dz / d * r; } }
+  for (const b of boxes) {
+    const qx = clamp(p.x, b.x0, b.x1), qz = clamp(p.z, b.z0, b.z1), dx = p.x - qx, dz = p.z - qz, d2 = dx * dx + dz * dz;
+    if (d2 > .1) continue;
+    if (d2 > 1e-8) { const d = Math.sqrt(d2); p.x = qx + dx / d * .32; p.z = qz + dz / d * .32; }
+    else { const m = Math.min(p.x - b.x0, b.x1 - p.x, p.z - b.z0, b.z1 - p.z); if (m === p.x - b.x0) p.x = b.x0 - .32; else if (m === b.x1 - p.x) p.x = b.x1 + .32; else if (m === p.z - b.z0) p.z = b.z0 - .32; else p.z = b.z1 + .32; }
+  }
+}
+let t = 0, last = performance.now(), walk = 0, heading = 0, speed = 0, edgeT = 0, camY = 0;
+const camPos = new THREE.Vector3(), tgt = new THREE.Vector3(), np = { x: 0, z: 0 };
+function frame(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now; t += dt;
+
+  // 入力をまとめる
+  let ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + stick.x;
+  let iz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - stick.y;
+  let run = keys.ShiftLeft || keys.ShiftRight || Math.hypot(stick.x, stick.y) > .92;
+  const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g && g.connected) : null;
+  if (gp && started) {
+    ix += dead(gp.axes[0] || 0); iz -= dead(gp.axes[1] || 0); yaw -= dead(gp.axes[2] || 0) * 2.6 * dt; pitch = clamp(pitch + dead(gp.axes[3] || 0) * 1.8 * dt, -.55, 1.1);
+    const b = i => gp.buttons[i] && gp.buttons[i].pressed; run = run || b(1) || b(7);
+    if (b(0) && !pad.a) interact(); pad.a = b(0); if (b(3) && !pad.y) toggleTorch(); pad.y = b(3);
+  }
+  if (!started) ix = iz = 0;
+  const il = Math.hypot(ix, iz); if (il > 1) { ix /= il; iz /= il; }
+  const mag = Math.min(1, il);
+
+  // 移動（カメラの向きが基準）
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  const target = mag * (run ? 5.4 : 2.7); speed += (target - speed) * Math.min(1, dt * 10);
+  const P = hero.position;
+  if (mag > .05) {
+    const dx = (fx * iz + rx * ix) / mag, dz = (fz * iz + rz * ix) / mag;
+    heading = angLerp(heading, Math.atan2(-dx, -dz), Math.min(1, dt * 10));
+    np.x = P.x + dx * speed * dt; np.z = P.z + dz * speed * dt; collide(np);
+    if (blocked(np.x, np.z)) {
+      if (Math.hypot(np.x, np.z) > EDGE && edgeT <= 0) { say('この先は、霧が深くて進めない。'); edgeT = 6; }
+      if (!blocked(np.x, P.z)) np.z = P.z; else if (!blocked(P.x, np.z)) np.x = P.x; else { np.x = P.x; np.z = P.z; }
+    }
+    const moved = Math.hypot(np.x - P.x, np.z - P.z); P.x = np.x; P.z = np.z;
+    const w0 = walk; walk += moved * (run ? 1.9 : 2.5);
+    if (Math.floor(w0 / Math.PI + .5) !== Math.floor(walk / Math.PI + .5)) onPier(P.x, P.z) ? thud(700, .16) : thud(260 + Math.random() * 120, run ? .2 : .13);
+  } else heading = angLerp(heading, yaw, Math.min(1, dt * 2.5));
+  edgeT -= dt;
+  const moving = speed > .3, sw = moving ? Math.sin(walk) * (run ? .85 : .6) : 0;
+  legL.rotation.x += (sw - legL.rotation.x) * .4; legR.rotation.x += (-sw - legR.rotation.x) * .4; armL.rotation.x = -legL.rotation.x * .7;
+  armR.rotation.x = 1.25 + (moving ? Math.sin(walk * 2) * .04 : Math.sin(t * 1.4) * .02);
+  P.y += (groundH(P.x, P.z) - P.y) * Math.min(1, dt * 14);
+  hero.rotation.y = heading; hero.children[0].position.y = 1.15 + (moving ? Math.abs(Math.sin(walk)) * .04 : Math.sin(t * 1.4) * .008);
+  torch.target.position.y = clamp(.9 - pitch * 7, -1.5, 6);
+  blob.position.set(P.x, P.y + .04, P.z);
+
+  // カメラ（右肩ごし）
+  tgt.set(P.x + rx * .55, P.y + 1.55, P.z + rz * .55);
+  const cp = Math.cos(pitch), dist = 4.3;
+  camPos.set(tgt.x + Math.sin(yaw) * cp * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yaw) * cp * dist);
+  const floor = Math.max(terrainH(camPos.x, camPos.z), LAKE.y) + .35; if (camPos.y < floor) camPos.y = floor;
+  camY += (camPos.y - camY) * Math.min(1, dt * 12); if (t < .2) camY = camPos.y;
+  cam.position.set(camPos.x, camY, camPos.z); cam.lookAt(tgt);
+  sky.position.copy(cam.position);
+
+  // 灯りを近い順に 4 つだけ本物のライトにする（遠くは光のにじみだけ）
+  const act = []; for (const s of sources) if (s.on) { s.d = Math.hypot(s.x - P.x, s.z - P.z); act.push(s); }
+  act.sort((a, b) => a.d - b.d);
+  for (let i = 0; i < POOL; i++) {
+    const l = pool[i], s = act[i];
+    if (s && s.d < 46) { l.position.set(s.x, s.y, s.z); l.color.setHex(s.color); l.distance = s.range; l.intensity = s.int * (1 + s.flick * Math.sin(t * 9 + s.seed * 7) * Math.sin(t * 5.3 + s.seed * 3)) * ss(46, 36, s.d); }
+    else l.intensity = 0;
+  }
+  for (const L of lights) if (!L.on) L.hintS.material.opacity = .35 + .3 * Math.sin(t * 2 + L.src.seed);
+  for (const f of tickers) f(t);
+  scene.userData.waterMap.offset.set(t * .012, Math.sin(t * .2) * .05);
+
+  // 蛍と、大樹から立ちのぼる光
+  for (let i = 0; i < flies.h.length; i++) {
+    const [x, y, z, s] = flies.h[i], b = Math.max(0, Math.sin(t * 1.3 + s * 7)) ** 2;
+    flies.p[i * 3] = x + Math.sin(t * .4 + s) * 1.4; flies.p[i * 3 + 1] = y + Math.sin(t * .7 + s * 3) * .5; flies.p[i * 3 + 2] = z + Math.cos(t * .33 + s * 2) * 1.4;
+    flies.c[i * 3] = .6 * b; flies.c[i * 3 + 1] = b; flies.c[i * 3 + 2] = .3 * b;
+  }
+  flies.o.geometry.attributes.position.needsUpdate = flies.o.geometry.attributes.color.needsUpdate = true;
+  if (doneT >= 0) {
+    doneT += dt; hemi.intensity = 2 + Math.min(1, doneT / 6) * .7;
+    for (let i = 0; i < motes.h.length; i++) {
+      const [x, y, z, s] = motes.h[i], yy = (y + t * (.5 + (s % 1) * .6)) % 14, b = Math.sin(yy / 14 * Math.PI) * Math.min(1, doneT / 3);
+      motes.p[i * 3] = x + Math.sin(t * .5 + s) * .8; motes.p[i * 3 + 1] = tree.y + yy; motes.p[i * 3 + 2] = z + Math.cos(t * .4 + s) * .8;
+      motes.c[i * 3] = b; motes.c[i * 3 + 1] = .75 * b; motes.c[i * 3 + 2] = .4 * b;
+    }
+    motes.o.geometry.attributes.position.needsUpdate = motes.o.geometry.attributes.color.needsUpdate = true;
+  }
+
+  // 鹿
+  {
+    const D = deer.g.position, dd = Math.hypot(P.x - D.x, P.z - D.z);
+    if (!deer.run) {
+      if (dd < 16) deer.g.rotation.y = angLerp(deer.g.rotation.y, Math.atan2(-(P.x - D.x), -(P.z - D.z)), dt * 1.5);
+      deer.head.rotation.x = dd < 16 ? 0 : -.9 * (.5 + .5 * Math.sin(t * .5)) * (Math.sin(t * .17) > 0 ? 1 : 0);
+      if (dd < 7.5) { let best = -1, bd = 0; deer.wp.forEach(([x, z], i) => { const d = Math.hypot(x - P.x, z - P.z), far = Math.hypot(x - D.x, z - D.z); if (i !== deer.i && far < 70 && d > bd) { bd = d; best = i; } }); deer.i = best; deer.run = true; deer.head.rotation.x = 0; }
+    } else {
+      const [tx, tz] = deer.wp[deer.i], dx = tx - D.x, dz = tz - D.z, d = Math.hypot(dx, dz);
+      if (d < .6) { deer.run = false; deer.legs.forEach(l => l.rotation.x = 0); }
+      else {
+        D.x += dx / d * 8 * dt; D.z += dz / d * 8 * dt; deer.ph += dt * 13;
+        deer.g.rotation.y = angLerp(deer.g.rotation.y, Math.atan2(-dx, -dz), Math.min(1, dt * 8));
+        deer.legs.forEach((l, i) => l.rotation.x = Math.sin(deer.ph + (i < 2 ? 0 : 2.4)) * .9);
+      }
+    }
+    D.y = terrainH(D.x, D.z) + (deer.run ? Math.abs(Math.sin(deer.ph)) * .25 : 0);
+  }
+
+  // 表示
+  near = null; let nd = 1e9;
+  for (const it of inter) { const d = Math.hypot(it.x - P.x, it.z - P.z); if (d < it.r && d < nd) { nd = d; near = it; } }
+  if (near && started) { promptEl.textContent = touchMode ? '' : `E ─ ${near.label}`; promptEl.style.opacity = 1; $('bAct').textContent = near.label; $('bAct').style.opacity = 1; }
+  else { promptEl.style.opacity = 0; $('bAct').style.opacity = .25; }
+  if (msgT > 0 && (msgT -= dt) <= 0) msgEl.style.opacity = 0;
+  if (areaT > 0 && (areaT -= dt) <= 0) areaEl.style.opacity = 0;
+  let z = ''; for (const [x, zz, r, n] of ZONES) if (Math.hypot(P.x - x, P.z - zz) < r) z = n;
+  if (z !== zone) { zone = z; if (z && started) banner(z); }
+  $('needle').style.transform = `rotate(${yaw}rad)`;
+  $('hint').style.opacity = started && !touchMode && !locked() && t > 3 ? 1 : 0;
+  ambience(dt, t);
+
+  post.uniforms.time.value = t % 10;
+  renderer.setRenderTarget(rt); renderer.render(scene, cam);
+  renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+$('go').textContent = 'クリック／タップではじめる';
+if (new URLSearchParams(location.search).has('dev')) window.dev = { hero, inter, lights, deer, look: (y, p) => { yaw = y; pitch = p; }, begin };
+requestAnimationFrame(frame);
+</script>
+</html>

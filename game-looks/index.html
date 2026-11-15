@@ -20,12 +20,30 @@ a.card.fav{border-color:#e8b44a;box-shadow:0 0 0 1px #e8b44a}
 .genre{color:#9a988f;font-size:11px}
 .look{font-weight:600}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
-.tag.play{color:#e8b44a;border-color:#6a5628}
+h2{margin:0;padding:14px 20px 0;font-size:14px;font-weight:700}
+#play{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:10px 20px 4px}
+.tag.play{color:#7dffc0;border-color:#2f6a56}
 </style>
 <header>
   <h1>ゲームのルック 100 案</h1>
-  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。「3D」は three.js を CDN から読むのでネット接続が要ります。最後の 101 は、22 の粘土のコマ撮りを自分で動かして遊べるようにしたものです。</p>
+  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。先頭の「遊べるゲーム」の欄は、実際に操作できるゲームです。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
 </header>
+<h2>遊べるゲーム</h2>
+<div id="play">
+  <a class="card fav" href="04-drive-snow-night-game.html" target="_blank">
+    <div class="view"><img loading="lazy" src="thumbs/04-game.gif" alt="雪夜ラリー"></div>
+    <div class="meta"><span class="no">04</span><span><span class="look">雪夜ラリー</span><br><span class="genre">レースゲーム</span></span><span class="tag play">遊べる</span></div>
+  </a>
+  <a class="card fav" href="../play/akari-no-mori.html" target="_blank">
+    <div class="view"><img loading="lazy" src="../play/akari-no-mori.gif" alt="灯りの森"></div>
+    <div class="meta"><span class="no">11</span><span><span class="look">灯りの森</span><br><span class="genre">TPS 探索</span></span><span class="tag play">遊べる</span></div>
+  </a>
+  <a class="card fav" href="101-climb-clay-play.html" target="_blank">
+    <div class="view"><img loading="lazy" src="thumbs/101.gif" alt="ねんどの塔のぼり"></div>
+    <div class="meta"><span class="no">22</span><span><span class="look">ねんどの塔のぼり</span><br><span class="genre">3D アクション</span></span><span class="tag play">遊べる</span></div>
+  </a>
+</div>
+<h2>ルック 100 案</h2>
 <div id="grid"></div>
 <script>
 // [ファイル名, ジャンル, ルック, 3D なら 1]
@@ -130,16 +148,14 @@ const LOOKS = [
   ['98-weather-chart', '天気パズル', '天気図', 0],
   ['99-musicbox-punched-paper', '音のパズル', 'オルゴールの穴あき紙', 0],
   ['100-island-lowpoly-pixel-dusk', '島の冒険', 'ローポリ × ドット絵のたそがれ', 1],
-  // ここから下は、100 案のどれかを実際に遊べるようにしたもの（5 番めが 1 なら「操作できる」）
-  ['101-climb-clay-play', '塔のぼり 3D アクション', '22 の粘土のコマ撮りで遊ぶ', 1, 1],
 ];
 // お気に入り（2026-11-15 に選んだ 20 案）。ここに番号を足し引きすれば印が変わる
 const FAV = new Set(['01', '03', '04', '06', '11', '14', '22', '28', '40', '49', '54', '62', '64', '72', '73', '74', '79', '80', '82', '100']);
 const grid = document.getElementById('grid');
-for (const [file, genre, look, is3d, play] of LOOKS) {
+for (const [file, genre, look, is3d] of LOOKS) {
   const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank'; 
   const fav = FAV.has(file.split('-')[0]); if (fav) a.classList.add('fav');
-  a.innerHTML = `${fav ? '<span class="star" title="お気に入り">★</span>' : ''}<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${play ? '<span class="tag play">操作できる</span>' : ''}${is3d ? '<span class="tag"' + (play ? ' style="margin-left:0"' : '') + '>3D</span>' : ''}</div>`;
+  a.innerHTML = `${fav ? '<span class="star" title="お気に入り">★</span>' : ''}<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
   grid.appendChild(a);
 }
 </script>

@@ -26,7 +26,7 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 </header>
 <div id="grid"></div>
 <script>
-// [ファイル名, ジャンル, ルック, 3D なら 1, 操作できるなら 1]
+// [ファイル名, ジャンル, ルック, 3D なら 1, 操作できるなら 1, （あれば）別の場所にあるページ { href, thumb, no }]
 const LOOKS = [
   ['01-campfire-night-forest', '焚き火キャンプ', 'ローポリの夜の森 ＋ ドット絵の炎', 1],
   ['02-lake-fishing-dawn-mist', '湖の釣り', 'ローポリの朝霧 ＋ ドット絵の水しぶき', 1],
@@ -36,6 +36,7 @@ const LOOKS = [
   ['06-delivery-rainy-miniature', '配達ドライブ', '雨の夜の街をミニチュア撮影', 1],
   ['07-mars-rover-navcam', '火星ローバー', '探査カメラが送ってきた映像', 1],
   ['08-drone-coast-aerial', '空撮探索', 'ドローンの映像', 1],
+  ['08-island-walk', '島あるき（TPS）', '08 の島を自分で歩く', 1, 1, { href: '../island/index.html', thumb: '../island/thumb-plaza.jpg', no: '08+' }],
   ['09-haunted-house-8mm', '廃屋ホラー', '古い 8 ミリフィルム', 1],
   ['10-skate-fisheye-camcorder', 'スケート', '魚眼レンズのビデオカメラ', 1],
   ['11-coast-race-retro3d', '海岸レース', '初期の 3D ゲーム機風、夕方', 1],
@@ -51,9 +52,9 @@ const LOOKS = [
   ['21-farm-riso-fps', '農場 FPS', '19 の 2 色刷りを歩いて撃つ・刷り色 6 種', 1, 1],
 ];
 const grid = document.getElementById('grid');
-for (const [file, genre, look, is3d, play] of LOOKS) {
-  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank'; 
-  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${play ? '<span class="tag play">操作できる</span>' : ''}${is3d ? '<span class="tag"' + (play ? ' style="margin-left:0"' : '') + '>3D</span>' : ''}</div>`;
+for (const [file, genre, look, is3d, play, ext] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = ext ? ext.href : file + '.html'; a.target = '_blank'; 
+  a.innerHTML = `<div class="view"><img loading="lazy" src="${ext ? ext.thumb : 'thumbs/' + file.split('-')[0] + '.gif'}" alt="${look}"></div><div class="meta"><span class="no">${ext ? ext.no : file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${play ? '<span class="tag play">操作できる</span>' : ''}${is3d ? '<span class="tag"' + (play ? ' style="margin-left:0"' : '') + '>3D</span>' : ''}</div>`;
   grid.appendChild(a);
 }
 </script>
