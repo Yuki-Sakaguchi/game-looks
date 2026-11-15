@@ -21,43 +21,26 @@ h2{margin:2px 0 6px;font-size:18px}
 .stars{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;padding:14px 18px 0;font:700 12px ui-monospace,Menlo,monospace}
 .stars span{aspect-ratio:1;display:grid;place-items:center;border-radius:3px;background:#272a33;color:#5d6070}
 .stars span.fav{background:#e8b44a;color:#1e2026}
-a.play{display:flex;flex-wrap:wrap;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:8px;overflow:hidden;margin-bottom:20px}
-a.play:hover,a.play:focus-visible{border-color:#7dffc0;outline:none}
-a.play img{flex:1 1 240px;max-width:340px;aspect-ratio:8/5;object-fit:cover;display:block}
-a.play .body{flex:2 1 300px}
 footer{margin-top:28px;color:#77756d;font-size:12px}
 </style>
 <main>
   <h1>ゲームのルック試作</h1>
-  <p class="lead">いろいろなゲームのジャンルに、新しい見た目（ルック）を当ててみた小さな試作集です。どれもブラウザで動きます。ほとんどは操作がなく、自動で動く場面を見るだけですが、「雪夜ラリー」「灯りの森」「島あるき」と第 2 集の 21 は自分で操作して遊べます。</p>
-  <a class="play" href="game-looks/04-drive-snow-night-game.html">
-    <img src="game-looks/thumbs/04-game.gif" alt="雪夜ラリー" loading="lazy">
-    <div class="body">
-      <div class="count" style="color:#7dffc0">遊べるゲーム</div>
-      <h2>雪夜ラリー</h2>
-      <p>第 1 集の「04 ローポリの雪の夜」の描き方のまま作ったレースゲーム。オーロラの峠を 3 周し、ドリフトでためるダッシュとニトロでライバル 5 台と競います。キーボード・ゲームパッド・タッチで遊べます。</p>
-      <span class="go">遊ぶ →</span>
-    </div>
-  </a>
-  <a class="play" href="play/akari-no-mori.html">
-    <img src="play/akari-no-mori.gif" alt="灯りの森" loading="lazy">
-    <div class="body">
-      <div class="count" style="color:#7dffc0">遊べるゲーム</div>
-      <h2>灯りの森</h2>
-      <p>第 1 集の「11 初期 3D ゲーム機の粗さ」の描き方のまま作った TPS 探索ゲーム。懐中電灯を手に夜の森をあるいて、消えた七つの灯をともします。こわい要素はありません。キーボード・ゲームパッド・タッチで遊べます。</p>
-      <span class="go">遊ぶ →</span>
-    </div>
-  </a>
-  <a class="play" href="island/index.html">
-    <img src="island/thumb-plaza.jpg" alt="島あるき" loading="lazy">
-    <div class="body">
-      <div class="count" style="color:#7dffc0">遊べるゲーム</div>
-      <h2>島あるき</h2>
-      <p>第 2 集の「08 ドローンの映像」の描き方のまま作った TPS 探索ゲーム。空撮で見ていた島を歩き、ジャンプ・二段ジャンプ・ダッシュ・パラソル滑空・泳ぎで建物や灯台、小島をめぐって貝がらを集めます。キーボードとマウス・タッチで遊べます。</p>
-      <span class="go">遊ぶ →</span>
-    </div>
-  </a>
+  <p class="lead">いろいろなゲームのジャンルに、新しい見た目（ルック）を当ててみた小さな試作集です。どれもブラウザで動きます。ほとんどは操作がなく、自動で動く場面を見るだけです。自分で操作して遊べるものは「あそべるゲーム」にまとめています。</p>
   <div class="sets">
+    <a class="set" href="games/index.html">
+      <div class="mosaic" style="grid-template-columns:repeat(2,1fr)">
+        <img src="games/thumbs/01.gif" alt="版の農場" loading="lazy">
+        <img src="games/thumbs/02.gif" alt="雪夜ラリー" loading="lazy">
+        <img src="games/thumbs/03.gif" alt="灯りの森" loading="lazy">
+        <img src="games/thumbs/04.jpg" alt="島あるき" loading="lazy">
+      </div>
+      <div class="body">
+        <div class="count">あそべるゲーム ・ 5 本</div>
+        <h2>ルックから育てたゲーム</h2>
+        <p>見るだけの試作ではなく、自分で操作して遊べるもの。2 色刷りの農場の FPS「版の農場」、レースの「雪夜ラリー」、夜の森を歩く「灯りの森」、島をめぐる「島あるき」など。</p>
+        <span class="go">一覧を見る →</span>
+      </div>
+    </a>
     <a class="set" href="game-looks-4/index.html">
       <div class="mosaic">
         <img src="game-looks-4/thumbs/02.gif" alt="港町の配達" loading="lazy">

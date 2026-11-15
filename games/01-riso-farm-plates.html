@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>版の農場 ─ インク缶と 2 色のたまご</title>
+<style>
+:root{--paper:#f4eddb;--a:#1a808f;--b:#ff5c3d;--ink:#1a808f}
+html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+canvas{display:block}
+body,button{font:12px/1.6 ui-monospace,Menlo,monospace;color:var(--ink)}
+.chip{position:fixed;background:var(--paper);padding:1px 8px;pointer-events:none}
+#hud{left:12px;top:10px;font-size:14px;font-weight:700}#hud b{color:var(--b)}
+#now{right:12px;top:10px;font-weight:700;display:flex;gap:8px;align-items:center}
+.sw{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--ink);flex:none}
+#aim{left:50%;top:calc(50% + 26px);transform:translateX(-50%);display:none;gap:8px;align-items:center;white-space:nowrap;border:2px solid var(--ink)}
+#toast{left:50%;top:22%;transform:translateX(-50%);font-size:18px;font-weight:700;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--b);padding:6px 16px;opacity:0;transition:opacity .25s;white-space:nowrap;text-align:center}
+#toast small{display:block;font-size:12px;font-weight:400}
+#cross{position:fixed;left:50%;top:50%;width:22px;height:22px;margin:-11px;pointer-events:none;background:
+ linear-gradient(var(--ink),var(--ink)) 50% 0/2px 7px no-repeat,linear-gradient(var(--ink),var(--ink)) 50% 100%/2px 7px no-repeat,
+ linear-gradient(var(--ink),var(--ink)) 0 50%/7px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) 100% 50%/7px 2px no-repeat}
+#cross.hit{transform:rotate(45deg) scale(1.5);background-image:linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b))}
+#menu{position:fixed;inset:0;display:flex;z-index:2;overflow:auto;padding:12px;box-sizing:border-box}
+#menu .card{margin:auto;background:var(--paper);border:2px solid var(--ink);padding:16px 24px 18px;max-width:min(520px,86vw);box-shadow:5px 5px 0 var(--b)}
+#menu h1{margin:0 0 4px;font-size:19px}#menu p{margin:6px 0 0}#menu ol{margin:6px 0 0;padding-left:1.6em}#menu li.got{text-decoration:line-through;opacity:.55}
+#msg{font-weight:700;color:var(--b);font-size:14px}
+.btns{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btns button{font-size:14px;font-weight:700;padding:8px 14px;background:var(--paper);border:2px solid var(--ink);cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+.btns button#bEgg{background:var(--ink);color:var(--paper);box-shadow:3px 3px 0 var(--b)}
+.tbtn{position:fixed;display:none;place-items:center;border-radius:50%;border:2px solid var(--ink);background:var(--paper);opacity:.8;font-weight:700;pointer-events:none}
+#fire{right:26px;bottom:70px;width:84px;height:84px;color:var(--b);border-color:var(--b)}#jump{right:124px;bottom:36px;width:56px;height:56px}
+#pause{right:12px;top:44px;width:40px;height:40px;border-radius:6px;pointer-events:auto}
+#stick{position:fixed;display:none;width:96px;height:96px;margin:-48px;border-radius:50%;border:2px solid var(--ink);opacity:.6;pointer-events:none}
+#stick i{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px;border-radius:50%;background:var(--ink)}
+@media(max-width:620px){#hud{font-size:12px;top:40px}#now{font-size:11px}}
+body.touch .tbtn{display:grid}body.touch .pc{display:none}body:not(.touch) .sp{display:none}
+</style>
+<div id="hud" class="chip"></div>
+<div id="now" class="chip"></div>
+<div id="aim" class="chip"></div>
+<div id="toast" class="chip"></div>
+<div id="cross"></div>
+<div id="stick"><i></i></div><div id="fire" class="tbtn">うつ</div><div id="jump" class="tbtn">とぶ</div><div id="pause" class="tbtn">Ⅱ</div>
+<div id="menu"><div class="card">
+  <h1>版の農場 ─ インク缶と 2 色のたまご</h1>
+  <p id="msg"></p>
+  <p>この農場は、紙に 2 つの版（青緑と朱）を刷り重ねてできています。あちこちにある<b>インク缶を撃つ</b>と、当たった所から刷り色が変わります。版を 1 つ抜くと、その版で刷った物は消えて通りぬけられます。</p>
+  <p>かくれている<b>たまご 5 個</b>を見つけてください。カラスは畑の作物をねらってきます。</p>
+  <ol id="hints">
+    <li>納屋の中 ─ 朱い壁がじゃま</li>
+    <li>生け垣の中 ─ 青緑の垣根がじゃま</li>
+    <li>サイロのてっぺん ─ 昼の紙には見えないインクの階段がある</li>
+    <li>見はり台 ─ 階段がとちゅうで終わっている。版がずれれば…</li>
+    <li>白いカラスが持っている ─ 白い紙の上では見えない</li>
+  </ol>
+  <p class="pc">W A S D：歩く　／　マウス：見まわす　／　クリック：うつ　／　Space：とぶ　／　Shift：走る　／　Esc：この画面</p>
+  <p class="sp">左がわ：歩く　／　右がわ：見まわす　／　「うつ」「とぶ」　／　Ⅱ：この画面</p>
+  <p>缶にねらいを合わせると、どの色の缶かが出ます。</p>
+  <div class="btns"><button id="bEgg">たまご探しを始める</button><button id="bChaos">ボーナス：カオス刷り 60 秒</button></div>
+  <p id="best"></p>
+</div></div>
+<script>
+// game-looks-2/kit.js（共通部品）をそのまま埋めこんである。この HTML 1 枚だけを開いても動くようにするため
+// game-looks-2 の共通部品。各ページは three.js を読みこんだあと  const K = KIT(THREE)  として使う。
+// 入っているもの：舞台の用意、空のグラデーション、ドット模様、ローポリの地面、
+// 8×8 ドット絵の効果（炎・煙・きらめき・水しぶき・雪けむり・泡）、仕上げの画面加工、毎コマの呼び出し
+window.KIT = (THREE) => {
+  const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+
+  function stage(o = {}) {
+    const renderer = new THREE.WebGLRenderer({ antialias: o.aa !== false }); renderer.setPixelRatio(o.pr || Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+    const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(o.fov || 45, 1, .1, o.far || 500), subs = [];
+    const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); subs.forEach(f => f(innerWidth, innerHeight)); };
+    addEventListener('resize', resize); resize();
+    return { renderer, scene, cam, onResize: f => { subs.push(f); f(innerWidth, innerHeight); } };
+  }
+
+  // 空：上から下への色の帯。stops = [[位置 0〜1, 色], …]
+  function sky(stops) { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 256); for (const [p, col] of stops) g.addColorStop(p, col); x.fillStyle = g; x.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+
+  // ドット模様：fn(i, j) が 0〜1 の明るさ、または色の文字列を返す。にじませずに拡大する
+  function pix(fn, size = 16, repeat = 1) { const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) { const v = fn(i, j); if (typeof v === 'string') x.fillStyle = v; else { const q = Math.round(255 * v); x.fillStyle = `rgb(${q},${q},${q})`; } x.fillRect(i, j, 1, 1); } const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.colorSpace = THREE.SRGBColorSpace; return t; }
+
+  const flat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...extra });
+  const glow = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, ...extra });
+  function add(parent, geo, mat, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(geo, typeof mat === 'string' ? flat(mat) : mat); m.position.set(x, y, z); parent.add(m); return m; }
+  const box = (p, w, h, d, mat, x, y, z) => add(p, new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+
+  // ローポリの地面：高さの式 H(x, z) と色の式 colorFn(高さ, x, z) → THREE.Color。follow() でカメラの下へ送りなおす
+  function terrain(H, nx, nz, cell, colorFn, matOpts = {}) {
+    const g = new THREE.PlaneGeometry(nx * cell, nz * cell, nx, nz).toNonIndexed(); g.rotateX(-Math.PI / 2);
+    const base = g.attributes.position.array.slice(), col = new Float32Array(base.length); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1, ...matOpts })); mesh.frustumCulled = false; let px = null, pz = null;
+    function follow(cx = 0, cz = 0, zoff = 0) {
+      const sx = Math.round(cx / cell) * cell, sz = Math.round(cz / cell) * cell + zoff; if (sx === px && sz === pz) return; px = sx; pz = sz; const p = g.attributes.position.array;
+      for (let i = 0; i < p.length; i += 9) { let hy = 0, mx = 0, mz = 0; for (let k = 0; k < 3; k++) { const x = base[i + k * 3] + sx, z = base[i + k * 3 + 2] + sz, y = H(x, z); p[i + k * 3 + 1] = y; hy += y / 3; mx += x / 3; mz += z / 3; } const c = colorFn(hy, mx, mz); for (let k = 0; k < 3; k++) { col[i + k * 3] = c.r; col[i + k * 3 + 1] = c.g; col[i + k * 3 + 2] = c.b; } }
+      g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; mesh.position.set(sx, 0, sz);
+    }
+    follow(0, 0); return { mesh, follow };
+  }
+  const colors = (...list) => list.map(c => new THREE.Color(c));
+
+  // 針葉樹（雪つきにもできる）
+  function pine(h, leaf = '#2f6a4a', trunk = '#5a4030', snow = null) { const gp = new THREE.Group(); add(gp, new THREE.CylinderGeometry(h * .04, h * .06, h * .3, 5), trunk, 0, h * .15, 0); for (let k = 0; k < 3; k++) { const r = h * (.3 - k * .07), y = h * (.36 + k * .22); add(gp, new THREE.ConeGeometry(r, h * .36, 6), leaf, 0, y, 0).rotation.y = k; if (snow) add(gp, new THREE.ConeGeometry(r * .62, h * .2, 6), snow, 0, y + h * .09, 0).rotation.y = k; } return gp; }
+
+  // 8×8 ドット絵の効果。板は常にカメラを向く。kind: flame / smoke / spark / splash / puff / bubble
+  const KINDS = ['flame', 'smoke', 'spark', 'splash', 'puff', 'bubble'];
+  function atlas() {
+    const c = document.createElement('canvas'); c.width = 32; c.height = 8 * KINDS.length; const x = c.getContext('2d'); const P = (i, j, col) => { x.fillStyle = col; x.fillRect(i, j, 1, 1); };
+    KINDS.forEach((kind, row) => { for (let f = 0; f < 4; f++) for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { const ox = f * 8 + i, oy = row * 8 + j, dx = i - 3.5, dy = j - 3.5, r = Math.hypot(dx, dy), n = hash(i + f * 13, j + row * 7);
+        if (kind === 'flame') { const hh = 7 - j, w = (3.3 - hh * .44) * (1 - f * .16) + (n - .5) * .8; if (Math.abs(dx) < w && hh < 8 - f * 1.4) P(ox, oy, Math.abs(dx) < w * .4 && hh < 4 - f * .6 ? '#fff6b0' : Math.abs(dx) < w * .75 ? '#ffa832' : '#e8452a'); }
+        if (kind === 'smoke' || kind === 'puff') { const rad = 1.6 + f * .75; if (r < rad && n > f * .16) P(ox, oy, kind === 'puff' ? (dy < 0 ? '#ffffff' : '#d8e4f4') : (dy < 0 ? '#9a9aa6' : '#62626e')); }
+        if (kind === 'spark') { const arm = [1, 2.6, 3.6, 1.2][f]; if ((Math.abs(dx) < .6 && Math.abs(dy) < arm) || (Math.abs(dy) < .6 && Math.abs(dx) < arm)) P(ox, oy, r < 1 ? '#ffffff' : '#fff2a0'); }
+        if (kind === 'splash') { const rad = 1 + f * .9; if (Math.abs(r - rad) < .6 && dy < 1.5 && n > .25) P(ox, oy, n > .6 ? '#ffffff' : '#bfe4ff'); if (f < 2 && Math.abs(dx) < 1 && dy < 0 && dy > -3 + f) P(ox, oy, '#ffffff'); }
+        if (kind === 'bubble') { const rad = 1.4 + f * .5; if (Math.abs(r - rad) < .55) P(ox, oy, '#bfe9ff'); if (i === 3 && j === 3 - Math.min(1, f)) P(ox, oy, '#ffffff'); } } });
+    const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t;
+  }
+  function fx(scene, max = 180) {
+    const tex = atlas(), pool = [], live = [];
+    for (let i = 0; i < max; i++) { const map = tex.clone(); map.repeat.set(1 / 4, 1 / KINDS.length); const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false })); s.visible = false; scene.add(s); pool.push(s); }
+    function emit(kind, x, y, z, o = {}) { const s = pool.pop(); if (!s) return; const row = KINDS.indexOf(kind), sp = o.spread || 0;
+      Object.assign(s.userData, { row, age: 0, life: o.life || 1, size: o.size || 1, grow: o.grow || 0, grav: o.grav || 0, vx: (o.vx || 0) + (Math.random() - .5) * sp, vy: (o.vy || 0) + (Math.random() - .5) * sp, vz: (o.vz || 0) + (Math.random() - .5) * sp, fade: o.fade !== false });
+      s.material.blending = o.add ? THREE.AdditiveBlending : THREE.NormalBlending; s.material.fog = o.fog !== false; s.material.color.set(o.tint || '#ffffff'); s.position.set(x, y, z); s.visible = true; live.push(s); }
+    function update(dt) { for (let i = live.length - 1; i >= 0; i--) { const s = live[i], u = s.userData; u.age += dt; const k = u.age / u.life; if (k >= 1) { s.visible = false; live.splice(i, 1); pool.push(s); continue; }
+        u.vy += u.grav * dt; s.position.x += u.vx * dt; s.position.y += u.vy * dt; s.position.z += u.vz * dt; s.scale.setScalar(u.size * (1 + u.grow * k)); s.material.opacity = u.fade ? Math.min(1, (1 - k) * 3) : 1; s.material.map.offset.set(Math.min(3, Math.floor(k * 4)) / 4, 1 - (u.row + 1) / KINDS.length); } }
+    return { emit, update };
+  }
+
+  // 仕上げ：場面を 1 枚の絵に描いてから、body の式で画面全体を加工する。
+  // o.width を指定すると横その数のドットの粗い絵になる。body では src(uv) で元の色、size がドット数、res が画面の大きさ
+  function post(renderer, body, uniforms = {}, o = {}) {
+    const rt = new THREE.WebGLRenderTarget(4, 4); if (o.width) rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+    const u = { tD: { value: rt.texture }, res: { value: new THREE.Vector2() }, size: { value: new THREE.Vector2() }, time: { value: 0 }, ...uniforms };
+    const mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `uniform sampler2D tD;uniform vec2 res,size;uniform float time;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+float bayer(vec2 p){vec2 a=mod(p,2.),b=mod(floor(p/2.),2.);float x=(a.y<.5)?(a.x<.5?0.:2.):(a.x<.5?3.:1.);float y=(b.y<.5)?(b.x<.5?0.:2.):(b.x<.5?3.:1.);return (x*4.+y)/16.;}
+vec3 src(vec2 uv){return pow(max(texture2D(tD,uv).rgb,0.),vec3(1./2.2));}
+` + body });
+    const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const resize = (w, h) => { let rw, rh; if (o.width) { rw = o.width; rh = Math.max(60, Math.round(o.width * h / w)); } else { const s = (o.scale || 1) * renderer.getPixelRatio(); rw = Math.round(w * s); rh = Math.round(h * s); } rt.setSize(rw, rh); u.size.value.set(rw, rh); u.res.value.set(w, h); };
+    return { u, resize, render(scene, cam, t) { u.time.value = t; renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(ps, pc); } };
+  }
+  // よく使う仕上げ：色を n 段に丸め、境目を 4×4 の点の並びで混ぜる（ドット絵らしい粗さ）
+  const DITHER = (n, amt) => `void main(){vec2 px=floor(vUv*size);vec3 c=src((px+.5)/size);c=floor(c*float(${n})+.5+(bayer(px)-.5)*float(${amt}))/float(${n});gl_FragColor=vec4(c,1.);}`;
+
+  function loop(fn) { let last = performance.now(), t = 0; const f = now => { const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; fn(dt, t); requestAnimationFrame(f); }; requestAnimationFrame(f); }
+  function stars(n = 300, r = 300, size = 1.5) { const g = new THREE.BufferGeometry(), a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const th = hash(i, 5) * 6.283, e = .08 + hash(i, 6) * 1.4; a[i * 3] = Math.cos(th) * Math.cos(e) * r; a[i * 3 + 1] = Math.sin(e) * r; a[i * 3 + 2] = Math.sin(th) * Math.cos(e) * r; } g.setAttribute('position', new THREE.BufferAttribute(a, 3)); return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size, sizeAttenuation: false, fog: false })); }
+
+  return { hash, stage, sky, pix, flat, glow, add, box, terrain, colors, pine, fx, post, DITHER, loop, stars };
+};
+</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// game-looks-2 の 21（2 色刷りの農場を歩く FPS）に、「版」を使ったしかけを足したゲーム。
+// ・インク缶を撃つと、当たった所から球が広がるように刷り色が変わる
+// ・物には版の札がついている。A＝青緑の版、B＝朱の版、N＝夜刷りでだけ見える蛍光インク、S＝ずれ刷りでだけ現れる朱の版の写し
+// ・その場所に今かかっている刷り色で版が使われていなければ、物は見えず、ぶつかりもしない
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 68, far: 400 }), { add, box, flat, hash } = K;
+const $ = id => document.getElementById(id), TOUCH = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window; document.body.classList.toggle('touch', TOUCH);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+scene.background = new THREE.Color('#f4f0e4'); scene.fog = new THREE.Fog('#f4f0e4', 70, 220);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9ab0a0, 1.5)); const sun = new THREE.DirectionalLight(0xfff2dc, 2.6); sun.position.set(-30, 40, 20); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 5, far: 150 }); sun.shadow.bias = -.001; scene.add(sun);
+const S = m => { m.castShadow = true; m.receiveShadow = true; return m; };
+const C = K.colors('#a8d8c0', '#8fcab0', '#f2c8a0', '#f6dcb8', '#7abca4');
+const H = (x, z) => Math.sin(x * .04) * Math.cos(z * .05) * 2 + Math.max(0, Math.hypot(x, z) - 50) * .25;
+const fieldAt = (x, z) => x > 6 && x < 44 && z > -30 && z < 6;
+const land = K.terrain(H, 90, 90, 2.6, (y, x, z) => fieldAt(x, z) ? (Math.floor((z + 100) / 2.6) % 2 ? C[2] : C[3]) : y > 5 ? C[4] : C[hash(Math.round(x * .3), Math.round(z * .3)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+
+// ── 刷り色 ──────────────────────────────────────────────
+// A: 0 なら青緑の版を抜く、B: 0 なら朱の版を抜く、dark: 暗い紙に明るいインク、shift: 朱の版を大きくずらす
+const PAL = [
+  { name: '青緑 × 朱', fx: 'ふつうの 2 色刷り', paper: '#f4eddb', a: '#1a808f', b: '#ff5c3d' },
+  { name: '紺 × 蛍光ピンク', fx: '連射できる', paper: '#f6efe2', a: '#27418f', b: '#ff4fa8', rapid: 1 },
+  { name: '紫 × ひまわり黄', fx: '散弾になる', paper: '#f7f1dc', a: '#6a4fa3', b: '#ffb000', spread: 1 },
+  { name: '深緑 × オレンジ', fx: '作物が生えなおす', paper: '#f3ecd6', a: '#1f6e55', b: '#ff7426', grow: 1 },
+  { name: '青緑の 1 色刷り', fx: '朱の版を抜く。朱で刷った物が消える', paper: '#f4eddb', a: '#1a808f', b: '#ff5c3d', B: 0 },
+  { name: '朱の 1 色刷り', fx: '青緑の版を抜く。青緑で刷った物が消える', paper: '#f4eddb', a: '#1a808f', b: '#ff5c3d', A: 0 },
+  { name: '夜刷り', fx: '蛍光インクが見える', paper: '#161a33', a: '#7fe6d4', b: '#ff6f86', dark: 1 },
+  { name: 'ずれ刷り（墨 × 赤）', fx: '朱の版が大きくずれる', paper: '#f1eee6', a: '#34343c', b: '#f2414e', shift: 1 },
+];
+const plateOn = (p, pl) => !pl ? true : pl === 'A' ? p.A !== 0 : pl === 'B' ? p.B !== 0 : pl === 'N' ? !!p.dark : !!p.shift;
+let cur = 0, prev = 0; const wave = { on: false, t: 0, R: 1e9, c: new THREE.Vector3() };
+// その場所に今かかっている刷り色（波がまだ届いていなければ前の色）
+const palAt = (x, y, z) => wave.on && Math.hypot(x - wave.c.x, y - wave.c.y, z - wave.c.z) > wave.R ? PAL[prev] : PAL[cur];
+const onAt = (pl, x, y, z) => plateOn(palAt(x, y, z), pl);
+
+// 版の札をつけた物、ぶつかる物（丸・四角）、乗れる床
+const plated = [], tag = (o, plate, x, y, z) => { plated.push({ o, plate, x, y, z }); return o; };
+const walls = [], floors = [];
+const circle = (x, z, r, top = 9, plate = null, bot = -9) => { const w = { x, z, r, top, bot, plate, base: H(x, z) }; walls.push(w); return w; };
+const rect = (x0, x1, z0, z1, top, plate = null, base = null, slack = .6) => { const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2; walls.push({ x0, x1, z0, z1, top, plate, slack, x: cx, z: cz, base: base ?? H(cx, cz) }); };
+const floor = (x0, x1, z0, z1, y, plate = null) => floors.push({ x0, x1, z0, z1, y, plate, x: (x0 + x1) / 2, z: (z0 + z1) / 2 });
+const wOn = w => !w.plate || onAt(w.plate, w.x, w.base + 1, w.z);
+
+// ── 農場（2-19 と同じ並び。版の札をつけてある）──────────────────
+const RED = '#e8503a', TEAL = '#2f8a8a', CREAM = '#fbf4e2', DARK = '#3a6a7a';
+{ // 納屋：朱の壁は B、屋根は A
+  const bx = -14, bz = -8, by = H(bx, bz), g = new THREE.Group(), rf = new THREE.Group(); g.position.set(bx, by, bz); rf.position.copy(g.position);
+  S(box(g, 10, 6, 14, RED, 0, 3, 0)); S(box(g, 4, 4.4, .3, CREAM, 0, 2.2, 7.1)); for (const a of [-1, 1]) { const d = box(g, 5.6, .3, .1, RED, 0, 2.2, 7.3); d.rotation.z = a * .83; } S(box(g, 1.6, 1.6, .3, CREAM, 0, 6.6, 7.1));
+  for (const s of [-1, 1]) { const r = S(box(rf, 6.6, .5, 15, DARK, s * 2.7, 7.3, 0)); r.rotation.z = -s * .62; }
+  scene.add(tag(g, 'B', bx, by + 3, bz), tag(rf, 'A', bx, by + 7, bz)); rect(-19, -9, -15, -.7, 9, 'B');
+  for (let k = 0; k < 3; k++) S(add(scene, new THREE.CylinderGeometry(.8, .8, 1.2, 10), '#f6d89a', bx - 1.6 + k * 1.6, by + .6 + (k === 1 ? .0 : 0), bz - 1)).rotation.z = Math.PI / 2;   // 中のわら
+}
+S(add(scene, new THREE.CylinderGeometry(2.6, 2.6, 13, 12), CREAM, -24, H(-24, -12) + 6.5, -12)); tag(S(add(scene, new THREE.SphereGeometry(2.6, 12, 6, 0, 6.3, 0, 1.57), TEAL, -24, H(-24, -12) + 13, -12)), 'A', -24, H(-24, -12) + 13, -12); for (let k = 0; k < 4; k++) add(scene, new THREE.TorusGeometry(2.64, .08, 4, 16), DARK, -24, H(-24, -12) + 2 + k * 3, -12).rotation.x = Math.PI / 2; circle(-24, -12, 2.7, 15.6);
+{ const g = new THREE.Group(), hy = H(-2, 14); g.position.set(-2, hy, 14); S(box(g, 7, 4, 6, CREAM, 0, 2, 0)); const r = S(add(scene, new THREE.ConeGeometry(5.6, 3, 4), TEAL, -2, hy + 5.5, 14)); r.rotation.y = Math.PI / 4; tag(r, 'A', -2, hy + 5.5, 14); box(g, 1.2, 2.2, .2, RED, -1.4, 1.1, 3.05); box(g, 1.4, 1.2, .2, DARK, 1.4, 2.4, 3.05); S(box(g, 1, 2, 1, RED, 2, 6, -1)); scene.add(g); rect(-5.5, 1.5, 11, 17, 6); }
+const mill = new THREE.Group(); { const x = 20, z = 16, y = H(x, z); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const l = S(box(scene, .2, 12, .2, DARK, x + a * 1.2, y + 6, z + b * 1.2)); l.rotation.set(b * .1, 0, -a * .1); circle(x + a * 1.5, z + b * 1.5, .25, 3); } mill.position.set(x, y + 12, z + .6); for (let k = 0; k < 10; k++) { const bl = S(box(mill, .7, 3, .06, CREAM, 0, 0, 0)); bl.geometry.translate(0, 1.9, 0); bl.rotation.z = k * .628; } box(mill, .1, .1, 3, DARK, 0, 0, -1.5); box(mill, .06, 1.6, 1.6, RED, 0, 0, -3); scene.add(mill); }
+for (let i = 0; i < 40; i++) { const u = i / 40, x = 4 + Math.cos(u * 6.283) * 30 - 8, z = Math.sin(u * 6.283) * 26 + 2; if (fieldAt(x, z) || (Math.abs(x + 2) < 5 && z > 20) || (x > 13 && x < 33 && z > 21 && z < 27)) continue; S(box(scene, .3, 1.6, .3, CREAM, x, H(x, z) + .8, z)); circle(x, z, .25, 1.7); }
+for (let i = 0; i < 46; i++) { const a = hash(i, 1) * 6.283, r = 40 + hash(i, 2) * 40, x = Math.cos(a) * r, z = Math.sin(a) * r, y = H(x, z), s = 2.4 + hash(i, 3) * 1.6; if (Math.hypot(x + 8, z - 42) < 9) continue; const g = new THREE.Group(); g.position.set(x, y, z); add(g, new THREE.CylinderGeometry(.3, .4, 2, 5), DARK, 0, 1, 0); S(add(g, new THREE.IcosahedronGeometry(s, 0), i % 3 ? TEAL : '#5aa89a', 0, 4, 0)); scene.add(tag(g, 'A', x, y + 3, z)); circle(x, z, .5, 2, 'A'); walls.push({ x, z, r: s * .85, top: 4 + s * .8, bot: 4 - s * .8, air: 1, plate: 'A', base: y }); }
+for (let i = 0; i < 8; i++) { const x = -4 + (i % 4) * 3.4, z = -22 - Math.floor(i / 4) * 3; S(add(scene, new THREE.CylinderGeometry(1.1, 1.1, 1.6, 12), '#f6d89a', x, H(x, z) + 1.1, z)).rotation.z = Math.PI / 2; circle(x, z, 1.1, 2.3); }
+{ const m = new THREE.Mesh(new THREE.CircleGeometry(16, 40), new THREE.MeshBasicMaterial({ color: '#ff9a84', fog: false })); m.position.set(-150, 120, -210); m.lookAt(0, 0, 0); scene.add(m); }
+const clouds = [...Array(9)].map((_, i) => { const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: '#c4e2dc', fog: false }); for (let k = 0; k < 4; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(7 + hash(i, k) * 5, 0), mat); m.position.set(k * 9 - 13, hash(k, i) * 3, hash(i, k + 5) * 6); m.scale.y = .45; g.add(m); } g.position.set(hash(i, 30) * 500 - 250, 62 + hash(i, 31) * 30, -200 + hash(i, 32) * 400); g.scale.setScalar(1 + hash(i, 33)); scene.add(g); return g; });
+const crop = new THREE.InstancedMesh(new THREE.ConeGeometry(.5, 1.3, 5), flat(TEAL), 360), dm = new THREE.Object3D(), crops = []; for (let r = 0; r < 12; r++) for (let k = 0; k < 30; k++) { const x = 8 + k * 1.2, z = -28 + r * 2.6 + 1.3; crops.push({ x, y: H(x, z) + .6, z, ry: k, alive: true, taken: false }); } crop.castShadow = true; scene.add(tag(crop, 'A', 25, 1, -12));
+const setCrop = (c, on) => { c.alive = on; dm.position.set(c.x, on ? c.y : -50, c.z); dm.rotation.y = c.ry; dm.scale.setScalar(on ? 1 : .001); dm.updateMatrix(); crop.setMatrixAt(crops.indexOf(c), dm.matrix); crop.instanceMatrix.needsUpdate = true; };
+crops.forEach(c => setCrop(c, true));
+const tr = new THREE.Group(); S(box(tr, 1.6, 1.2, 3, RED, 0, 1.5, 0)); S(box(tr, 1.5, 1.5, 1.3, CREAM, 0, 2.6, -.7)); box(tr, 1.7, .14, 1.5, DARK, 0, 3.4, -.7); S(box(tr, .2, 1.2, .2, DARK, .5, 2.6, 1)); for (const [x, z, r] of [[-.95, -.8, 1], [.95, -.8, 1], [-.9, 1.1, .6], [.9, 1.1, .6]]) { const w = S(add(tr, new THREE.CylinderGeometry(r, r, .4, 12), DARK, x, r, z)); w.rotation.z = Math.PI / 2; w.userData.w = 1; } scene.add(tr);
+const trTag = tag(tr, 'B', 0, 2, 0), trWall = circle(0, 0, 1.9, 3.6, 'B'); trTag.dyn = tr;
+const cows = [...Array(6)].map((_, i) => { const g = new THREE.Group(), x = -30 + hash(i, 4) * 16, z = 8 + hash(i, 5) * 16; g.position.set(x, H(x, z), z); g.rotation.y = hash(i, 6) * 6; S(box(g, 1.2, 1.1, 2.2, CREAM, 0, 1.4, 0)); box(g, .7, .5, .9, DARK, .3, 1.75, .2); box(g, .5, .6, .6, DARK, -.36, 1.5, -.7); S(box(g, .8, .8, .9, CREAM, 0, 1.7, 1.4)); box(g, .5, .3, .2, '#f2a8a0', 0, 1.5, 1.9); for (const [a, b] of [[-.4, .8], [.4, .8], [-.4, -.8], [.4, -.8]]) box(g, .24, .9, .24, CREAM, a, .45, b); scene.add(g); circle(x, z, 1.4, 2.3); g.userData.hop = 0; return g; });
+const hens = [...Array(8)].map((_, i) => { const g = new THREE.Group(); S(box(g, .4, .4, .6, CREAM, 0, .4, 0)); box(g, .3, .3, .3, CREAM, 0, .7, .3); box(g, .12, .14, .1, RED, 0, .9, .3); g.userData = { a: hash(i, 7) * 6.283, r: 2 + hash(i, 8) * 4 }; scene.add(g); return g; });
+const fx = K.fx(scene, 160); let pT = 0;
+
+// ── しかけ ─────────────────────────────────────────────
+// たまご：上が青緑、下が朱。どの刷り色でもどちらかは見える
+const eggs = [], eggGeoT = new THREE.SphereGeometry(.42, 10, 6, 0, 6.3, 0, 1.6), eggGeoB = new THREE.SphereGeometry(.42, 10, 6, 0, 6.3, 1.55, 1.6);
+function egg(x, y, z, live = true) { const g = new THREE.Group(); add(g, eggGeoT, TEAL).scale.y = 1.35; add(g, eggGeoB, RED); add(g, new THREE.TorusGeometry(.43, .05, 4, 12), CREAM).rotation.x = Math.PI / 2; g.position.set(x, y, z); g.visible = live; scene.add(g); const e = { g, x, y, z, live, got: false, vy: 0 }; eggs.push(e); return e; }
+egg(-14, H(-14, -8) + 2.1, -8);                                           // 1 納屋の中（朱の版を抜くと入れる）
+{ // 2 生け垣：青緑の版だけで刷ってある
+  const x = -8, z = 42, y = H(x, z), g = new THREE.Group(); g.position.set(x, y, z); for (const [a, b, w, d] of [[0, -3.5, 8, 1], [0, 3.5, 8, 1], [-3.5, 0, 1, 6], [3.5, 0, 1, 6]]) S(box(g, w, 5, d, TEAL, a, 2.3, b)); for (let k = 0; k < 10; k++) S(add(g, new THREE.IcosahedronGeometry(.9, 0), '#5aa89a', -3.5 + (k % 5) * 1.75, 4.9, k < 5 ? -3.5 : 3.5));
+  scene.add(tag(g, 'A', x, y + 2, z)); rect(x - 4, x + 4, z - 4, z + 4, 6, 'A'); egg(x, y + 1.2, z);
+}
+{ // 3 サイロをまわる階段：夜刷りの蛍光インク（N）
+  const sx = -24, sz = -12, sy = H(sx, sz), g = new THREE.Group(); let px = 0, pz = 0, py = 0;
+  for (let k = 0; k < 27; k++) { const a = 1.2 + k * .42, last = k === 26, r = last ? 4.3 : 3.75, w = last ? 3 : 1.7; px = sx + Math.cos(a) * r; pz = sz + Math.sin(a) * r; py = sy + .5 * (k + 1); box(g, w, .2, w, k % 2 ? TEAL : '#5aa89a', px, py - .1, pz); if (!last) box(g, .12, .12, .12, RED, px, py + .08, pz); floor(px - w / 2, px + w / 2, pz - w / 2, pz + w / 2, py, 'N'); }
+  scene.add(tag(g, 'N', sx, sy + 7, sz)); egg(px, py + 1.1, pz);
+}
+{ // 4 見はり台：ほんものの階段は半分まで。ずれ刷りにすると、朱の版の写し（S）が続きになって現れる
+  const z = 24, yb = H(23, z), x0 = 15, run = .55, rise = .25, real = new THREE.Group(), ghost = new THREE.Group();
+  for (let k = 0; k < 24; k++) { const x = x0 + k * run, top = yb + rise * (k + 1);
+    if (k < 12) { S(box(real, run, top - yb + 1, 1.8, k % 2 ? CREAM : '#f2c8a0', x, (top + yb - 1) / 2, z)); box(real, run, .06, 1.9, DARK, x, top, z); rect(x - run / 2, x + run / 2, z - .9, z + .9, top - yb, null, yb, 1.1); floor(x - run / 2, x + run / 2, z - .9, z + .9, top); }
+    else { box(ghost, run, .18, 1.8, RED, x, top - .09, z); floor(x - run / 2, x + run / 2, z - .9, z + .9, top, 'S'); } }
+  const px = 30.6, top = yb + 6.2; S(box(real, 4.6, .3, 4.6, CREAM, px, top - .15, z)); box(real, 4.8, .1, 4.8, DARK, px, top, z); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { S(box(real, .25, top - yb + 1, .25, DARK, px + a * 2, (top + yb - 1) / 2, z + b * 2)); circle(px + a * 2, z + b * 2, .3, 6); } for (const b of [-1, 1]) box(real, 4.6, .12, .12, DARK, px, top + 1, z + b * 2.2); box(real, .12, .12, 4.4, DARK, px + 2.2, top + 1, z);
+  floor(px - 2.3, px + 2.3, z - 2.3, z + 2.3, top); scene.add(real, tag(ghost, 'S', 25, yb + 4.5, z)); egg(px + .6, top + 1.1, z);
+}
+// 5 白いカラス：夜刷りでだけ見える。撃つとたまごを落とす
+const ghostBird = (() => { const m = flat('#8a3a44'),   // 2 つのインクが両方のる色。夜刷りではいちばん明るく（白く）光る
+   g = new THREE.Group(); S(add(g, new THREE.ConeGeometry(.6, 2.1, 5), m, 0, 0, -.1)).rotation.x = Math.PI / 2; add(g, new THREE.IcosahedronGeometry(.46, 0), m, 0, .2, .9); add(g, new THREE.ConeGeometry(.16, .5, 4), flat(RED), 0, .16, 1.4).rotation.x = Math.PI / 2; add(g, eggGeoB, RED, 0, -.6, 0); add(g, eggGeoT, TEAL, 0, -.6, 0);
+  const wings = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * .3, .1, 0); box(p, 2.1, .08, 1, m, s * 1.05, 0, 0); g.add(p); return p; }); scene.add(g); return { g, wings, alive: true }; })();
+const egg5 = egg(0, 0, 0, false);
+
+// インク缶。撃つとその刷り色になる。帯は 2 つの版で 1 本ずつ刷ってあるので、版を抜いてもどちらかは見える
+const CANS = [[0, 3, 21], [1, -7, 1], [2, 5, -19], [3, 47, -12], [4, 26, 9], [5, -31, 1], [6, 9, 33], [7, -19, 27]].map(([pal, x, z]) => {
+  const y = H(x, z), g = new THREE.Group(); g.position.set(x, y, z); S(add(g, new THREE.CylinderGeometry(.62, .62, 1.5, 12), CREAM, 0, .75, 0)); add(g, new THREE.CylinderGeometry(.66, .66, .3, 12), TEAL, 0, 1.05, 0); add(g, new THREE.CylinderGeometry(.66, .66, .3, 12), RED, 0, .45, 0); add(g, new THREE.CylinderGeometry(.5, .5, .08, 12), DARK, 0, 1.53, 0);
+  const mark = new THREE.Group(); mark.position.y = 2.7; add(mark, new THREE.OctahedronGeometry(.34, 0), TEAL, 0, .2, 0); add(mark, new THREE.OctahedronGeometry(.34, 0), RED, 0, -.2, 0); g.add(mark); scene.add(g); circle(x, z, .7, 1.6); return { pal, x, y, z, g, mark, pop: 0 };
+});
+
+// ── たねの鉄砲、弾、カラス ───────────────────────────────────
+scene.add(cam); cam.rotation.order = 'YXZ';
+let gunX = .2; onResize((w, h) => { cam.fov = w < h ? 88 : 68; cam.updateProjectionMatrix(); gunX = Math.min(.2, Math.tan(cam.fov * Math.PI / 360) * .42 * w / h * .6); });
+const gun = new THREE.Group(); cam.add(gun); gun.scale.setScalar(.52); box(gun, .13, .16, .5, RED, 0, 0, 0); add(gun, new THREE.CylinderGeometry(.045, .055, .5, 8), CREAM, 0, .03, -.46).rotation.x = Math.PI / 2; add(gun, new THREE.CylinderGeometry(.075, .075, .08, 8), DARK, 0, .03, -.7).rotation.x = Math.PI / 2;
+add(gun, new THREE.CylinderGeometry(.075, .055, .13, 8), TEAL, 0, .14, .08); box(gun, .09, .26, .11, DARK, 0, -.19, .14).rotation.x = .3; box(gun, .15, .13, .3, '#f6dcb8', .03, -.22, .24); box(gun, .03, .05, .03, DARK, 0, .1, -.2);
+const shots = [...Array(48)].map(() => { const m = add(scene, new THREE.IcosahedronGeometry(.13, 0), new THREE.MeshBasicMaterial({ color: '#8a3a44' })); m.visible = false; return { m, v: new THREE.Vector3(), life: 0 }; }); let shotI = 0;
+const birdMat = flat('#2f5f70'), beakMat = flat(RED);
+function makeBird() {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b); S(add(b, new THREE.ConeGeometry(.42, 1.5, 5), birdMat, 0, 0, -.1)).rotation.x = Math.PI / 2; S(add(b, new THREE.IcosahedronGeometry(.34, 0), birdMat, 0, .16, .62)); add(b, new THREE.ConeGeometry(.12, .4, 4), beakMat, 0, .12, 1).rotation.x = Math.PI / 2;
+  const wings = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * .2, .1, 0); const w = S(box(p, 1.5, .06, .7, birdMat, s * .75, 0, 0)); w.geometry.translate(0, 0, -.05); b.add(p); return p; });
+  g.visible = false; scene.add(g); return { g, b, wings, st: 'wait', t: 0, target: null, v: new THREE.Vector3(), ph: Math.random() * 6 };
+}
+const birds = [...Array(12)].map(makeBird);
+let mode = 'egg', score = 0, left = 360, found = 0, timeLeft = 0, growT = 0;
+function launch(b) { const free = crops.filter(c => c.alive && !c.taken); if (!free.length) { b.t = 5; return; } const c = free[Math.floor(Math.random() * free.length)]; c.taken = true; b.target = c; const a = Math.random() * 6.283, r = mode === 'chaos' ? 60 : 80; b.g.position.set(c.x + Math.cos(a) * r, c.y + 26 + Math.random() * 10, c.z + Math.sin(a) * r); b.st = 'in'; b.g.rotation.set(0, 0, 0); b.b.rotation.set(0, 0, 0); }
+function resetRound() { score = 0; left = 360; crops.forEach(c => { c.taken = false; setCrop(c, true); }); birds.forEach((b, i) => { b.st = 'wait'; b.target = null; b.g.visible = false; b.t = mode === 'chaos' ? .3 + i * .5 : 1 + i * 2.2; }); }
+
+let ac = null; const beep = (f0, f1, d, type = 'square', vol = .06, at = 0) => { if (!ac) return; const o = ac.createOscillator(), g = ac.createGain(), n = ac.currentTime + at; o.type = type; o.frequency.setValueAtTime(f0, n); o.frequency.exponentialRampToValueAtTime(f1, n + d); g.gain.setValueAtTime(vol, n); g.gain.exponentialRampToValueAtTime(.0001, n + d); o.connect(g).connect(ac.destination); o.start(n); o.stop(n + d); };
+
+// ── 仕上げ（2 色刷り）。奥行きも受けとり、画面の各点が場面のどこにあたるかを求めて、波の内か外かで刷り色を選ぶ ──
+const rgb = h => new THREE.Vector3(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
+const rt = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4) });
+const U = { tD: { value: rt.texture }, tZ: { value: rt.depthTexture }, res: { value: new THREE.Vector2() }, waveR: { value: 1e9 }, waveC: { value: wave.c }, pInv: { value: cam.projectionMatrixInverse }, cW: { value: cam.matrixWorld } };
+for (const k of ['paper', 'inkA', 'inkB']) for (const n of [0, 1]) U[k + n] = { value: new THREE.Vector3() }; U.par0 = { value: new THREE.Vector4() }; U.par1 = { value: new THREE.Vector4() };
+const putPal = (n, p) => { U['paper' + n].value.copy(rgb(p.paper)); U['inkA' + n].value.copy(rgb(p.a)); U['inkB' + n].value.copy(rgb(p.b)); U['par' + n].value.set(p.dark ? 1 : 0, p.A === 0 ? .1 : 1, p.B === 0 ? .1 : 1, p.shift ? 5 : 1); };
+const postMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `uniform sampler2D tD,tZ;uniform vec2 res;uniform float waveR;uniform vec3 waveC,paper0,inkA0,inkB0,paper1,inkA1,inkB1;uniform vec4 par0,par1;uniform mat4 pInv,cW;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+vec3 src(vec2 uv){return pow(max(texture2D(tD,uv).rgb,0.),vec3(1./2.2));}
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/5.2;vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
+void main(){
+vec4 v=pInv*vec4(vUv*2.-1.,min(texture2D(tZ,vUv).x,.99999)*2.-1.,1.);v/=v.w;float d=distance((cW*v).xyz,waveC)+(h(floor(vUv*res/5.2))-.5)*(1.+waveR*.03);
+float m=step(d,waveR),rim=m*step(waveR-.7-waveR*.035,d);
+vec3 paper=mix(paper0,paper1,m),inkA=mix(inkA0,inkA1,m),inkB=mix(inkB0,inkB1,m);vec4 par=mix(par0,par1,m);
+vec2 off=vec2(3.,-2.)*par.w/res;vec3 a=src(vUv),b=src(vUv+off);
+float lum=dot(a,vec3(.3,.59,.11));float tealAmt=clamp(pow(clamp(1.-a.r,0.,1.),1.5)*1.35+(1.-lum)*.12-.04,0.,1.);float redAmt=clamp(1.-min(b.g,b.b)*1.08,0.,1.);redAmt*=smoothstep(.02,.3,b.r-min(b.g,b.b)+.25*(1.-dot(b,vec3(.33))));
+float k1=max(dotp(vUv,.26,tealAmt*par.y),rim),k2=max(dotp(vUv+off,1.31,redAmt*par.z),rim);
+vec3 pp=paper*(.97+.03*h(floor(vUv*res*.5)));
+vec3 c=pp*mix(vec3(1.),inkA,k1*.92)*mix(vec3(1.),inkB,k2*.9);
+if(par.x>.5)c=1.-(1.-pp)*(1.-inkA*k1*.9)*(1.-inkB*k2*.92);
+c*=.985+.03*h(vUv*res+7.);gl_FragColor=vec4(c,1.);}` });
+const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+onResize((w, h) => { const s = renderer.getPixelRatio(); rt.setSize(Math.round(w * s), Math.round(h * s)); U.res.value.set(w, h); });
+
+const sw = p => `<span class="sw" style="background:linear-gradient(135deg,${p.A === 0 ? p.paper : p.a} 50%,${p.B === 0 ? p.paper : p.b} 50%)"></span>`;
+let toastT = 0; const toast = (big, small = '') => { $('toast').innerHTML = big + (small ? `<small>${small}</small>` : ''); $('toast').style.opacity = 1; toastT = 2.6; };
+// 刷り色を変える。pos から球が広がり、届いた所から新しい色になる
+function setPal(i, pos, quiet) { if (i === cur) return; prev = cur; cur = i; const p = PAL[cur]; putPal(0, PAL[prev]); putPal(1, p); wave.on = true; wave.t = 0; wave.R = 0; wave.c.copy(pos);
+  const st = document.documentElement.style; st.setProperty('--paper', p.paper); st.setProperty('--a', p.a); st.setProperty('--b', p.b); st.setProperty('--ink', p.a);
+  $('now').innerHTML = sw(p) + p.name + ' ─ ' + p.fx; if (!quiet) toast(p.name, p.fx); beep(180, 900, .35, 'sawtooth', .05); beep(1200, 400, .25, 'triangle', .05, .1); }
+putPal(0, PAL[0]); putPal(1, PAL[0]); $('now').innerHTML = sw(PAL[0]) + PAL[0].name + ' ─ ' + PAL[0].fx;
+
+function drawHud() { $('hud').innerHTML = mode === 'chaos' ? `カオス刷り　のこり <b>${Math.ceil(timeLeft)}</b> 秒　｜　おいはらった <b>${score}</b>` : `たまご <b>${'●'.repeat(found)}</b>${'○'.repeat(5 - found)}　｜　おいはらった <b>${score}</b>　｜　作物 ${left}`; }
+let best = 0; try { best = +localStorage.getItem('riso-chaos-best') || 0; } catch (e) { }
+const showBest = () => { $('best').textContent = best ? `カオス刷りの最高記録：${best} 羽` : ''; }; showBest();
+
+// ── 操作 ──────────────────────────────────────────────
+const P = { x: 1, z: 9, y: 0, vy: 0, yaw: -1.05, pitch: -.02, bob: 0, ground: true }, keys = {}, inp = { mx: 0, mz: 0, fire: false, jump: false };
+let playing = false, cd = 0, kick = 0, hitT = 0;
+const showMenu = msg => { playing = false; inp.fire = false; if (msg !== undefined) $('msg').textContent = msg; $('menu').style.display = 'flex'; [...$('hints').children].forEach((li, i) => li.classList.toggle('got', eggs[i].got)); $('bEgg').textContent = found >= 5 ? 'もういちど たまご探し' : found || score ? 'たまご探しをつづける' : 'たまご探しを始める'; showBest(); };
+function begin(m) {
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } } if (ac && ac.state === 'suspended') ac.resume();
+  if (m === 'chaos') { mode = 'chaos'; resetRound(); timeLeft = 60; setPal(0, cam.position, true); toast('カオス刷り', 'カラスに当てるたびに刷り色が変わる'); }
+  else { if (mode === 'chaos') { mode = 'egg'; resetRound(); } if (found >= 5) { found = 0; eggs.forEach((e, i) => { e.got = false; e.live = i !== 4; e.g.visible = e.live; }); ghostBird.alive = true; resetRound(); } }
+  $('msg').textContent = ''; drawHud(); playing = true; $('menu').style.display = 'none';
+  if (!TOUCH) { try { const r = renderer.domElement.requestPointerLock(); if (r && r.catch) r.catch(() => { }); } catch (e) { } }
+}
+$('bEgg').addEventListener('click', () => begin('egg')); $('bChaos').addEventListener('click', () => begin('chaos'));
+const stop = msg => { if (document.pointerLockElement) { $('msg').textContent = msg || ''; document.exitPointerLock(); } showMenu(msg); };
+document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement && !TOUCH && playing) showMenu(); });
+addEventListener('mousemove', e => { if (document.pointerLockElement && Math.abs(e.movementX) < 250 && Math.abs(e.movementY) < 250) { P.yaw -= e.movementX * .0022; P.pitch = Math.max(-1.45, Math.min(1.45, P.pitch - e.movementY * .0022)); } });
+addEventListener('mousedown', e => { if (playing && e.button === 0 && !TOUCH) inp.fire = true; }); addEventListener('mouseup', () => { if (!TOUCH) inp.fire = false; });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); }); addEventListener('keyup', e => { keys[e.code] = false; }); addEventListener('blur', () => { for (const k in keys) keys[k] = false; inp.fire = false; });
+if (TOUCH) {
+  const T = {}, stick = $('stick'), nub = stick.firstElementChild, inBtn = (t, el) => { const r = el.getBoundingClientRect(); return Math.hypot(t.clientX - r.left - r.width / 2, t.clientY - r.top - r.height / 2) < r.width / 2 + 8; };
+  addEventListener('touchstart', e => { if (!playing) return; e.preventDefault(); for (const t of e.changedTouches) { const o = { x: t.clientX, y: t.clientY, ox: t.clientX, oy: t.clientY };
+      if (inBtn(t, $('pause'))) { showMenu(''); return; }
+      if (inBtn(t, $('jump'))) { o.k = 'jump'; inp.jump = true; } else if (inBtn(t, $('fire'))) { o.k = 'look'; o.fire = inp.fire = true; } else if (t.clientX < innerWidth * .45) { o.k = 'move'; stick.style.display = 'block'; stick.style.left = o.ox + 'px'; stick.style.top = o.oy + 'px'; nub.style.transform = ''; } else o.k = 'look'; T[t.identifier] = o; } }, { passive: false });
+  addEventListener('touchmove', e => { if (!playing) return; e.preventDefault(); for (const t of e.changedTouches) { const o = T[t.identifier]; if (!o) continue;
+      if (o.k === 'look') { P.yaw -= (t.clientX - o.x) * .006; P.pitch = Math.max(-1.45, Math.min(1.45, P.pitch - (t.clientY - o.y) * .006)); }
+      if (o.k === 'move') { let dx = (t.clientX - o.ox) / 48, dy = (t.clientY - o.oy) / 48; const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } inp.mx = dx; inp.mz = dy; nub.style.transform = `translate(${dx * 30}px,${dy * 30}px)`; }
+      o.x = t.clientX; o.y = t.clientY; } }, { passive: false });
+  const end = e => { for (const t of e.changedTouches) { const o = T[t.identifier]; if (!o) continue; if (o.k === 'move') { inp.mx = inp.mz = 0; stick.style.display = 'none'; } if (o.fire) inp.fire = false; if (o.k === 'jump') inp.jump = false; delete T[t.identifier]; } };
+  addEventListener('touchend', end); addEventListener('touchcancel', end);
+}
+
+// ── 当たり判定 ────────────────────────────────────────────
+const fwd = new THREE.Vector3(), muz = new THREE.Vector3(), tv = new THREE.Vector3(), tq = new THREE.Vector3();
+function pushOut(r) { const feet = P.y - 1.7; for (const w of walls) { if (w.air || !wOn(w)) continue; if (w.r) { const dx = P.x - w.x, dz = P.z - w.z, d = Math.hypot(dx, dz), m = w.r + r; if (d < m && feet < w.base + w.top - .6) { const k = m / (d || 1); P.x = w.x + dx * k; P.z = w.z + dz * k; } } else if (feet < w.base + w.top - w.slack && P.x > w.x0 - r && P.x < w.x1 + r && P.z > w.z0 - r && P.z < w.z1 + r) { const a = P.x - (w.x0 - r), b = (w.x1 + r) - P.x, c = P.z - (w.z0 - r), d = (w.z1 + r) - P.z, m = Math.min(a, b, c, d); if (m === a) P.x = w.x0 - r; else if (m === b) P.x = w.x1 + r; else if (m === c) P.z = w.z0 - r; else P.z = w.z1 + r; } }
+  const d = Math.hypot(P.x, P.z); if (d > 86) { P.x *= 86 / d; P.z *= 86 / d; } }
+// 足もとの高さ：地面か、足より少し上までにある「今ある」床のうち、いちばん高いもの
+function floorY(x, z, feet) { let y = H(x, z); for (const f of floors) if (x > f.x0 && x < f.x1 && z > f.z0 && z < f.z1 && f.y > y && f.y <= feet + .6 && (!f.plate || onAt(f.plate, f.x, f.y, f.z))) y = f.y; return y; }
+function blocked(p) { if (p.y < H(p.x, p.z)) return true; for (const w of walls) { if (!wOn(w)) continue; if (w.r) { if (Math.hypot(p.x - w.x, p.z - w.z) < w.r) { const y = p.y - w.base; if (y < w.top && y > w.bot) return true; } } else if (p.x > w.x0 && p.x < w.x1 && p.z > w.z0 && p.z < w.z1 && p.y - w.base < w.top) return true; }
+  for (const f of floors) if (p.x > f.x0 && p.x < f.x1 && p.z > f.z0 && p.z < f.z1 && p.y < f.y && p.y > f.y - .3 && (!f.plate || onAt(f.plate, f.x, f.y, f.z))) return true; return false; }
+function shoot() {
+  const pal = PAL[cur]; cd = pal.rapid ? .075 : pal.spread ? .42 : .2; kick = 1; cam.getWorldDirection(fwd); gun.updateWorldMatrix(true, false); muz.set(0, .03, -.8).applyMatrix4(gun.matrixWorld);
+  tv.copy(cam.position).addScaledVector(fwd, 60).sub(muz).normalize();
+  for (let k = 0, n = pal.spread ? 7 : 1; k < n; k++) { const s = shots[shotI++ % shots.length], j = pal.spread && k ? .07 : pal.rapid ? .012 : 0; s.m.position.copy(muz); s.v.copy(tv); s.v.x += (Math.random() - .5) * j; s.v.y += (Math.random() - .5) * j; s.v.z += (Math.random() - .5) * j; s.v.multiplyScalar(95); s.life = 1.6; s.m.visible = true; }
+  fx.emit('spark', muz.x + tv.x * .2, muz.y + tv.y * .2, muz.z + tv.z * .2, { life: .12, size: .5, tint: '#ff9a84' }); beep(pal.spread ? 300 : 520, pal.spread ? 90 : 140, pal.spread ? .16 : .09);
+}
+function hitBird(b) { b.st = 'fall'; b.t = 0; if (b.target) { b.target.taken = false; b.target = null; } b.v.set((Math.random() - .5) * 4, 3, (Math.random() - .5) * 4); score++; drawHud(); hitT = .18; const p = b.g.position;
+  for (let k = 0; k < 7; k++) fx.emit(k % 2 ? 'puff' : 'spark', p.x, p.y, p.z, { spread: 6, vy: 2, grav: -6, life: .7, size: k % 2 ? .9 : .7, grow: 1, tint: k % 2 ? '#3a6a7a' : '#ff8a70' }); beep(900, 1500, .12, 'triangle', .09);
+  if (mode === 'chaos') { let i; do i = [0, 1, 2, 3, 4, 6, 7][Math.floor(Math.random() * 7)]; while (i === cur); setPal(i, p, true); } }
+function getEgg(e) { e.got = true; e.live = false; e.g.visible = false; found++; drawHud(); for (let k = 0; k < 10; k++) fx.emit('spark', e.g.position.x, e.g.position.y, e.g.position.z, { spread: 7, vy: 3, grav: -5, life: .9, size: .8, tint: k % 2 ? '#ff8a70' : '#3a8a8a' }); [660, 880, 1100, 1320].forEach((f, k) => beep(f, f, .14, 'triangle', .08, k * .09));
+  if (found >= 5) { toast('たまごが 5 個そろった！'); setTimeout(() => stop('たまごが 5 個そろいました！ ボーナスのカオス刷りもどうぞ。'), 2200); } else toast(`たまご ${found} / 5`); }
+
+K.loop((dt, t) => {
+  // 波：はじめはゆっくり、だんだん速く広がる。空（いちばん遠い）まで届いたら終わり
+  if (wave.on) { wave.t += dt; wave.R = 45 * wave.t + 170 * wave.t * wave.t; if (wave.R > 460) { wave.on = false; wave.R = 1e9; } } U.waveR.value = wave.R;
+  // まわりの動き
+  mill.rotation.z = t * 1.2; const u = (t * .05) % 1, lap = Math.floor(t * .05), row = lap % 11, dir = lap % 2 ? -1 : 1, tx = dir > 0 ? 8 + u * 34 : 42 - u * 34, tz = -28 + row * 2.6; tr.position.set(tx, H(tx, tz), tz); tr.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2; tr.children.forEach(o => { if (o.userData.w) o.rotation.x = t * 5; }); tr.position.y += Math.sin(t * 20) * .03; trWall.x = trTag.x = tx; trWall.z = trTag.z = tz; trWall.base = H(tx, tz);
+  if ((pT -= dt) < 0) { pT = .2; if (tr.visible) { fx.emit('puff', tx - dir * 1.2, H(tx, tz) + .6, tz, { vy: 1, spread: .8, life: 1.4, size: .9, grow: 1.8, tint: '#e8c8a0' }); fx.emit('smoke', tx + dir * 1, H(tx, tz) + 3.4, tz + .5, { vy: 1.6, life: 1.2, size: .5, grow: 1.6, tint: '#5a7a84' }); } }
+  cows.forEach((c, i) => { c.children[4].rotation.x = Math.max(0, Math.sin(t * .6 + i * 2)) * .5; const h = c.userData.hop = Math.max(0, c.userData.hop - dt * 2.4); c.position.y = H(c.position.x, c.position.z) + Math.sin(h * Math.PI) * .7; });
+  hens.forEach((h, i) => { h.userData.a += dt * (.3 + (i % 3) * .2); const x = -2 + Math.cos(h.userData.a) * h.userData.r, z = 22 + Math.sin(h.userData.a) * h.userData.r * .6; h.position.set(x, H(x, z) + Math.abs(Math.sin(t * 8 + i)) * .1, z); h.rotation.y = -h.userData.a; });
+  clouds.forEach(c => { c.position.x += dt * 1.5; if (c.position.x > 260) c.position.x = -260; });
+  for (const o of plated) o.o.visible = onAt(o.plate, o.x, o.y, o.z);          // 版の札：その場所の刷り色で版が使われていれば見える
+  CANS.forEach((c, i) => { c.mark.rotation.y = t * 2 + i; c.mark.position.y = 2.7 + Math.sin(t * 2.4 + i) * .15; c.pop = Math.max(0, c.pop - dt * 3); c.g.scale.set(1 + c.pop * .25, 1 - c.pop * .25, 1 + c.pop * .25); });
+  eggs.forEach((e, i) => { if (!e.live) return; e.g.rotation.y = t * 1.5 + i; if (e.vy !== 0) { e.vy -= 14 * dt; e.g.position.y += e.vy * dt; const gy = H(e.g.position.x, e.g.position.z) + 1; if (e.g.position.y < gy) { e.g.position.y = gy; e.vy = 0; e.y = gy; } } else e.g.position.y = e.y + Math.sin(t * 2 + i) * .12; });
+  { const g = ghostBird.g, a = t * .22; g.position.set(8 + Math.cos(a) * 34, 16 + Math.sin(t * .9) * 2, -6 + Math.sin(a) * 30); g.rotation.y = -a; g.visible = ghostBird.alive && onAt('N', g.position.x, g.position.y, g.position.z); ghostBird.wings.forEach((w, k) => w.rotation.z = (k ? -1 : 1) * Math.sin(t * 7) * .6); }
+
+  if (playing) {
+    let mx = inp.mx + (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0), mz = inp.mz + (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0); const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; }
+    const sp = (keys.ShiftLeft || keys.ShiftRight || (TOUCH && l > .95) ? 11 : 7) * dt, sn = Math.sin(P.yaw), cs = Math.cos(P.yaw); P.x += (mx * cs + mz * sn) * sp; P.z += (mz * cs - mx * sn) * sp; pushOut(.55);
+    if ((keys.Space || inp.jump) && P.ground) { P.vy = 7.5; P.ground = false; }
+    const gy = floorY(P.x, P.z, P.y - 1.7) + 1.7;
+    if (P.ground) { if (P.y - gy > .7) P.ground = false; else P.y = gy; }                       // 床が消えたり、ふちから出たら落ちる
+    if (!P.ground) { P.vy -= 22 * dt; P.y += P.vy * dt; if (P.y <= gy && P.vy <= 0) { P.y = gy; P.vy = 0; P.ground = true; } }
+    if (P.ground && l > .1) P.bob += sp * 1.25;
+    cd -= dt; if (inp.fire && cd <= 0) shoot();
+    for (const e of eggs) if (e.live && e.vy === 0 && Math.hypot(e.g.position.x - P.x, e.g.position.y - (P.y - .8), e.g.position.z - P.z) < 2.1) getEgg(e);
+    if (PAL[cur].grow && (growT -= dt) < 0) { growT = .8; const c = crops.find(c => !c.alive); if (c) { setCrop(c, true); left++; drawHud(); fx.emit('puff', c.x, c.y + .5, c.z, { life: .5, size: 1, grow: 1, tint: '#a8d8c0' }); } }
+    if (mode === 'chaos') { const s = Math.ceil(timeLeft); timeLeft -= dt; if (Math.ceil(timeLeft) !== s) drawHud(); if (timeLeft <= 0) { const rec = score > best; if (rec) { best = score; try { localStorage.setItem('riso-chaos-best', best); } catch (e) { } } stop(`カオス刷り おしまい：${score} 羽おいはらった${rec ? '（新記録！）' : ''}`); } }
+  } else if (!P.y) P.y = H(P.x, P.z) + 1.7;
+  kick = Math.max(0, kick - dt * 7); if (toastT > 0 && (toastT -= dt) <= 0) $('toast').style.opacity = 0;
+  cam.position.set(P.x, P.y + Math.sin(P.bob) * .05, P.z); cam.rotation.set(P.pitch + kick * .012, P.yaw, 0);
+  gun.position.set(gunX + Math.cos(P.bob * .5) * .006, -.19 + Math.sin(P.bob) * .006 + kick * .008, -.42 + kick * .04); gun.rotation.set(kick * .16, .05, 0);
+  if (hitT > 0) hitT -= dt; $('cross').classList.toggle('hit', hitT > 0);
+  // ねらいの先にある缶の名前を出す
+  { cam.getWorldDirection(fwd); let hit = null, bt = 1e9; for (const c of CANS) { tq.set(c.x - P.x, c.y + .9 - cam.position.y, c.z - P.z); const along = tq.dot(fwd); if (along > 0 && along < bt && tq.addScaledVector(fwd, -along).length() < .9 + along * .012) { bt = along; hit = c; } }
+    const el = $('aim'), key = hit && playing ? hit.pal : -1; if (el._k !== key) { el._k = key; el.style.display = key < 0 ? 'none' : 'flex'; if (key >= 0) { const p = PAL[key]; el.innerHTML = sw(p) + (key === cur ? '（いまの色）' : '') + p.name + ' ─ ' + p.fx; } } if (key === cur && el._c !== cur) el._k = -2; el._c = cur; }
+
+  // 弾
+  for (const s of shots) { if (s.life <= 0) continue; s.life -= dt; s.v.y -= 6 * dt; let done = s.life <= 0;
+    for (let k = 0; k < 4 && !done; k++) { s.m.position.addScaledVector(s.v, dt / 4); const p = s.m.position;
+      for (const b of birds) if (b.g.visible && (b.st === 'in' || b.st === 'peck' || b.st === 'out') && p.distanceToSquared(b.g.position) < 1.5) { hitBird(b); done = true; break; }
+      if (!done && ghostBird.g.visible && p.distanceToSquared(ghostBird.g.position) < 5) { done = true; ghostBird.alive = false; hitT = .18; const q = ghostBird.g.position; egg5.live = true; egg5.g.visible = true; egg5.g.position.copy(q); egg5.vy = -.01; for (let j = 0; j < 8; j++) fx.emit('puff', q.x, q.y, q.z, { spread: 7, life: .8, size: 1.2, grow: 1, tint: '#ffffff' }); beep(700, 1800, .3, 'triangle', .09); toast('白いカラスがたまごを落とした'); }
+      if (!done) for (const c of CANS) if (Math.hypot(p.x - c.x, p.z - c.z) < .75 && p.y > c.y && p.y < c.y + 1.7) { done = true; c.pop = 1; if (c.pal !== cur && mode !== 'chaos') setPal(c.pal, p); else beep(240, 200, .08); fx.emit('puff', p.x, p.y, p.z, { life: .4, size: .9, grow: 2, tint: '#ffb8a4' }); break; }
+      if (!done) for (const c of cows) if (tq.copy(c.position).setY(c.position.y + 1.4).distanceToSquared(p) < 1.6 && !c.userData.hop) { c.userData.hop = 1; beep(190, 120, .35, 'sawtooth', .05); }
+      if (!done && blocked(p)) { done = true; fx.emit('puff', p.x, p.y, p.z, { life: .4, size: .7, grow: 1.5, tint: '#ffb8a4' }); } }
+    if (done) { s.life = 0; s.m.visible = false; } }
+
+  // カラス（青緑の版）。青緑を抜くと見えなくなり、弾も当たらないが、作物は食べつづける
+  const active = mode === 'chaos' ? 12 : Math.min(7, 2 + Math.floor(score / 4)), fast = mode === 'chaos' ? 7 : Math.min(5, score * .1);
+  birds.forEach((b, i) => { const p = b.g.position, flap = Math.sin(t * 13 + b.ph);
+    if (b.st === 'wait') { b.g.visible = false; if (i < active && playing && (b.t -= dt) < 0) launch(b); return; }
+    b.g.visible = onAt('A', p.x, p.y, p.z);
+    if (b.st === 'in') { const c = b.target; tv.set(c.x - p.x, 0, c.z - p.z); const d = tv.length(), sp = 11 + fast; tv.multiplyScalar(Math.min(1, sp * dt / (d || 1))); p.x += tv.x; p.z += tv.z; const ty = c.y + .9 + Math.min(34, Math.max(0, d - 1.5) * .34) + Math.sin(t * 1.7 + b.ph) * Math.min(1.5, d * .1); p.y += (ty - p.y) * Math.min(1, dt * 3);
+      b.g.rotation.y = Math.atan2(c.x - p.x, c.z - p.z); b.b.rotation.x = d > 8 ? .25 : 0; b.wings.forEach((w, k) => w.rotation.z = (k ? -1 : 1) * flap * .7); if (d < .4) { b.st = 'peck'; b.t = 3.4; } }
+    else if (b.st === 'peck') { b.t -= dt; b.b.rotation.x = Math.max(0, Math.sin(t * 9 + b.ph)) * .7; b.wings.forEach((w, k) => w.rotation.z = (k ? 1 : -1) * 1.25); if (b.t < 0) { setCrop(b.target, false); left--; drawHud(); b.target.taken = false; b.target = null; b.st = 'out'; b.t = 0; b.b.rotation.x = 0; b.v.set(Math.sin(b.g.rotation.y) * 9, 5, Math.cos(b.g.rotation.y) * 9); beep(300, 200, .2, 'sawtooth', .03); } }
+    else if (b.st === 'out') { b.t += dt; p.addScaledVector(b.v, dt); b.b.rotation.x = -.3; b.wings.forEach((w, k) => w.rotation.z = (k ? -1 : 1) * flap * .8); if (b.t > 7) { b.st = 'wait'; b.t = 1.5; } }
+    else if (b.st === 'fall') { b.t += dt; b.v.y -= 16 * dt; p.addScaledVector(b.v, dt); b.b.rotation.x += dt * 9; b.b.rotation.z += dt * 6; b.wings.forEach((w, k) => w.rotation.z = (k ? 1 : -1) * 1.1); if (p.y < H(p.x, p.z) + .3 || b.t > 3) { fx.emit('puff', p.x, p.y + .4, p.z, { life: .6, size: 1.4, grow: 1.6, tint: '#d8e8e0' }); b.st = 'wait'; b.t = mode === 'chaos' ? .6 : 2 + Math.random() * 3; } } });
+  fx.update(dt);
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(ps, pc);
+});
+drawHud(); showMenu('');
+if (location.hash === '#dbg') window.__dbg = { P, PAL, CANS, eggs, birds, inp, ghostBird, setPal, wave, get cur() { return cur; }, get found() { return found; }, get score() { return score; }, set timeLeft(v) { timeLeft = v; }, H, THREE };
+</script>
+</html>

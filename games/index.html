@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>あそべるゲーム 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.6 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px;max-width:60em}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+header a{color:#e8b44a}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#0c0d10;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{padding:10px 12px 12px}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a;margin-right:8px}
+.name{font-weight:700;font-size:15px}
+.desc{margin:4px 0 0;color:#b9b7ae}
+.tags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.tag{font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>あそべるゲーム</h1>
+  <p>ルックの試作から育てた、自分で操作して遊べるゲームの一覧です。カードを押すと別タブで開きます。パソコンはキーボードとマウス、スマホはタッチで遊べます。three.js を CDN から読むのでネット接続が要ります。　<a href="../index.html">← ルック試作のトップへ</a></p>
+</header>
+<div id="grid"></div>
+<script>
+// [番号, 開くページ, サムネ, 名前, 説明, 札]
+const GAMES = [
+  ['01', '01-riso-farm-plates.html', 'thumbs/01.gif', '版の農場 ─ インク缶と 2 色のたまご', '2 色刷りの農場を歩く FPS。インク缶を撃つと、当たった所から刷り色が変わる。版を抜くと物が消え、夜刷りやずれ刷りでは見えなかった足場が現れる。たまご 5 個を探す謎解きと、当てるたびに色が変わる「カオス刷り」つき。', ['FPS', '謎解き', '第 2 集 19 の 2 色刷り']],
+  ['02', '02-snow-night-rally.html', 'thumbs/02.gif', '雪夜ラリー', 'オーロラの峠を 3 周するレース。ドリフトでためるダッシュ、ニトロ、スリップストリームでライバル 5 台と順位を争う。立体はローポリ、空と雪けむりはドット絵。', ['レース', '第 1 集 04 の雪の夜']],
+  ['03', '03-akari-no-mori.html', 'thumbs/03.gif', '灯りの森', '懐中電灯を手に夜の森を歩き、消えた七つの灯をともしていく TPS 探索。こわい要素はなし。看板や祠はしらべると短い文が読める。', ['TPS', '探索', '第 1 集 11 の初期 3D ゲーム機']],
+  ['04', '04-island/index.html', 'thumbs/04.jpg', '島あるき', '空撮で見ていた島を、うしろからのカメラで歩きまわる。二段ジャンプ、ダッシュ、パラソル滑空、泳ぎで建物や灯台、小島をめぐり、貝がら 39 個を集める。住人 20 人と動物たちもいる。', ['TPS', '探索', '第 2 集 08 のドローン映像']],
+  ['00', '../game-looks-2/21-farm-riso-fps.html', '../game-looks-2/thumbs/21.gif', '農場 FPS（01 のもとになった試作）', '01 のもとになった、しかけのない版。カラスを追いはらうだけ。刷り色 6 種をボタンで選べる。', ['FPS', '第 2 集 19 の 2 色刷り']],
+];
+const grid = document.getElementById('grid');
+for (const [no, href, thumb, name, desc, tags] of GAMES) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = href; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="${thumb}" alt="${name}"></div><div class="meta"><span class="no">${no}</span><span class="name">${name}</span><p class="desc">${desc}</p><div class="tags">${tags.map(t => `<span class="tag">${t}</span>`).join('')}</div></div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>
