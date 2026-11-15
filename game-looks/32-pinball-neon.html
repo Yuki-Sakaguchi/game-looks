@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 32 ピンボール ネオン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c090b;overflow:hidden;display:grid;place-items:center}
+canvas{height:100vh;max-width:100vw;aspect-ratio:2/3;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ff8ad0;background:#0c090b;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 32 ─ ピンボール / ネオン管　｜　見るだけ（自動で打つ）</div>
+<script>
+// 暗いれんが壁に取りつけたネオン管だけで台を描く。管は「広く薄い光 3 重」＋「色の芯」＋「白く焼けた中心」を加算で重ね、
+// 消えている管は灰色のガラスとして見せる。玉が当たると管が明るくなって、ちらつきながら戻る
+const LW = 480, LH = 720, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const PINK = '#ff3fa8', CYAN = '#3fe0ff', YELLOW = '#ffd23f', GREEN = '#5fff8a', ORANGE = '#ff8a3f', WHITE = '#e8f0ff';
+
+const wall = document.createElement('canvas'); wall.width = LW * S; wall.height = LH * S;
+{
+  const x = wall.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.fillStyle = '#120d10'; x.fillRect(0, 0, LW, LH);
+  for (let r = 0; r < 40; r++) for (let c = -1; c < 9; c++) { const v = 22 + Math.random() * 14; x.fillStyle = `rgb(${v + 10},${v},${v + 2})`; x.fillRect(c * 60 + (r % 2) * 30 + 1.5, r * 18 + 1.5, 57, 15); }
+}
+function neon(path, color, on = 1, w = 4) {
+  g.lineCap = g.lineJoin = 'round';
+  if (on <= 0) { g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.strokeStyle = '#4a4650'; g.lineWidth = w; g.stroke(path); return; }
+  g.globalCompositeOperation = 'lighter'; g.strokeStyle = color;
+  for (const [k, a] of [[9, .05], [5, .1], [2.4, .25]]) { g.lineWidth = w * k; g.globalAlpha = a * on; g.stroke(path); }
+  g.globalAlpha = Math.min(1, .95 * on); g.lineWidth = w; g.stroke(path);
+  g.strokeStyle = '#fff'; g.globalAlpha = Math.min(1, .75 * on); g.lineWidth = w * .35; g.stroke(path);
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+}
+const P = fn => { const p = new Path2D(); fn(p); return p; };
+const circle = (x, y, r) => P(p => p.arc(x, y, r, .3, Math.PI * 2 - .1));   // 管の切れ目つきの輪
+
+// 台の形
+const FRAME = P(p => { p.moveTo(40, 690); p.lineTo(40, 240); p.arc(240, 240, 200, Math.PI, 0); p.lineTo(440, 690); });
+const LANES = [150, 210, 270, 330].map(x => P(p => { p.moveTo(x, 110); p.lineTo(x, 160); }));
+const SLING = [P(p => { p.moveTo(84, 500); p.lineTo(84, 580); p.lineTo(140, 610); p.closePath(); }), P(p => { p.moveTo(396, 500); p.lineTo(396, 580); p.lineTo(340, 610); p.closePath(); })];
+const STAR = P(p => { for (let i = 0; i <= 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 14 : 32; p.lineTo(240 + Math.cos(a) * r, 420 + Math.sin(a) * r); } });
+const bumpers = [[170, 260, 34, CYAN], [310, 260, 34, CYAN], [240, 340, 34, PINK]].map(([x, y, r, c]) => ({ x, y, r, c, hit: 0, path: circle(x, y, r), inner: circle(x, y, r - 14) }));
+const SEG = { a: [0, 0, 1, 0], b: [1, 0, 1, 1], c: [1, 1, 1, 2], d: [0, 2, 1, 2], e: [0, 1, 0, 2], f: [0, 0, 0, 1], g: [0, 1, 1, 1] }, DIG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+const digit = (x, y, s, ch) => P(p => { for (const k of ch) { const q = SEG[k]; p.moveTo(x + q[0] * s + (q[1] === q[3] ? 3 : 0), y + q[1] * s + (q[1] === q[3] ? 0 : 3)); p.lineTo(x + q[2] * s - (q[1] === q[3] ? 3 : 0), y + q[3] * s - (q[1] === q[3] ? 0 : 3)); } });
+
+const ball = { x: 300, y: 120, vx: 60, vy: 0 };
+let score = 0, flipL = 0, flipR = 0, slingHit = [0, 0], starOn = 0, laneOn = [0, 0, 0, 0];
+function physics(dt) {
+  ball.vy += 620 * dt; ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  if (ball.x < 52) { ball.x = 52; ball.vx = Math.abs(ball.vx) * .8; } if (ball.x > 428) { ball.x = 428; ball.vx = -Math.abs(ball.vx) * .8; }
+  if (ball.y < 240) { const dx = ball.x - 240, dy = ball.y - 240, d = Math.hypot(dx, dy); if (d > 188) { const nx = dx / d, ny = dy / d, dot = ball.vx * nx + ball.vy * ny; if (dot > 0) { ball.vx -= 1.8 * dot * nx; ball.vy -= 1.8 * dot * ny; } ball.x = 240 + nx * 188; ball.y = 240 + ny * 188; } }
+  for (const b of bumpers) {
+    const dx = ball.x - b.x, dy = ball.y - b.y, d = Math.hypot(dx, dy);
+    if (d < b.r + 9) { const nx = dx / d, ny = dy / d; ball.x = b.x + nx * (b.r + 9); ball.y = b.y + ny * (b.r + 9); ball.vx = nx * 380; ball.vy = ny * 380; b.hit = 1; score += 50; }
+  }
+  laneOn.forEach((_, i) => { if (ball.y < 160 && ball.y > 110 && Math.abs(ball.x - (180 + i * 60)) < 30) laneOn[i] = 1; });
+  if (Math.hypot(ball.x - 240, ball.y - 420) < 34 && starOn <= 0) { starOn = 1; score += 200; ball.vy = -Math.abs(ball.vy) - 60; }
+  [84, 396].forEach((sx, i) => { if (ball.y > 500 && ball.y < 600 && Math.abs(ball.x - sx) < 50 && slingHit[i] <= 0) { slingHit[i] = 1; ball.vx = (i ? -1 : 1) * 330; ball.vy = -300; score += 10; } });
+  if (ball.y > 628 && ball.vy > 0) {                                  // フリッパー
+    if (ball.x > 120 && ball.x < 360) { const left = ball.x < 240; if (left) flipL = 1; else flipR = 1; ball.vy = -760 - Math.random() * 140; ball.vx = (left ? 1 : -1) * (40 + Math.random() * 220); score += 5; }
+    else if (ball.y > 700) { ball.x = 60 + Math.random() * 360; ball.y = 110; ball.vx = (Math.random() - .5) * 200; ball.vy = 0; }
+  }
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.033, (now - last) / 1000)); last = now; t += dt;
+  for (let k = 0; k < 3; k++) physics(dt / 3);
+  const decay = v => Math.max(0, v - dt * 2.5);
+  bumpers.forEach(b => b.hit = decay(b.hit)); flipL = decay(flipL * 1) - dt * 3 > 0 ? flipL - dt * 5 : 0; flipR = flipR - dt * 5 > 0 ? flipR - dt * 5 : 0;
+  slingHit = slingHit.map(decay); starOn = Math.max(0, starOn - dt * .5); laneOn = laneOn.map(v => Math.max(0, v - dt * .4));
+  const buzz = k => .82 + .18 * Math.sin(t * 50 + k) * Math.sin(t * 7.3 + k * 2);   // 管のわずかなちらつき
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.drawImage(wall, 0, 0, LW, LH);
+  // 壁にこぼれる色の光
+  g.globalCompositeOperation = 'lighter';
+  for (const [x, y, r, c, a] of [[240, 300, 330, PINK, .2], ...bumpers.map(b => [b.x, b.y, 120, b.c, .16 + b.hit * .4]), [ball.x, ball.y, 60, WHITE, .3]]) {
+    const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = a; g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  neon(FRAME, PINK, buzz(1), 5);
+  LANES.forEach((p, i) => neon(p, GREEN, i < 4 && (laneOn[i] > 0 || laneOn[i - 1] > 0) ? 1 : 0));
+  bumpers.forEach((b, i) => { neon(b.path, b.c, (.75 + b.hit * 1.2) * (b.hit > 0 ? .6 + .4 * Math.sin(t * 90) : buzz(i + 3)), 5); neon(b.inner, WHITE, b.hit > 0 ? 1.2 : 0, 3); });
+  SLING.forEach((p, i) => neon(p, YELLOW, slingHit[i] > 0 ? 1.4 : .8 * buzz(i + 9)));
+  neon(STAR, ORANGE, starOn > 0 ? (Math.floor(t * 10) % 2 ? 1.3 : .3) : (Math.sin(t * 2) > .96 ? 0 : .7));
+  // フリッパー
+  const flip = (px, dir, up) => P(p => { const a = dir * (.45 - up * .9); p.moveTo(px, 650); p.lineTo(px + dir * 82 * Math.cos(a), 650 + 82 * Math.sin(a)); });
+  neon(flip(140, 1, flipL), WHITE, 1, 7); neon(flip(340, -1, flipR), WHITE, 1, 7);
+  // 得点
+  const sc = String(score % 100000).padStart(5, '0'); [...sc].forEach((ch, i) => { neon(digit(176 + i * 28, 34, 17, 'abcdefg'), ORANGE, 0, 3); neon(digit(176 + i * 28, 34, 17, DIG[+ch]), ORANGE, 1, 3); });
+  // 玉
+  g.globalCompositeOperation = 'lighter'; const gr = g.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(.4, 'rgba(220,235,255,.8)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(ball.x - 16, ball.y - 16, 32, 32);
+  g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

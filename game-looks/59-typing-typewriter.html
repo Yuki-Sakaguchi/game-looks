@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 59 タイピング タイプライター原稿</title>
+<style>
+html,body{margin:0;height:100%;background:#211c18;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e9dfc9;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 59 ─ タイピング / タイプライター原稿　｜　見るだけ（自動で打つ）</div>
+<script>
+// 字は 1 つずつ別々に置く。字ごとに上下のずれ・わずかな傾き・インクの濃さを変え、ときどき二度打ちでにじませる。
+// 打ちまちがいは消さずに上から正しい字を重ねる。大文字の単語は赤いリボンで打つ。
+// 紙は 1 行打つごとに上へ送られ、いま打っている行はいつも同じ高さにある
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const TEXT = 'the words come down the page one row at a time and each one is an ENEMY until it is typed clean. a short word is worth little but a long word typed without a slip builds the COMBO and the bell rings at the end of the line. keep the hands low and the eyes ahead of the fingers. when a WRONG letter lands the ribbon does not forgive, so strike over it and go on. the carriage returns, the paper climbs, and the next WAVE is already waiting above the keys. ';
+const COLS = 44, PITCH = 12.8, LHT = 31, X0 = 164, BASE = 372;
+// 行に分ける（単語の途中で切らない）
+const glyphs = []; { let line = 0, col = 0, i = 0; const words = (TEXT.repeat(24)).split(' ');
+  for (const wd of words) { if (col + wd.length > COLS) { line++; col = 0; } const red = wd.length > 1 && wd === wd.toUpperCase() && /[A-Z]/.test(wd);
+    for (const ch of wd) { glyphs.push({ ch, line, col, red, i }); col++; i++; } glyphs.push({ ch: ' ', line, col, i }); col++; i++; } }
+const paper = document.createElement('canvas'); paper.width = 720; paper.height = 64; { const p = paper.getContext('2d'); p.fillStyle = '#f4efe2'; p.fillRect(0, 0, 720, 64); for (let k = 0; k < 500; k++) { p.fillStyle = `rgba(110,90,50,${Math.random() * .07})`; p.fillRect(Math.random() * 720, Math.random() * 64, 1 + Math.random() * 3, 1); } }
+const start = performance.now(); let feed = 0;
+function frame(now) {
+  const t = (now - start) / 1000, n = Math.floor(t / .085) % (glyphs.length - 200), cur = glyphs[n], L = cur.line; feed += (L - feed) * .18;
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#211c18'; g.fillRect(0, 0, LW, LH);
+  g.save(); g.translate(480, 300); g.rotate(-.012); g.translate(-480, -300);
+  g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(132, 0, 720, 470);
+  g.fillStyle = '#f4efe2'; g.fillRect(120, 0, 720, 470);
+  for (let y = -((feed * LHT) % 64) - 64; y < 470; y += 64) g.drawImage(paper, 120, y);
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = '22px "Courier New",Courier,monospace';
+  for (let k = n; k >= 0 && glyphs[k].line > L - 14; k--) {
+    const q = glyphs[k]; if (q.ch === ' ') continue; const x = X0 + q.col * PITCH, y = BASE - (feed - q.line) * LHT, h1 = hash(q.i, 1), h2 = hash(q.i, 2);
+    g.save(); g.translate(x + (h2 - .5) * 1.2, y + (h1 - .5) * 2.6); g.rotate((hash(q.i, 3) - .5) * .07);
+    const col = q.red ? '150,30,24' : '28,26,32';
+    if (hash(q.i, 4) < .035) { g.fillStyle = `rgba(${col},.75)`; g.fillText('abcdefghijklmnopqrstuvwxyz'[Math.floor(hash(q.i, 5) * 26)], 0, 0); }   // 打ちまちがい
+    g.fillStyle = `rgba(${col},${.55 + .45 * hash(q.i, 6)})`; g.fillText(q.ch, 0, 0); if (hash(q.i, 7) < .14) g.fillText(q.ch, .8, .3);
+    g.restore();
+  }
+  // 赤えんぴつの書きこみ（紙といっしょに動く）
+  g.font = '18px "Bradley Hand","Segoe Script","Comic Sans MS",cursive'; g.fillStyle = g.strokeStyle = 'rgba(190,40,30,.85)'; g.lineWidth = 1.6;
+  for (let m = Math.floor(L / 7) - 2; m <= Math.floor(L / 7); m++) { if (m < 0) continue; const y = BASE - (feed - m * 7 - 2) * LHT; g.textAlign = 'center'; g.fillText((58 + Math.floor(hash(m, 1) * 30)) + ' wpm', 790, y); g.beginPath(); g.ellipse(790, y - 7, 44, 16, -.08, .3, 6.5); g.stroke(); }
+  g.restore();
+  // 紙押さえの目盛りと、ゴムのローラー
+  g.fillStyle = 'rgba(20,18,16,.82)'; g.fillRect(96, BASE + 12, 768, 16); g.fillStyle = '#d8ceb8'; for (let i = 0; i <= 60; i++) g.fillRect(X0 - 6 + i * PITCH, BASE + 12, 1, i % 5 ? 5 : 10);
+  g.fillStyle = '#d5392c'; g.beginPath(); const cx = X0 + cur.col * PITCH; g.moveTo(cx, BASE + 8); g.lineTo(cx - 6, BASE - 2 + 16); g.lineTo(cx + 6, BASE - 2 + 16); g.fill();
+  const rol = g.createLinearGradient(0, BASE + 28, 0, LH); rol.addColorStop(0, '#0e0d0c'); rol.addColorStop(.25, '#3d3833'); rol.addColorStop(.5, '#1a1816'); rol.addColorStop(1, '#0a0908'); g.fillStyle = rol; g.fillRect(60, BASE + 28, 840, LH);
+  g.fillStyle = '#8a8377'; g.fillRect(40, BASE + 60, 880, 3); g.beginPath(); g.arc(60, BASE + 90, 34, 0, 7); g.arc(900, BASE + 90, 34, 0, 7); g.fillStyle = '#17150f'; g.fill();
+  // 行末のベル
+  const bell = cur.col > COLS - 7 ? 1 : 0; g.fillStyle = bell ? '#f2c14a' : '#6b5a2a'; g.beginPath(); g.arc(880, 60, 16, Math.PI, 0); g.fill(); g.fillRect(864, 60, 32, 4); if (bell) { g.fillStyle = '#f2c14a'; g.font = '700 14px ui-monospace,Menlo,monospace'; g.textAlign = 'right'; g.fillText('DING', 856, 64); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

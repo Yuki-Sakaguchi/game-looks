@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 49 ターン制バトル 飛び出す絵本</title>
+<style>
+html,body{margin:0;height:100%;background:#6a4a3a;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff3e0}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 49 ─ ターン制バトル / 飛び出す絵本　｜　見るだけ（ページが開いて戦い、閉じてめくれる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 机に開いた絵本。登場するものは全部「白いふちを残して切りぬいた平らな紙」で、根元を軸に起き上がる。
+// 紙どうしが落とす影で奥行きを出す。戦いの動きも、紙を引いて動かす仕掛けのように横すべりと回転だけ
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x6a4a3a);
+const cam = new THREE.PerspectiveCamera(38, 1, .1, 100); cam.position.set(0, 10.5, 12.5); cam.lookAt(0, 1, -.6);
+scene.add(new THREE.HemisphereLight(0xfff4e0, 0x8a6a5a, 1.5));
+const key = new THREE.DirectionalLight(0xfff0d8, 2.2); key.position.set(-5, 11, 7); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 5;
+Object.assign(key.shadow.camera, { left: -11, right: 11, top: 9, bottom: -9, near: 1, far: 40 }); scene.add(key);
+
+// 絵を描いて、白いふちつきの切りぬきにする
+function cutout(w, h, draw) {
+  const K = 64, a = document.createElement('canvas'); a.width = w * K; a.height = h * K; const x = a.getContext('2d'); x.scale(K, K); draw(x, w, h);
+  const c = document.createElement('canvas'); c.width = a.width; c.height = a.height; const y = c.getContext('2d');
+  y.shadowColor = '#fff'; y.shadowBlur = 0; for (let i = 0; i < 16; i++) { y.shadowOffsetX = Math.cos(i * .3927) * 9; y.shadowOffsetY = Math.sin(i * .3927) * 9; y.drawImage(a, 0, 0); }
+  y.shadowColor = 'transparent'; y.drawImage(a, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: t, alphaTest: .5, side: THREE.DoubleSide })); m.position.y = h / 2; m.castShadow = true; m.receiveShadow = true;
+  m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: t, alphaTest: .5 });
+  const g = new THREE.Group(); g.add(m); return g;
+}
+const P = (x, pts, c) => { x.fillStyle = c; x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); x.fill(); };
+const C = (x, cx, cy, r, c) => { x.fillStyle = c; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
+const castle = cutout(6, 4.4, (x, w, h) => { x.fillStyle = '#b8a8d8'; x.fillRect(.6, 1.6, 4.8, 2.6); for (const tx of [.3, 2.4, 4.5]) { x.fillRect(tx, .9, 1.2, 3.3); P(x, [[tx - .15, .95], [tx + .6, .15], [tx + 1.35, .95]], '#e85a6a'); } x.fillStyle = '#6a4a8a'; x.fillRect(2.6, 2.9, .8, 1.3); for (const [wx, wy] of [[.7, 1.5], [2.8, 1.5], [4.9, 1.5], [1.6, 2.4], [3.9, 2.4]]) x.fillRect(wx, wy, .35, .55); });
+const tree = () => cutout(1.8, 2.8, (x) => { x.fillStyle = '#8a5a3a'; x.fillRect(.75, 1.7, .3, .9); C(x, .9, 1.1, .75, '#4fae5a'); C(x, .55, 1.4, .45, '#3f9a4a'); C(x, 1.25, 1.45, .42, '#6fc46a'); });
+const hero = cutout(1.7, 2.3, (x) => { x.fillStyle = '#3a6fd8'; x.fillRect(.5, .95, .7, .8); x.fillStyle = '#2a3a6a'; x.fillRect(.52, 1.75, .26, .45); x.fillRect(.92, 1.75, .26, .45); C(x, .85, .65, .33, '#ffd8b0'); P(x, [[.5, .55], [.85, .2], [1.2, .55]], '#c8c8d8'); x.fillStyle = '#d8d8e8'; x.fillRect(1.3, .5, .1, 1); x.fillStyle = '#e8b030'; x.fillRect(1.2, 1.4, .3, .1); C(x, .4, 1.3, .3, '#e85a4a'); });
+const dragon = cutout(3.4, 3, (x) => { x.fillStyle = '#4fb86a'; x.beginPath(); x.ellipse(1.9, 1.9, 1.1, .85, 0, 0, 7); x.fill(); P(x, [[1.1, 1.5], [.5, .7], [1.2, .4], [1.7, 1.2]], '#4fb86a'); C(x, .75, .62, .42, '#4fb86a'); P(x, [[2.2, 1.3], [3.2, .3], [3.1, 1.5]], '#e8b84a'); P(x, [[2.8, 2.2], [3.3, 2.7], [2.6, 2.6]], '#4fb86a'); x.fillStyle = '#3a8a50'; x.fillRect(1.4, 2.5, .3, .4); x.fillRect(2.2, 2.5, .3, .4); C(x, .62, .55, .09, '#fff'); C(x, .62, .55, .045, '#222'); P(x, [[.5, .28], [.62, .02], [.78, .3]], '#e8b84a'); });
+const flame = cutout(2, 1, (x) => { P(x, [[1.9, .5], [1.2, .1], [.1, .5], [1.2, .9]], '#f08a2a'); P(x, [[1.8, .5], [1.2, .3], [.6, .5], [1.2, .7]], '#ffd84a'); });
+const cloud = () => cutout(2.4, 1.1, (x) => { C(x, .7, .65, .4, '#fff'); C(x, 1.2, .5, .46, '#fff'); C(x, 1.75, .68, .36, '#fff'); x.fillStyle = '#fff'; x.fillRect(.6, .65, 1.2, .38); x.fillStyle = '#c8e0f0'; x.fillRect(.7, .9, 1, .1); });
+const tag = cutout(1.2, .8, (x) => { x.fillStyle = '#ffe9a0'; x.fillRect(.08, .1, 1.04, .6); x.fillStyle = '#c8382e'; x.scale(1 / 64, 1 / 64); x.font = '900 30px "Arial Black",Impact,sans-serif'; x.textAlign = 'center'; x.fillText('-12', 38, 37); });
+
+// 本と机
+const table = new THREE.Mesh(new THREE.PlaneGeometry(60, 40), new THREE.MeshLambertMaterial({ color: 0x8a5a3a })); table.rotation.x = -Math.PI / 2; table.position.y = -.36; table.receiveShadow = true; scene.add(table);
+const pageTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#fbf3df'; x.fillRect(0, 0, 256, 256); x.fillStyle = '#bfe0a8'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 300; i++) { x.fillStyle = `rgba(255,255,255,${Math.random() * .2})`; x.fillRect(Math.random() * 256, Math.random() * 256, 8, 3); } x.fillStyle = '#e8d8a8'; x.beginPath(); x.ellipse(128, 150, 120, 26, 0, 0, 7); x.fill(); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const cover = new THREE.Mesh(new THREE.BoxGeometry(17, .24, 10.6), new THREE.MeshLambertMaterial({ color: 0xc8382e })); cover.position.y = -.22; cover.receiveShadow = cover.castShadow = true; scene.add(cover);
+for (const s of [-1, 1]) { const pg = new THREE.Mesh(new THREE.BoxGeometry(8, .12, 10), new THREE.MeshLambertMaterial({ map: pageTex })); pg.position.set(s * 4.02, -.05, 0); pg.receiveShadow = true; scene.add(pg); }
+const flip = new THREE.Group(); scene.add(flip); { const m = new THREE.Mesh(new THREE.PlaneGeometry(8, 10), new THREE.MeshLambertMaterial({ color: 0xfbf3df, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; m.position.set(4, .04, 0); m.castShadow = true; flip.add(m); }
+
+// 立てる順に並べる（根元の位置、起き上がる遅れ）
+const stand = [[castle, 0, -3.4, 0], [tree(), -5.6, -2, .1], [tree(), 5.8, -2.4, .15], [tree(), -6.6, .6, .2], [cloud(), -3.6, -4.2, .25], [cloud(), 4, -4.4, .3], [hero, -3, 1.6, .35], [dragon, 2.8, 1.2, .4]];
+stand.forEach(([o, x, z]) => { o.position.set(x, .02, z); scene.add(o); });
+stand[4][0].children[0].position.y = 4.4; stand[5][0].children[0].position.y = 5;
+flame.position.set(.6, 1.9, 1.25); scene.add(flame); tag.position.set(0, 3.2, 1.3); scene.add(tag);
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = cam.aspect < 1.2 ? 52 : 38; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+const ease = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const u = t % 13, open = u < 10 ? ease((u - .3) / 1.6) : 1 - ease((u - 10) / 1.2);
+  stand.forEach(([o, , , d]) => { o.rotation.x = -Math.PI / 2 * (1 - ease(open * 1.4 - d)) - .12 * ease(open * 1.4 - d); o.visible = open > .01; });
+  flip.rotation.z = u > 11.2 ? ease((u - 11.2) / 1.5) * Math.PI : 0; flip.visible = u > 11.2;
+  // 戦い（紙を横に引く動き）
+  const atk = Math.max(0, Math.sin((u - 3) * Math.PI / 1.2)) * (u > 3 && u < 4.2 ? 1 : 0) + Math.max(0, Math.sin((u - 7) * Math.PI / 1.2)) * (u > 7 && u < 8.2 ? 1 : 0);
+  hero.position.x = -3 + atk * 3.4; hero.rotation.z = -atk * .25;
+  const fire = (u > 5 && u < 6.2) ? Math.sin((u - 5) * Math.PI / 1.2) : 0;
+  flame.visible = fire > 0 && open > .9; flame.scale.setScalar(.3 + fire); flame.position.x = .9 - fire * 1.6; flame.rotation.x = -.12;
+  dragon.position.x = 2.8 + (u > 3.5 && u < 3.9 || u > 7.5 && u < 7.9 ? Math.sin(u * 60) * .12 : 0) - fire * .4;
+  hero.position.z = 1.6 + (u > 5.5 && u < 5.9 ? Math.sin(u * 60) * .1 : 0);
+  const hit = u > 3.5 && u < 4.6 ? u - 3.5 : u > 7.5 && u < 8.6 ? u - 7.5 : u > 5.5 && u < 6.6 ? u - 5.5 : -1;
+  tag.visible = hit >= 0 && open > .9; tag.position.set(u > 5 && u < 7 ? -3 : 2.8, 3.2 + hit * 1.1, 1.5); tag.rotation.z = Math.sin(hit * 9) * .15;
+  renderer.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

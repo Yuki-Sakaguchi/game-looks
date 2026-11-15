@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 87 気球 手彩色の絵はがき</title>
+<style>
+html,body{margin:0;height:100%;background:#4a3f33;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4ead6;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 87 ─ 気球の旅 / 手で色をつけた古い絵はがき　｜　見るだけ</div>
+<script>
+// まず全体を茶色 1 色の古い写真として描く（明暗だけ）。その上から、色だけを変える重ね方で
+// うすい水色・桃色・緑・赤を筆で置く。色は形にぴったり合わせず、少しはみ出させる（昔の手彩色）。
+// 最後に、写真の粒、すり傷、白いふち、切手と消印を重ねて 1 枚の絵はがきにする
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const X0 = 60, Y0 = 44, X1 = 900, Y1 = 520;
+const grain = document.createElement('canvas'); grain.width = grain.height = 256; { const q = grain.getContext('2d'), im = q.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 40; } q.putImageData(im, 0, 0); }
+const sep = v => `rgb(${Math.round(40 + v * 205)},${Math.round(28 + v * 196)},${Math.round(16 + v * 170)})`;
+const hill = (x, k, off) => 330 + k * 46 - Math.abs(Math.sin((x + off) * (.004 + k * .0013) + k * 2)) * (90 - k * 22) - Math.sin((x + off) * .013 + k) * 10;
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, wx = t * 26, bx = 470 + Math.sin(t * .3) * 60, by = 190 + Math.sin(t * .5) * 24;
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#efe6d2'; g.fillRect(0, 0, LW, LH);
+  g.save(); g.beginPath(); g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.clip();
+  // ── 茶色の写真 ──
+  const sky = g.createLinearGradient(0, Y0, 0, 400); sky.addColorStop(0, sep(.62)); sky.addColorStop(1, sep(.95)); g.fillStyle = sky; g.fillRect(X0, Y0, LW, LH);
+  for (let i = 0; i < 6; i++) { const x = ((i * 210 - wx * .3) % 1260 + 1260) % 1260 - 150, y = 90 + hash(i, 1) * 120; g.fillStyle = sep(1); for (let k = 0; k < 4; k++) { g.beginPath(); g.ellipse(x + k * 34, y + Math.sin(k * 2 + i) * 8, 44, 20, 0, 0, 7); g.fill(); } g.fillStyle = sep(.86); g.beginPath(); g.ellipse(x + 50, y + 16, 80, 9, 0, 0, 7); g.fill(); }
+  for (let k = 0; k < 3; k++) { g.fillStyle = sep(.7 - k * .2); g.beginPath(); g.moveTo(X0, Y1); for (let x = X0; x <= X1; x += 10) g.lineTo(x, hill(x, k, wx * (.3 + k * .3))); g.lineTo(X1, Y1); g.fill(); }
+  g.fillStyle = sep(.84); g.beginPath(); g.ellipse(480, 500, 520, 34, 0, 0, 7); g.fill();                                   // 湖
+  for (let i = -1; i < 8; i++) { const n = Math.floor(wx * .9 / 140) + i, x = n * 140 - wx * .9 + X0, y = hill(x, 2, wx * .9) + 4, h = 20 + hash(n, 2) * 22; if (hash(n, 5) > .5) { g.fillStyle = sep(.9); g.fillRect(x, y - h, 26, h); g.fillStyle = sep(.25); g.beginPath(); g.moveTo(x - 4, y - h); g.lineTo(x + 13, y - h - 16); g.lineTo(x + 30, y - h); g.fill(); g.fillRect(x + 9, y - 12, 7, 12); } else { g.fillStyle = sep(.18); g.beginPath(); g.ellipse(x + 10, y - 22, 13, 24, 0, 0, 7); g.fill(); } }
+  // 気球（明暗だけ）
+  g.strokeStyle = sep(.15); g.lineWidth = 1; g.beginPath(); for (const s of [-1, -.4, .4, 1]) { g.moveTo(bx + s * 44, by + 54); g.lineTo(bx + s * 13, by + 112); } g.stroke();
+  const bg = g.createRadialGradient(bx - 24, by - 26, 6, bx, by, 80); bg.addColorStop(0, sep(1)); bg.addColorStop(.6, sep(.7)); bg.addColorStop(1, sep(.34)); g.fillStyle = bg; g.beginPath(); g.moveTo(bx - 14, by + 78); g.bezierCurveTo(bx - 92, by + 30, bx - 80, by - 74, bx, by - 74); g.bezierCurveTo(bx + 80, by - 74, bx + 92, by + 30, bx + 14, by + 78); g.closePath(); g.fill();
+  g.strokeStyle = sep(.2); g.lineWidth = 1.2; g.beginPath(); for (const s of [-.66, -.33, 0, .33, .66]) { g.moveTo(bx + s * 14, by + 78); g.bezierCurveTo(bx + s * 110, by + 30, bx + s * 100, by - 74, bx, by - 74); } g.stroke();
+  g.fillStyle = sep(.3); g.fillRect(bx - 14, by + 110, 28, 20); g.fillStyle = sep(.1); g.fillRect(bx - 16, by + 108, 32, 4); g.fillStyle = sep(.15); g.beginPath(); g.arc(bx - 4, by + 104, 4, 0, 7); g.arc(bx + 6, by + 105, 4, 0, 7); g.fill();
+  // ── 手彩色：色だけを置く ──
+  g.globalCompositeOperation = 'color';
+  const tint = (col, a, fn) => { g.globalAlpha = a; g.fillStyle = col; g.beginPath(); fn(); g.fill(); };
+  tint('#6fb4e0', .55, () => g.rect(X0, Y0, LW, 210)); tint('#f0a0b0', .45, () => g.rect(X0, 240, LW, 110));
+  tint('#7fb060', .55, () => { g.moveTo(X0, Y1); for (let x = X0; x <= X1; x += 20) g.lineTo(x, hill(x, 1, wx * .6) + 14 + Math.sin(x * .05) * 8); g.lineTo(X1, Y1); });
+  tint('#5a9ad0', .5, () => g.ellipse(486, 504, 500, 30, 0, 0, 7));
+  for (let i = 0; i < 6; i++) if (i % 2 === 0) tint('#e0402e', .8, () => { const s0 = -1 + i / 3, s1 = s0 + 1 / 3; g.moveTo(bx + s0 * 14 + 3, by + 80); g.bezierCurveTo(bx + s0 * 110 + 3, by + 30, bx + s0 * 100 + 3, by - 74, bx + 3, by - 72); g.bezierCurveTo(bx + s1 * 100 + 3, by - 74, bx + s1 * 110 + 3, by + 30, bx + s1 * 14 + 3, by + 80); });
+  else tint('#f0c040', .7, () => { const s0 = -1 + i / 3, s1 = s0 + 1 / 3; g.moveTo(bx + s0 * 14 + 3, by + 80); g.bezierCurveTo(bx + s0 * 110 + 3, by + 30, bx + s0 * 100 + 3, by - 74, bx + 3, by - 72); g.bezierCurveTo(bx + s1 * 100 + 3, by - 74, bx + s1 * 110 + 3, by + 30, bx + s1 * 14 + 3, by + 80); });
+  g.globalAlpha = 1; g.globalCompositeOperation = 'overlay'; const ox = Math.floor(Math.random() * 256), oy = Math.floor(Math.random() * 256); for (let y = -oy; y < LH; y += 256) for (let x = -ox; x < LW; x += 256) g.drawImage(grain, x, y);
+  g.globalCompositeOperation = 'source-over';
+  const vg = g.createRadialGradient(480, 280, 240, 480, 280, 560); vg.addColorStop(0, 'rgba(240,225,190,0)'); vg.addColorStop(1, 'rgba(240,225,190,.5)'); g.fillStyle = vg; g.fillRect(X0, Y0, LW, LH);
+  g.strokeStyle = 'rgba(255,250,235,.5)'; g.lineWidth = .8; for (let i = 0; i < 3; i++) { const x = X0 + hash(i, Math.floor(t * 3)) * 840; g.beginPath(); g.moveTo(x, Y0 + hash(i, 7) * 200); g.lineTo(x + 3, Y0 + 200 + hash(i, 8) * 270); g.stroke(); }
+  g.restore();
+  // はがきのふち・題字・切手・消印
+  g.strokeStyle = 'rgba(90,60,30,.35)'; g.lineWidth = 1; g.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
+  g.fillStyle = '#6a3a22'; g.font = 'italic 22px "Snell Roundhand","Apple Chancery","Brush Script MT",Georgia,serif'; g.textAlign = 'left'; g.fillText('Greetings from the Lake Country — No. 87', X0 + 4, 556);
+  g.save(); g.translate(846, 548); g.rotate(-.08); g.fillStyle = '#b8483a'; g.fillRect(-30, -24, 60, 46); g.strokeStyle = '#efe6d2'; g.setLineDash([3, 3]); g.lineWidth = 3; g.strokeRect(-30, -24, 60, 46); g.setLineDash([]); g.fillStyle = '#efe6d2'; g.font = '700 20px Georgia,serif'; g.textAlign = 'center'; g.fillText('87', 0, 6); g.restore();
+  g.strokeStyle = 'rgba(40,30,30,.6)'; g.lineWidth = 1.6; g.beginPath(); g.arc(790, 552, 28, 0, 7); g.stroke(); g.beginPath(); for (let i = 0; i < 4; i++) { g.moveTo(812, 538 + i * 9); for (let x = 812; x < 880; x += 6) g.lineTo(x, 538 + i * 9 + Math.sin(x * .25) * 2.5); } g.stroke(); g.fillStyle = 'rgba(40,30,30,.7)'; g.font = '9px Georgia,serif'; g.textAlign = 'center'; g.fillText('AIR · POST', 790, 549); g.fillText('15 XI', 790, 561);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 37 横シューティング 8×8マス2色</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,133.3vh);aspect-ratio:4/3;display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;background:#000;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 37 ─ 横スクロールシューティング / 8×8マスに2色まで　｜　見るだけ（自動で戦う）</div>
+<script>
+// 80 年代の家庭用パソコンの色の制限をまねる: 画面は 256×192、色は決まった 15 色、しかも 8×8 のマスごとに 2 色しか置けない。
+// ふつうに描いた絵をあとからこの制限に通すので、色ちがいの物が同じマスに入ると片方の色に染まる（色がにじんで見える）
+const LW = 256, LH = 192, BW = 32, BH = 24;
+const cv = document.getElementById('c'); cv.width = LW + BW * 2; cv.height = LH + BH * 2;
+const out = cv.getContext('2d');
+const lo = document.createElement('canvas'); lo.width = LW; lo.height = LH;
+const g = lo.getContext('2d', { willReadFrequently: true });
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const PAL = []; for (const v of [205, 255]) for (let i = 0; i < 8; i++) PAL.push([i & 2 ? v : 0, i & 4 ? v : 0, i & 1 ? v : 0]);
+const css = i => `rgb(${PAL[i]})`;
+const [BLACK, BLUE, RED, MAGENTA, GREEN, CYAN, YELLOW, WHITE] = [0, 1, 2, 3, 4, 5, 6, 7], BRIGHT = 8;
+const R = (x, y, w, h, c) => { g.fillStyle = css(c); g.fillRect(Math.round(x), Math.round(y), w, h); };
+
+const ship = { x: 40, y: 96 }, shots = [], foes = [], booms = [];
+const stars = [...Array(40)].map((_, i) => ({ x: hash(i, 1) * LW, y: 12 + hash(i, 2) * 150, v: 10 + hash(i, 3) * 40 }));
+let score = 0, shotT = 0, spawnT = 0, wave = 0;
+const img = out.createImageData(LW, LH), cnt = new Uint16Array(16), idx = new Uint8Array(64);
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 進行
+  const target = foes.filter(f => f.x > ship.x + 20).sort((a, b) => a.x - b.x)[0];
+  ship.y += Math.max(-70 * dt, Math.min(70 * dt, (target ? target.y : 96 + Math.sin(t) * 50) - ship.y));
+  if ((shotT -= dt) <= 0) { shotT = .18; shots.push({ x: ship.x + 14, y: ship.y }); }
+  if ((spawnT -= dt) <= 0) { spawnT = 1.5; wave++; for (let i = 0; i < 3; i++) foes.push({ x: LW + 10 + i * 22, y0: 30 + hash(wave, 4) * 110, ph: i * .6, kind: wave % 3 }); }
+  for (const s of shots) s.x += 220 * dt;
+  for (const f of foes) {
+    f.x -= 50 * dt; f.y = f.y0 + Math.sin(t * 3 + f.ph) * 18;
+    for (const s of shots) if (!s.dead && Math.abs(s.x - f.x) < 9 && Math.abs(s.y - f.y) < 8) { s.dead = f.dead = true; score += 10; booms.push({ x: f.x, y: f.y, a: 0 }); }
+  }
+  for (let i = shots.length - 1; i >= 0; i--) if (shots[i].dead || shots[i].x > LW) shots.splice(i, 1);
+  for (let i = foes.length - 1; i >= 0; i--) if (foes[i].dead || foes[i].x < -16) foes.splice(i, 1);
+  for (let i = booms.length - 1; i >= 0; i--) if ((booms[i].a += dt * 3) > 1) booms.splice(i, 1);
+
+  // ふつうに描く
+  R(0, 0, LW, LH, BLACK);
+  for (const s of stars) { s.x -= s.v * dt; if (s.x < 0) s.x += LW; R(s.x, s.y, 1, 1, s.v > 30 ? WHITE + BRIGHT : CYAN); }
+  for (let x = 0; x < LW; x++) {                                                    // 流れる山と地面
+    const wx = x + t * 40, h = 18 + Math.sin(wx * .05) * 9 + Math.sin(wx * .13) * 5 + (Math.floor(wx / 40) % 3 === 0 ? 10 : 0);
+    R(x, LH - h, 1, h, GREEN); if (Math.floor(wx) % 4 === 0) R(x, LH - h, 1, 2, GREEN + BRIGHT);
+    const h2 = 30 + Math.sin(wx * .02 + 2) * 12; if (Math.floor(wx * .5 + x) % 2) R(x, LH - h - h2 * .4, 1, 1, BLUE + BRIGHT);
+  }
+  for (const f of foes) {
+    const c = [MAGENTA, YELLOW, RED][f.kind] + BRIGHT, w = Math.floor(t * 8) % 2;
+    R(f.x - 6, f.y - 3, 12, 6, c); R(f.x - 3, f.y - 6, 6, 12, c); R(f.x - 2, f.y - 2, 4, 4, BLACK); R(f.x - 1, f.y - 1, 2, 2, WHITE + BRIGHT); R(f.x - 8, f.y - 5 + w * 8, 3, 2, c);
+  }
+  for (const s of shots) R(s.x, s.y, 6, 2, YELLOW + BRIGHT);
+  R(ship.x - 10, ship.y - 2, 20, 5, CYAN + BRIGHT); R(ship.x - 4, ship.y - 5, 8, 3, WHITE + BRIGHT); R(ship.x - 12, ship.y - 6, 5, 4, CYAN); R(ship.x - 12, ship.y + 3, 5, 4, CYAN);
+  R(ship.x - 16 - (Math.floor(t * 20) % 2) * 3, ship.y - 1, 6, 3, RED + BRIGHT);
+  for (const b of booms) { const r = 3 + b.a * 12; for (let k = 0; k < 10; k++) { const a = k * .63 + b.a * 3; R(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r, 3, 3, k % 2 ? YELLOW + BRIGHT : RED + BRIGHT); } }
+  g.fillStyle = css(WHITE + BRIGHT); g.font = 'bold 8px Menlo,Consolas,monospace'; g.textBaseline = 'top';
+  g.fillText('SCORE ' + String(score).padStart(5, '0'), 8, 0); g.fillStyle = css(YELLOW + BRIGHT); g.fillText('HI 09990', 184, 0);
+
+  // 色の制限に通す
+  const src = g.getImageData(0, 0, LW, LH).data, d = img.data;
+  for (let cy = 0; cy < LH; cy += 8) for (let cx = 0; cx < LW; cx += 8) {
+    cnt.fill(0);
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+      const o = ((cy + j) * LW + cx + i) * 4, r = src[o], gg = src[o + 1], b = src[o + 2], v = Math.max(r, gg, b);
+      const k = v < 60 ? 0 : (v > 230 ? 8 : 0) + (r > v * .55 ? 2 : 0) + (gg > v * .55 ? 4 : 0) + (b > v * .55 ? 1 : 0);
+      idx[j * 8 + i] = k; cnt[k]++;
+    }
+    let a = 0, b = -1; for (let k = 1; k < 16; k++) if (cnt[k] > cnt[a]) a = k;
+    for (let k = 0; k < 16; k++) if (k !== a && cnt[k] && (b < 0 || cnt[k] > cnt[b])) b = k;
+    for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+      const k = idx[j * 8 + i], c = PAL[k === a || b < 0 ? a : k === b ? b : (k & 7) === 0 ? ((a & 7) === 0 ? a : (b & 7) === 0 ? b : a) : (a & 7) === 0 ? b : a], o = ((cy + j) * LW + cx + i) * 4;
+      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+    }
+  }
+  // 外枠（読みこみ中のしま模様は最初の 2 秒だけ）
+  if (t < 2) for (let y = 0; y < cv.height; y += 4) { out.fillStyle = css(hash(Math.floor(y / (4 + (Math.floor(t * 30) % 5) * 4)), Math.floor(t * 30)) > .5 ? YELLOW : BLUE); out.fillRect(0, y, cv.width, 4); }
+  else { out.fillStyle = css(BLUE); out.fillRect(0, 0, cv.width, cv.height); }
+  out.putImageData(img, BW, BH);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

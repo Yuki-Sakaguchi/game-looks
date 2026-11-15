@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 85 玉転がし 磨いた大理石</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0c0e;overflow:hidden}
+canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8e2d4;opacity:.8}
+</style>
+<canvas id="gl"></canvas>
+<div id="cap">LOOK 85 ─ 玉転がし / 磨いた大理石　｜　見るだけ（玉がみぞを回る）</div>
+<script>
+// 形を三角形で作らず、「いちばん近い面までの距離」を返す式だけで場面を書き、画素ごとに光線を進めて描く。
+// この方法だと、みぞの丸い角も、ふちがぼけた影も、床への映りこみも同じ式から出せる。
+// 石の筋は、雑音でゆがめた波を細くしぼって作る。床は黒緑の石に金の線、玉は赤い石
+const cv = document.getElementById('gl'), gl = cv.getContext('webgl');
+const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error('L85', gl.getShaderInfoLog(s)); return s; };
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}'));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `precision highp float;
+uniform vec2 res;uniform float time;
+vec3 ball;
+float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+float vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*vn(p);p=p*2.1+3.7;a*=.5;}return s;}
+float torus(vec3 p,float R,float r){return length(vec2(length(p.xz)-R,p.y))-r;}
+float cyl(vec3 p,float r,float h){vec2 d=abs(vec2(length(p.xz),p.y))-vec2(r,h);return min(max(d.x,d.y),0.)+length(max(d,0.))-.04;}
+vec2 map(vec3 p){
+  float fl=max(p.y,-torus(p,2.,.4));fl=max(fl,-torus(p,3.3,.16));
+  vec2 d=vec2(fl,0.);
+  float b=length(p-ball)-.33;if(b<d.x)d=vec2(b,1.);
+  float ped=min(cyl(p-vec3(0.,.25,0.),.7,.25),length(p-vec3(0.,1.05,0.))-.55);
+  vec3 q=p;q.xz=abs(q.xz);float col=cyl(q-vec3(2.9,.5,2.9),.22,.5);col=min(col,length(q-vec3(2.9,1.18,2.9))-.2);
+  float w=min(ped,col);if(w<d.x)d=vec2(w,2.);
+  return d;}
+vec3 nor(vec3 p){vec2 e=vec2(.0015,0.);return normalize(vec3(map(p+e.xyy).x-map(p-e.xyy).x,map(p+e.yxy).x-map(p-e.yxy).x,map(p+e.yyx).x-map(p-e.yyx).x));}
+vec2 march(vec3 ro,vec3 rd){float t=.02;vec2 m=vec2(0.);for(int i=0;i<90;i++){m=map(ro+rd*t);if(m.x<.0015||t>30.)break;t+=m.x;}return vec2(t,m.y);}
+float shadow(vec3 ro,vec3 rd){float r=1.,t=.05;for(int i=0;i<28;i++){float d=map(ro+rd*t).x;r=min(r,9.*d/t);t+=clamp(d,.03,.4);if(r<.01||t>9.)break;}return clamp(r,0.,1.);}
+float ao(vec3 p,vec3 n){float o=0.,s=1.;for(int i=1;i<5;i++){float h=.07*float(i);o+=(h-map(p+n*h).x)*s;s*=.7;}return clamp(1.-2.2*o,0.,1.);}
+vec3 veins(vec3 p,vec3 base,vec3 vein,float sc){float v=abs(sin(p.x*sc+p.z*sc*.6+fbm(p*1.6)*7.));v=pow(1.-v,9.);float c=fbm(p*3.);return mix(base*(.8+.35*c),vein,v*.85);}
+vec3 sky(vec3 d){return mix(vec3(.05,.06,.07),vec3(.95,.9,.8),smoothstep(.55,1.,d.y))+vec3(1.,.85,.6)*pow(max(dot(d,normalize(vec3(.5,.7,.3))),0.),40.);}
+vec3 shade(vec3 p,vec3 rd,float id,out vec3 n,out float refl){
+  n=nor(p);vec3 L=normalize(vec3(.5,.7,.3));vec3 alb;refl=.1;
+  if(id<.5){alb=veins(p,vec3(.03,.09,.08),vec3(.6,.75,.7),1.3);float rr=length(p.xz);float inlay=smoothstep(.035,.02,abs(rr-1.45))+smoothstep(.035,.02,abs(rr-2.55))+smoothstep(.03,.015,abs(rr-3.9));
+    float ang=atan(p.z,p.x);inlay+=smoothstep(.03,.015,abs(fract(ang*8./6.2832+.5)-.5)*rr*.78)*step(4.1,rr)*step(rr,6.);
+    alb=mix(alb,vec3(.95,.72,.3),clamp(inlay,0.,1.)*step(-.001,p.y));refl=.34;}
+  else if(id<1.5){vec3 q=p-ball;float a=time*1.4;q=vec3(q.x*cos(a)-q.y*sin(a),q.x*sin(a)+q.y*cos(a),q.z);alb=veins(q*3.,vec3(.55,.06,.05),vec3(1.,.8,.7),2.);refl=.25;}
+  else{alb=veins(p*1.4,vec3(.86,.84,.8),vec3(.35,.36,.4),2.2);refl=.12;}
+  float dif=max(dot(n,L),0.)*shadow(p+n*.01,L),amb=ao(p,n);
+  vec3 c=alb*(dif*vec3(1.25,1.12,.95)+amb*vec3(.22,.26,.32));
+  c+=pow(max(dot(reflect(rd,n),L),0.),60.)*dif*.9;
+  return c;}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*res)/res.y;
+  float a=time*1.1;ball=vec3(2.*cos(a),-.07,2.*sin(a));
+  float ca=time*.12+.6;vec3 ro=vec3(cos(ca)*7.2,3.6+sin(time*.2)*.5,sin(ca)*7.2),ta=vec3(0.,.2,0.);
+  vec3 f=normalize(ta-ro),r=normalize(cross(f,vec3(0.,1.,0.))),u=cross(r,f),rd=normalize(f*1.7+r*uv.x+u*uv.y);
+  vec2 h=march(ro,rd);vec3 col;
+  if(h.x>29.)col=sky(rd);
+  else{vec3 p=ro+rd*h.x,n;float k;col=shade(p,rd,h.y,n,k);
+    vec3 r2=reflect(rd,n);vec2 h2=march(p+n*.02,r2);vec3 rc;
+    if(h2.x>29.)rc=sky(r2);else{vec3 n2;float k2;rc=shade(p+n*.02+r2*h2.x,r2,h2.y,n2,k2);}
+    float fr=k+(1.-k)*pow(1.-max(dot(-rd,n),0.),5.);col=mix(col,rc,fr);
+    col=mix(col,vec3(.05,.06,.07),smoothstep(9.,26.,h.x));}
+  col=pow(col,vec3(.4545));col*=1.-dot(uv,uv)*.25;
+  gl_FragColor=vec4(col,1.);
+}`));
+gl.linkProgram(prog); gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const uRes = gl.getUniformLocation(prog, 'res'), uTime = gl.getUniformLocation(prog, 'time');
+function resize() { const k = Math.min(1, 900 / innerWidth); cv.width = Math.round(innerWidth * k); cv.height = Math.round(innerHeight * k); gl.viewport(0, 0, cv.width, cv.height); gl.uniform2f(uRes, cv.width, cv.height); }
+addEventListener('resize', resize); resize();
+const start = performance.now();
+function frame(now) { gl.uniform1f(uTime, (now - start) / 1000); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+</script>
+</html>

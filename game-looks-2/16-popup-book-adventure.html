@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-16 絵本の冒険 飛び出す絵本</title>
+<style>
+html,body{margin:0;height:100%;background:#3a2a20;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.85}
+</style>
+<div id="cap">2-16 ─ 絵本の冒険 / 飛び出す絵本（ページをめくると場面が変わる）　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 机の上の飛び出す絵本。場面は、白いふちを残して切りぬいた紙の絵を、奥から手前へ 3 枚立てて作る。
+// 紙は平らなので、奥行きは「紙と紙のすき間」と、電気スタンドの光が落とす影だけで出す。
+// ページをめくると紙がいったん倒れ、次の場面の紙が起き上がる（森 → お城 → 海）
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 34 }), { hash } = K;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+scene.background = new THREE.Color('#2a1c16');
+scene.add(new THREE.HemisphereLight(0xfff0dc, 0x5a4030, .75)); const lamp = new THREE.SpotLight(0xffdcae, 2600, 80, .6, .6, 1.6); lamp.position.set(-14, 26, 16); lamp.target.position.set(2, 2, 0); lamp.castShadow = true; lamp.shadow.mapSize.set(2048, 2048); lamp.shadow.radius = 6; lamp.shadow.bias = -.0005; scene.add(lamp, lamp.target);
+// 切りぬきの紙：絵を描き、まわりに白いふちを付ける
+const PW = 1024, PH = 420, UNIT = PW / 28;
+function paper(draw, w = PW, h = PH) { const a = document.createElement('canvas'); a.width = w; a.height = h; const x = a.getContext('2d'); draw(x, w, h); for (let i = 0; i < 2600 * w / PW; i++) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},.05)`; x.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+  const s = document.createElement('canvas'); s.width = w; s.height = h; const y = s.getContext('2d'); y.drawImage(a, 0, 0); y.globalCompositeOperation = 'source-in'; y.fillStyle = '#fbf6ea'; y.fillRect(0, 0, w, h);
+  const o = document.createElement('canvas'); o.width = w; o.height = h; const z = o.getContext('2d'); for (let k = 0; k < 16; k++) z.drawImage(s, Math.cos(k / 16 * 6.283) * 9, Math.sin(k / 16 * 6.283) * 9); z.drawImage(a, 0, 0);
+  const t = new THREE.CanvasTexture(o); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+const blob = (x, pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); x.fill(); };
+const wavy = (x, w, h, top, amp, f, col, ph = 0) => { x.fillStyle = col; x.beginPath(); x.moveTo(12, h); for (let i = 12; i <= w - 12; i += 8) x.lineTo(i, top + Math.sin(i * f + ph) * amp + Math.sin(i * f * 2.7 + ph) * amp * .3); x.lineTo(w - 12, h); x.fill(); };
+const tree = (x, cx, by, s, c1, c2) => { x.fillStyle = '#7a5236'; x.fillRect(cx - 9 * s, by - 90 * s, 18 * s, 90 * s); for (const [dx, dy, r] of [[0, -150, 62], [-44, -110, 46], [44, -112, 48], [0, -100, 52]]) { x.fillStyle = dy < -120 ? c2 : c1; x.beginPath(); x.arc(cx + dx * s, by + dy * s, r * s, 0, 7); x.fill(); } };
+const SC = [
+  [ (x, w, h) => { wavy(x, w, h, 150, 60, .006, '#8fc88a'); wavy(x, w, h, 230, 34, .011, '#74b478', 2); x.fillStyle = '#fff2c0'; x.beginPath(); x.arc(820, 90, 56, 0, 7); x.fill(); },
+    (x, w, h) => { x.fillStyle = '#5aa05e'; x.fillRect(12, h - 70, w - 24, 70); for (let i = 0; i < 7; i++) tree(x, 90 + i * 140, h - 50, .9 + (i % 3) * .2, i % 2 ? '#3f8a54' : '#4f9a5a', i % 2 ? '#5aaa66' : '#6aba70'); },
+    (x, w, h) => { wavy(x, w, h, h - 110, 16, .02, '#3f8a54'); for (let i = 0; i < 9; i++) { const cx = 70 + i * 112; if (i % 3 === 1) { x.fillStyle = '#f4ecdc'; x.fillRect(cx - 9, h - 150, 18, 50); x.fillStyle = '#e0483c'; x.beginPath(); x.arc(cx, h - 150, 34, Math.PI, 0); x.fill(); x.fillStyle = '#fff'; for (const d of [-16, 0, 15]) { x.beginPath(); x.arc(cx + d, h - 162, 5, 0, 7); x.fill(); } } else { x.fillStyle = i % 2 ? '#ffd84a' : '#ff8ab0'; for (let q = 0; q < 5; q++) { x.beginPath(); x.arc(cx + Math.cos(q * 1.26) * 12, h - 136 + Math.sin(q * 1.26) * 12, 9, 0, 7); x.fill(); } x.fillStyle = '#fff6c0'; x.beginPath(); x.arc(cx, h - 136, 7, 0, 7); x.fill(); x.fillStyle = '#3f8a54'; x.fillRect(cx - 3, h - 124, 6, 30); } } } ],
+  [ (x, w, h) => { blob(x, [[12, h], [140, 120], [260, 250], [400, 60], [560, 240], [700, 100], [860, 230], [w - 12, 150], [w - 12, h]], '#9a8ac8'); blob(x, [[340, 150], [400, 60], [462, 150], [430, 130], [400, 160], [370, 128]], '#f4f0ff'); blob(x, [[652, 170], [700, 100], [752, 172], [700, 150]], '#f4f0ff'); },
+    (x, w, h) => { x.fillStyle = '#c8c4d0'; x.fillRect(300, 170, 430, h - 170); for (const [tx, tw, th] of [[270, 90, 300], [470, 100, 380], [680, 90, 300]]) { x.fillStyle = '#d8d4e0'; x.fillRect(tx, h - th, tw, th); blob(x, [[tx - 16, h - th], [tx + tw / 2, h - th - 96], [tx + tw + 16, h - th]], '#d8483c'); x.fillStyle = '#5a5a78'; x.fillRect(tx + tw / 2 - 12, h - th + 46, 24, 44); x.fillStyle = '#ffd84a'; x.fillRect(tx + tw / 2 - 2, h - th - 140, 4, 46); blob(x, [[tx + tw / 2 + 2, h - th - 140], [tx + tw / 2 + 44, h - th - 126], [tx + tw / 2 + 2, h - th - 112]], '#ffd84a'); } x.fillStyle = '#b0acbc'; for (let i = 0; i < 9; i++) x.fillRect(306 + i * 50, 150, 30, 26); x.fillStyle = '#6a4a34'; x.beginPath(); x.arc(520, h, 62, Math.PI, 0); x.fill(); },
+    (x, w, h) => { x.fillStyle = '#b8b0a8'; x.fillRect(12, h - 110, w - 24, 110); for (let i = 0; i < 20; i++) { x.fillStyle = '#b8b0a8'; x.fillRect(12 + i * 52, h - 140, 30, 34); } x.fillStyle = '#e8d8b0'; blob(x, [[440, h], [480, h - 100], [560, h - 100], [600, h]], '#e8d8b0'); for (const cx of [150, 880]) tree(x, cx, h - 60, .8, '#4f9a5a', '#6aba70'); } ],
+  [ (x, w, h) => { x.fillStyle = '#ffb04a'; x.beginPath(); x.arc(260, 150, 84, 0, 7); x.fill(); for (const [cx, cy] of [[560, 90], [820, 150]]) { x.fillStyle = '#fbf6ea'; for (const [dx, r] of [[-50, 34], [0, 48], [52, 36]]) { x.beginPath(); x.arc(cx + dx, cy, r, 0, 7); x.fill(); } x.fillRect(cx - 80, cy, 164, 36); } wavy(x, w, h, 250, 14, .03, '#7ac0e0'); },
+    (x, w, h) => { wavy(x, w, h, 250, 20, .024, '#4aa0d0', 1); blob(x, [[360, 250], [400, 330], [640, 330], [690, 250]], '#8a5a38'); x.fillStyle = '#6a4428'; x.fillRect(518, 40, 12, 220); blob(x, [[534, 50], [680, 230], [534, 230]], '#fbf6ea'); blob(x, [[512, 76], [400, 230], [512, 230]], '#f4e2c0'); blob(x, [[530, 36], [580, 52], [530, 68]], '#e0483c'); blob(x, [[820, 300], [850, 190], [880, 250], [900, 180], [934, 300]], '#3a6a9a'); },
+    (x, w, h) => { wavy(x, w, h, h - 150, 24, .02, '#2a80b8', 2); wavy(x, w, h, h - 90, 18, .027, '#1f68a0', 4); x.fillStyle = '#fbf6ea'; for (let i = 0; i < 12; i++) { x.beginPath(); x.arc(60 + i * 84, h - 150 + Math.sin((60 + i * 84) * .02 + 2) * 24 - 2, 12, Math.PI, 0); x.fill(); } } ]
+].map(set => set.map(d => paper(d)));
+// 机と本
+const dk = document.createElement('canvas'); dk.width = dk.height = 256; { const x = dk.getContext('2d'); x.fillStyle = '#7a5236'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 60; i++) { x.strokeStyle = `rgba(30,14,6,${.08 + Math.random() * .16})`; x.lineWidth = 1 + Math.random() * 2; x.beginPath(); const y = Math.random() * 256; for (let u = 0; u <= 256; u += 16) x.lineTo(u, y + Math.sin(u * .02 + i) * 5); x.stroke(); } }
+const dt = new THREE.CanvasTexture(dk); dt.wrapS = dt.wrapT = THREE.RepeatWrapping; dt.repeat.set(5, 5); dt.colorSpace = THREE.SRGBColorSpace;
+const desk = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshStandardMaterial({ map: dt, roughness: .8 })); desk.rotation.x = -Math.PI / 2; desk.position.y = -.9; desk.receiveShadow = true; scene.add(desk);
+const pg = document.createElement('canvas'); pg.width = 512; pg.height = 320; { const x = pg.getContext('2d'); x.fillStyle = '#f6eedc'; x.fillRect(0, 0, 512, 320); x.fillStyle = 'rgba(90,70,50,.3)'; for (let r = 0; r < 4; r++) x.fillRect(40, 250 + r * 16, 300 + (r % 2) * 100, 5); }
+const pageT = new THREE.CanvasTexture(pg); pageT.colorSpace = THREE.SRGBColorSpace; const pageM = new THREE.MeshStandardMaterial({ map: pageT, roughness: .9 });
+const BX = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; scene.add(o); return o; };
+BX(33, .4, 21, new THREE.MeshStandardMaterial({ color: '#8a2a2a', roughness: .7 }), 0, -.7, 0); for (const s of [-1, 1]) BX(15.6, .5, 19.6, pageM, s * 7.9, -.25, 0);
+BX(.5, .5, 9, new THREE.MeshStandardMaterial({ color: '#e0b03a' }), 22, -.6, 4).rotation.y = .5; const mug = new THREE.Mesh(new THREE.CylinderGeometry(2, 1.8, 3.4, 20), new THREE.MeshStandardMaterial({ color: '#3f7a9a', roughness: .4 })); mug.position.set(-22, .8, -6); mug.castShadow = true; scene.add(mug);
+// 立ち上がる紙（奥・中・手前）。根もとを軸に起こす
+const ZS = [-6, -1.5, 3], layers = ZS.map((z, i) => { const hinge = new THREE.Group(); hinge.position.set(0, 0, z); const m = new THREE.MeshStandardMaterial({ map: SC[0][i], alphaTest: .5, side: THREE.DoubleSide, roughness: .9 }), g = new THREE.PlaneGeometry(28, 28 * PH / PW); g.translate(0, 14 * PH / PW, 0); const mesh = new THREE.Mesh(g, m); mesh.castShadow = mesh.receiveShadow = true; mesh.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: SC[0][i], alphaTest: .5 }); hinge.add(mesh); scene.add(hinge); return { hinge, mesh }; });
+// 主人公：赤いずきんの子（小さな切りぬき）
+const heroT = paper((x, w, h) => { blob(x, [[40, 230], [64, 96], [136, 96], [160, 230]], '#e0483c'); x.fillStyle = '#f0cfa8'; x.beginPath(); x.arc(100, 80, 40, 0, 7); x.fill(); x.fillStyle = '#e0483c'; x.beginPath(); x.arc(100, 70, 46, Math.PI * 1.05, Math.PI * 1.95); x.lineTo(150, 96); x.lineTo(50, 96); x.fill(); x.fillStyle = '#3a2a20'; x.fillRect(84, 78, 7, 9); x.fillRect(110, 78, 7, 9); x.fillStyle = '#6a4a34'; x.fillRect(70, 228, 22, 20); x.fillRect(108, 228, 22, 20); }, 200, 256);
+const hero = new THREE.Group(); { const g = new THREE.PlaneGeometry(2.6, 3.3); g.translate(0, 1.65, 0); const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: heroT, alphaTest: .5, side: THREE.DoubleSide })); m.castShadow = true; m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: heroT, alphaTest: .5 }); hero.add(m); scene.add(hero); }
+const turn = new THREE.Group(); { const g = new THREE.PlaneGeometry(15.6, 19.6); g.translate(7.8, 0, 0); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: pageT, side: THREE.DoubleSide, roughness: .9 })); m.castShadow = true; turn.add(m); turn.position.y = .05; scene.add(turn); }
+const post = K.post(renderer, `void main(){float rad=smoothstep(.2,.5,abs(vUv.y-.48))*3.;vec3 c=vec3(0.);for(int i=-2;i<=2;i++)for(int j=-2;j<=2;j++)c+=src(vUv+vec2(float(i),float(j))*rad/size);c/=25.;c*=1.-dot(vUv-.5,vUv-.5)*.7;gl_FragColor=vec4(c,1.);}`, {}, { scale: .85 }); onResize(post.resize);
+let cur = 0; const T = 11;
+K.loop((dt, t) => {
+  const p = t % T, n = Math.floor(t / T) % 3; let k = 1;
+  if (p < 1) k = Math.min(1, p / .8); else if (p > T - 1.1) k = Math.max(0, (T - .2 - p) / .9);
+  if (n !== cur && p < .5) { cur = n; layers.forEach((L, i) => { L.mesh.material.map = SC[n][i]; L.mesh.customDepthMaterial.map = SC[n][i]; L.mesh.material.needsUpdate = true; }); }
+  const e = k * k * (3 - 2 * k); layers.forEach((L, i) => { const d = Math.max(0, Math.min(1, e * 1.3 - i * .12)); L.hinge.rotation.x = -Math.PI / 2 * (1 - d) * (i === 2 ? -1 : 1) * 1 + (n === 2 && i > 0 ? Math.sin(t * 1.6 + i) * .05 : 0); L.mesh.position.x = n === 2 && i === 1 ? Math.sin(t * .8) * .5 : 0; });
+  const tp = p > T - 1.1 ? (p - (T - 1.1)) / 1.1 : p < .01 ? 1 : 2; turn.visible = tp <= 1; turn.rotation.z = tp * Math.PI;
+  const hx = -11 + ((p / T) * 22), hop = Math.abs(Math.sin(t * 5)) * .7; hero.position.set(hx, hop * e, 6.2); hero.rotation.x = -Math.PI / 2 * (1 - e) * -1; hero.rotation.z = Math.sin(t * 5) * .06;
+  cam.position.set(Math.sin(t * .13) * 5, 17 + Math.sin(t * .1) * 1.5, 30); cam.lookAt(0, 3.2, -1);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 56 植物育成 植物図鑑の細密画</title>
+<style>
+html,body{margin:0;height:100%;background:#d9cfb6;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3223;background:#f3ecd8;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 56 ─ 植物育成 / 植物図鑑の細密画　｜　見るだけ（根→茎→葉→花の順に育つ）</div>
+<script>
+// 古い図鑑の図版。細い焦げ茶の線で輪郭を取り、色は線から少しずらしてうすく置く（手彩色のずれ）。
+// 影は平行線の細かいハッチングで片側だけ。育った部分から、引き出し線とラテン語風の名札が現れる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const cl = v => Math.max(0, Math.min(1, v)), sm = v => { v = cl(v); return v * v * (3 - 2 * v); };
+const INK = '#3a2a1a', SERIF = 'Georgia,"Times New Roman",serif';
+const paper = document.createElement('canvas'); paper.width = LW; paper.height = LH; {
+  const p = paper.getContext('2d'); p.fillStyle = '#f3ecd8'; p.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 900; i++) { p.fillStyle = `rgba(120,90,40,${.03 + Math.random() * .06})`; p.beginPath(); p.arc(Math.random() * LW, Math.random() * LH, Math.random() * 2.2, 0, 7); p.fill(); }
+  for (let i = 0; i < 9; i++) { const x = Math.random() * LW, y = Math.random() * LH, r = 60 + Math.random() * 120, gr = p.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(160,120,60,.09)'); gr.addColorStop(1, 'rgba(160,120,60,0)'); p.fillStyle = gr; p.fillRect(x - r, y - r, r * 2, r * 2); }
+  p.strokeStyle = INK; p.lineWidth = 1.2; p.strokeRect(28, 24, LW - 56, LH - 60); p.lineWidth = .6; p.strokeRect(34, 30, LW - 68, LH - 72);
+}
+const SOIL = 430, stem = u => [400 + Math.sin(u * 2.4) * 30 * u, SOIL - u * 300];
+function leaf(x, y, ang, len, col) {
+  if (len < 2) return; const w = len * .26;
+  g.save(); g.translate(x, y); g.rotate(ang);
+  const path = () => { g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(len * .3, -w * 1.5, len * .75, -w, len, 0); g.bezierCurveTo(len * .75, w, len * .3, w * 1.5, 0, 0); };
+  g.save(); g.translate(2, 2); path(); g.fillStyle = col; g.globalAlpha = .7; g.fill(); g.restore();
+  g.save(); path(); g.clip(); g.strokeStyle = INK; g.lineWidth = .5; g.globalAlpha = .55; g.beginPath(); for (let i = 0; i < len; i += 3.2) { g.moveTo(i, 0); g.lineTo(i + w * .8, w * 1.3); } g.stroke(); g.restore();
+  g.strokeStyle = INK; g.lineWidth = 1; path(); g.stroke(); g.lineWidth = .7; g.beginPath(); g.moveTo(0, 0); g.lineTo(len * .95, 0);
+  for (let i = 1; i < 6; i++) { const q = i / 6 * len; g.moveTo(q, 0); g.lineTo(q + len * .12, -w * (1 - i / 7) * .9); } g.stroke(); g.restore();
+}
+function label(x, y, tx, ty, txt, a) { if (a <= 0) return; g.globalAlpha = a; g.strokeStyle = INK; g.lineWidth = .7; g.beginPath(); g.moveTo(x, y); g.lineTo(tx - 8, ty - 5); g.stroke(); g.fillStyle = INK; g.beginPath(); g.arc(x, y, 1.8, 0, 7); g.fill(); g.font = `italic 17px ${SERIF}`; g.textAlign = 'left'; g.fillText(txt, tx, ty); g.globalAlpha = 1; }
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, G = cl((t % 18) / 13), root = sm(G / .3), sl = sm((G - .12) / .55), bloom = sm((G - .68) / .28);
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(paper, 0, 0);
+  // 土：点描と短い線
+  g.fillStyle = INK; for (let i = 0; i < 260; i++) { const x = 200 + hash(i, 1) * 400, y = SOIL + hash(i, 2) * hash(i, 2) * 46; g.globalAlpha = .5; g.fillRect(x, y, 1 + hash(i, 3) * 2.5, 1); } g.globalAlpha = 1;
+  g.strokeStyle = INK; g.lineWidth = 1; g.beginPath(); g.moveTo(190, SOIL); for (let x = 190; x <= 610; x += 14) g.lineTo(x, SOIL + Math.sin(x * .13) * 2); g.stroke();
+  // 根
+  g.lineCap = 'round';
+  for (let i = 0; i < 6; i++) { const a = (i - 2.5) * .42, L = (70 + hash(i, 7) * 50) * root; g.lineWidth = 2.2 - Math.abs(i - 2.5) * .3; g.beginPath(); g.moveTo(400, SOIL);
+    for (let k = 1; k <= 10; k++) { const q = k / 10 * L; g.lineTo(400 + Math.sin(a) * q + Math.sin(q * .09 + i) * 6, SOIL + Math.cos(a) * q); } g.stroke();
+    g.lineWidth = .6; for (let k = 2; k < 9; k += 2) { const q = k / 10 * L, x = 400 + Math.sin(a) * q + Math.sin(q * .09 + i) * 6, y = SOIL + Math.cos(a) * q; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (k % 4 ? 12 : -12) * root, y + 8 * root); g.stroke(); } }
+  // 茎（色を少しずらして置き、線を重ねる）
+  for (const pass of [0, 1]) { g.beginPath(); for (let u = 0; u <= sl + .001; u += .02) { const [x, y] = stem(u); g.lineTo(x + (pass ? 0 : 2), y + (pass ? 0 : 1)); } g.strokeStyle = pass ? INK : 'rgba(140,170,100,.8)'; g.lineWidth = pass ? 1.1 : 6; g.stroke();
+    if (pass) { g.beginPath(); for (let u = 0; u <= sl + .001; u += .02) { const [x, y] = stem(u); g.lineTo(x + 5, y); } g.stroke(); } }
+  for (let i = 0; i < 5; i++) { const u = .14 + i * .15, [x, y] = stem(u), s = sm((sl - u) / .16), dir = i % 2 ? 1 : -1; leaf(x + (dir > 0 ? 5 : 0), y, dir > 0 ? -.5 + i * .04 : Math.PI + .5 - i * .04, (96 - i * 11) * s, i % 2 ? '#9ab873' : '#86a765'); }
+  // 花
+  const [fx, fy] = stem(sl);
+  if (bloom > 0) { for (let i = 0; i < 7; i++) { const a = -1.571 + (i - 3) * .42 * bloom; leaf(fx + 3, fy, a, 50 * bloom, i % 2 ? '#d98a62' : '#cf6d50'); }
+    g.fillStyle = '#e2b84a'; g.beginPath(); g.arc(fx + 3, fy, 7 * bloom, 0, 7); g.fill(); g.strokeStyle = INK; g.lineWidth = 1; g.stroke(); for (let i = 0; i < 9; i++) { g.fillStyle = INK; g.fillRect(fx + 3 + Math.cos(i * 2.4) * 4 * bloom * hash(i, 1) * 1.4, fy + Math.sin(i * 2.4) * 4 * bloom, 1, 1); } }
+  else if (sl > .05) leaf(fx + 3, fy, -1.571, 14 * sl, '#9ab873');
+  // 名札
+  label(fx + 28, fy - 26, 640, 130, 'a.  Flos ludens', bloom);
+  label(...(p => [p[0] + 60, p[1] - 22])(stem(.29)), 640, 230, 'b.  Folium', sm((sl - .5) / .2));
+  label(...(p => [p[0] + 5, p[1]])(stem(.07)), 640, 330, 'c.  Caulis', sm((sl - .2) / .2));
+  label(440, SOIL + 50, 640, 500, 'd.  Radix', sm((root - .7) / .3));
+  // 断面図
+  g.globalAlpha = bloom; g.strokeStyle = INK; g.lineWidth = 1; g.beginPath(); g.arc(800, 400, 46, 0, 7); g.stroke(); g.fillStyle = 'rgba(217,138,98,.5)'; g.beginPath(); g.arc(802, 402, 44, 0, 7); g.fill();
+  for (let i = 0; i < 7; i++) { const a = i / 7 * 6.283; g.beginPath(); g.moveTo(800, 400); g.lineTo(800 + Math.cos(a) * 46, 400 + Math.sin(a) * 46); g.stroke(); g.beginPath(); g.ellipse(800 + Math.cos(a + .45) * 26, 400 + Math.sin(a + .45) * 26, 8, 4, a + .45, 0, 7); g.stroke(); }
+  g.fillStyle = '#e2b84a'; g.beginPath(); g.arc(800, 400, 9, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK; g.font = `italic 13px ${SERIF}`; g.textAlign = 'center'; g.fillText('Fig. 2  sectio floris', 800, 468); g.globalAlpha = 1;
+  g.fillStyle = INK; g.textAlign = 'center'; g.font = `15px ${SERIF}`; g.fillText('TAB. LVI', 480, 52); g.font = `italic 13px ${SERIF}`; g.fillText('Planta ludens — dies ' + (1 + Math.floor(G * 40)), 480, 556);
+  g.fillRect(70, 520, 60, 1); g.fillRect(70, 516, 1, 8); g.fillRect(100, 518, 1, 4); g.fillRect(130, 516, 1, 8); g.font = `11px ${SERIF}`; g.fillText('2 cm', 100, 512);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

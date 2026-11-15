@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 100 島の冒険 ローポリ×ドット絵のたそがれ</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1438;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe2b0;opacity:.85}
+</style>
+<div id="cap">LOOK 100 ─ 島の冒険 / ローポリの形 × ドット絵の質感、たそがれの灯台　｜　見るだけ</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 形はローポリ、表面はドット絵。16×16 の小さな模様を面に張り、にじませずに拡大する。
+// 場面は横 400 ドットで描いてから、色を各 5 段に丸め、段の境目だけ 4×4 の決まった点の並びで混ぜる（ディザ）。
+// 光はたそがれの空の青紫と、沈む日の桃色、それに回る灯台の黄色い光。島のまわりを小舟が回る
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(1); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.fog = new THREE.Fog('#7a4a8a', 50, 190);
+const skyC = document.createElement('canvas'); skyC.width = 4; skyC.height = 128; { const c = skyC.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#141034'); gr.addColorStop(.4, '#3a2a6e'); gr.addColorStop(.62, '#b04a7a'); gr.addColorStop(.76, '#ff8a5a'); gr.addColorStop(.86, '#ffd27a'); gr.addColorStop(1, '#5a3a78'); c.fillStyle = gr; c.fillRect(0, 0, 4, 128); }
+const skyT = new THREE.CanvasTexture(skyC); skyT.colorSpace = THREE.SRGBColorSpace; scene.background = skyT;
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 300);
+// 16×16 のドット模様（明るさだけ。色は面の色と掛けあわせる）
+function pix(fn) { const c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d'); for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) { const v = Math.round(255 * fn(i, j)); x.fillStyle = `rgb(${v},${v},${v})`; x.fillRect(i, j, 1, 1); } const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }
+const TX = { speck: pix((i, j) => hash(i, j) > .8 ? .72 : hash(i + 9, j) > .85 ? 1 : .88), brick: pix((i, j) => (j % 4 === 0 || (i + (Math.floor(j / 4) % 2) * 4) % 8 === 0) ? .6 : .95), plank: pix((i, j) => i % 4 === 0 ? .62 : .85 + hash(i, j) * .15), wave: pix((i, j) => ((i + Math.round(Math.sin(j * .8) * 2)) % 8 < 2 && j % 4 < 2) ? 1 : .8) };
+const M = (c, map, rep = 1) => { const t = map.clone(); t.repeat.set(rep, rep); t.needsUpdate = true; return new THREE.MeshLambertMaterial({ color: c, map: t, flatShading: true }); };
+scene.add(new THREE.HemisphereLight(0xa89aff, 0x4a3a80, 3)); const sun = new THREE.DirectionalLight(0xff9a70, 4); sun.position.set(-30, 8, -20); scene.add(sun);
+// 島：数式の高さ。高さで砂・草・岩に色分け
+const H = (x, z) => { const r = Math.hypot(x, z * 1.15); return Math.max(-2, (1 - r / 17) * 7 + Math.sin(x * .5) * Math.cos(z * .4) * .9 + Math.sin(x * .23 + z * .31) * 1.2 - .6) + (Math.hypot(x - 6, z + 2) < 6 ? (6 - Math.hypot(x - 6, z + 2)) * .9 : 0); };
+const IG = new THREE.PlaneGeometry(44, 44, 30, 30).toNonIndexed(); IG.rotateX(-Math.PI / 2); { const p = IG.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color(); for (let i = 0; i < p.count; i += 3) { let hy = 0; for (let k = 0; k < 3; k++) { const y = H(p.getX(i + k), p.getZ(i + k)); p.setY(i + k, y); hy += y / 3; } c.set(hy < .5 ? '#e8c890' : hy < 5 ? (hash(i, 1) > .5 ? '#5aa05a' : '#4a8a52') : '#8a7a8a'); for (let k = 0; k < 3; k++) { col[(i + k) * 3] = c.r; col[(i + k) * 3 + 1] = c.g; col[(i + k) * 3 + 2] = c.b; } } IG.setAttribute('color', new THREE.BufferAttribute(col, 3)); const uv = IG.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 22, uv.getY(i) * 22); }
+const it = TX.speck.clone(); it.needsUpdate = true; scene.add(new THREE.Mesh(IG, new THREE.MeshLambertMaterial({ vertexColors: true, map: it, flatShading: true })));
+const seaT = TX.wave.clone(); seaT.repeat.set(60, 60); seaT.needsUpdate = true; const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshLambertMaterial({ color: '#4a5ac0', map: seaT })); sea.rotation.x = -Math.PI / 2; scene.add(sea);
+const put = (geo, mat, x, y, z, p = scene) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); p.add(m); return m; };
+// 灯台
+const LX = 6, LZ = -2, LY = H(LX, LZ); put(new THREE.CylinderGeometry(1, 1.4, 6, 8), M('#f4ece0', TX.brick, 2), LX, LY + 3, LZ); put(new THREE.CylinderGeometry(1.05, 1.05, 1.2, 8), M('#d8483c', TX.speck), LX, LY + 3, LZ); put(new THREE.CylinderGeometry(1.3, 1.3, .3, 8), M('#4a3a5a', TX.speck), LX, LY + 6.1, LZ);
+put(new THREE.CylinderGeometry(.7, .7, 1.1, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a0 }), LX, LY + 6.8, LZ); put(new THREE.ConeGeometry(1.1, 1, 8), M('#d8483c', TX.speck), LX, LY + 7.85, LZ);
+const beamG = new THREE.ConeGeometry(4.5, 34, 12, 1, true); beamG.translate(0, -17, 0); beamG.rotateZ(Math.PI / 2); const beam = new THREE.Group(); beam.position.set(LX, LY + 6.8, LZ); beam.add(new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }))); scene.add(beam);
+const lamp = new THREE.PointLight(0xffd070, 220, 30, 1.5); lamp.position.set(LX, LY + 7, LZ); scene.add(lamp);
+// 小屋、やしの木、岩、桟橋
+const hx = -5, hz = 4, hy = H(hx, hz); put(new THREE.BoxGeometry(3, 2, 2.6), M('#c89a6a', TX.plank, 2), hx, hy + 1, hz); const rf = put(new THREE.ConeGeometry(2.6, 1.6, 4), M('#7a3a4a', TX.brick, 2), hx, hy + 2.8, hz); rf.rotation.y = Math.PI / 4; put(new THREE.BoxGeometry(.8, .8, .1), new THREE.MeshBasicMaterial({ color: 0xffd070 }), hx + .5, hy + 1.1, hz + 1.32); const hl = new THREE.PointLight(0xffb060, 50, 10, 1.5); hl.position.set(hx + .5, hy + 1.2, hz + 2.2); scene.add(hl);
+const palms = []; for (let i = 0; i < 9; i++) { const a = i * 2.4 + .7, r = 8 + hash(i, 1) * 5, x = Math.cos(a) * r, z = Math.sin(a) * r * .8, y = H(x, z); if (y < .3) continue; const gp = new THREE.Group(); gp.position.set(x, y, z); for (let k = 0; k < 4; k++) put(new THREE.CylinderGeometry(.16, .2, 1.1, 5), M('#8a6a4a', TX.plank), k * k * .09, .5 + k, 0, gp).rotation.z = -k * .12; const top = new THREE.Group(); top.position.set(1.4, 4.2, 0); for (let k = 0; k < 6; k++) { const pv = new THREE.Group(); pv.rotation.y = k * 1.047; top.add(pv); const lf = put(new THREE.ConeGeometry(.5, 2.8, 3), M('#4fba6a', TX.speck), 0, 0, 0, pv); lf.geometry.translate(0, 1.4, 0); lf.rotation.z = -1.85; lf.scale.z = .35; } gp.add(top); gp.rotation.y = hash(i, 2) * 6; scene.add(gp); palms.push(top); }
+for (let i = 0; i < 8; i++) { const a = i * .9, r = 17 + hash(i, 3) * 6; put(new THREE.IcosahedronGeometry(.8 + hash(i, 4) * 1.2, 0), M('#6a5a7a', TX.speck), Math.cos(a) * r, .1, Math.sin(a) * r * .9); }
+for (let k = 0; k < 6; k++) put(new THREE.BoxGeometry(1.2, .15, 1.6), M('#a07a52', TX.plank), -9 - k * 1.25, .5, 9.5);
+// 小舟、月、星
+const boat = new THREE.Group(); put(new THREE.BoxGeometry(2.6, .6, 1.1), M('#c84a3c', TX.plank), 0, .25, 0, boat); put(new THREE.CylinderGeometry(.06, .06, 2.6, 4), M('#5a4030', TX.plank), 0, 1.6, 0, boat); const sail = put(new THREE.ConeGeometry(1.1, 2.2, 3), M('#f4ece0', TX.speck), .5, 1.8, 0, boat); sail.scale.z = .1; put(new THREE.BoxGeometry(.2, .2, .2), new THREE.MeshBasicMaterial({ color: 0xffd070 }), -1.2, .8, 0, boat); scene.add(boat);
+put(new THREE.SphereGeometry(5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff0c8, fog: false }), 60, 44, -120);
+const sg = new THREE.BufferGeometry(), sa = new Float32Array(600); for (let i = 0; i < 200; i++) { const a = hash(i, 5) * 6.283, e = .25 + hash(i, 6) * 1.1; sa[i * 3] = Math.cos(a) * Math.cos(e) * 200; sa[i * 3 + 1] = Math.sin(e) * 200; sa[i * 3 + 2] = Math.sin(a) * Math.cos(e) * 200; } sg.setAttribute('position', new THREE.BufferAttribute(sa, 3)); scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1, sizeAttenuation: false, fog: false })));
+// 仕上げ：色を 5 段に丸め、境目を点の並びで混ぜる
+const rt = new THREE.WebGLRenderTarget(400, 250); rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+const post = new THREE.ShaderMaterial({ uniforms: { tD: { value: rt.texture }, size: { value: new THREE.Vector2(400, 250) } }, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `
+uniform sampler2D tD;uniform vec2 size;varying vec2 vUv;
+float b2(vec2 p){return mod(2.*p.y+3.*p.x*(1.-p.y)+p.x*p.y*-1.,4.);}
+float bayer(vec2 p){vec2 a=mod(p,2.),b=mod(floor(p/2.),2.);float x=mod(a.x+a.y*2.,4.);x=(a.y<.5)?(a.x<.5?0.:2.):(a.x<.5?3.:1.);float y=(b.y<.5)?(b.x<.5?0.:2.):(b.x<.5?3.:1.);return (x*4.+y)/16.;}
+void main(){
+  vec2 px=floor(vUv*size);vec3 c=pow(max(texture2D(tD,(px+.5)/size).rgb,0.),vec3(1./2.2));
+  float d=bayer(px)-.5;c=floor(c*6.+.5+d*.6)/6.;
+  gl_FragColor=vec4(c,1.);
+}` });
+const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const resize = () => { const w = innerWidth, h = innerHeight, rh = Math.max(120, Math.round(400 * h / w)); renderer.setSize(w, h); rt.setSize(400, rh); post.uniforms.size.value.set(400, rh); cam.aspect = w / h; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const a = t * .12, rr = 46 * Math.max(1, 1.5 / cam.aspect); cam.position.set(Math.cos(a) * rr, 17 + Math.sin(t * .2) * 2, Math.sin(a) * rr); cam.lookAt(0, 3.5, 0);
+  beam.rotation.y = t * .9; lamp.intensity = 220 + Math.sin(t * 3) * 20;
+  const ba = -t * .22; boat.position.set(Math.cos(ba) * 26, Math.sin(t * 2) * .12, Math.sin(ba) * 24); boat.rotation.set(Math.sin(t * 1.7) * .06, -ba + Math.PI, Math.sin(t * 2.1) * .05);
+  palms.forEach((p, i) => { p.rotation.z = Math.sin(t * 1.4 + i) * .08; p.rotation.x = Math.cos(t * 1.1 + i) * .06; });
+  seaT.offset.set(t * .02, t * .012);
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

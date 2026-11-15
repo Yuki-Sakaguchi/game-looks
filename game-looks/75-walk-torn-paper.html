@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 75 街歩き ちぎり絵</title>
+<style>
+html,body{margin:0;height:100%;background:#e9e2d2;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#4a3a2a;background:#f4eee0;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 75 ─ 街歩き / ちぎり絵　｜　見るだけ（散歩する）</div>
+<script>
+// 手でちぎった和紙を貼り重ねた絵。はさみを使わないので、ふちはまっすぐにならず細かく波打ち、
+// ちぎった所には紙の白い芯がのぞく（色の形の外側に、少しずれた白いふちを置く）。
+// 1 枚ごとに下へうすい影を落として紙の厚みを出し、最後に和紙の繊維を全体に散らす
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const fib = document.createElement('canvas'); fib.width = LW; fib.height = LH; { const f = fib.getContext('2d'); for (let i = 0; i < 900; i++) { const x = Math.random() * LW, y = Math.random() * LH, a = Math.random() * 6.283, l = 6 + Math.random() * 22; f.strokeStyle = Math.random() < .6 ? `rgba(255,255,255,${.1 + Math.random() * .22})` : `rgba(90,70,40,${.05 + Math.random() * .1})`; f.lineWidth = .5 + Math.random() * .8; f.beginPath(); f.moveTo(x, y); f.quadraticCurveTo(x + Math.cos(a) * l * .5 + 4, y + Math.sin(a) * l * .5 - 4, x + Math.cos(a) * l, y + Math.sin(a) * l); f.stroke(); } }
+// ちぎった形：辺を細かく分けて、頂点を少しずつずらす
+function rag(pts, seed, amp) { const out = []; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length], n = Math.max(2, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 9)); for (let k = 0; k < n; k++) { const f = k / n, j = seed + i * 31 + k; out.push([a[0] + (b[0] - a[0]) * f + (hash(j, 1) - .5) * amp, a[1] + (b[1] - a[1]) * f + (hash(j, 2) - .5) * amp]); } } return out; }
+function torn(pts, col, seed, ox = 0) {
+  const core = rag(pts, seed, 5), edge = rag(pts, seed + 500, 7), path = P => { g.beginPath(); P.forEach(([x, y], i) => i ? g.lineTo(x + ox, y) : g.moveTo(x + ox, y)); g.closePath(); };
+  g.save(); g.shadowColor = 'rgba(60,40,20,.3)'; g.shadowBlur = 5 * S; g.shadowOffsetY = 2.5 * S; g.lineJoin = 'round'; g.strokeStyle = g.fillStyle = '#fbf8ef'; g.lineWidth = 5; path(edge); g.fill(); g.stroke(); g.restore();
+  g.fillStyle = col; path(core); g.fill();
+}
+const circle = (x, y, rx, ry, n = 9) => [...Array(n)].map((_, i) => [x + Math.cos(i / n * 6.283) * rx, y + Math.sin(i / n * 6.283) * ry]);
+const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const WALL = ['#e9b89a', '#f0d9a0', '#c9d6c0', '#e6c7c7', '#d9cdb4'], ROOF = ['#b5483a', '#5a6f8a', '#7a5a44', '#4f7a66'];
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, wx = t * 70;
+  g.setTransform(S, 0, 0, S, 0, 0); const sky = g.createLinearGradient(0, 0, 0, LH); sky.addColorStop(0, '#bcd9e6'); sky.addColorStop(1, '#f1e6cc'); g.fillStyle = sky; g.fillRect(0, 0, LW, LH);
+  torn(circle(760, 120, 56, 56, 12), '#f2a04a', 5);
+  for (let k = -1; k < 5; k++) { const n = Math.floor(wx * .12 / 300) + k, x = n * 300 - wx * .12 + hash(n, 1) * 120, y = 70 + hash(n, 2) * 90; torn(circle(0, y, 70 + hash(n, 3) * 40, 22, 10), '#fdfaf2', n * 13 + 1, x); }
+  // 遠い山、近い丘
+  for (const [sp, col, base, amp, sd] of [[.2, '#9db8b0', 330, 90, 40], [.4, '#7fa58c', 390, 60, 80]]) for (let k = -1; k < 4; k++) { const n = Math.floor(wx * sp / 420) + k, x = n * 420 - wx * sp; torn([[-40, 520], [60, base - amp * (.5 + hash(n, sd) * .5)], [200, base - amp * hash(n, sd + 1) * .6], [330, base - amp * (.4 + hash(n, sd + 2) * .6)], [470, 520]], col, n * 17 + sd, x); }
+  // 家と木
+  for (let k = -1; k < 6; k++) { const n = Math.floor(wx / 230) + k, x = n * 230 - wx, w = 110 + hash(n, 1) * 50, h = 90 + hash(n, 2) * 70, y = 470 - h, sd = n * 23;
+    if (((n % 4) + 4) % 4 === 3) { torn(rect(96, 400, 18, 74), '#7a5a44', sd + 1, x); torn(circle(105, 360, 62, 58, 11), '#5f9a5a', sd + 2, x); torn(circle(86, 344, 22, 18, 7), '#8fc07a', sd + 3, x); continue; }
+    torn(rect(30, y, w, h + 6), WALL[((n % 5) + 5) % 5], sd + 4, x); torn([[14, y + 8], [30 + w / 2, y - 56 - hash(n, 3) * 20], [46 + w, y + 8]], ROOF[((n % 4) + 4) % 4], sd + 5, x);
+    torn(rect(30 + w * .58, 470 - 52, 26, 54), '#6b4a36', sd + 6, x); torn(rect(30 + w * .16, y + 26, 30, 30), '#fbf3c8', sd + 7, x); if (h > 120) torn(rect(30 + w * .6, y + 26, 26, 26), '#bfe0ea', sd + 8, x); }
+  // 道
+  for (let k = -1; k < 4; k++) { const n = Math.floor(wx / 400) + k, x = n * 400 - wx; torn([[-20, 468 + hash(n, 1) * 8], [210, 462 + hash(n, 2) * 10], [430, 468 + hash(n, 3) * 8], [430, 640], [-20, 640]], '#c9b08a', n * 29 + 7, x); }
+  for (let k = -1; k < 8; k++) { const n = Math.floor(wx * 1.3 / 170) + k, x = n * 170 - wx * 1.3; torn(circle(40, 560 + hash(n, 1) * 20, 50 + hash(n, 2) * 30, 26, 8), '#6f9a5c', n * 31 + 9, x); }
+  // 歩く人
+  const px = 330, ph = t * 6, py = 470 - Math.abs(Math.sin(ph)) * 5, sw = Math.sin(ph) * 15;
+  torn([[px - 9, py - 4], [px - 1, py - 4], [px - 1 + sw, py + 44], [px - 11 + sw, py + 44]], '#3f4a66', 901); torn([[px + 1, py - 4], [px + 9, py - 4], [px + 9 - sw, py + 44], [px - 1 - sw, py + 44]], '#34405a', 902);
+  torn([[px - 20, py - 62], [px + 18, py - 62], [px + 24, py + 2], [px - 24, py + 2]], '#c8483c', 903); torn(circle(px, py - 80, 17, 18, 9), '#f0cfa8', 904); torn([[px - 19, py - 96], [px + 16, py - 98], [px + 20, py - 84], [px - 20, py - 82]], '#4a3a30', 905); torn([[px - 16, py - 64], [px + 16, py - 66], [px + 38 + sw * .5, py - 52], [px + 36 + sw * .5, py - 42], [px - 14, py - 54]], '#f2c84a', 906);
+  // 鳥
+  for (let i = 0; i < 3; i++) { const bx = ((t * 60 + i * 300) % 1200) - 100, by = 150 + i * 30 + Math.sin(t * 2 + i) * 14, fl = Math.sin(t * 9 + i) * 10; torn([[bx - 16, by - fl], [bx, by], [bx + 16, by - fl], [bx, by + 6]], '#4a3a30', 950 + i); }
+  g.drawImage(fib, 0, 0);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

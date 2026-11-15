@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 77 落ち砂 砂絵のびん</title>
+<style>
+html,body{margin:0;height:100%;background:#2b211a;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f1e3c8;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 77 ─ 落ち砂サンドボックス / 砂絵のびん　｜　見るだけ（色を変えながら砂を注ぐ）</div>
+<script>
+// 砂は 1 粒 = 1 ますの小さな格子で動かす（下が空なら落ち、ふさがっていれば斜め下へすべる）。
+// 色を数秒ごとに変えながら注ぐので、びんの中にしま模様の地層ができる。粒ごとに明るさを少し変えて砂のざらつきを出す。
+// 手前にガラスのびんを重ねる：ふちの明るい線、縦の映りこみ、うすい緑の色
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const GW = 150, GH = 150, CELL = 3, OX = (LW - GW * CELL) / 2, OY = 96;
+const sand = document.createElement('canvas'); sand.width = GW; sand.height = GH; const sc = sand.getContext('2d'), img = sc.createImageData(GW, GH);
+const cells = new Uint8Array(GW * GH), shade = new Uint8Array(GW * GH), inside = new Uint8Array(GW * GH);
+// びんの形：首が細く、肩が丸い
+const halfW = y => { const v = y / GH; return v < .16 ? 17 : v < .34 ? 17 + (1 - Math.cos((v - .16) / .18 * Math.PI)) / 2 * 53 : v > .95 ? 70 - (v - .95) / .05 * 8 : 70; };
+for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) inside[y * GW + x] = Math.abs(x - GW / 2 + .5) < halfW(y) ? 1 : 0;
+const PAL = [[226, 92, 70], [240, 176, 64], [246, 226, 150], [92, 170, 150], [62, 112, 170], [150, 96, 160], [245, 240, 228], [70, 60, 70]];
+let color = 1, mode = 0, t = 0, last = performance.now(), count = 0, total = inside.reduce((a, b) => a + b, 0);
+function step() {
+  for (let y = GH - 2; y >= 0; y--) { const ltr = Math.random() < .5; for (let k = 0; k < GW; k++) { const x = ltr ? k : GW - 1 - k, i = y * GW + x; if (!cells[i]) continue; const b = i + GW;
+      const go = j => { cells[j] = cells[i]; shade[j] = shade[i]; cells[i] = 0; };
+      if (inside[b] && !cells[b]) go(b); else { const d = Math.random() < .5 ? 1 : -1; if (inside[b + d] && !cells[b + d] && inside[i + d]) go(b + d); else if (inside[b - d] && !cells[b - d] && inside[i - d]) go(b - d); } } }
+}
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if (mode === 0) { color = 1 + Math.floor(t / 1.6) % PAL.length; const px = GW / 2 + Math.sin(t * .9) * 11 + Math.sin(t * 2.3) * 3;
+    for (let k = 0; k < 9; k++) { const x = Math.round(px + (Math.random() - .5) * 5), i = 2 * GW + x; if (inside[i] && !cells[i]) { cells[i] = color; shade[i] = Math.random() * 255; count++; } }
+    if (count > total * .8) { mode = 1; } }
+  else { for (let x = 0; x < GW; x++) { const i = (GH - 1) * GW + x; if (cells[i] && Math.random() < .9) { cells[i] = 0; count--; } } if (count <= 0) { mode = 0; t = 0; count = 0; cells.fill(0); } }
+  step(); step();
+  const d = img.data; for (let i = 0; i < cells.length; i++) { const c = cells[i], o = i * 4; if (!c) { d[o + 3] = 0; continue; } const p = PAL[c - 1], s = .78 + shade[i] / 255 * .3; d[o] = p[0] * s; d[o + 1] = p[1] * s; d[o + 2] = p[2] * s; d[o + 3] = 255; }
+  sc.putImageData(img, 0, 0);
+  g.setTransform(S, 0, 0, S, 0, 0);
+  const bg = g.createRadialGradient(480, 240, 60, 480, 300, 620); bg.addColorStop(0, '#6b5038'); bg.addColorStop(1, '#231a14'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+  const sh = g.createLinearGradient(0, 548, 0, LH); sh.addColorStop(0, '#8a6a48'); sh.addColorStop(1, '#4a3626'); g.fillStyle = sh; g.fillRect(0, 548, LW, 60); g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(500, 552, 250, 14, 0, 0, 7); g.fill();
+  // びんの中
+  const outline = () => { g.beginPath(); for (let y = 0; y <= GH; y++) g.lineTo(480 - halfW(Math.min(GH - 1, y)) * CELL, OY + y * CELL); for (let y = GH; y >= 0; y--) g.lineTo(480 + halfW(Math.min(GH - 1, y)) * CELL, OY + y * CELL); g.closePath(); };
+  outline(); g.fillStyle = 'rgba(200,230,220,.1)'; g.fill();
+  g.imageSmoothingEnabled = false; g.drawImage(sand, OX, OY, GW * CELL, GH * CELL); g.imageSmoothingEnabled = true;
+  // 注ぐ砂の筋と、じょうご
+  if (mode === 0) { const px = OX + (GW / 2 + Math.sin(t * .9) * 11 + Math.sin(t * 2.3) * 3) * CELL, p = PAL[color - 1]; g.strokeStyle = `rgb(${p})`; g.lineWidth = 5; g.beginPath(); g.moveTo(px, 40); g.lineTo(px, OY + 8); g.stroke();
+    g.fillStyle = '#c9cdd2'; g.beginPath(); g.moveTo(px - 44, 0); g.lineTo(px + 44, 0); g.lineTo(px + 6, 44); g.lineTo(px - 6, 44); g.fill(); g.fillStyle = `rgb(${p})`; g.beginPath(); g.moveTo(px - 34, 4); g.lineTo(px + 34, 4); g.lineTo(px + 4, 38); g.lineTo(px - 4, 38); g.fill(); }
+  // ガラス
+  g.save(); outline(); g.clip();
+  const gl = g.createLinearGradient(OX, 0, OX + GW * CELL, 0); gl.addColorStop(0, 'rgba(255,255,255,.34)'); gl.addColorStop(.1, 'rgba(255,255,255,.04)'); gl.addColorStop(.72, 'rgba(255,255,255,0)'); gl.addColorStop(.82, 'rgba(255,255,255,.22)'); gl.addColorStop(.88, 'rgba(255,255,255,.02)'); gl.addColorStop(1, 'rgba(0,20,10,.3)'); g.fillStyle = gl; g.fillRect(OX, OY, GW * CELL, GH * CELL);
+  g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.roundRect(480 - 180, OY + 190, 9, 180, 5); g.fill(); g.restore();
+  g.lineJoin = 'round'; outline(); g.strokeStyle = 'rgba(225,245,238,.75)'; g.lineWidth = 3; g.stroke(); g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 5; g.beginPath(); g.ellipse(480, OY, 17 * CELL, 5, 0, 0, 7); g.stroke();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

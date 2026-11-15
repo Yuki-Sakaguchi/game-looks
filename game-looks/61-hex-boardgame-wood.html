@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 61 ヘックス戦略 木のコマとフェルトのボードゲーム</title>
+<style>
+html,body{margin:0;height:100%;background:#1d140e;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f1e3c8;opacity:.85}
+</style>
+<div id="cap">LOOK 61 ─ ヘックス戦略 / 木のコマとフェルトの卓上ゲーム　｜　見るだけ（さいころを振ってコマが進む）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 画面の中のゲームを「机の上に実物がある」ように見せる。厚紙の六角タイル、つやのある木のコマ、
+// 緑のフェルト。光は斜め上の電球 1 つで、やわらかい影を落とす。コマは持ち上げて置くように山なりに動く
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.toneMapping = THREE.ACESFilmicToneMapping; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#1d140e');
+const cam = new THREE.PerspectiveCamera(36, 1, .1, 100);
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+// フェルト：細かい粒のテクスチャ
+const fc = document.createElement('canvas'); fc.width = fc.height = 256; { const c = fc.getContext('2d'), im = c.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random(); im.data[i] = 30 + v * 30; im.data[i + 1] = 95 + v * 45; im.data[i + 2] = 60 + v * 30; im.data[i + 3] = 255; } c.putImageData(im, 0, 0); }
+const ft = new THREE.CanvasTexture(fc); ft.wrapS = ft.wrapT = THREE.RepeatWrapping; ft.repeat.set(10, 10); ft.colorSpace = THREE.SRGBColorSpace;
+const felt = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ map: ft, roughness: 1 })); felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; scene.add(felt);
+scene.add(new THREE.HemisphereLight(0xfff0dd, 0x3a2a20, .7));
+const sun = new THREE.DirectionalLight(0xffe2b8, 2.6); sun.position.set(7, 14, 5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 5; Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, near: 1, far: 40 }); sun.shadow.bias = -.0006; scene.add(sun);
+// 六角タイル
+const TERR = ['#7fae5a', '#e6c95c', '#6fb3d9', '#b8b0a4', '#d98a5c'], side = new THREE.MeshStandardMaterial({ color: '#c9b48a', roughness: .9 });
+const tops = TERR.map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .85 })), hexG = new THREE.CylinderGeometry(.95, .95, .16, 6);
+const tiles = [], key = (q, r) => q + ',' + r, byKey = {};
+for (let q = -3; q <= 3; q++) for (let r = -3; r <= 3; r++) { if (Math.abs(q + r) > 3) continue; const k = Math.floor(hash(q * 7 + 3, r * 5 + 1) * 5), m = new THREE.Mesh(hexG, [side, tops[k], side]);
+  m.position.set(Math.sqrt(3) * (q + r / 2), .08, 1.5 * r); m.castShadow = m.receiveShadow = true; scene.add(m); const tl = { q, r, k, pos: m.position, who: null }; byKey[key(q, r)] = tl; tiles.push(tl);
+  if (k === 0) for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.ConeGeometry(.17, .46, 6), new THREE.MeshStandardMaterial({ color: '#3f7a45', roughness: .6 })); t.position.set(m.position.x + Math.cos(i * 2.1 + q) * .4, .39, m.position.z + Math.sin(i * 2.1 + q) * .4); t.castShadow = true; scene.add(t); }
+  if (k === 3) { const t = new THREE.Mesh(new THREE.ConeGeometry(.5, .62, 4), new THREE.MeshStandardMaterial({ color: '#8d8880', roughness: .7, flatShading: true })); t.position.set(m.position.x, .47, m.position.z); t.rotation.y = q; t.castShadow = true; scene.add(t); } }
+// 木のコマ
+const pawns = []; const open = tiles.filter(t => t.k !== 0 && t.k !== 3);
+for (let i = 0; i < 6; i++) { const mat = new THREE.MeshStandardMaterial({ color: i < 3 ? '#c8402e' : '#2f66b0', roughness: .35 }), gp = new THREE.Group();
+  const add = (geo, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = true; gp.add(m); };
+  add(new THREE.CylinderGeometry(.27, .33, .12, 20), .06); add(new THREE.CylinderGeometry(.12, .25, .5, 20), .37); add(new THREE.SphereGeometry(.2, 20, 14), .72);
+  const tl = open[Math.floor(hash(i, 4) * open.length + i * 3) % open.length]; tl.who = i; gp.position.set(tl.pos.x, .16, tl.pos.z); scene.add(gp); pawns.push({ gp, tl, from: null, mt: 1 }); }
+// さいころ
+const dice = [0, 1].map(d => { const mats = [1, 6, 2, 5, 3, 4].map(n => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#f4ecd8'; x.fillRect(0, 0, 64, 64); x.fillStyle = '#2a211a';
+    const P = { 1: [[32, 32]], 2: [[18, 18], [46, 46]], 3: [[16, 16], [32, 32], [48, 48]], 4: [[18, 18], [46, 18], [18, 46], [46, 46]], 5: [[18, 18], [46, 18], [32, 32], [18, 46], [46, 46]], 6: [[18, 16], [46, 16], [18, 32], [46, 32], [18, 48], [46, 48]] }[n];
+    for (const [a, b] of P) { x.beginPath(); x.arc(a, b, 6, 0, 7); x.fill(); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return new THREE.MeshStandardMaterial({ map: t, roughness: .4 }); });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .5), mats); m.castShadow = true; m.position.set(6.4 + d * .9, .25, 4 - d * .7); scene.add(m); return { m, base: m.position.clone(), rot: new THREE.Euler() }; });
+// 手札
+for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(1.2, .02, 1.8), [side, side, new THREE.MeshStandardMaterial({ color: ['#f1e3c8', '#e6c95c', '#d98a5c', '#6fb3d9'][i], roughness: .7 }), side, side, side]); m.position.set(-7.4 + i * .5, .02 + i * .022, 3.4 + i * .3); m.rotation.y = .3 + i * .16; m.castShadow = m.receiveShadow = true; scene.add(m); }
+const NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+let last = performance.now(), t = 0, turnT = 0, turn = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; turnT += dt;
+  if (turnT > 1.5) { turnT = 0; const p = pawns[turn % 6]; turn++; const opts = NB.map(([a, b]) => byKey[key(p.tl.q + a, p.tl.r + b)]).filter(n => n && n.who === null && n.k !== 0 && n.k !== 3);
+    if (opts.length) { const n = opts[Math.floor(Math.random() * opts.length)]; p.tl.who = null; p.from = p.tl.pos.clone(); p.tl = n; n.who = turn; p.mt = -.45; }
+    dice.forEach(d => d.rot.set(Math.floor(Math.random() * 4) * Math.PI / 2 + Math.PI * 2, Math.floor(Math.random() * 4) * Math.PI / 2, Math.floor(Math.random() * 4) * Math.PI / 2 + Math.PI * 2)); }
+  for (const p of pawns) { if (p.mt < 1) { p.mt = Math.min(1, p.mt + dt * 1.9); const f = Math.max(0, p.mt), e = f * f * (3 - 2 * f); p.gp.position.set(p.from.x + (p.tl.pos.x - p.from.x) * e, .16 + Math.sin(f * Math.PI) * 1.1, p.from.z + (p.tl.pos.z - p.from.z) * e); p.gp.rotation.z = Math.sin(f * Math.PI) * .25; } }
+  const df = Math.min(1, turnT / .45), de = 1 - (1 - df) * (1 - df); dice.forEach((d, i) => { d.m.position.y = .25 + Math.sin(df * Math.PI) * (1.2 + i * .3); d.m.rotation.set(d.rot.x * de, d.rot.y * de, d.rot.z * de); });
+  const a = t * .07 + .5; const rr = Math.max(1, 1.55 / cam.aspect); cam.position.set(Math.sin(a) * 13.5 * rr, 10.5 * rr, Math.cos(a) * 13.5 * rr); cam.lookAt(0, 0, .3);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 42 液体パズル ゼリー</title>
+<style>
+html,body{margin:0;height:100%;background:#fdf3e4;overflow:hidden;display:grid;place-items:center}
+#wrap{position:relative;width:min(100vw,160vh);aspect-ratio:8/5}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#7a5a6a}
+</style>
+<div id="wrap"><canvas id="gl"></canvas><canvas id="ui"></canvas></div>
+<div id="cap">LOOK 42 ─ 液体パズル / ぷるぷるのゼリー　｜　見るだけ（流れてコップにたまる）</div>
+<script>
+// 液体は 54 個の見えない玉。画素ごとに「近くの玉の影響の合計」を計算し、合計が一定を超えた所だけ塗ると、玉どうしがくっついて見える。
+// 合計の傾きを面の向きとみなして、ふちを濃く・中を明るく・左上に白いつやを入れると、ゼリーの質感になる
+const LW = 960, LH = 600, N = 54, RAD = 17;
+const glc = document.getElementById('gl'), ui = document.getElementById('ui');
+const S = Math.min(devicePixelRatio || 1, 2); glc.width = ui.width = LW * S; glc.height = ui.height = LH * S;
+const gl = glc.getContext('webgl'), u = ui.getContext('2d'); u.setTransform(S, 0, 0, S, 0, 0);
+const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; };
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}'));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `precision highp float;
+uniform vec3 P[${N}];uniform vec2 res;
+vec3 tint(float k){return k<.5?vec3(1.,.42,.6):k<1.5?vec3(.3,.66,1.):vec3(1.,.8,.25);}
+void main(){
+  vec2 q=vec2(gl_FragCoord.x,res.y-gl_FragCoord.y)/res*vec2(${LW}.,${LH}.);
+  float F=0.;vec2 G=vec2(0.);vec3 C=vec3(0.);
+  for(int i=0;i<${N};i++){vec2 d=q-P[i].xy;float d2=dot(d,d)+1.;float f=${Math.pow(RAD * 1.2, 4).toFixed(1)}/(d2*d2);F+=f;G+=-4.*f/d2*d;C+=tint(P[i].z)*f;}
+  vec3 bg=vec3(.992,.953,.894)-.03*step(.5,mod(floor(q.x/40.)+floor(q.y/40.),2.));
+  vec3 c=C/max(max(C.r,C.g),max(C.b,.001));
+  float a=smoothstep(.96,1.04,F);
+  vec3 n=normalize(vec3(-G*9./max(F,1.),1.));
+  float rim=smoothstep(1.,3.,F);
+  vec3 jelly=c*(.72+.36*rim)+pow(max(dot(n,normalize(vec3(-.5,-.6,.62))),0.),26.)*.9+max(n.y,0.)*.08;
+  gl_FragColor=vec4(mix(bg,jelly,a*.93),1.);
+}`));
+gl.linkProgram(prog); gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.bindAttribLocation(prog, 0, 'p'); gl.vertexAttribPointer(gl.getAttribLocation(prog, 'p'), 2, gl.FLOAT, false, 0, 0);
+gl.uniform2f(gl.getUniformLocation(prog, 'res'), glc.width, glc.height);
+const uP = gl.getUniformLocation(prog, 'P'), data = new Float32Array(N * 3);
+
+// 板とコップ（線分）
+const SEGS = [[90, 210, 400, 290], [870, 240, 560, 330], [250, 400, 470, 455], [710, 420, 520, 470], [400, 490, 400, 590], [560, 490, 560, 590], [400, 590, 560, 590], [40, 0, 40, 600], [920, 0, 920, 600]];
+const gates = [{ s: [400, 290, 400, 215], open: false }, { s: [560, 330, 560, 250], open: false }];
+let parts;
+function reset() {
+  parts = [...Array(N)].map((_, i) => { const k = i % 3, side = k === 0 ? 0 : k === 1 ? 1 : (i % 2); return { x: side ? 600 + Math.random() * 240 : 120 + Math.random() * 240, y: 40 + Math.random() * 120, vx: 0, vy: 0, k }; });
+  gates.forEach(g => g.open = false);
+}
+reset();
+function collide(p, [x1, y1, x2, y2]) {
+  const dx = x2 - x1, dy = y2 - y1, f = Math.max(0, Math.min(1, ((p.x - x1) * dx + (p.y - y1) * dy) / (dx * dx + dy * dy))), cx = x1 + dx * f, cy = y1 + dy * f, ex = p.x - cx, ey = p.y - cy, d = Math.hypot(ex, ey);
+  if (d < RAD && d > 0) { const nx = ex / d, ny = ey / d, vn = p.vx * nx + p.vy * ny; p.x = cx + nx * RAD; p.y = cy + ny * RAD; if (vn < 0) { p.vx -= 1.25 * vn * nx; p.vy -= 1.25 * vn * ny; } p.vx *= .995; }
+}
+function physics(dt) {
+  for (const p of parts) { p.vy += 900 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+    const a = parts[i], b = parts[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = RAD * 1.5;
+    if (d < min && d > 0) { const nx = dx / d, ny = dy / d, o = (min - d) / 2; a.x -= nx * o; a.y -= ny * o; b.x += nx * o; b.y += ny * o; const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny; if (rv < 0) { a.vx += rv * nx * .5; a.vy += rv * ny * .5; b.vx -= rv * nx * .5; b.vy -= rv * ny * .5; } }
+  }
+  for (const p of parts) { for (const s of SEGS) collide(p, s); for (const g of gates) if (!g.open) collide(p, g.s); p.vx *= .999; if (p.y > LH + 60) { p.y = -20; p.vy = 0; } }
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.033, (now - last) / 1000)); last = now; t += dt;
+  const cyc = t % 16; gates[0].open = cyc > 2.5; gates[1].open = cyc > 6; if (cyc < dt * 1.5) reset();
+  for (let k = 0; k < 4; k++) physics(dt / 4);
+  parts.forEach((p, i) => { data[i * 3] = p.x; data[i * 3 + 1] = p.y; data[i * 3 + 2] = p.k; });
+  gl.viewport(0, 0, glc.width, glc.height); gl.uniform3fv(uP, data); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  u.clearRect(0, 0, LW, LH); u.lineCap = 'round';
+  for (const [x1, y1, x2, y2] of SEGS.slice(0, 7)) { u.strokeStyle = '#7a5a6a'; u.lineWidth = 12; u.beginPath(); u.moveTo(x1, y1); u.lineTo(x2, y2); u.stroke(); u.strokeStyle = '#b08a9a'; u.lineWidth = 4; u.beginPath(); u.moveTo(x1, y1 - 2); u.lineTo(x2, y2 - 2); u.stroke(); }
+  for (const gt of gates) { const [x1, y1, x2, y2] = gt.s, lift = gt.open ? 70 : 0; u.strokeStyle = '#f08a5a'; u.lineWidth = 10; u.beginPath(); u.moveTo(x1, y1 - lift); u.lineTo(x2, y2 - lift); u.stroke(); }
+  const inCup = parts.filter(p => p.x > 400 && p.x < 560 && p.y > 480).length;
+  u.fillStyle = '#7a5a6a'; u.font = '700 22px "Avenir Next","Helvetica Neue",sans-serif'; u.textAlign = 'center'; u.fillText(inCup + ' / ' + N, 480, 474);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

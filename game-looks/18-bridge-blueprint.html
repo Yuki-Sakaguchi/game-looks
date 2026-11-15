@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 18 橋づくりパズル 青焼き図面</title>
+<style>
+html,body{margin:0;height:100%;background:#12305a;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dbe9ff;background:#12305a;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 18 ─ 橋づくり物理パズル / 青焼き図面　｜　見るだけ（荷重が増えていき、いつか落ちる）</div>
+<script>
+// 青い紙に白い線だけの図面。方眼、寸法線、節点の記号、断面の斜線、図面枠。
+// 部材にかかる力は線の太さで表し、限界に近い部材だけ赤鉛筆でなぞる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const W = '#e6f0ff', RED = '#ff6b5a', FONT = '12px "Courier New",ui-monospace,monospace';
+
+// 紙（一度だけ）
+const paper = document.createElement('canvas'); paper.width = LW * S; paper.height = LH * S;
+{
+  const x = paper.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  x.fillStyle = '#1d4f8f'; x.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 500; i++) { x.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,20,60'},.035)`; x.beginPath(); x.arc(Math.random() * LW, Math.random() * LH, 10 + Math.random() * 50, 0, 7); x.fill(); }
+  for (let v = 0; v <= LW; v += 10) { x.strokeStyle = `rgba(230,240,255,${v % 50 ? .07 : .17})`; x.lineWidth = 1; x.beginPath(); x.moveTo(v, 0); x.lineTo(v, LH); x.moveTo(0, v); x.lineTo(LW, v); x.stroke(); }
+  x.strokeStyle = 'rgba(0,20,60,.18)'; x.lineWidth = 2; x.beginPath(); x.moveTo(LW / 2, 0); x.lineTo(LW / 2, LH); x.moveTo(0, LH / 2); x.lineTo(LW, LH / 2); x.stroke();
+}
+
+// トラス橋（点と棒。点は重力で落ち、棒は長さを保とうとする）
+const X0 = 220, X1 = 740, DECK = 300, N = 8, STEP = (X1 - X0) / N;
+let nodes, beams, load = 2, rev = 1, car, broken, endT;
+function reset() {
+  nodes = []; beams = []; broken = false; endT = 0;
+  for (let i = 0; i <= N; i++) nodes.push({ x: X0 + i * STEP, y: DECK, px: X0 + i * STEP, py: DECK, pin: i === 0 || i === N });
+  for (let i = 0; i < N; i++) nodes.push({ x: X0 + (i + .5) * STEP, y: DECK - 62, px: X0 + (i + .5) * STEP, py: DECK - 62 });
+  const link = (a, b) => beams.push({ a, b, len: Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y), s: 0, dead: false });
+  for (let i = 0; i < N; i++) { link(i, i + 1); link(i, N + 1 + i); link(N + 1 + i, i + 1); if (i < N - 1) link(N + 1 + i, N + 2 + i); }
+  car = { x: 90 };
+}
+reset();
+function physics(dt) {
+  const ci = (car.x - X0) / STEP;
+  nodes.forEach((n, i) => {
+    if (n.pin) return;
+    let ay = 500;
+    if (i <= N && Math.abs(i - ci) < 1) ay += load * 900 * (1 - Math.abs(i - ci));
+    const vx = (n.x - n.px) * .96, vy = (n.y - n.py) * .96; n.px = n.x; n.py = n.y; n.x += vx; n.y += vy + ay * dt * dt;
+  });
+  for (let k = 0; k < 14; k++) for (const b of beams) {
+    if (b.dead) continue;
+    const A = nodes[b.a], B = nodes[b.b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy), e = (d - b.len) / d * .5;
+    if (k === 13) { b.s = Math.abs(d - b.len) / b.len; if (b.s > .045 && !broken) { b.dead = true; broken = true; } }
+    if (!A.pin) { A.x += dx * e * (B.pin ? 2 : 1); A.y += dy * e * (B.pin ? 2 : 1); }
+    if (!B.pin) { B.x -= dx * e * (A.pin ? 2 : 1); B.y -= dy * e * (A.pin ? 2 : 1); }
+  }
+}
+function deckY(x) {
+  const f = Math.max(0, Math.min(N - .001, (x - X0) / STEP)), i = Math.floor(f);
+  return x < X0 || x > X1 ? DECK : nodes[i].y + (nodes[i + 1].y - nodes[i].y) * (f - i);
+}
+
+const line = (a, b, c, d) => { g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); };
+function dim(x1, x2, y, label) {
+  g.lineWidth = 1; line(x1, y, x2, y); line(x1, y - 6, x1, y + 6); line(x2, y - 6, x2, y + 6);
+  for (const [x, s] of [[x1, 1], [x2, -1]]) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + s * 9, y - 3); g.lineTo(x + s * 9, y + 3); g.fill(); }
+  g.textAlign = 'center'; g.fillText(label, (x1 + x2) / 2, y - 6);
+}
+function cliff(x0, x1) {
+  g.lineWidth = 1.6; g.strokeRect(x0, DECK, x1 - x0, 190);
+  g.save(); g.beginPath(); g.rect(x0, DECK, x1 - x0, 190); g.clip(); g.lineWidth = .8;
+  for (let k = -200; k < 400; k += 12) line(x0 + k, DECK + 190, x0 + k + 190, DECK);
+  g.restore();
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.033, (now - last) / 1000)); last = now; t += dt;
+  for (let k = 0; k < 2; k++) physics(dt / 2);
+  car.x += 95 * dt;
+  if (broken) { endT += dt; if (endT > 3.5) { reset(); load = 2; rev++; } }
+  else if (car.x > 900) { car.x = 60; load += 2; }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(paper, 0, 0, LW, LH);
+  g.strokeStyle = g.fillStyle = W; g.font = FONT; g.lineCap = 'round';
+  cliff(60, X0); cliff(X1, 900);
+  // 水面
+  g.lineWidth = 1;
+  for (let r = 0; r < 3; r++) { g.beginPath(); for (let x = X0 + 6; x < X1 - 6; x += 4) g.lineTo(x, 452 + r * 12 + Math.sin(x * .06 + t * 1.5 + r) * 2.5); g.stroke(); }
+  g.textAlign = 'center'; g.fillText('W.L.', 480, 500);
+
+  // 部材
+  beams.forEach((b, i) => {
+    if (b.dead) return;
+    const A = nodes[b.a], B = nodes[b.b], hot = b.s > .03;
+    g.strokeStyle = W; g.lineWidth = 1.4 + b.s * 90; line(A.x, A.y, B.x, B.y);
+    if (hot) { g.strokeStyle = RED; g.lineWidth = 2; g.setLineDash([7, 4]); line(A.x + 3, A.y - 4, B.x + 3, B.y - 4); g.setLineDash([]); }
+  });
+  g.strokeStyle = g.fillStyle = W;
+  nodes.forEach((n, i) => {
+    g.lineWidth = 1.2; g.fillStyle = '#1d4f8f'; g.beginPath(); g.arc(n.x, n.y, 4.5, 0, 7); g.fill(); g.stroke(); g.fillStyle = W;
+    if (n.pin) { g.beginPath(); g.moveTo(n.x, n.y + 5); g.lineTo(n.x - 9, n.y + 20); g.lineTo(n.x + 9, n.y + 20); g.closePath(); g.stroke(); }
+    if (i > N) { g.textAlign = 'center'; g.fillText('N' + (i - N), n.x, n.y - 11); }
+  });
+  // 車（線画）
+  if (!broken || car.x < X0) {
+    const y = deckY(car.x), a = Math.atan2(deckY(car.x + 14) - deckY(car.x - 14), 28);
+    g.save(); g.translate(car.x, y); g.rotate(a); g.lineWidth = 1.5;
+    g.strokeRect(-22, -26, 44, 16); g.strokeRect(-10, -38, 22, 12);
+    for (const wx of [-13, 13]) { g.beginPath(); g.arc(wx, -6, 6, 0, 7); g.stroke(); line(wx - 6, -6, wx + 6, -6); }
+    g.lineWidth = 1; line(0, -44, 0, -70); g.beginPath(); g.moveTo(0, -42); g.lineTo(-4, -51); g.lineTo(4, -51); g.fill();
+    g.textAlign = 'center'; g.fillText('P = ' + load + '.0 t', 0, -76); g.restore();
+  }
+  // 寸法線・注記・図面枠
+  dim(X0, X1, 232 - 62, 'L = 26 000'); dim(X0, X0 + STEP, 540, '3 250');
+  g.lineWidth = 1; line(X0, 520, X0, 548); line(X0 + STEP, 320, X0 + STEP, 548);
+  g.textAlign = 'left'; g.fillText('最大たわみ δ = ' + (Math.max(...nodes.slice(0, N + 1).map(n => n.y)) - DECK).toFixed(1) + ' mm', 84, 60);
+  g.fillText('最大ひずみ ε = ' + (Math.max(...beams.map(b => b.dead ? 0 : b.s)) * 100).toFixed(2) + ' %', 84, 78);
+  if (broken) { g.fillStyle = g.strokeStyle = RED; g.font = 'bold 22px "Courier New",monospace'; g.fillText('× 破断 ─ 要再設計', 84, 112); g.font = FONT; g.fillStyle = g.strokeStyle = W; }
+  g.lineWidth = 2; g.strokeRect(20, 20, LW - 40, LH - 40); g.lineWidth = 1; g.strokeRect(680, 510, 260, 70); line(680, 545, 940, 545); line(810, 545, 810, 580);
+  g.fillText('橋梁一般図  No.18', 690, 533); g.fillText('SCALE 1:200', 690, 567); g.fillText('REV. ' + rev, 820, 567);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 03 シューティング 2色刷り</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2622;overflow:hidden;display:grid;place-items:center}
+canvas{height:100vh;max-width:100vw;aspect-ratio:9/16;display:block;cursor:none}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f3ead6}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 03 ─ 縦シューティング / 2色刷り　｜　マウスで自機を動かす（放っておくと自動）</div>
+<script>
+// 青とピンクの 2 版に分けて描き、紙の上に「乗算」で刷り重ねる。濃淡は網点、版はわざと少しずらす
+const W = 360, H = 640, S = 2;
+const cv = document.getElementById('c'); cv.width = W * S; cv.height = H * S;
+const m = cv.getContext('2d');
+const BLUE = '#0078bf', PINK = '#ff48b0', PAPER = '#f3ead6';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const layer = () => { const c = document.createElement('canvas'); c.width = W * S; c.height = H * S; const g = c.getContext('2d'); g.setTransform(S, 0, 0, S, 0, 0); return g; };
+const B = layer(), P = layer();
+
+// 網点（45 度に並ぶ点。d が濃さ）
+function tone(g, color, d) {
+  const n = 6 * S, c = document.createElement('canvas'); c.width = c.height = n;
+  const x = c.getContext('2d'); x.fillStyle = color;
+  const r = Math.sqrt(d * n * n / 2 / Math.PI);
+  for (const [cx, cy] of [[n / 4, n / 4], [n * 3 / 4, n * 3 / 4]])
+    for (const ox of [-n, 0, n]) for (const oy of [-n, 0, n]) { x.beginPath(); x.arc(cx + ox, cy + oy, r, 0, 7); x.fill(); }
+  const p = g.createPattern(c, 'repeat'); p.setTransform(new DOMMatrix().scale(1 / S)); return p;
+}
+const b25 = tone(B, BLUE, .22), b50 = tone(B, BLUE, .5), p25 = tone(P, PINK, .25), p50 = tone(P, PINK, .55);
+
+// 紙の粒と、インクのかすれ
+function noise(fn) {
+  const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
+  const g = c.getContext('2d'), im = g.createImageData(c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) fn(d, i, Math.random());
+  g.putImageData(im, 0, 0); return c;
+}
+const grain = noise((d, i, r) => { const v = 232 + r * 23; d[i] = v; d[i + 1] = v - 2; d[i + 2] = v - 6; d[i + 3] = 255; });
+const speck = [0, 1].map(() => noise((d, i, r) => { d[i + 3] = r > .94 ? 150 : r * 34; }));
+
+const circle = (g, x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, 7); };
+const poly = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+
+const player = { x: W / 2, y: H - 96, vx: 0 };
+const bullets = [], enemies = [], ebul = [], booms = [];
+const isles = [...Array(6)].map((_, i) => ({
+  x: hash(i, 3) * W, y: i * 130 - 80,
+  blobs: [...Array(5)].map((_, k) => ({ dx: (hash(i, k) - .5) * 90, dy: (hash(k, i + 7) - .5) * 60, r: 22 + hash(i + k, 9) * 30 }))
+}));
+const dashes = [...Array(22)].map((_, i) => ({ x: hash(i, 11) * W, y: hash(i, 12) * H, s: 240 + hash(i, 13) * 200 }));
+const SHIP = [[0, -22], [7, -4], [20, 10], [6, 8], [0, 14], [-6, 8], [-20, 10], [-7, -4]];
+
+let mouseX = null, mouseT = -9;
+addEventListener('pointermove', e => { const r = cv.getBoundingClientRect(); mouseX = (e.clientX - r.left) / r.width * W; mouseT = t; });
+
+let t = 0, last = performance.now(), score = 0, shotT = 0, waveT = 1, waveN = 0;
+function update(dt) {
+  // 自機
+  let tx;
+  if (t - mouseT < 2.5) tx = mouseX;
+  else {
+    let e = null; for (const o of enemies) if (o.y < player.y - 40 && o.y > 0 && (!e || o.y > e.y)) e = o;
+    tx = e ? e.x : W / 2 + Math.sin(t) * 100;
+  }
+  const px = player.x;
+  player.x += Math.max(-260 * dt, Math.min(260 * dt, (tx - player.x) * 6 * dt));
+  player.x = Math.max(24, Math.min(W - 24, player.x)); player.vx = (player.x - px) / Math.max(dt, .001);
+
+  if ((shotT -= dt) <= 0) { shotT = .13; bullets.push({ x: player.x - 7, y: player.y - 12 }, { x: player.x + 7, y: player.y - 12 }); }
+  for (const b of bullets) b.y -= 520 * dt;
+  if ((waveT -= dt) <= 0) {
+    waveT = 2.2; const type = waveN++ % 2, x0 = 70 + hash(waveN, 5) * (W - 140);
+    for (let i = 0; i < 4; i++) enemies.push({ x0, x: x0, y: -30 - i * 44, ph: i * .7, type, hp: 2, hit: 0 });
+  }
+  for (const e of enemies) {
+    e.y += 62 * dt; e.x = e.x0 + Math.sin(t * 2 + e.ph) * 60; e.hit = Math.max(0, e.hit - dt * 8);
+    if (e.y > 40 && Math.random() < dt * .25) { const a = Math.atan2(player.y - e.y, player.x - e.x); ebul.push({ x: e.x, y: e.y, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140 }); }
+    for (const b of bullets) if (!b.dead && Math.abs(b.x - e.x) < 15 && Math.abs(b.y - e.y) < 15) {
+      b.dead = true; e.hit = 1;
+      if (--e.hp <= 0) { e.dead = true; score += 100; booms.push({ x: e.x, y: e.y, a: 0, ph: Math.random() * 6 }); }
+    }
+  }
+  for (const b of ebul) { b.x += b.vx * dt; b.y += b.vy * dt; }
+  for (const b of booms) b.a += dt * 2;
+  for (const s of isles) { s.y += 34 * dt; if (s.y > H + 110) { s.y -= H + 220 + 0; s.x = Math.random() * W; } }
+  for (const d of dashes) { d.y += d.s * dt; if (d.y > H) { d.y -= H + 10; d.x = Math.random() * W; } }
+  const keep = (arr, fn) => { for (let i = arr.length - 1; i >= 0; i--) if (!fn(arr[i])) arr.splice(i, 1); };
+  keep(bullets, b => !b.dead && b.y > -20);
+  keep(enemies, e => !e.dead && e.y < H + 40);
+  keep(ebul, b => b.y < H + 10 && b.y > -10 && b.x > -10 && b.x < W + 10);
+  keep(booms, b => b.a < 1);
+}
+
+function reg(g, x, y) {
+  g.lineWidth = 1; circle(g, x, y, 5); g.stroke();
+  g.beginPath(); g.moveTo(x - 8, y); g.lineTo(x + 8, y); g.moveTo(x, y - 8); g.lineTo(x, y + 8); g.stroke();
+}
+
+function draw() {
+  for (const g of [B, P]) { g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, H); }
+  B.fillStyle = B.strokeStyle = BLUE; P.fillStyle = P.strokeStyle = PINK;
+
+  // 背景: ピンクの大きな太陽、青い雲の島、流れる線
+  const sy = 190 + Math.sin(t * .1) * 20;
+  P.fillStyle = p25; circle(P, W * .68, sy, 120); P.fill();
+  P.lineWidth = 2; circle(P, W * .68, sy, 120); P.stroke();
+  for (const s of isles) {
+    B.fillStyle = b25; for (const b of s.blobs) { circle(B, s.x + b.dx, s.y + b.dy, b.r); B.fill(); }
+    B.fillStyle = b50; for (const b of s.blobs) { circle(B, s.x + b.dx + 5, s.y + b.dy + 7, b.r * .55); B.fill(); }
+  }
+  B.fillStyle = BLUE; for (const d of dashes) B.fillRect(d.x, d.y, 1, 9);
+
+  // 敵
+  for (const e of enemies) {
+    B.fillStyle = BLUE; P.fillStyle = e.hit > .3 ? PINK : p50;
+    if (e.type === 0) {
+      const r = 15; poly(B, [[e.x, e.y - r], [e.x + r, e.y], [e.x, e.y + r], [e.x - r, e.y]]); B.fill();
+      circle(P, e.x, e.y, 21); P.fill(); P.fillStyle = PINK; circle(P, e.x, e.y, 5); P.fill();
+    } else {
+      B.beginPath(); B.ellipse(e.x, e.y, 21, 9, 0, 0, 7); B.fill();
+      B.lineWidth = 2; B.beginPath(); B.arc(e.x, e.y - 4, 10, Math.PI, 0); B.stroke();
+      P.beginPath(); P.ellipse(e.x, e.y + 9, 17, 7, 0, 0, 7); P.fill();
+      P.fillStyle = PINK; for (const k of [-10, 0, 10]) { circle(P, e.x + k, e.y, 2.2); P.fill(); }
+    }
+  }
+  // 弾
+  P.fillStyle = PINK; for (const b of bullets) { P.beginPath(); P.roundRect(b.x - 1.5, b.y - 6, 3, 12, 1.5); P.fill(); }
+  B.lineWidth = 2; for (const b of ebul) { circle(B, b.x, b.y, 4); B.stroke(); }
+
+  // 爆発
+  for (const b of booms) {
+    const a = b.a;
+    P.fillStyle = a < .4 ? p50 : p25; circle(P, b.x, b.y, 10 + a * 36); P.fill();
+    P.fillStyle = PINK; circle(P, b.x, b.y, (1 - a) * 14); P.fill();
+    B.lineWidth = 3 * (1 - a) + .5; circle(B, b.x, b.y, 14 + a * 42); B.stroke();
+    B.fillStyle = BLUE;
+    for (let i = 0; i < 6; i++) {
+      const an = b.ph + i * 1.047, d = 8 + a * 48, x = b.x + Math.cos(an) * d, y = b.y + Math.sin(an) * d, s = 5 * (1 - a) + 1;
+      poly(B, [[x, y - s], [x + s, y + s], [x - s, y + s * .6]]); B.fill();
+    }
+  }
+
+  // 自機（ピンクの面と青の線を別の版に描くので、ずれが見える）
+  const bank = Math.max(-.25, Math.min(.25, player.vx / 600));
+  for (const g of [B, P]) { g.save(); g.translate(player.x, player.y); g.transform(1 - Math.abs(bank) * .6, 0, bank, 1, 0, 0); }
+  P.fillStyle = PINK; poly(P, SHIP); P.fill();
+  P.fillStyle = p50; poly(P, [[-4, 14], [4, 14], [0, 26 + hash(Math.floor(t * 30)) * 10]]); P.fill();
+  B.lineWidth = 1.6; B.lineJoin = 'round'; poly(B, SHIP); B.stroke();
+  B.fillStyle = b50; B.beginPath(); B.ellipse(0, -7, 3, 7, 0, 0, 7); B.fill();
+  B.beginPath(); B.moveTo(-14, 7); B.lineTo(-8, 0); B.moveTo(14, 7); B.lineTo(8, 0); B.stroke();
+  B.restore(); P.restore();
+
+  // 文字と刷りの目印
+  B.fillStyle = BLUE; B.strokeStyle = BLUE; P.fillStyle = PINK; P.strokeStyle = PINK;
+  const font = '700 16px "Avenir Next Condensed","Helvetica Neue",Arial,sans-serif';
+  B.font = P.font = font; B.textAlign = 'left'; P.textAlign = 'right';
+  B.fillText('SCORE ' + String(score).padStart(6, '0'), 18, 32);
+  P.fillText('LOOK 03', W - 18, 32);
+  B.lineWidth = 1.5; B.strokeRect(8, 8, W - 16, H - 16);
+  for (const g of [B, P]) { reg(g, 22, H - 22); reg(g, W - 22, H - 22); }
+  B.fillRect(38, H - 28, 12, 12); P.fillRect(46, H - 28, 12, 12);
+
+  // かすれを抜く
+  [B, P].forEach((g, i) => {
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'destination-out'; g.drawImage(speck[i], 0, 0); g.restore();
+  });
+
+  // 刷り重ねる。ずれは 1 秒に 8 回だけ変える
+  const j = Math.floor(t * 8), jx = (hash(j, 1) - .5) * 1.6, jy = (hash(j, 2) - .5) * 1.6;
+  m.globalCompositeOperation = 'source-over'; m.fillStyle = PAPER; m.fillRect(0, 0, W * S, H * S);
+  m.globalCompositeOperation = 'multiply';
+  m.drawImage(B.canvas, 0, 0);
+  m.drawImage(P.canvas, (1.8 + jx) * S, (-1.4 + jy) * S);
+  m.drawImage(grain, 0, 0);
+}
+
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+  update(dt); draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

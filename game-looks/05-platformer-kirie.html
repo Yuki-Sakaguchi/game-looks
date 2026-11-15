@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 05 横スクロール 切り絵の影絵</title>
+<style>
+html,body{margin:0;height:100%;background:#0b1218;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,177.78vh);aspect-ratio:16/9;image-rendering:pixelated;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f6e3b4;text-shadow:0 1px 0 #0b1218}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 05 ─ 横スクロールアクション / 切り絵の影絵　｜　スペースかクリックでジャンプ（放っておくと自動）</div>
+<script>
+// 逆光の空の前に、色紙を切って重ねたような山並みを 4 枚。手前ほど暗く、紙の切り口に明るい線、奥の紙に落ちる影を入れる
+const W = 320, H = 180;
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + .5) / 16);
+
+// 空と太陽（動かないので一度だけ描く）
+const sky = document.createElement('canvas'); sky.width = W; sky.height = H;
+{
+  const s = sky.getContext('2d');
+  const SKY = ['#16324a', '#1f4f5e', '#3b7a78', '#7fb09a', '#e9c98f', '#f6e3b4'];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const b = BAY[(y & 3) * 4 + (x & 3)];
+    const f = Math.min(4.999, Math.pow(y / 118, 1.25) * 5), i = Math.floor(f);
+    let col = SKY[Math.min(5, i + (f - i > b ? 1 : 0))];
+    const d = Math.hypot(x - 226, y - 80);
+    if (d < 25) col = '#fffbe6'; else if (d < 44 && (d - 25) / 19 < b) col = '#f6e3b4';
+    s.fillStyle = col; s.fillRect(x, y, 1, 1);
+  }
+}
+
+const LAYERS = [
+  { par: .08, col: '#a9b08f', edge: '#c9cba4', base: 78, amp: 14, wl: 140, tree: 0 },
+  { par: .18, col: '#6f8f7f', edge: '#8fae97', base: 64, amp: 12, wl: 90, tree: 10 },
+  { par: .35, col: '#3f6162', edge: '#5a8179', base: 52, amp: 9, wl: 70, tree: 17 },
+  { par: .6, col: '#213c44', edge: '#35585a', base: 41, amp: 6, wl: 50, tree: 25 }
+];
+function height(k, wx) {
+  const L = LAYERS[k];
+  const hill = L.base + L.amp * (Math.sin(wx / L.wl + k * 2) + .5 * Math.sin(wx / L.wl * 2.3 + k));
+  let h = hill;
+  if (L.tree) {
+    const cw = L.tree * 1.6, c0 = Math.floor(wx / cw);
+    for (let c = c0 - 1; c <= c0 + 1; c++) if (hash(c, k) > .35) {
+      const cx = (c + .2 + .6 * hash(c, k + 9)) * cw, th = L.tree * (.6 + .8 * hash(c, k + 5)), w = th * .28, ad = Math.abs(wx - cx);
+      if (ad < w) h = Math.max(h, hill + th * (1 - ad / w) + (ad % 3 < 1.5 ? 1.5 : 0));
+    }
+  }
+  return h;
+}
+
+// 足場
+const CELL = 96;
+const level = c => 150 - Math.floor(hash(c, 8) * 3) * 8;
+function groundY(wx) {
+  const c = Math.floor(wx / CELL), lx = wx - c * CELL;
+  if (hash(c, 7) > .55 && lx > 60 && lx < 84) return null;
+  return level(c);
+}
+
+const hero = { wx: 0, y: 150, vy: 0, ground: true };
+const scarf = [], taken = new Set(), bits = [];
+let wantJump = false;
+addEventListener('keydown', e => { if (e.code === 'Space') { wantJump = true; e.preventDefault(); } });
+addEventListener('pointerdown', () => { wantJump = true; });
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+
+  // 走る・跳ぶ
+  hero.wx += 70 * dt;
+  const ahead = groundY(hero.wx + 12);
+  if (hero.ground && (wantJump || ahead === null || ahead < hero.y - 1)) { hero.vy = -190; hero.ground = false; }
+  wantJump = false;
+  const gy = groundY(hero.wx);
+  if (!hero.ground) {
+    hero.vy += 520 * dt; hero.y += hero.vy * dt;
+    if (gy !== null && hero.vy >= 0 && hero.y >= gy) { hero.y = gy; hero.vy = 0; hero.ground = true; }
+    if (hero.y > 230) { hero.y = 90; hero.vy = 0; }
+  } else if (gy === null || gy > hero.y) hero.ground = false;
+  else hero.y = gy;
+  const cam = hero.wx - 100;
+
+  g.drawImage(sky, 0, 0);
+
+  // 重ねた紙の山並み
+  LAYERS.forEach((L, k) => {
+    for (let x = 0; x < W; x++) {
+      const wx = x + cam * L.par;
+      const y = H - Math.round(height(k, wx)), ys = H - Math.round(height(k, wx - 3) + 2);
+      g.fillStyle = 'rgba(10,25,35,.4)';
+      for (let yy = ys; yy < y; yy++) if ((x + yy) & 1) g.fillRect(x, yy, 1, 1);
+      g.fillStyle = L.col; g.fillRect(x, y, 1, H - y);
+      g.fillStyle = L.edge; g.fillRect(x, y, 1, 1);
+    }
+  });
+
+  // ただよう塵
+  g.fillStyle = 'rgba(255,246,216,.55)';
+  for (let i = 0; i < 26; i++) g.fillRect(Math.floor((hash(i, 1) * W + t * 5 * (1 + hash(i, 2))) % W), Math.floor(20 + hash(i, 3) * 110 + Math.sin(t + i) * 4), 1, 1);
+
+  // 足場
+  for (let x = 0; x < W; x++) {
+    const wx = Math.floor(x + cam), y = groundY(wx);
+    if (y === null) continue;
+    g.fillStyle = '#0d1820'; g.fillRect(x, y, 1, H - y);
+    g.fillStyle = '#3b5a5a'; g.fillRect(x, y, 1, 1);
+    if (hash(wx, 4) > .8) { g.fillStyle = '#0d1820'; g.fillRect(x, y - 1 - Math.floor(hash(wx, 5) * 3), 1, 3); }
+  }
+
+  // 拾う灯り（8×8 のコマ）
+  const c0 = Math.floor(cam / CELL);
+  for (let c = c0; c <= c0 + 4; c++) {
+    if (taken.has(c)) continue;
+    const wx = c * CELL + 28, y = level(c) - 26 - Math.floor(10 * hash(c, 3)) + Math.round(Math.sin(t * 3 + c) * 2), x = Math.round(wx - cam);
+    if (Math.abs(wx - hero.wx) < 8 && Math.abs(y - (hero.y - 7)) < 14) {
+      taken.add(c); taken.delete(c - 8);
+      for (let i = 0; i < 10; i++) { const a = i * .63; bits.push({ wx, y, vx: Math.cos(a) * 50, vy: Math.sin(a) * 50 - 20, life: .6 }); }
+      continue;
+    }
+    g.fillStyle = 'rgba(255,200,87,.3)';
+    for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) if (dx * dx + dy * dy < 40 && ((dx + dy) & 1)) g.fillRect(x + dx, y + dy, 1, 1);
+    const arm = [1, 2, 3, 2][Math.floor(t * 8 + c) % 4];
+    g.fillStyle = '#ffc857';
+    g.fillRect(x - arm, y, arm * 2 + 1, 1); g.fillRect(x, y - arm, 1, arm * 2 + 1);
+    g.fillStyle = '#fffbe6'; g.fillRect(x - 1, y - 1, 2, 2);
+  }
+  for (let i = bits.length - 1; i >= 0; i--) {
+    const b = bits[i]; b.life -= dt; if (b.life <= 0) { bits.splice(i, 1); continue; }
+    b.wx += b.vx * dt; b.y += b.vy * dt; b.vy += 120 * dt;
+    g.fillStyle = b.life > .3 ? '#fffbe6' : '#ffc857'; g.fillRect(Math.round(b.wx - cam), Math.round(b.y), 1, 1);
+  }
+
+  // 主人公（黒い影に赤いマフラーだけ色を付ける）
+  scarf.unshift({ wx: hero.wx - 2, y: hero.y - 9 }); if (scarf.length > 13) scarf.pop();
+  g.fillStyle = '#e8433a';
+  scarf.forEach((p, i) => { const s = i < 8 ? 2 : 1; g.fillRect(Math.round(p.wx - cam - i * .5), Math.round(p.y + Math.sin(t * 10 + i * .8) * i * .25), s, s); });
+  const sx = 100, y = Math.round(hero.y), f = Math.floor(t * 12) % 2;
+  g.fillStyle = '#0b1218';
+  g.fillRect(sx - 2, y - 13, 4, 4); g.fillRect(sx - 2, y - 9, 4, 6);
+  if (hero.ground) { g.fillRect(sx - 2, y - 3, 1, f ? 3 : 2); g.fillRect(sx + 1, y - 3, 1, f ? 2 : 3); }
+  else { g.fillRect(sx - 3, y - 4, 2, 1); g.fillRect(sx + 1, y - 3, 2, 1); }
+  g.fillStyle = '#f6e3b4'; g.fillRect(sx + 1, y - 12, 1, 1);
+
+  // いちばん手前の草
+  g.fillStyle = '#060b10';
+  for (let x = 0; x < W; x++) {
+    const wx = Math.floor(x + cam * 1.5), c = Math.floor(wx / 3);
+    const h = 5 + 4 * Math.sin(wx / 37) + (hash(c, 1) > .6 ? 7 * hash(c, 2) : 0);
+    g.fillRect(x, H - Math.round(h), 1, Math.round(h));
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

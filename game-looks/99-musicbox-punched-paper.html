@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 99 音のパズル オルゴールの穴あき紙</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1c14;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e2b8;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 99 ─ 音のパズル / 手回しオルゴールの穴あき紙　｜　見るだけ（音は出ません。穴が歯に来ると弾かれる）</div>
+<script>
+// 譜面を「穴をあけた紙の帯」にする。紙は右から左へ流れ、穴がまん中のしんちゅうの歯（くし）に来ると、
+// その歯が弾かれて細かくふるえ、音符が 1 つ上へ飛ぶ。紙には音の高さの細い線と、小節の番号が印刷してある。
+// しんちゅうは明るい帯と暗い帯の縦じまで金属に見せ、木の箱は木目の細い線で描く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const ROWS = 15, PY0 = 150, PY1 = 450, RH = (PY1 - PY0 - 40) / (ROWS - 1), STEP = 34, CX = 420, SPEED = 96;
+const rowY = r => PY0 + 20 + (ROWS - 1 - r) * RH;
+// 旋律（この試作のために作った並び）：1 小節 8 つ
+const PAT = [[0, 4, 7], [], [9], [7], [4, 11], [], [7], [9], [2, 5, 9], [], [11], [9], [5, 12], [], [9], [7], [0, 4, 7], [], [12], [11], [9, 14], [], [7], [4], [2, 7, 11], [], [9], [7], [4, 0], [], [2], []];
+const wood = document.createElement('canvas'); wood.width = LW; wood.height = LH; { const w = wood.getContext('2d'); const gr = w.createLinearGradient(0, 0, 0, LH); gr.addColorStop(0, '#5a3a24'); gr.addColorStop(1, '#3a2416'); w.fillStyle = gr; w.fillRect(0, 0, LW, LH); for (let i = 0; i < 170; i++) { const y = Math.random() * LH, a = 2 + Math.random() * 8; w.strokeStyle = `rgba(20,10,4,${.08 + Math.random() * .2})`; w.lineWidth = .6 + Math.random() * 1.5; w.beginPath(); for (let x = 0; x <= LW; x += 20) w.lineTo(x, y + Math.sin(x * .01 + i) * a); w.stroke(); } }
+const brass = (x0, x1) => { const b = g.createLinearGradient(x0, 0, x1, 0); b.addColorStop(0, '#6a4a14'); b.addColorStop(.2, '#f6dc8a'); b.addColorStop(.45, '#b88a2e'); b.addColorStop(.7, '#fff0b0'); b.addColorStop(1, '#7a5618'); return b; };
+const tine = new Float32Array(ROWS).fill(9), notes = []; let last = performance.now(), t = 0, lastStep = -1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; const scroll = t * SPEED, cur = Math.floor(scroll / STEP);
+  if (cur !== lastStep) { lastStep = cur; for (const r of PAT[((cur % PAT.length) + PAT.length) % PAT.length]) { tine[r] = 0; notes.push({ x: CX + 8, y: rowY(r), l: 1.2, r }); } }
+  for (let r = 0; r < ROWS; r++) tine[r] += dt;
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(wood, 0, 0);
+  // 紙の帯
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, PY0 + 8, LW, PY1 - PY0); g.fillStyle = '#f4ead2'; g.fillRect(0, PY0, LW, PY1 - PY0);
+  g.strokeStyle = 'rgba(120,90,50,.35)'; g.lineWidth = .7; g.beginPath(); for (let r = 0; r < ROWS; r++) { g.moveTo(0, rowY(r)); g.lineTo(LW, rowY(r)); } g.stroke();
+  const first = Math.floor((scroll - CX) / STEP) - 1;
+  for (let k = first; k < first + 32; k++) { const x = CX + k * STEP - scroll + STEP; if (x < -20 || x > LW + 20) continue; const idx = ((k + 1) % PAT.length + PAT.length) % PAT.length;
+    if ((k + 1) % 8 === 0) { g.strokeStyle = 'rgba(120,90,50,.6)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x - STEP / 2, PY0 + 12); g.lineTo(x - STEP / 2, PY1 - 12); g.stroke(); g.fillStyle = 'rgba(120,90,50,.8)'; g.font = '10px Georgia,serif'; g.textAlign = 'left'; g.fillText(String(Math.floor((k + 1) / 8) + 1), x - STEP / 2 + 4, PY0 + 12); }
+    for (const sy of [PY0 + 7, PY1 - 7]) { g.fillStyle = '#3a2416'; g.beginPath(); g.roundRect(x - 4, sy - 3, 8, 6, 2); g.fill(); }
+    for (const r of PAT[idx]) { const y = rowY(r); g.fillStyle = 'rgba(120,90,50,.5)'; g.beginPath(); g.arc(x + 1, y + 1.4, 6.4, 0, 7); g.fill(); g.fillStyle = '#2a1a10'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); } }
+  g.fillStyle = 'rgba(140,100,50,.5)'; g.font = 'italic 13px Georgia,serif'; g.textAlign = 'left'; const lx = ((-scroll * 1) % 620 + 620) % 620; for (let q = -1; q < 2; q++) g.fillText('Air No. 99 — turn the handle slowly', lx + q * 620, PY1 - 16);
+  // 紙の送りローラー
+  for (const rx of [60, 900]) { g.fillStyle = brass(rx - 26, rx + 26); g.fillRect(rx - 26, PY0 - 22, 52, PY1 - PY0 + 44); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = PY0 - 22 + ((scroll * .5) % 12); y < PY1 + 22; y += 12) g.fillRect(rx - 26, y, 52, 2); }
+  // くし：歯は弾かれるとふるえる
+  g.fillStyle = brass(CX + 60, CX + 120); g.fillRect(CX + 70, PY0 - 34, 46, PY1 - PY0 + 68); g.fillStyle = '#3a2a10'; for (const sy of [PY0 - 20, PY1 + 20]) { g.beginPath(); g.arc(CX + 93, sy, 6, 0, 7); g.fill(); g.fillStyle = '#d8b86a'; g.fillRect(CX + 87, sy - 1, 12, 2); g.fillStyle = '#3a2a10'; }
+  for (let r = 0; r < ROWS; r++) { const y = rowY(r), a = tine[r] < .5 ? Math.sin(tine[r] * 90) * (1 - tine[r] / .5) * 4 : 0, len = 44 + r * 1.6; g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(CX + 76 - len, y - 3 + 5, len, 7);
+    const tg = g.createLinearGradient(0, y - 5, 0, y + 5); tg.addColorStop(0, '#fff2b8'); tg.addColorStop(.5, tine[r] < .25 ? '#fff8dc' : '#c8992e'); tg.addColorStop(1, '#7a5618'); g.fillStyle = tg; g.beginPath(); g.moveTo(CX + 76, y - 4.5); g.lineTo(CX + 76 - len, y - 2.5 + a); g.lineTo(CX + 76 - len, y + 2.5 + a); g.lineTo(CX + 76, y + 4.5); g.fill(); }
+  g.fillStyle = 'rgba(200,50,40,.8)'; g.fillRect(CX - 1, PY0 - 8, 2, PY1 - PY0 + 16);
+  // 音符
+  for (const n of notes) { n.l -= dt; n.y -= 46 * dt; n.x += Math.sin(n.l * 6 + n.r) * 20 * dt - 30 * dt; g.globalAlpha = Math.max(0, Math.min(1, n.l)); g.fillStyle = '#ffe9a8'; g.font = '26px "Apple Symbols","Segoe UI Symbol",Georgia,serif'; g.textAlign = 'center'; g.fillText(n.r % 2 ? '♪' : '♩', n.x, n.y - 14); } g.globalAlpha = 1; while (notes.length && notes[0].l <= 0) notes.shift();
+  // 手回しハンドルと歯車
+  const ha = scroll * .04; g.save(); g.translate(820, 520); g.fillStyle = brass(-40, 40); g.beginPath(); for (let i = 0; i < 32; i++) { const a = ha * .5 + i / 32 * 6.283, r = i % 2 ? 40 : 34; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); g.fillStyle = '#3a2a10'; g.beginPath(); g.arc(0, 0, 8, 0, 7); g.fill();
+  g.strokeStyle = '#d8b86a'; g.lineWidth = 9; g.lineCap = 'round'; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(ha) * 62, Math.sin(ha) * 62); g.stroke(); g.fillStyle = '#7a2a20'; g.beginPath(); g.arc(Math.cos(ha) * 62, Math.sin(ha) * 62, 13, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.4)'; g.beginPath(); g.arc(Math.cos(ha) * 62 - 4, Math.sin(ha) * 62 - 4, 4, 0, 7); g.fill(); g.restore();
+  g.save(); g.translate(742, 546); g.fillStyle = brass(-22, 22); g.beginPath(); for (let i = 0; i < 20; i++) { const a = -ha * .8 + i / 20 * 6.283, r = i % 2 ? 22 : 17; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); g.fillStyle = '#3a2a10'; g.beginPath(); g.arc(0, 0, 5, 0, 7); g.fill(); g.restore();
+  g.fillStyle = '#f4e2b8'; g.font = 'italic 20px Georgia,serif'; g.textAlign = 'left'; g.fillText('bar ' + (Math.floor(cur / 8) + 1) + '  ·  ' + (cur % 8 + 1) + ' / 8', 40, 96);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

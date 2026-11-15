@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-18 屋上ランナー（作りなおし）</title>
+<style>
+html,body{margin:0;height:100%;background:#3a1e50;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffd9a8;opacity:.85}
+</style>
+<div id="cap">2-18 ─ 屋上ランナー / 作りなおし（夕日に向かって走る、ふちの光、屋上の小物）　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 前の 95 の作りなおし。カメラを夕日の方へ向け、建物も人も逆光の影絵にする。
+// そのうえで「日の当たるふち」だけをだいだいに光らせる（屋上のへりに細い光る帯を置き、上の面には強い夕日を当てる）。
+// 屋上には水タンク・室外機・物干し・看板・天窓・はとを置いて、1 棟ごとに違って見えるようにした。着地のほこりはドット絵
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 44, far: 800 }), { hash, flat, glow } = K;
+scene.background = K.sky([[0, '#1c1a50'], [.32, '#6a2a78'], [.5, '#e0506a'], [.62, '#ff9a4a'], [.72, '#ffe0a0'], [1, '#ff8a5a']]); scene.fog = new THREE.Fog('#f0806a', 40, 320);
+scene.add(new THREE.HemisphereLight(0x9a8af8, 0x4a2a6a, 1.5)); const sun = new THREE.DirectionalLight(0xffa040, 4.6); scene.add(sun, sun.target);
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(46, 40), glow('#fff2c8', { fog: false })); scene.add(sunD);
+const gc = document.createElement('canvas'); gc.width = gc.height = 128; { const x = gc.getContext('2d'), g = x.createRadialGradient(64, 64, 4, 64, 64, 64); g.addColorStop(0, 'rgba(255,220,150,.9)'); g.addColorStop(1, 'rgba(255,160,90,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); halo.scale.set(520, 520, 1); scene.add(halo);
+const WIN = [0, 1, 2].map(s => K.pix((i, j) => (i % 4 === 0 || j % 4 === 0) ? '#000000' : hash((i >> 2) + s * 7, j >> 2) > .55 ? '#ffd27a' : hash(i >> 2, (j >> 2) + s) > .85 ? '#ff9a5a' : '#000000', 16));
+const wallM = (c, s, rx, ry) => { const t = WIN[s].clone(); t.repeat.set(rx, ry); t.needsUpdate = true; return flat(c, { emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .9 }); };
+const RIM = glow('#ffb45a'), B = (p, w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof m === 'string' ? flat(m) : m); o.position.set(x, y, z); p.add(o); return o; };
+const SP = 15, W = 12, D = 13, roofH = i => 16 + Math.round(hash(i, 1) * 5 - 2) * 1.3;
+// 走る棟：10 棟を使い回し、棟ごとに小物を変える
+const slots = [...Array(10)].map(() => { const g = new THREE.Group(); scene.add(g); return { g, i: null }; });
+const COL = ['#5a4a98', '#4a3f88', '#6a4a90', '#3f3a7e'];
+function build(s, i) { const g = s.g; while (g.children.length) g.remove(g.children[0]); const h = roofH(i), r = k => hash(i, k); g.position.set(i * SP, 0, 0);
+  const m = wallM(COL[((i % 4) + 4) % 4], ((i % 3) + 3) % 3, 4, 14), top = flat('#6a5aa0'); const body = new THREE.Mesh(new THREE.BoxGeometry(W, 70, D), [m, m, top, top, m, m]); body.position.y = h - 35; g.add(body);
+  for (const [w, d, x, z] of [[W, .5, 0, D / 2 - .25], [W, .5, 0, -D / 2 + .25], [.5, D, -W / 2 + .25, 0], [.5, D, W / 2 - .25, 0]]) { B(g, w, .6, d, '#4a3f88', x, h + .3, z); B(g, w + .04, .1, d + .04, RIM, x, h + .64, z); }
+  if (r(2) > .45) { const t = new THREE.Group(); t.position.set(3.4, h, -3.6); for (const [a, b] of [[-.7, -.7], [.7, -.7], [-.7, .7], [.7, .7]]) B(t, .14, 1.6, .14, '#2a1a3a', a, .8, b); const tk = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 2, 9), flat('#7a5a6a')); tk.position.y = 2.6; t.add(tk); const cp = new THREE.Mesh(new THREE.ConeGeometry(1.4, .9, 9), flat('#6a4a5a')); cp.position.y = 4.05; t.add(cp); B(t, 1.3, .06, 1.3, RIM, 0, 4.52, 0).rotation.y = .78; g.add(t); }
+  if (r(3) > .4) { B(g, 2.2, 1, 1.5, '#7a6ab0', -3.4, h + .5, -4); B(g, 2.24, .08, 1.54, RIM, -3.4, h + 1.04, -4); const fan = B(g, 1.2, .06, .2, '#2a1a3a', -3.4, h + 1.1, -4); fan.userData.fan = 1; }
+  if (r(4) > .5) { for (const x of [-4.4, 1.2]) B(g, .1, 2.4, .1, '#2a1a3a', x, h + 1.2, -5.2); for (let k = 0; k < 5; k++) { const c = B(g, .8, .9 + (k % 2) * .3, .05, glow(['#ffb0c0', '#fff0d0', '#a8d8ff', '#ffe08a', '#ffffff'][k]), -3.8 + k * 1.1, h + 1.7 - (k % 2) * .15, -5.2); c.userData.cloth = k; } B(g, 5.6, .03, .03, '#2a1a3a', -1.6, h + 2.3, -5.2); }
+  if (r(5) > .55) { B(g, .16, 3.4, .16, '#2a1a3a', 4.6, h + 1.7, 4.4); B(g, .16, 3.4, .16, '#2a1a3a', 1.4, h + 1.7, 4.4); B(g, 4.4, 2, .2, glow(['#ff4a8a', '#3ad8ff', '#ffe04a'][((i % 3) + 3) % 3]), 3, h + 3.6, 4.4); B(g, 3.4, .5, .24, glow('#fff8e8'), 3, h + 3.6, 4.44); }
+  if (r(6) > .5) { B(g, 2, .3, 1.4, glow('#ffe2a0'), .4, h + .2, -1.6); B(g, 2.2, .1, .1, '#2a1a3a', .4, h + .4, -1.6); }
+  if (r(7) > .6) { const a = new THREE.Mesh(new THREE.CylinderGeometry(.04, .06, 5, 4), flat('#2a1a3a')); a.position.set(-4.8, h + 2.5, 3.4); g.add(a); B(g, 1.4, .05, .05, '#2a1a3a', -4.8, h + 4, 3.4); B(g, .9, .05, .05, '#2a1a3a', -4.8, h + 4.5, 3.4); B(g, .14, .14, .14, glow('#ff3a2a'), -4.8, h + 5.05, 3.4); }
+  B(g, 3.2, .2, 1.2, '#8a6a52', W / 2 + 1.5, h - .05, 0);
+  s.birds = r(8) > .5 ? [...Array(4)].map((_, k) => { const b = new THREE.Group(); b.position.set(-1 + k * .6, h + .2, 1 + (k % 2) * .5); for (const q of [-1, 1]) { const w = B(b, .5, .03, .22, glow('#20183a'), q * .24, 0, 0); w.userData.s = q; } g.add(b); return { b, t: 0, base: b.position.clone() }; }) : []; }
+// 遠くの街（3 層）と、高架を走る電車
+const far = []; for (let r = 0; r < 3; r++) for (let k = 0; k < 26; k++) { const h = 20 + hash(k, r + 5) * 46, w = 7 + hash(k, r) * 8, t = WIN[k % 3].clone(); t.repeat.set(3, Math.round(h / 4)); t.needsUpdate = true; const mm = flat(['#4a3f88', '#5a3f84', '#6a4580'][r], { emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .8 }), o = new THREE.Mesh(new THREE.BoxGeometry(w, h, 9), mm); o.userData = { ox: k * 15 + hash(k, r + 9) * 6, z: -26 - r * 30, h }; scene.add(o); far.push(o); if (k % 3 === 0) { const e = B(o, w + .1, .2, 9.1, RIM, 0, h / 2 + .1, 0); } }
+const railY = 9, rail = B(scene, 900, .8, 2.4, '#3a2a5a', 0, railY, -17); const train = new THREE.Group(); for (let k = 0; k < 5; k++) { B(train, 7.4, 2.4, 2.2, '#c8c2e0', k * 7.8, 1.8, 0); B(train, 6.4, .9, 2.24, glow('#fff0c0'), k * 7.8, 2.2, 0); B(train, 7.44, .1, 2.24, RIM, k * 7.8, 3.05, 0); } train.position.z = -17; scene.add(train);
+// 走る人：首巻きは 6 節のリボン
+const man = new THREE.Group(), body = flat('#f24a5a'), dark = flat('#2a2040');
+const part = (w, h, d, m, y) => { const p = new THREE.Group(), b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.y = -h / 2; p.add(b); p.position.y = y; man.add(p); return p; };
+B(man, .56, .8, .38, body, 0, 1.36, 0); B(man, .5, .16, .4, RIM, 0, 1.8, 0).visible = false; const head = new THREE.Mesh(new THREE.IcosahedronGeometry(.27, 0), flat('#ffd0a0')); head.position.y = 2.02; man.add(head); B(man, .5, .2, .5, dark, 0, 2.2, 0);
+const lL = part(.22, .9, .22, dark, 1), lR = part(.22, .9, .22, dark, 1), aL = part(.16, .7, .16, body, 1.7), aR = part(.16, .7, .16, body, 1.7); lL.position.z = .14; lR.position.z = -.14; aL.position.z = .34; aR.position.z = -.34; man.scale.setScalar(1.35); scene.add(man);
+const ribbon = [...Array(7)].map((_, k) => { const m = new THREE.Mesh(new THREE.BoxGeometry(.5, .16 - k * .012, .1), glow('#ffe26a')); scene.add(m); return { m, p: new THREE.Vector3() }; });
+const fx = K.fx(scene, 80); let wasAir = 0, camY = 22;
+K.loop((dt, t) => {
+  const x = t * 10, bi = Math.round(x / SP), lx = x - bi * SP, half = W / 2 - .6; let y, air = 0;
+  if (Math.abs(lx) <= half) y = roofH(bi) + .65; else { const a = lx > 0 ? bi : bi - 1, f = (lx > 0 ? lx - half : lx + SP - half) / (SP - half * 2); y = roofH(a) + .65 + (roofH(a + 1) - roofH(a)) * f + Math.sin(f * Math.PI) * 3; air = 1; }
+  man.position.set(x, y, 0); const ph = t * 13, sw = air ? 1 : Math.sin(ph) * 1.15; lL.rotation.z = sw; lR.rotation.z = -sw; aL.rotation.z = -sw * .9; aR.rotation.z = sw * .9; man.rotation.z = -.2 - air * .1;
+  if (wasAir && !air) for (let k = 0; k < 6; k++) fx.emit('puff', x, y + .2, (Math.random() - .5) * .6, { vx: -2 - Math.random() * 2, vy: 1, spread: 1.2, life: .7, size: .7, grow: 1.6, tint: '#ffd8b8' }); wasAir = air;
+  let prev = new THREE.Vector3(x - .3, y + 2.5, 0); ribbon.forEach((r, k) => { const tgt = prev.clone().add(new THREE.Vector3(-.5, Math.sin(t * 9 - k * .9) * .12 - .04, Math.sin(t * 7 - k) * .1)); r.p.lerp(tgt, Math.min(1, dt * 22)); r.m.position.copy(r.p); r.m.rotation.z = Math.sin(t * 9 - k * .9) * .4; prev = r.p; });
+  const base = Math.floor(x / SP) - 3; slots.forEach((s, k) => { const i = base + k; if (s.i !== i) { s.i = i; build(s, i); } s.g.traverse(o => { if (o.userData.fan) o.rotation.y = t * 9; if (o.userData.cloth !== undefined) { o.rotation.x = Math.sin(t * 3 + o.userData.cloth) * .25; } });
+    for (const b of s.birds) { const near = Math.abs(s.i * SP - x) < 5; if (near) b.t += dt; if (b.t > 0) { b.b.position.set(b.base.x + b.t * 4, b.base.y + b.t * 3.2, b.base.z - b.t * 3); b.b.children.forEach(w => { w.rotation.z = w.userData.s * Math.sin(t * 22) * .9; }); } } });
+  for (const m of far) { const u = m.userData; m.position.set(x - 195 + ((((u.ox - x * (1 + u.z * .012) * 0) - (x - 195)) % 390) + 390) % 390, u.h / 2 - 22, u.z); }
+  rail.position.x = x; train.position.set(x + 160 - ((t * 26) % 420), railY, -17);
+  camY += (roofH(bi) + 5.4 - camY) * Math.min(1, dt * 2.5); cam.position.set(x - 10.5, camY, 8.5 + Math.sin(t * .2) * 1.5); cam.lookAt(x + 14, camY - 3.4, -2);
+  sunD.position.set(x + 420, 26, -90); sunD.lookAt(cam.position); halo.position.set(x + 410, 26, -88); sun.position.set(x + 200, 62, -50); sun.target.position.set(x, 14, 0);
+  fx.update(dt); renderer.render(scene, cam);
+});
+</script>
+</html>

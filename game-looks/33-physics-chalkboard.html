@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 33 線引きパズル 黒板とチョーク</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1512;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f0e4;background:#1a1512;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 33 ─ 線引き物理パズル / 黒板とチョーク　｜　見るだけ（線を引いて玉を転がす）</div>
+<script>
+// 黒板にチョークで線を引く。線はなめらかに描いたあと、板と同じ色の細かい粒を全体にかぶせてかすれさせる。
+// 消すときは黒板消しの幅で薄くこすり、白っぽい消しあとを残す
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = LW * S; c.height = LH * S; const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); return x; };
+const chalk = mk(), smudge = mk();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const BOARD = '#24392f', WHITE = '#f4f0e4', YELLOW = '#f6dc6a', PINK = '#f29ab0', BLUE = '#9ad0f0';
+const HAND = '"Bradley Hand","Marker Felt","Comic Sans MS","Hiragino Maru Gothic ProN",cursive';
+const speck = document.createElement('canvas'); speck.width = LW * S; speck.height = LH * S;
+{ const x = speck.getContext('2d'), im = x.createImageData(speck.width, speck.height), d = im.data; for (let i = 0; i < d.length; i += 4) { d[i] = 36; d[i + 1] = 57; d[i + 2] = 47; d[i + 3] = Math.random() < .42 ? 90 + Math.random() * 165 : 0; } x.putImageData(im, 0, 0); }
+
+const LEVELS = [
+  { path: [[110, 150], [400, 300], [470, 312], [560, 262], [700, 420], [820, 440]], note: 'v = √2gh', at: [600, 120] },
+  { path: [[850, 130], [600, 225], [520, 236], [440, 330], [300, 362], [200, 470], [110, 482]], note: 'E = mgh', at: [140, 150] },
+  { path: [[120, 120], [300, 182], [700, 204], [770, 262], [700, 330], [300, 362], [236, 424], [300, 486], [620, 506]], note: 'ころがれ〜', at: [520, 110] }
+];
+let li = 0, phase = 'draw', pt = 0, drawn = 0, ball, wipeX = 0, dust = [];
+const seg = (P, d) => { for (let i = 0; i < P.length - 1; i++) { const l = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); if (d <= l || i === P.length - 2) { const f = Math.min(1, d / l); return { x: P[i][0] + (P[i + 1][0] - P[i][0]) * f, y: P[i][1] + (P[i + 1][1] - P[i][1]) * f, nx: (P[i + 1][1] - P[i][1]) / l, ny: -(P[i + 1][0] - P[i][0]) / l }; } d -= l; } };
+const total = P => P.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - P[i][0], p[1] - P[i][1]), 0);
+function stroke(x1, y1, x2, y2, color, w = 4.5) {
+  chalk.strokeStyle = color; chalk.lineCap = 'round';
+  chalk.globalAlpha = .25; chalk.lineWidth = w * 2; chalk.beginPath(); chalk.moveTo(x1, y1); chalk.lineTo(x2, y2); chalk.stroke();
+  chalk.globalAlpha = .95; chalk.lineWidth = w * (.8 + Math.random() * .4); chalk.beginPath(); chalk.moveTo(x1 + Math.random() - .5, y1 + Math.random() - .5); chalk.lineTo(x2, y2); chalk.stroke(); chalk.globalAlpha = 1;
+}
+function text(s, x, y, color, size = 30) { chalk.fillStyle = color; chalk.font = `${size}px ${HAND}`; chalk.globalAlpha = .92; chalk.fillText(s, x, y); chalk.globalAlpha = 1; }
+function star(x, y, r, color) { for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 4 * Math.PI / 5, b = a + 4 * Math.PI / 5; stroke(x + Math.cos(a) * r, y + Math.sin(a) * r, x + Math.cos(b) * r, y + Math.sin(b) * r, color, 3.5); } }
+function setup() {
+  const L = LEVELS[li], P = L.path, a = P[0], z = P[P.length - 1];
+  text('スタート', a[0] - 40, a[1] - 60, PINK, 24); stroke(a[0], a[1] - 50, a[0], a[1] - 26, PINK, 3); stroke(a[0] - 7, a[1] - 34, a[0], a[1] - 26, PINK, 3); stroke(a[0] + 7, a[1] - 34, a[0], a[1] - 26, PINK, 3);
+  star(z[0] + (z[0] > P[P.length - 2][0] ? 34 : -34), z[1] - 30, 24, YELLOW);
+  text(L.note, L.at[0], L.at[1], BLUE, 34); text('もんだい ' + (li + 1), 60, 60, WHITE, 26);
+  phase = 'draw'; drawn = 0; pt = 0;
+}
+setup();
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; pt += dt;
+  const P = LEVELS[li].path, len = total(P);
+  let tip = null;
+  if (phase === 'draw') {
+    const d2 = Math.min(len, drawn + 520 * dt), a = seg(P, drawn), b = seg(P, d2);
+    for (let d = drawn; d < d2; d += 6) { const p = seg(P, d), q = seg(P, Math.min(d2, d + 6)); stroke(p.x, p.y, q.x, q.y, WHITE); }
+    drawn = d2; tip = b; if (Math.random() < .6) dust.push({ x: b.x, y: b.y, vy: 20, a: 1 });
+    if (drawn >= len && pt > len / 520 + .5) { phase = 'roll'; ball = { d: 0, v: 30, h0: P[0][1] }; }
+  } else if (phase === 'roll') {
+    const p = seg(P, ball.d); ball.v = Math.sqrt(Math.max(900, 30 * 30 + 2 * 700 * (p.y - ball.h0)));
+    ball.d += ball.v * dt; if (ball.d >= len) { phase = 'win'; pt = 0; text('できた!', 400, 110, YELLOW, 54); }
+  } else if (phase === 'win') { if (pt > 1.6) { phase = 'wipe'; wipeX = -80; } }
+  else {
+    wipeX += 900 * dt;                                                   // 黒板消し
+    chalk.save(); chalk.globalCompositeOperation = 'destination-out'; chalk.fillStyle = 'rgba(0,0,0,.9)'; chalk.fillRect(wipeX - 60, 0, 60, LH); chalk.restore();
+    smudge.fillStyle = 'rgba(244,240,228,.035)'; for (let k = 0; k < 6; k++) smudge.fillRect(wipeX - 60, Math.random() * LH, 70, 20 + Math.random() * 90);
+    if (wipeX > LW + 80) { li = (li + 1) % LEVELS.length; setup(); }
+  }
+  smudge.globalCompositeOperation = 'destination-out'; smudge.fillStyle = 'rgba(0,0,0,.004)'; smudge.fillRect(0, 0, LW, LH); smudge.globalCompositeOperation = 'source-over';
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = BOARD; g.fillRect(0, 0, LW, LH);
+  g.drawImage(smudge.canvas, 0, 0, LW, LH); g.drawImage(chalk.canvas, 0, 0, LW, LH);
+  // 玉
+  if (phase === 'roll' || phase === 'win') {
+    const p = seg(P, Math.min(len, ball.d)), up = p.ny > 0 ? -1 : 1, bx = p.x + p.nx * 15 * up, by = p.y + p.ny * 15 * up, a = ball.d / 15;
+    g.strokeStyle = YELLOW; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.arc(bx, by, 13, 0, 7); g.moveTo(bx + Math.cos(a) * 12, by + Math.sin(a) * 12); g.lineTo(bx - Math.cos(a) * 12, by - Math.sin(a) * 12); g.stroke();
+  }
+  for (let i = dust.length - 1; i >= 0; i--) { const d = dust[i]; d.y += d.vy * dt; d.vy += 60 * dt; d.a -= dt * 1.2; if (d.a <= 0) { dust.splice(i, 1); continue; } g.fillStyle = `rgba(244,240,228,${d.a * .5})`; g.fillRect(d.x + Math.sin(d.y) * 3, d.y, 2, 2); }
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(speck, 0, 0); g.setTransform(S, 0, 0, S, 0, 0);
+  // チョークと黒板消し、木の枠
+  if (tip) { g.save(); g.translate(tip.x, tip.y); g.rotate(-.9); g.fillStyle = WHITE; g.fillRect(0, -5, 46, 10); g.restore(); }
+  if (phase === 'wipe') { g.fillStyle = '#8a6a4a'; g.fillRect(wipeX - 66, 200, 72, 150); g.fillStyle = '#3a4a44'; g.fillRect(wipeX - 66, 200, 16, 150); }
+  g.strokeStyle = '#8a6238'; g.lineWidth = 22; g.strokeRect(0, 0, LW, LH); g.strokeStyle = '#6a4826'; g.lineWidth = 3; g.strokeRect(11, 11, LW - 22, LH - 22);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

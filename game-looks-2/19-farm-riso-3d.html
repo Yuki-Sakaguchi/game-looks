@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-19 農場 2 色刷りの立体</title>
+<style>
+html,body{margin:0;height:100%;background:#f1ead8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1f5a6a;background:#f1ead8;padding:0 6px}
+</style>
+<div id="cap">2-19 ─ 農場 / 立体の場面を 2 色のインク（青緑と朱）で刷る　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 前の 03（2 色リソグラフ）を奥行きのある立体でやりなおした。ローポリの農場をふつうに描いてから、
+// 色を「青緑のインクの量」と「朱のインクの量」に分け、それぞれ角度の違う網点（小さな点の集まり）にして紙の色へ刷り重ねる。
+// 2 つの版はわずかにずらす。両方が重なった所が、いちばん暗い色になる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 38 }), { add, box, flat, hash } = K;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+scene.background = new THREE.Color('#f4f0e4'); scene.fog = new THREE.Fog('#f4f0e4', 70, 220);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9ab0a0, 1.5)); const sun = new THREE.DirectionalLight(0xfff2dc, 2.6); sun.position.set(-30, 40, 20); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 5, far: 150 }); sun.shadow.bias = -.001; scene.add(sun);
+const S = m => { m.castShadow = true; m.receiveShadow = true; return m; };
+const C = K.colors('#a8d8c0', '#8fcab0', '#f2c8a0', '#f6dcb8', '#7abca4');
+const H = (x, z) => Math.sin(x * .04) * Math.cos(z * .05) * 2 + Math.max(0, Math.hypot(x, z) - 50) * .25;
+const fieldAt = (x, z) => x > 6 && x < 44 && z > -30 && z < 6;
+const land = K.terrain(H, 90, 90, 2.6, (y, x, z) => fieldAt(x, z) ? (Math.floor((z + 100) / 2.6) % 2 ? C[2] : C[3]) : y > 5 ? C[4] : C[hash(Math.round(x * .3), Math.round(z * .3)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+// 納屋、サイロ、母屋、風車、さく、木、わらの束
+const RED = '#e8503a', TEAL = '#2f8a8a', CREAM = '#fbf4e2', DARK = '#3a6a7a';
+{ const g = new THREE.Group(); g.position.set(-14, H(-14, -8), -8); S(box(g, 10, 6, 14, RED, 0, 3, 0)); for (const s of [-1, 1]) { const r = S(box(g, 6.6, .5, 15, DARK, s * 2.7, 7.3, 0)); r.rotation.z = -s * .62; } S(box(g, 4, 4.4, .3, CREAM, 0, 2.2, 7.1)); for (const [a, b] of [[-1, 1], [1, 1]]) { const d = box(g, 5.6, .3, .1, RED, 0, 2.2, 7.3); d.rotation.z = a * .83; } S(box(g, 1.6, 1.6, .3, CREAM, 0, 6.6, 7.1)); scene.add(g); }
+S(add(scene, new THREE.CylinderGeometry(2.6, 2.6, 13, 12), CREAM, -24, H(-24, -12) + 6.5, -12)); S(add(scene, new THREE.SphereGeometry(2.6, 12, 6, 0, 6.3, 0, 1.57), TEAL, -24, H(-24, -12) + 13, -12)); for (let k = 0; k < 4; k++) add(scene, new THREE.TorusGeometry(2.64, .08, 4, 16), DARK, -24, H(-24, -12) + 2 + k * 3, -12).rotation.x = Math.PI / 2;
+{ const g = new THREE.Group(); g.position.set(-2, H(-2, 14), 14); S(box(g, 7, 4, 6, CREAM, 0, 2, 0)); const r = S(add(g, new THREE.ConeGeometry(5.6, 3, 4), TEAL, 0, 5.5, 0)); r.rotation.y = Math.PI / 4; box(g, 1.2, 2.2, .2, RED, -1.4, 1.1, 3.05); box(g, 1.4, 1.2, .2, DARK, 1.4, 2.4, 3.05); S(box(g, 1, 2, 1, RED, 2, 6, -1)); scene.add(g); }
+const mill = new THREE.Group(); { const x = 20, z = 16, y = H(x, z); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const l = S(box(scene, .2, 12, .2, DARK, x + a * 1.2, y + 6, z + b * 1.2)); l.rotation.set(b * .1, 0, -a * .1); } mill.position.set(x, y + 12, z + .6); for (let k = 0; k < 10; k++) { const bl = S(box(mill, .7, 3, .06, CREAM, 0, 0, 0)); bl.geometry.translate(0, 1.9, 0); bl.rotation.z = k * .628; } box(mill, .1, .1, 3, DARK, 0, 0, -1.5); box(mill, .06, 1.6, 1.6, RED, 0, 0, -3); scene.add(mill); }
+for (let i = 0; i < 40; i++) { const u = i / 40, x = 4 + Math.cos(u * 6.283) * 30 - 8, z = Math.sin(u * 6.283) * 26 + 2; if (fieldAt(x, z) || (Math.abs(x + 2) < 5 && z > 20)) continue; S(box(scene, .3, 1.6, .3, CREAM, x, H(x, z) + .8, z)); }
+for (let i = 0; i < 46; i++) { const a = hash(i, 1) * 6.283, r = 40 + hash(i, 2) * 40, x = Math.cos(a) * r, z = Math.sin(a) * r, y = H(x, z); add(scene, new THREE.CylinderGeometry(.3, .4, 2, 5), DARK, x, y + 1, z); S(add(scene, new THREE.IcosahedronGeometry(2.4 + hash(i, 3) * 1.6, 0), i % 3 ? TEAL : '#5aa89a', x, y + 4, z)); }
+for (let i = 0; i < 8; i++) { const x = -4 + (i % 4) * 3.4, z = -22 - Math.floor(i / 4) * 3; S(add(scene, new THREE.CylinderGeometry(1.1, 1.1, 1.6, 12), '#f6d89a', x, H(x, z) + 1.1, z)).rotation.z = Math.PI / 2; }
+// 畑の作物（うね）、トラクター、牛、にわとり
+const crop = new THREE.InstancedMesh(new THREE.ConeGeometry(.5, 1.3, 5), flat(TEAL), 360), dm = new THREE.Object3D(); let ci = 0; for (let r = 0; r < 12; r++) for (let k = 0; k < 30; k++) { const x = 8 + k * 1.2, z = -28 + r * 2.6 + 1.3; dm.position.set(x, H(x, z) + .6, z); dm.rotation.y = k; dm.updateMatrix(); crop.setMatrixAt(ci++, dm.matrix); } crop.castShadow = true; scene.add(crop);
+const tr = new THREE.Group(); S(box(tr, 1.6, 1.2, 3, RED, 0, 1.5, 0)); S(box(tr, 1.5, 1.5, 1.3, CREAM, 0, 2.6, -.7)); box(tr, 1.7, .14, 1.5, DARK, 0, 3.4, -.7); S(box(tr, .2, 1.2, .2, DARK, .5, 2.6, 1)); for (const [x, z, r] of [[-.95, -.8, 1], [.95, -.8, 1], [-.9, 1.1, .6], [.9, 1.1, .6]]) { const w = S(add(tr, new THREE.CylinderGeometry(r, r, .4, 12), DARK, x, r, z)); w.rotation.z = Math.PI / 2; w.userData.w = 1; } scene.add(tr);
+const cows = [...Array(6)].map((_, i) => { const g = new THREE.Group(), x = -30 + hash(i, 4) * 16, z = 8 + hash(i, 5) * 16; g.position.set(x, H(x, z), z); g.rotation.y = hash(i, 6) * 6; S(box(g, 1.2, 1.1, 2.2, CREAM, 0, 1.4, 0)); box(g, .7, .5, .9, DARK, .3, 1.75, .2); box(g, .5, .6, .6, DARK, -.36, 1.5, -.7); S(box(g, .8, .8, .9, CREAM, 0, 1.7, 1.4)); box(g, .5, .3, .2, '#f2a8a0', 0, 1.5, 1.9); for (const [a, b] of [[-.4, .8], [.4, .8], [-.4, -.8], [.4, -.8]]) box(g, .24, .9, .24, CREAM, a, .45, b); scene.add(g); return g; });
+const hens = [...Array(8)].map((_, i) => { const g = new THREE.Group(); box(g, .4, .4, .6, CREAM, 0, .4, 0); box(g, .3, .3, .3, CREAM, 0, .7, .3); box(g, .12, .14, .1, RED, 0, .9, .3); g.userData = { a: hash(i, 7) * 6.283, r: 2 + hash(i, 8) * 4 }; scene.add(g); return g; });
+const fx = K.fx(scene, 60); let pT = 0;
+const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/5.2;vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
+void main(){vec3 a=src(vUv),b=src(vUv+vec2(3.,-2.)/res);
+float lum=dot(a,vec3(.3,.59,.11));float tealAmt=clamp(pow(clamp(1.-a.r,0.,1.),1.5)*1.35+(1.-lum)*.12-.04,0.,1.);float redAmt=clamp(1.-min(b.g,b.b)*1.08,0.,1.);redAmt*=smoothstep(.02,.3,b.r-min(b.g,b.b)+.25*(1.-dot(b,vec3(.33))));
+float k1=dotp(vUv,.26,tealAmt),k2=dotp(vUv+vec2(3.,-2.)/res,1.31,redAmt);
+vec3 paper=vec3(.957,.93,.86)*(.97+.03*h(floor(vUv*res*.5)));
+vec3 c=paper*mix(vec3(1.),vec3(.1,.5,.56),k1*.92)*mix(vec3(1.),vec3(1.,.36,.24),k2*.9);
+c*=.985+.03*h(vUv*res+7.);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  mill.rotation.z = t * 1.2; const u = (t * .05) % 1, lap = Math.floor(t * .05), row = lap % 11, dir = lap % 2 ? -1 : 1, tx = dir > 0 ? 8 + u * 34 : 42 - u * 34, tz = -28 + row * 2.6; tr.position.set(tx, H(tx, tz), tz); tr.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2; tr.children.forEach(o => { if (o.userData.w) o.rotation.x = t * 5; }); tr.position.y += Math.sin(t * 20) * .03;
+  if ((pT -= dt) < 0) { pT = .2; fx.emit('puff', tx - dir * 1.2, H(tx, tz) + .6, tz, { vy: 1, spread: .8, life: 1.4, size: .9, grow: 1.8, tint: '#e8c8a0' }); fx.emit('smoke', tx + dir * 1, H(tx, tz) + 3.4, tz + .5, { vy: 1.6, life: 1.2, size: .5, grow: 1.6, tint: '#5a7a84' }); }
+  fx.update(dt);
+  cows.forEach((c, i) => { c.children[4].rotation.x = Math.max(0, Math.sin(t * .6 + i * 2)) * .5; });
+  hens.forEach((h, i) => { h.userData.a += dt * (.3 + (i % 3) * .2); const x = -2 + Math.cos(h.userData.a) * h.userData.r, z = 22 + Math.sin(h.userData.a) * h.userData.r * .6; h.position.set(x, H(x, z) + Math.abs(Math.sin(t * 8 + i)) * .1, z); h.rotation.y = -h.userData.a; });
+  const a = t * .06 + .4; cam.position.set(Math.sin(a) * 62, 30 + Math.sin(t * .1) * 4, Math.cos(a) * 62); cam.lookAt(4, 2, -2);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

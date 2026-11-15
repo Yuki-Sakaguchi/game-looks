@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-04 深海潜水艇 ローポリの深海</title>
+<style>
+html,body{margin:0;height:100%;background:#020814;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#bfe9ff;opacity:.85}
+</style>
+<div id="cap">2-04 ─ 深海潜水艇 / ローポリの深海とサーチライト ＋ ドット絵の泡と煙　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 日の光が届かない深さ。場面ぜんたいはほぼ黒で、見えるのは「潜水艇のライトが当たった所」と「自分で光る生きもの」だけ。
+// 霧を黒に近い青にして近くから始めるので、ライトの外はすぐ闇に沈む。光の柱そのものも、うすい円すいとして見せる。
+// 泡と熱水の煙はドット絵。白い点（マリンスノー）は大きさの変わらない点でただよわせる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 46 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#020814'); scene.fog = new THREE.Fog('#031124', 5, 62);
+scene.add(new THREE.HemisphereLight(0x3a62b0, 0x000510, .8));
+const C = K.colors('#33415e', '#2a3650', '#3e4a66', '#4a4460');
+const H = (x, z) => Math.sin(x * .12) * 1.8 + Math.sin(z * .16 + 1) * 1.5 + Math.sin((x + z) * .33) * .7 + Math.sin(x * .6) * Math.cos(z * .5) * .4 - 6 - Math.max(0, z - 4) * .25;
+const land = K.terrain(H, 60, 44, 1.7, (y, x, z) => C[Math.floor(hash(Math.round(x * .5), Math.round(z * .5)) * 4)]); scene.add(land.mesh);
+// 潜水艇
+const sub = new THREE.Group(); scene.add(sub);
+const hull = add(sub, new THREE.SphereGeometry(1, 12, 9), flat('#f2c230', { roughness: .6 }), 0, 0, 0); hull.scale.set(1.7, 1, 1.05);
+add(sub, new THREE.SphereGeometry(.72, 10, 8), new THREE.MeshStandardMaterial({ color: '#9fe8ff', transparent: true, opacity: .55, roughness: .1, emissive: '#3a8ab0', emissiveIntensity: .5 }), 1.15, .1, 0);
+add(sub, new THREE.IcosahedronGeometry(.2, 0), '#f0cfa8', 1.1, .12, 0); box(sub, .9, .5, .7, '#e0a820', -.2, .95, 0); box(sub, .12, .5, .12, '#3a3a44', -.2, 1.4, 0); box(sub, .5, .06, .06, glow('#ff5040'), -.2, 1.66, 0);
+const props = [-1, 1].map(s => { add(sub, new THREE.CylinderGeometry(.3, .3, .8, 8), '#3a4a5a', -1.3, -.1, s * .95).rotation.z = Math.PI / 2; const p = new THREE.Group(); p.position.set(-1.78, -.1, s * .95); box(p, .05, .7, .12, '#c8ccd2', 0, 0, 0); box(p, .05, .12, .7, '#c8ccd2', 0, 0, 0); sub.add(p); return p; });
+for (const s of [-1, 1]) { box(sub, 2.2, .1, .14, '#3a4a5a', 0, -1.05, s * .55); box(sub, .08, .3, .08, '#3a4a5a', .7, -.9, s * .55); box(sub, .08, .3, .08, '#3a4a5a', -.7, -.9, s * .55); add(sub, new THREE.SphereGeometry(.16, 6, 5), glow('#fff6d0'), 1.45, -.5, s * .6); }
+const arm = new THREE.Group(); arm.position.set(1.3, -.7, .35); box(arm, 1, .1, .1, '#8a929c', .5, 0, 0); const fore = new THREE.Group(); fore.position.x = 1; box(fore, .8, .09, .09, '#8a929c', .4, 0, 0); box(fore, .3, .05, .05, '#d8483c', .92, .1, 0).rotation.z = .4; box(fore, .3, .05, .05, '#d8483c', .92, -.1, 0).rotation.z = -.4; arm.add(fore); sub.add(arm);
+const lamp = new THREE.SpotLight(0xdff6ff, 420, 46, .42, .55, 1.4); lamp.position.set(1.4, -.4, 0); lamp.target.position.set(9, -4, 0); sub.add(lamp, lamp.target);
+const beamG = new THREE.ConeGeometry(5.2, 13, 16, 1, true); beamG.translate(0, -6.5, 0); const beam = add(sub, beamG, new THREE.MeshBasicMaterial({ color: '#bfeaff', transparent: true, opacity: .09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }), 1.4, -.4, 0); beam.rotation.z = 1.13; const self = new THREE.PointLight(0xfff2d0, 14, 9, 1.5); self.position.set(.5, 2.6, 2.4); sub.add(self);
+// 海底のもの：熱水のえんとつ、管の生きもの、光る草、岩（艇の進む先へ送りなおす）
+const SPAN = 90, things = [];
+for (let i = 0; i < 46; i++) { const g = new THREE.Group(), k = i % 4; g.userData = { ox: hash(i, 1) * SPAN, z: -9 + hash(i, 2) * 12, k };
+  if (k === 0) { for (let q = 0; q < 4; q++) add(g, new THREE.CylinderGeometry(.5 - q * .09, .62 - q * .09, .9, 6), q % 2 ? '#3a3440' : '#4a4250', (hash(i, q) - .5) * .2, .4 + q * .85, 0).rotation.y = q; add(g, new THREE.CylinderGeometry(.18, .2, .1, 6), glow('#ff7a3a'), 0, 3.42, 0); }
+  if (k === 1) for (let q = 0; q < 6; q++) { const hh = .8 + hash(i, q) * 1.2, x = (hash(q, i) - .5) * 1.4, z = (hash(q, i + 3) - .5) * 1.4; add(g, new THREE.CylinderGeometry(.07, .08, hh, 5), '#e8e2d8', x, hh / 2, z); add(g, new THREE.ConeGeometry(.14, .34, 5), glow('#e0403a'), x, hh + .15, z); }
+  if (k === 2) for (let q = 0; q < 5; q++) add(g, new THREE.ConeGeometry(.12, 1 + hash(i, q) * 1.4, 4), glow(q % 2 ? '#3ae0d0' : '#5a8aff'), (hash(q, i) - .5) * 1.2, .6, (hash(q, i + 5) - .5) * 1.2).rotation.z = (hash(i, q + 9) - .5) * .5;
+  if (k === 3) add(g, new THREE.IcosahedronGeometry(.7 + hash(i, 6) * 1.3, 0), '#4a5068', 0, .3, 0).scale.y = .7;
+  scene.add(g); things.push(g); }
+// くらげ、遠くのくじら、マリンスノー
+const jelly = [...Array(9)].map((_, i) => { const g = new THREE.Group(), col = ['#ff8ad0', '#7ad8ff', '#c8a0ff'][i % 3]; add(g, new THREE.SphereGeometry(.7, 8, 5, 0, 6.3, 0, 1.6), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .75 }), 0, 0, 0); for (let q = 0; q < 5; q++) add(g, new THREE.CylinderGeometry(.03, .01, 1.6, 3), glow(col), Math.cos(q * 1.26) * .35, -.9, Math.sin(q * 1.26) * .35); g.userData = { ox: hash(i, 7) * SPAN, y: -1 + hash(i, 8) * 6, z: -12 + hash(i, 9) * 14, p: hash(i, 10) * 6 }; scene.add(g); return g; });
+const whale = new THREE.Group(); { const b = add(whale, new THREE.IcosahedronGeometry(4, 1), glow('#0a2038'), 0, 0, 0); b.scale.set(3.4, 1, 1.1); const tl = add(whale, new THREE.ConeGeometry(2.6, 4, 4), glow('#0a2038'), -15, 0, 0); tl.rotation.z = -Math.PI / 2; tl.scale.z = .2; add(whale, new THREE.ConeGeometry(1, 3, 4), glow('#0a2038'), 3, -2.6, 2).rotation.z = 2.4; scene.add(whale); }
+const sg = new THREE.BufferGeometry(), sa = new Float32Array(700 * 3); for (let i = 0; i < 700; i++) { sa[i * 3] = (hash(i, 11) - .5) * 50; sa[i * 3 + 1] = (hash(i, 12) - .5) * 22; sa[i * 3 + 2] = (hash(i, 13) - .5) * 30; } sg.setAttribute('position', new THREE.BufferAttribute(sa, 3));
+const snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#bcd8e8', size: 2, sizeAttenuation: false, transparent: true, opacity: .7 })); scene.add(snow);
+const fx = K.fx(scene, 120); let bT = 0, vT = 0;
+K.loop((dt, t) => {
+  const sx = t * 2.2, sy = H(sx + 4, 0) + 4.6 + Math.sin(t * .7) * .5; sub.position.set(sx, sy, 0); sub.rotation.set(Math.sin(t * .5) * .05, 0, Math.sin(t * .7) * .06);
+  props.forEach(p => { p.rotation.x = t * 16; }); arm.rotation.z = -.4 + Math.sin(t * .8) * .25; fore.rotation.z = -.5 + Math.sin(t * 1.1) * .4; lamp.target.position.y = -4 + Math.sin(t * .4) * 1.2; beam.material.opacity = .08 + Math.sin(t * 3) * .01;
+  land.follow(sx, 0, -6);
+  for (const g of things) { const x = sx - 20 + ((((g.userData.ox - sx) % SPAN) + SPAN) % SPAN); g.position.set(x, H(x, g.userData.z) - .1, g.userData.z); }
+  if ((vT -= dt) < 0) { vT = .16; for (const g of things) if (g.userData.k === 0 && Math.abs(g.position.x - sx - 6) < 26 && Math.random() < .5) fx.emit('smoke', g.position.x, g.position.y + 3.6, g.position.z, { vy: 1.6, spread: .5, life: 3, size: .9, grow: 3, tint: '#39445e' }); }
+  if ((bT -= dt) < 0) { bT = .12; fx.emit('bubble', sx - 1.9, sy - .1 + (Math.random() - .5) * .4, (Math.random() < .5 ? -1 : 1) * .95, { vy: 1.5, vx: -.8, spread: .5, life: 2.2, size: .32, grow: .8, fog: false }); }
+  fx.update(dt);
+  jelly.forEach((j, i) => { const x = sx - 20 + ((((j.userData.ox - sx * .9) % SPAN) + SPAN) % SPAN), pu = Math.sin(t * 1.6 + j.userData.p); j.position.set(x, j.userData.y + Math.sin(t * .4 + i) * 1.2, j.userData.z); j.scale.set(1 + pu * .14, 1 - pu * .16, 1 + pu * .14); });
+  whale.position.set(sx + 60 - ((t * 1.6) % 150), 5 + Math.sin(t * .2) * 2, -42); whale.rotation.z = Math.sin(t * .5) * .06;
+  snow.position.set(sx + 4, sy - ((t * .5) % 2), 0);
+  cam.position.set(sx + 5 + Math.sin(t * .12) * 3, sy + 2.2, 13.5); cam.lookAt(sx + 3.4, sy - 1.4, 0);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

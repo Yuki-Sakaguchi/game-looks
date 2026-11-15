@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 47 潜水艦 ソナー画面</title>
+<style>
+html,body{margin:0;height:100%;background:#050806;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5fdc8a;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 47 ─ 潜水艦戦 / ソナー画面　｜　見るだけ（自動で探知して魚雷を撃つ）</div>
+<script>
+// 世界は「回る走査線が通った瞬間」にしか見えない。走査線が物の方位を通るたびに光の点を焼きつけ、
+// 画面全体を毎コマ少しずつ暗くするので、点はゆっくり消えていく。海岸線も敵も魚雷も、この残光の点だけで描く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), CX = 330, CY = 300, R = 262;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const ph = document.createElement('canvas'); ph.width = LW * S; ph.height = LH * S; const p = ph.getContext('2d'); p.setTransform(S, 0, 0, S, 0, 0);
+p.fillStyle = '#000'; p.fillRect(0, 0, LW, LH);
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const GREEN = '#5fdc8a', HOT = '#d8ffe4', MONO = 'ui-monospace,Menlo,Consolas,monospace';
+const coast = a => R * (.74 + .12 * Math.sin(a * 3) + .07 * Math.sin(a * 7 + 1) + .04 * hash(Math.floor(a * 40)));
+const inCoast = a => { const k = ((a % 6.283) + 6.283) % 6.283; return k > 3.6 && k < 5.9; };
+const blip = (a, r, size, hot) => { const x = CX + Math.cos(a) * r, y = CY + Math.sin(a) * r; p.fillStyle = hot ? HOT : GREEN; p.shadowColor = GREEN; p.shadowBlur = 10; p.beginPath(); p.arc(x, y, size, 0, 7); p.fill(); p.shadowBlur = 0; };
+
+const contacts = [...Array(5)].map((_, i) => ({ a: hash(i, 1) * 3.4 - .2, r: 90 + hash(i, 2) * 130, va: (hash(i, 3) - .5) * .05, vr: (hash(i, 4) - .5) * 5, hit: 0 }));
+let sweep = 0, torp = null, target = null, pings = [], kills = 0, fireT = 4, log = ['SONAR ONLINE'];
+const say = s => { log.unshift(s); log.length = Math.min(log.length, 6); };
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const prev = sweep; sweep += dt * 1.5;
+  const passed = a => { const d = (((a - prev) % 6.283) + 6.283) % 6.283; return d < sweep - prev; };
+  for (const c of contacts) { c.a += c.va * dt; c.r = Math.max(60, Math.min(R * .66, c.r + c.vr * dt)); if (c.r <= 60 || c.r >= R * .66) c.vr *= -1; c.hit = Math.max(0, c.hit - dt); }
+  // 残光を少し暗くする
+  p.globalCompositeOperation = 'multiply'; p.fillStyle = '#fbfbfb'; p.fillRect(0, 0, LW, LH); p.globalCompositeOperation = 'lighter';
+  p.save(); p.beginPath(); p.arc(CX, CY, R, 0, 7); p.clip();
+  // 走査線が通った方位にあるものを焼きつける
+  for (let a = prev; a < sweep; a += .012) {
+    if (inCoast(a)) { const r = coast(a); for (let k = 0; k < 3; k++) blip(a, r + hash(a, k) * 26, 1.3 + hash(k, a) * 1.2, false); }
+    if (hash(Math.floor(a * 90), Math.floor(t)) > .93) blip(a, 40 + hash(a, 9) * (R - 50), .9, false);      // 雑音
+  }
+  for (const c of contacts) if (passed(c.a)) { blip(c.a, c.r, 5, true); blip(c.a + .02, c.r + 6, 3, false); blip(c.a - .02, c.r - 5, 3, false); }
+  if (torp) { torp.r += 70 * dt; blip(torp.a, torp.r, 2.2, true); if (torp.r >= target.r) { for (let k = 0; k < 16; k++) blip(target.a + (hash(k, t) - .5) * .25, target.r + (hash(t, k) - .5) * 40, 3 + hash(k, 5) * 5, true); kills++; say('TARGET DESTROYED  #' + kills); target.a = hash(kills, 7) * 3.4 - .2; target.r = 100 + hash(kills, 8) * 110; torp = null; target = null; fireT = 3; } }
+  for (let i = pings.length - 1; i >= 0; i--) { const q = pings[i]; q.r += 160 * dt; if (q.r > R) { pings.splice(i, 1); continue; } p.strokeStyle = GREEN; p.globalAlpha = .25 * (1 - q.r / R); p.lineWidth = 2; p.beginPath(); p.arc(CX, CY, q.r, 0, 7); p.stroke(); p.globalAlpha = 1; }
+  // 走査線そのもの
+  p.strokeStyle = GREEN; p.globalAlpha = .5; p.lineWidth = 2; p.beginPath(); p.moveTo(CX, CY); p.lineTo(CX + Math.cos(sweep) * R, CY + Math.sin(sweep) * R); p.stroke(); p.globalAlpha = 1;
+  p.restore();
+  if (!torp && (fireT -= dt) <= 0) { target = contacts.slice().sort((a, b) => a.r - b.r)[0]; torp = { a: target.a, r: 12 }; pings.push({ r: 0 }); say('FIRE ONE  BRG ' + String(Math.round((((target.a * 57.3 + 90) % 360) + 360) % 360)).padStart(3, '0')); }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#060c08'; g.fillRect(0, 0, LW, LH);
+  const tube = g.createRadialGradient(CX, CY, 20, CX, CY, R); tube.addColorStop(0, '#0d2416'); tube.addColorStop(1, '#06120b'); g.fillStyle = tube; g.beginPath(); g.arc(CX, CY, R, 0, 7); g.fill();
+  g.globalCompositeOperation = 'lighter'; g.drawImage(ph, 0, 0, LW, LH);
+  // 目盛り
+  g.strokeStyle = g.fillStyle = GREEN; g.lineWidth = 1; g.globalAlpha = .45;
+  for (let k = 1; k <= 4; k++) { g.beginPath(); g.arc(CX, CY, R * k / 4, 0, 7); g.stroke(); }
+  for (let d = 0; d < 360; d += 10) { const a = (d - 90) / 57.2958, r0 = R - (d % 30 ? 6 : 14); g.beginPath(); g.moveTo(CX + Math.cos(a) * r0, CY + Math.sin(a) * r0); g.lineTo(CX + Math.cos(a) * R, CY + Math.sin(a) * R); g.stroke(); if (d % 30 === 0) { g.font = `11px ${MONO}`; g.textAlign = 'center'; g.fillText(String(d).padStart(3, '0'), CX + Math.cos(a) * (R + 16), CY + Math.sin(a) * (R + 16) + 4); } }
+  g.beginPath(); g.moveTo(CX - R, CY); g.lineTo(CX + R, CY); g.moveTo(CX, CY - R); g.lineTo(CX, CY + R); g.stroke(); g.globalAlpha = 1;
+  g.beginPath(); g.moveTo(CX, CY - 8); g.lineTo(CX + 5, CY + 6); g.lineTo(CX - 5, CY + 6); g.closePath(); g.fill();
+  // 右の計器
+  g.textAlign = 'left'; g.font = `700 15px ${MONO}`; const near = contacts.slice().sort((a, b) => a.r - b.r)[0];
+  [['MODE', 'ACTIVE'], ['DEPTH', (120 + Math.sin(t * .3) * 8).toFixed(0) + ' m'], ['SPEED', '6.5 kt'], ['HEADING', '000'], ['CONTACTS', String(contacts.length)], ['NEAREST', (near.r * 18).toFixed(0) + ' m'], ['KILLS', String(kills)]].forEach(([k, v], i) => { g.globalAlpha = .6; g.fillText(k, 650, 96 + i * 34); g.globalAlpha = 1; g.fillText(v, 780, 96 + i * 34); });
+  g.strokeRect(634, 60, 290, 250); g.strokeRect(634, 330, 290, 210);
+  g.font = `13px ${MONO}`; log.forEach((s, i) => { g.globalAlpha = 1 - i * .15; g.fillText((i ? '  ' : '> ') + s, 650, 362 + i * 28); }); g.globalAlpha = 1;
+  // 走査線の横じまと、ガラスの映りこみ
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(0,0,0,.22)'; for (let y = 0; y < LH; y += 3) g.fillRect(0, y, LW, 1);
+  const gl = g.createLinearGradient(CX - R, CY - R, CX + R, CY + R); gl.addColorStop(0, 'rgba(255,255,255,.07)'); gl.addColorStop(.45, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.beginPath(); g.arc(CX, CY, R, 0, 7); g.fill();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

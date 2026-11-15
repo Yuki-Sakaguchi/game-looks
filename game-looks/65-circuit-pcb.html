@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 65 配線パズル プリント基板</title>
+<style>
+html,body{margin:0;height:100%;background:#06241a;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8f5e4;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 65 ─ 配線パズル / プリント基板　｜　見るだけ（タイルを回して電気を通す）</div>
+<script>
+// 盤面そのものを電子基板にする。地は深緑のレジスト、配線は少し明るい緑、はんだ付けの所は金、
+// 部品の名前は白い印刷文字。電気が通った配線だけ明るい緑に光り、つながると光の粒が流れて LED が点く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+const GW = 8, GH = 5, CS = 90, GX = 120, GY = 75, MONO = 'ui-monospace,Menlo,Consolas,monospace', GOLD = '#d8b24a';
+// 道順：左上から、行ごとに折り返すヘビの形
+const cells = []; for (let r = 0; r < GH; r++) for (let k = 0; k < GW; k++) cells.push([r % 2 ? GW - 1 - k : k, r]);
+const DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]], dirOf = (a, b) => DIR.findIndex(d => d[0] === b[0] - a[0] && d[1] === b[1] - a[1]);
+const tiles = cells.map((c, i) => ({ x: GX + (c[0] + .5) * CS, y: GY + (c[1] + .5) * CS, d: [i ? dirOf(c, cells[i - 1]) : 3, i < cells.length - 1 ? dirOf(c, cells[i + 1]) : 1] }));
+// 動かない部分
+const board = document.createElement('canvas'); board.width = LW; board.height = LH; {
+  const b = board.getContext('2d'); b.fillStyle = '#0e5a3c'; b.fillRect(0, 0, LW, LH);
+  b.strokeStyle = '#13694a'; b.lineWidth = 3; b.lineCap = 'round'; b.lineJoin = 'round';
+  for (let i = 0; i < 46; i++) { const top = i % 2, x = 60 + hash(i, 1) * 840, y = top ? 12 + hash(i, 2) * 44 : 540 + hash(i, 2) * 44, l = 40 + hash(i, 3) * 160; b.beginPath(); b.moveTo(x, y); b.lineTo(x + l, y); b.lineTo(x + l + 12, y + (hash(i, 4) > .5 ? 12 : -12)); b.stroke(); b.fillStyle = GOLD; b.beginPath(); b.arc(x, y, 3.2, 0, 7); b.fill(); b.fillStyle = '#06241a'; b.beginPath(); b.arc(x, y, 1.3, 0, 7); b.fill(); }
+  b.strokeStyle = 'rgba(255,255,255,.14)'; b.lineWidth = 1; for (let r = 0; r <= GH; r++) { b.beginPath(); b.moveTo(GX, GY + r * CS); b.lineTo(GX + GW * CS, GY + r * CS); b.stroke(); } for (let k = 0; k <= GW; k++) { b.beginPath(); b.moveTo(GX + k * CS, GY); b.lineTo(GX + k * CS, GY + GH * CS); b.stroke(); }
+  for (const [x, y] of [[30, 30], [930, 30], [30, 570], [930, 570]]) { b.fillStyle = GOLD; b.beginPath(); b.arc(x, y, 13, 0, 7); b.fill(); b.fillStyle = '#041a12'; b.beginPath(); b.arc(x, y, 7, 0, 7); b.fill(); }
+  b.fillStyle = '#eef6f0'; b.font = `600 11px ${MONO}`; b.fillText('LOOK-65  REV A', 60, 592); b.fillText('J1', 38, 104); b.fillText('D1', 884, 470); b.fillText('U1', 300, 20); b.fillText('R3', 520, 20); b.fillText('C7', 640, 20);
+  b.fillStyle = '#16161a'; b.fillRect(330, 14, 120, 40); b.fillStyle = '#c9cdd2'; for (let i = 0; i < 8; i++) { b.fillRect(338 + i * 14, 8, 6, 6); b.fillRect(338 + i * 14, 54, 6, 6); } b.fillStyle = '#eee'; b.beginPath(); b.arc(340, 46, 2.5, 0, 7); b.fill();
+  b.fillStyle = '#c9cdd2'; b.fillRect(544, 24, 44, 16); b.fillStyle = '#1d1d22'; b.fillRect(552, 24, 28, 16); b.fillStyle = '#c9cdd2'; b.fillRect(664, 24, 36, 16); b.fillStyle = '#b98a4a'; b.fillRect(671, 24, 22, 16);
+  b.fillStyle = '#16161a'; b.fillRect(40, 110, 44, 40); b.fillStyle = GOLD; b.fillRect(84, 114, 36, 12);
+}
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, cyc = Math.floor(t / 15), c = t % 15, N = tiles.length, done = c > N * .22 + .3 && c < 14.4;
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(board, 0, 0); g.lineCap = 'round';
+  tiles.forEach((tl, i) => {
+    const wrong = 1 + Math.floor(hash(i, cyc) * 3), k = c > 14.4 ? 1 - sm((c - 14.4) / .5) : sm((c - i * .22) / .2), on = k >= 1;
+    g.save(); g.translate(tl.x, tl.y); g.rotate(wrong * Math.PI / 2 * (1 - k));
+    for (const pass of [0, 1]) { g.strokeStyle = pass ? (on ? '#aaffd2' : '#2aa06c') : '#0a4a30'; g.lineWidth = pass ? 9 : 15; if (pass && on) { g.shadowColor = '#5dffb0'; g.shadowBlur = 12 * S; }
+      g.beginPath(); for (const d of tl.d) { g.moveTo(0, 0); g.lineTo(DIR[d][0] * CS / 2, DIR[d][1] * CS / 2); } g.stroke(); g.shadowBlur = 0; }
+    g.fillStyle = GOLD; g.beginPath(); g.arc(0, 0, 10, 0, 7); g.fill(); g.fillStyle = '#06241a'; g.beginPath(); g.arc(0, 0, 4, 0, 7); g.fill();
+    g.restore();
+    g.fillStyle = 'rgba(238,246,240,.5)'; g.font = `9px ${MONO}`; g.fillText('T' + String(i + 1).padStart(2, '0'), tl.x - CS / 2 + 5, tl.y - CS / 2 + 12);
+  });
+  // 流れる電気の粒
+  if (done) { g.fillStyle = '#fff'; g.shadowColor = '#aaffd2'; g.shadowBlur = 16 * S; for (let k = 0; k < 10; k++) { const u = ((c * 7 + k * 4) % (N - 1)), i = Math.floor(u), f = u - i, a = tiles[i], b = tiles[i + 1]; g.beginPath(); g.arc(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, 4, 0, 7); g.fill(); } g.shadowBlur = 0; }
+  // LED
+  const lx = 880, ly = tiles[N - 1].y; g.strokeStyle = done ? '#aaffd2' : '#2aa06c'; g.lineWidth = 9; g.beginPath(); g.moveTo(GX + GW * CS, ly); g.lineTo(lx - 16, ly); g.stroke();
+  if (done) { const gl = g.createRadialGradient(lx, ly, 4, lx, ly, 90); gl.addColorStop(0, 'rgba(255,90,70,.9)'); gl.addColorStop(1, 'rgba(255,90,70,0)'); g.fillStyle = gl; g.fillRect(lx - 90, ly - 90, 180, 180); }
+  g.fillStyle = done ? '#ffb0a0' : '#7a2a22'; g.beginPath(); g.arc(lx, ly, 15, 0, 7); g.fill(); g.strokeStyle = '#eef6f0'; g.lineWidth = 1.2; g.beginPath(); g.arc(lx, ly, 20, 0, 7); g.stroke();
+  g.fillStyle = '#eef6f0'; g.font = `600 13px ${MONO}`; g.textAlign = 'right'; g.fillText(done ? 'CIRCUIT CLOSED' : 'ROUTING ' + String(Math.min(N, Math.floor(c / .22))).padStart(2, '0') + '/' + N, 900, 592); g.textAlign = 'left';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

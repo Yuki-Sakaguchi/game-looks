@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 57 壁登り 洞窟壁画</title>
+<style>
+html,body{margin:0;height:100%;background:#120a05;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8cfa0;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 57 ─ 壁登り / 洞窟壁画　｜　見るだけ（手形をつかんで登る）</div>
+<script>
+// 岩肌は、茶色の地にたくさんのにじんだ斑点とひびを重ねて作る。絵の具は赤土・木炭・黄土・白土の 4 つだけ。
+// 線は 1 本で引かず、小さな点をずらしながら何度も置いて「指やコケでこすった線」にする。
+// 明かりはたいまつ 1 つ。登る人のまわりだけ明るく、ゆらぐ
+const LW = 960, LH = 600, WH = 1200, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const RED = '#8e2f1c', COAL = '#2a1c14', OCH = '#c9972b', CLAY = '#e8dcc0';
+const wall = document.createElement('canvas'); wall.width = LW; wall.height = WH; const w = wall.getContext('2d');
+w.fillStyle = '#a9865c'; w.fillRect(0, 0, LW, WH);
+for (let i = 0; i < 700; i++) { const x = Math.random() * LW, y = Math.random() * WH, r = 20 + Math.random() * 90, c = Math.random() < .5 ? '70,45,25' : '225,195,150'; for (const oy of [-WH, 0, WH]) { const gr = w.createRadialGradient(x, y + oy, 0, x, y + oy, r); gr.addColorStop(0, `rgba(${c},.13)`); gr.addColorStop(1, `rgba(${c},0)`); w.fillStyle = gr; w.fillRect(x - r, y + oy - r, r * 2, r * 2); } }
+w.strokeStyle = 'rgba(40,22,10,.35)'; w.lineWidth = 1.3; for (let i = 0; i < 22; i++) { let x = Math.random() * LW, y = Math.random() * WH; w.beginPath(); w.moveTo(x, y); for (let k = 0; k < 14; k++) { x += (Math.random() - .5) * 40; y += Math.random() * 26; w.lineTo(x, y); } w.stroke(); }
+// こすった線：小さな点の列
+function dab(c, x1, y1, x2, y2, wd, col) { const n = Math.hypot(x2 - x1, y2 - y1) / (wd * .35) + 1; c.fillStyle = col; for (let i = 0; i <= n; i++) { const q = i / n; c.globalAlpha = .35 + Math.random() * .5; c.beginPath(); c.arc(x1 + (x2 - x1) * q + (Math.random() - .5) * wd * .5, y1 + (y2 - y1) * q + (Math.random() - .5) * wd * .5, wd * (.3 + Math.random() * .35), 0, 7); c.fill(); } c.globalAlpha = 1; }
+const poly = (c, pts, wd, col) => { for (let i = 0; i < pts.length - 1; i++) dab(c, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], wd, col); };
+function beast(x, y, s, kind) {
+  w.save(); w.translate(x, y); w.scale(s, Math.abs(s));
+  const body = kind ? [[-46, -4], [-40, -26], [-10, -30], [24, -28], [40, -50], [48, -70], [56, -52], [50, -28], [44, -8], [10, -2], [-46, -4]] : [[-52, 0], [-50, -34], [-18, -44], [14, -60], [40, -40], [62, -28], [64, -8], [50, 2], [20, 10], [-40, 12], [-52, 0]];
+  w.fillStyle = kind ? OCH : RED; w.globalAlpha = .55; w.beginPath(); body.forEach(([a, b], i) => i ? w.lineTo(a, b) : w.moveTo(a, b)); w.fill(); w.globalAlpha = 1;
+  poly(w, body, 5, COAL);
+  for (const lx of kind ? [-36, -24, 26, 36] : [-40, -28, 22, 34]) poly(w, [[lx, 4], [lx + 3, 22], [lx - 2, 40]], 4, COAL);
+  if (kind) { poly(w, [[48, -70], [40, -92], [30, -100]], 3, COAL); poly(w, [[40, -92], [50, -104]], 3, COAL); poly(w, [[50, -70], [60, -90], [72, -96]], 3, COAL); }
+  else { poly(w, [[58, -30], [70, -44], [64, -52]], 4, COAL); poly(w, [[-52, 0], [-64, 16]], 3, COAL); }
+  w.restore();
+}
+beast(210, 260, 1.5, 0); beast(730, 420, -1.3, 1); beast(260, 760, 1.1, 1); beast(700, 900, -1.6, 0); beast(160, 1080, .9, 1); beast(780, 120, 1, 1);
+for (let i = 0; i < 5; i++) { const x = 100 + Math.random() * 760, y = Math.random() * WH; for (let a = 0; a < 14; a += .5) dab(w, x + Math.cos(a) * a * 2.4, y + Math.sin(a) * a * 2.4, x + Math.cos(a + .5) * (a + .5) * 2.4, y + Math.sin(a + .5) * (a + .5) * 2.4, 3, i % 2 ? CLAY : RED); }
+for (let i = 0; i < 40; i++) dab(w, 420 + i % 8 * 16, 600 + Math.floor(i / 8) * 16, 421 + i % 8 * 16, 601 + Math.floor(i / 8) * 16, 6, RED);
+// 手形（つかむ所）
+const hand = document.createElement('canvas'); hand.width = hand.height = 60; { const h = hand.getContext('2d'); h.translate(30, 36); for (let k = 0; k < 3; k++) { dab(h, -6, 2, 6, 2, 16, RED); for (let i = 0; i < 5; i++) { const a = -2.5 + i * .47; dab(h, Math.cos(a) * 8, Math.sin(a) * 8, Math.cos(a) * (i ? 24 : 17), Math.sin(a) * (i ? 24 : 17), 4.5, RED); } } }
+const hold = j => [480 + (j % 2 ? 1 : -1) * (46 + hash(j, 1) * 40) + Math.sin(j * .35) * 170, j * 66];
+const limbs = [0, 1, 2, 3].map(() => ({ x: 480, y: 0, init: 0 }));
+let last = performance.now(), hgt = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; hgt += dt * 48; const t = now / 1000;
+  const sy = Y => 330 - (Y - hgt), bx = 480 + Math.sin(hgt / 66 * .35) * 170, by = 330;
+  g.setTransform(S, 0, 0, S, 0, 0); const off = hgt % WH; g.drawImage(wall, 0, off); g.drawImage(wall, 0, off - WH);
+  const j0 = Math.floor(hgt / 66);
+  for (let j = j0 - 6; j < j0 + 7; j++) { const [x, Y] = hold(j); g.drawImage(hand, x - 30, sy(Y) - 36); }
+  // 手足は、いちばん近い左右の手形へのびる
+  const pick = (from, par, dir) => { let j = from; while (((j % 2) + 2) % 2 !== par) j += dir; return hold(j); };
+  const tg = [pick(j0 + 1, 0, 1), pick(j0 + 1, 1, 1), pick(j0 - 1, 0, -1), pick(j0 - 1, 1, -1)];
+  limbs.forEach((l, i) => { const tx = tg[i][0], ty = tg[i][1]; if (!l.init) { l.x = tx; l.y = ty; l.init = 1; } l.x += (tx - l.x) * Math.min(1, dt * 9); l.y += (ty - l.y) * Math.min(1, dt * 9); });
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const [wd, a, col] of [[9, .5, COAL], [6, .9, COAL]]) { g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = wd; g.beginPath();
+    g.moveTo(bx, by - 22); g.lineTo(bx, by + 20);
+    limbs.forEach((l, i) => { const top = i < 2, ox = bx, oy = top ? by - 18 : by + 20, ex = l.x, ey = sy(l.y), kx = (ox + ex) / 2 + (i % 2 ? 12 : -12), ky = (oy + ey) / 2 + (top ? 10 : -12); g.moveTo(ox, oy); g.lineTo(kx, ky); g.lineTo(ex, ey); });
+    g.stroke(); }
+  g.globalAlpha = 1; g.fillStyle = COAL; g.beginPath(); g.arc(bx, by - 32, 9, 0, 7); g.fill();
+  // たいまつの明かり
+  const fl = 1 + Math.sin(t * 13) * .04 + Math.sin(t * 7.3) * .05, lg = g.createRadialGradient(bx, by, 40, bx, by, 420 * fl); lg.addColorStop(0, 'rgba(255,170,70,.16)'); lg.addColorStop(.35, 'rgba(60,25,5,.2)'); lg.addColorStop(1, 'rgba(10,4,0,.93)'); g.fillStyle = lg; g.fillRect(0, 0, LW, LH);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

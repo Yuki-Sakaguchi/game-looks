@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 10 リズム ベクタースキャン</title>
+<style>
+html,body{margin:0;height:100%;background:#030806;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6dffa8;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 10 ─ リズムゲーム / ベクタースキャン　｜　D F J K でレーンが光る（音は出ません・自動で進む）</div>
+<script>
+// 線だけで描く古いベクター画面。線は「太く薄い光」と「細く明るい芯」の 2 度描きを加算で重ね、
+// 折れ点に明るい点を打つ。画面を毎回少しだけ暗くして消し残すと、蛍光体の残像になる
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+let W, H, S;
+function resize() { S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * S; cv.height = H * S; g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#030806'; g.fillRect(0, 0, W, H); }
+addEventListener('resize', resize); resize();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const GREEN = '#6dffa8', AMBER = '#ffb347', WHITE = '#ffffff';
+const BEAT = .5, STEP = .25, TRAVEL = 2.2, ZH = .88;
+
+function vline(pts, color, a = 1, close = false, dots = true) {
+  g.strokeStyle = color; g.beginPath();
+  pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+  if (close) g.closePath();
+  g.globalAlpha = .16 * a; g.lineWidth = 7; g.stroke();
+  g.globalAlpha = .9 * a; g.lineWidth = 1.4; g.stroke();
+  if (dots) { g.fillStyle = color; for (const p of pts) { g.beginPath(); g.arc(p[0], p[1], 1.9, 0, 7); g.fill(); } }
+}
+// 奥行き z（0 が奥、1 が手前）とレーン位置から画面の点へ
+function proj(lx, z) {
+  const zz = Math.pow(Math.max(0, z), 2.2), hy = H * .4, laneW = Math.min(W * .11, H * .17);
+  return [W / 2 + lx * laneW * (.06 + .94 * zz), hy + (H * .97 - hy) * zz];
+}
+const noteAt = n => hash(n, 1) > .45 ? Math.floor(hash(n, 2) * 4) : -1;
+
+// 正二十面体の線画
+const PHI = (1 + Math.sqrt(5)) / 2, VERT = [];
+for (const a of [-1, 1]) for (const b of [-PHI, PHI]) VERT.push([0, a, b], [a, b, 0], [b, 0, a]);
+const EDGE = [];
+for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.hypot(VERT[i][0] - VERT[j][0], VERT[i][1] - VERT[j][1], VERT[i][2] - VERT[j][2]) < 2.1) EDGE.push([i, j]);
+
+// 7 セグメントの数字
+const SEG = { a: [0, 0, 1, 0], b: [1, 0, 1, 1], c: [1, 1, 1, 2], d: [0, 2, 1, 2], e: [0, 1, 0, 2], f: [0, 0, 0, 1], g: [0, 1, 1, 1] };
+const DIG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+function number(str, x, y, s, color) {
+  [...str].forEach((ch, i) => { for (const k of DIG[+ch]) { const q = SEG[k]; vline([[x + i * s * 1.7 + q[0] * s, y + q[1] * s], [x + i * s * 1.7 + q[2] * s, y + q[3] * s]], color, .9); } });
+}
+
+const bursts = [], lit = [-9, -9, -9, -9];
+addEventListener('keydown', e => { const i = 'dfjk'.indexOf(e.key.toLowerCase()); if (i >= 0) lit[i] = now; });
+let now = 0, last = performance.now(), lastN = 0, score = 0, combo = 0, frameN = 0;
+function frame(ts) {
+  const dt = Math.min(.05, (ts - last) / 1000); last = ts; now += dt; frameN++;
+  // 消し残し（残像）
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.fillStyle = 'rgba(3,8,6,.3)'; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'lighter';
+  const flick = .82 + .18 * hash(frameN), pulse = Math.exp(-(now % BEAT) / BEAT * 5), hy = H * .4;
+
+  // レーンと拍の線
+  for (let lx = -2; lx <= 2; lx++) vline([proj(lx, 0), proj(lx, 1)], GREEN, .55 * flick);
+  for (let i = 0; i < 5; i++) {
+    const T = Math.ceil(now / BEAT) * BEAT + i * BEAT, z = ZH - (T - now) / TRAVEL * ZH;
+    if (z > 0) vline([proj(-2, z), proj(2, z)], GREEN, (.1 + .3 * z) * flick, false, false);
+  }
+  vline([proj(-2, ZH), proj(2, ZH)], AMBER, flick);
+  for (let l = 0; l < 4; l++) {
+    const q = [proj(l - 2 + .08, ZH + .015), proj(l - 1 - .08, ZH + .015), proj(l - 1 - .08, .995), proj(l - 2 + .08, .995)];
+    const a = Math.max(0, 1 - (now - lit[l]) * 4);
+    vline(q, GREEN, .5 + .5 * a, true);
+    if (a > 0) { g.globalAlpha = a * .35; g.fillStyle = GREEN; g.beginPath(); q.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.fill(); }
+  }
+
+  // 流れてくる音符
+  const n0 = Math.floor(now / STEP);
+  for (let n = n0 + 1; n <= n0 + Math.ceil(TRAVEL / STEP); n++) {
+    const l = noteAt(n); if (l < 0) continue;
+    const z = ZH - (n * STEP - now) / TRAVEL * ZH, z2 = Math.max(0, z - .045);
+    if (z <= 0) continue;
+    vline([proj(l - 2 + .14, z), proj(l - 1 - .14, z), proj(l - 1 - .14, z2), proj(l - 2 + .14, z2)], AMBER, (.35 + .65 * z) * flick, true);
+  }
+  for (; lastN < n0; lastN++) { const l = noteAt(lastN + 1); if (l >= 0) { bursts.push({ l, t: (lastN + 1) * STEP }); lit[l] = now; score += 100; combo++; } }
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i], a = (now - b.t) / .4; if (a >= 1) { bursts.splice(i, 1); continue; }
+    const c = proj(b.l - 1.5, ZH), r = Math.min(W * .11, H * .17) * (.3 + a * 1.1), ring = [];
+    for (let k = 0; k < 14; k++) ring.push([c[0] + Math.cos(k * .449) * r, c[1] + Math.sin(k * .449) * r * .35]);
+    vline(ring, WHITE, 1 - a, true, false);
+    for (let k = 0; k < 8; k++) { const an = k * .785 + .39; vline([[c[0] + Math.cos(an) * r * .6, c[1] + Math.sin(an) * r * .25 - a * 20], [c[0] + Math.cos(an) * r * 1.3, c[1] + Math.sin(an) * r * .5 - a * 50]], AMBER, 1 - a); }
+  }
+
+  // 地平線の波形と、拍でふくらむ立体
+  const wave = [];
+  for (let i = 0; i < 64; i++) wave.push([W * i / 63, hy + Math.sin(i * .5 + now * 6) * Math.sin(i * 1.3 - now * 2) * H * .03 * (.3 + pulse) * Math.sin(Math.PI * i / 63)]);
+  vline(wave, GREEN, .8 * flick, false, false);
+  const R = H * .075 * (1 + .18 * pulse), ay = now * .5, ax = now * .3;
+  const pv = VERT.map(([x, y, z]) => {
+    const x1 = x * Math.cos(ay) + z * Math.sin(ay), z1 = z * Math.cos(ay) - x * Math.sin(ay);
+    const y1 = y * Math.cos(ax) - z1 * Math.sin(ax), z2 = z1 * Math.cos(ax) + y * Math.sin(ax), k = R / (1 + z2 * .12);
+    return [W / 2 + x1 * k, H * .2 + y1 * k];
+  });
+  for (const [i, j] of EDGE) vline([pv[i], pv[j]], GREEN, .85 * flick);
+
+  number(String(score % 1000000).padStart(6, '0'), 28, 26, 13, GREEN);
+  number(String(combo % 1000).padStart(3, '0'), W - 28 - 13 * 1.7 * 3, 26, 13, AMBER);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-14 遊園地 ローポリ × ドット絵の夜の電飾</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1438;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe2b0;opacity:.85}
+</style>
+<div id="cap">2-14 ─ 夜の遊園地 / ローポリの形 × ドット絵の質感と花火　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 形はローポリ、表面は 16×16 のドット模様、画面は横 420 ドット。色は 6 段に丸め、境目を点の並びで混ぜる。
+// 夜なので主役は電球。電球は光らせるだけの小さな箱で、何百個も並べる（まわりを照らす光は数個だけ）。
+// 花火は 8×8 のドット絵のきらめき。観覧車・回転木馬・コースターがそれぞれ動く
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40, aa: false, pr: 1 }), { add, box, glow, hash } = K;
+scene.background = K.sky([[0, '#100c2c'], [.45, '#2a1e5a'], [.7, '#6a3a7a'], [.86, '#c05a6a'], [1, '#3a2a5a']]); scene.fog = new THREE.Fog('#3a2a5a', 60, 190);
+scene.add(K.stars(260, 300, 1)); scene.add(new THREE.HemisphereLight(0x8a7ae0, 0x3a2a5a, 1.7)); const moon = new THREE.DirectionalLight(0xa8b8ff, 1); moon.position.set(-20, 30, 10); scene.add(moon);
+const TX = { speck: K.pix((i, j) => hash(i, j) > .8 ? .72 : .9), tile: K.pix((i, j) => (i % 8 === 0 || j % 8 === 0) ? .62 : ((i >> 3) + (j >> 3)) % 2 ? .95 : .82), stripe: K.pix((i, j) => i % 8 < 4 ? '#f4f0e8' : '#e0403a'), stripe2: K.pix((i, j) => i % 8 < 4 ? '#f4f0e8' : '#2a8ad0'), plank: K.pix((i, j) => i % 4 === 0 ? .6 : .85 + hash(i, j) * .15) };
+const M = (c, map, rep = 1) => { const t = (map || TX.speck).clone(); t.repeat.set(rep, rep); t.needsUpdate = true; return new THREE.MeshLambertMaterial({ color: c, map: t, flatShading: true }); };
+add(scene, new THREE.CylinderGeometry(44, 46, 1, 24), M('#8a7a9a', TX.tile, 14), 0, -.5, 0); add(scene, new THREE.PlaneGeometry(600, 600), M('#2a2248'), 0, -1, 0).rotation.x = -Math.PI / 2;
+const BULB = ['#ffd84a', '#ff5a8a', '#5ad8ff', '#8aff6a', '#ffffff'], bulbs = [];
+const bulb = (p, x, y, z, i, s = .22) => { const b = box(p, s, s, s, glow(BULB[i % 5]), x, y, z); bulbs.push([b, i]); return b; };
+// 観覧車
+const fw = new THREE.Group(); fw.position.set(-14, 15.5, -10); scene.add(fw); const FR = 12;
+add(fw, new THREE.TorusGeometry(FR, .22, 5, 24), M('#e8e2f4'), 0, 0, 0); add(fw, new THREE.TorusGeometry(FR * .55, .14, 5, 18), M('#e8e2f4'), 0, 0, 0); add(fw, new THREE.CylinderGeometry(.9, .9, 1.6, 8), M('#ffd84a'), 0, 0, 0).rotation.x = Math.PI / 2;
+const gond = []; for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, sp = box(fw, FR, .12, .12, M('#c8c2e0'), Math.cos(a) * FR / 2, Math.sin(a) * FR / 2, 0); sp.rotation.z = a; const g = new THREE.Group(); box(g, 1.7, 1.5, 1.5, M(BULB[i % 4], TX.speck), 0, -1.3, 0); box(g, 1.9, .2, 1.7, M('#f4f0e8'), 0, -.5, 0); box(g, 1.2, .5, .1, glow('#fff2c0'), 0, -1.1, .76); g.userData.a = a; fw.add(g); gond.push(g); for (let q = 1; q <= 4; q++) bulb(fw, Math.cos(a) * FR * q / 4, Math.sin(a) * FR * q / 4, .3, i + q); bulb(fw, Math.cos(a + .26) * FR, Math.sin(a + .26) * FR, .3, i, .26); }
+for (const s of [-1, 1]) { const l = box(scene, .5, 17, .5, M('#c8c2e0'), -14 + s * 4.5, 8, -10 + .9); l.rotation.z = s * .28; const l2 = box(scene, .5, 17, .5, M('#c8c2e0'), -14 + s * 4.5, 8, -10 - .9); l2.rotation.z = s * .28; }
+// 回転木馬
+const mg = new THREE.Group(); mg.position.set(12, 0, 6); scene.add(mg); add(scene, new THREE.CylinderGeometry(6.2, 6.4, .6, 16), M('#e8d8b0', TX.tile, 4), 12, .3, 6);
+const canopy = add(mg, new THREE.ConeGeometry(6.8, 2.6, 16), M('#ffffff', TX.stripe, 4), 0, 6.6, 0); add(mg, new THREE.CylinderGeometry(6.8, 6.8, .7, 16, 1, true), M('#ffffff', TX.stripe2, 6), 0, 5.1, 0); add(mg, new THREE.CylinderGeometry(.8, .8, 5.4, 8), M('#ffd84a'), 0, 3, 0); add(mg, new THREE.SphereGeometry(.5, 6, 5), glow('#ffd84a'), 0, 8.1, 0);
+const horses = []; for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283, h = new THREE.Group(); h.position.set(Math.cos(a) * 4.6, 2, Math.sin(a) * 4.6); h.rotation.y = -a; add(h, new THREE.CylinderGeometry(.06, .06, 4.6, 4), M('#ffd84a'), 0, .9, 0); box(h, .5, .7, 1.5, M(['#f4f0e8', '#ffb0c0', '#b0d8ff', '#ffe0a0'][i % 4]), 0, 0, 0); box(h, .36, .8, .5, M('#f4f0e8'), 0, .55, .7); box(h, .1, .5, .7, M('#d8483c'), 0, .6, .35); for (const [x, z] of [[-.2, .5], [.2, .5], [-.2, -.5], [.2, -.5]]) box(h, .12, .7, .12, M('#c8c2b8'), x, -.6, z); mg.add(h); horses.push(h); bulb(mg, Math.cos(a) * 6.8, 4.9, Math.sin(a) * 6.8, i, .28); bulb(mg, Math.cos(a + .39) * 6.8, 4.9, Math.sin(a + .39) * 6.8, i + 2, .28); }
+// コースター：輪になったレールと、走る車
+const curve = new THREE.CatmullRomCurve3([[26, 3, -22], [10, 12, -30], [-6, 5, -30], [-2, 16, -24], [10, 6, -20], [24, 10, -14], [34, 4, -18]].map(p => new THREE.Vector3(...p)), true);
+add(scene, new THREE.TubeGeometry(curve, 120, .22, 5, true), M('#e0403a'), 0, 0, 0); for (let i = 0; i < 40; i++) { const p = curve.getPointAt(i / 40); box(scene, .26, p.y, .26, M('#f4f0e8'), p.x, p.y / 2, p.z); if (i % 2) bulb(scene, p.x, p.y + .5, p.z, i, .24); }
+const carts = [0, 1, 2].map(i => { const c = new THREE.Group(); box(c, 1.1, .7, 1.8, M(['#ffd84a', '#5ad8ff', '#ff5a8a'][i]), 0, .6, 0); box(c, .5, .5, .5, M('#f0cfa8'), 0, 1.2, 0); scene.add(c); return c; });
+// 屋台、入口の門、風船、街灯、木、人
+for (let i = 0; i < 7; i++) { const a = -.5 + i * .5, x = Math.cos(a) * 30, z = Math.sin(a) * 30 + 6, g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = -a + Math.PI / 2; box(g, 4, 2, 2.6, M(['#f4e8d0', '#ffd0d8', '#d0e8ff'][i % 3], TX.plank, 2), 0, 1, 0); const aw = box(g, 4.6, .2, 3.4, M('#ffffff', i % 2 ? TX.stripe : TX.stripe2, 3), 0, 3.2, .3); aw.rotation.x = .25; box(g, 3.4, .8, .1, glow('#fff0c0'), 0, 2.3, 1.32); for (let q = 0; q < 5; q++) bulb(g, -2 + q, 3.1, 2, i + q, .22); scene.add(g); }
+{ const g = new THREE.Group(); g.position.set(0, 0, 34); for (const s of [-1, 1]) box(g, 1.6, 9, 1.6, M('#ffffff', TX.stripe, 2), s * 6, 4.5, 0); box(g, 14, 2.4, 1.2, M('#2a2a60'), 0, 9.4, 0); box(g, 11, 1.2, .2, glow('#ffd84a'), 0, 9.4, .7); for (let q = 0; q < 15; q++) bulb(g, -7 + q, 10.9, 0, q, .34); scene.add(g); }
+const balloons = [...Array(14)].map((_, i) => { const b = add(scene, new THREE.IcosahedronGeometry(.6, 0), M(BULB[i % 4]), (hash(i, 1) - .5) * 50, 2.6, (hash(i, 2) - .5) * 44 + 8); b.scale.y = 1.25; b.userData = { y: 2.6, free: i % 5 === 0 }; return b; });
+for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283, x = Math.cos(a) * 21, z = Math.sin(a) * 21 + 2; box(scene, .2, 4, .2, M('#3a3460'), x, 2, z); add(scene, new THREE.SphereGeometry(.42, 6, 5), glow('#fff0c0'), x, 4.2, z); if (i % 3 === 0) { const l = new THREE.PointLight(0xffd890, 40, 20, 1.5); l.position.set(x, 4, z); scene.add(l); } }
+for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283 + .3, x = Math.cos(a) * 40, z = Math.sin(a) * 40; box(scene, .5, 2, .5, M('#5a4030'), x, 1, z); add(scene, new THREE.IcosahedronGeometry(2.4, 0), M('#2f6a5a'), x, 3.8, z); }
+const folks = [...Array(22)].map((_, i) => { const g = new THREE.Group(); box(g, .5, .8, .36, M(BULB[i % 4]), 0, .9, 0); add(g, new THREE.IcosahedronGeometry(.25, 0), M('#f0cfa8'), 0, 1.6, 0); g.userData = { a: hash(i, 3) * 6.283, r: 8 + hash(i, 4) * 24, v: (hash(i, 5) - .5) * .2 }; scene.add(g); return g; });
+const pl = [[-14, 6, -4, 0xff8ac0, 60], [12, 3, 6, 0xffd070, 70], [16, 8, -22, 0x70c8ff, 50]].map(([x, y, z, c, i]) => { const l = new THREE.PointLight(c, i, 34, 1.5); l.position.set(x, y, z); scene.add(l); return l; });
+const fx = K.fx(scene, 220); let fwT = 1, rockets = [];
+const post = K.post(renderer, K.DITHER(6, .7), {}, { width: 420 }); onResize(post.resize);
+K.loop((dt, t) => {
+  fw.rotation.z = t * .16; for (const g of gond) { g.position.set(Math.cos(g.userData.a) * FR, Math.sin(g.userData.a) * FR, 0); g.rotation.z = -fw.rotation.z; }
+  mg.rotation.y = t * .5; horses.forEach((h, i) => { h.position.y = 2 + Math.sin(t * 2.4 + i * 1.6) * .6; });
+  carts.forEach((c, i) => { const u = ((t * .09 - i * .012) % 1 + 1) % 1, p = curve.getPointAt(u), q = curve.getPointAt((u + .01) % 1); c.position.copy(p); c.lookAt(q); });
+  bulbs.forEach(([b, i]) => { b.visible = ((Math.floor(t * 3) + i) % 4) !== 0; });
+  balloons.forEach((b, i) => { if (b.userData.free) { b.userData.y += dt * 1.4; if (b.userData.y > 40) b.userData.y = 2.6; } b.position.y = b.userData.y + Math.sin(t * 1.3 + i) * .2; });
+  folks.forEach((f, i) => { f.userData.a += f.userData.v * dt; f.position.set(Math.cos(f.userData.a) * f.userData.r, Math.abs(Math.sin(t * 6 + i)) * .1, Math.sin(f.userData.a) * f.userData.r + 4); f.rotation.y = -f.userData.a + (f.userData.v > 0 ? 0 : Math.PI); });
+  if ((fwT -= dt) < 0) { fwT = .9 + Math.random() * 1.2; rockets.push({ x: (Math.random() - .5) * 70, y: 2, z: -40 - Math.random() * 20, ty: 26 + Math.random() * 14, c: BULB[Math.floor(Math.random() * 5)] }); }
+  for (const r of rockets) { r.y += 26 * dt; fx.emit('spark', r.x, r.y, r.z, { life: .3, size: .8, add: true, fog: false, tint: '#ffe0a0' }); if (r.y > r.ty) { r.dead = 1; for (let k = 0; k < 44; k++) { const a = k / 44 * 6.283, e = (Math.random() - .5) * 3, sp = 9 + Math.random() * 5; fx.emit('spark', r.x, r.y, r.z, { vx: Math.cos(a) * Math.cos(e) * sp, vy: Math.sin(e) * sp + 2, vz: Math.sin(a) * Math.cos(e) * sp, grav: -5, life: 1.3 + Math.random() * .5, size: 1.5, add: true, fog: false, tint: k % 3 ? r.c : '#ffffff' }); } } } rockets = rockets.filter(r => !r.dead);
+  fx.update(dt);
+  const a = t * .07 + .6, rr = 62 * Math.max(1, 1.45 / cam.aspect); cam.position.set(Math.sin(a) * rr, 19 + Math.sin(t * .13) * 3, Math.cos(a) * rr + 4); cam.lookAt(0, 9, -4);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

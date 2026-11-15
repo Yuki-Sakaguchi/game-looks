@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 80 砂漠の旅 ローポリと陽炎</title>
+<style>
+html,body{margin:0;height:100%;background:#e8a25a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a1c10;opacity:.85}
+</style>
+<div id="cap">LOOK 80 ─ 砂漠の旅 / ローポリの砂丘と陽炎　｜　見るだけ</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 砂丘は面をぼかさないローポリ。日の当たる面はだいだい、影の面は赤紫と、面ごとに色がはっきり分かれる。
+// 空は上が青緑、地平線がだいだいのグラデーション。仕上げに、地平線の近くだけ絵を横に波打たせて陽炎にし、
+// 太陽のまわりを明るくにじませ、フィルムの粒を重ねる
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); const FOGC = new THREE.Color('#f0b070'); scene.fog = new THREE.Fog(FOGC, 30, 150);
+const cam = new THREE.PerspectiveCamera(46, 1, .1, 400);
+// 空
+const skyC = document.createElement('canvas'); skyC.width = 4; skyC.height = 256; { const c = skyC.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#2f7f8f'); gr.addColorStop(.45, '#8fc0a8'); gr.addColorStop(.72, '#f6d08a'); gr.addColorStop(.9, '#f0a060'); gr.addColorStop(1, '#e88a50'); c.fillStyle = gr; c.fillRect(0, 0, 4, 256); }
+const skyT = new THREE.CanvasTexture(skyC); skyT.colorSpace = THREE.SRGBColorSpace; scene.background = skyT;
+scene.add(new THREE.HemisphereLight(0xffe8c0, 0x8a3a5a, .9)); const sun = new THREE.DirectionalLight(0xffd9a0, 3); sun.position.set(-30, 14, -40); scene.add(sun);
+const H = (x, z) => { const a = Math.sin(x * .045 + Math.sin(z * .03) * 1.5), r = 1 - Math.abs(a); return r * r * 7 + Math.sin(z * .06 + x * .02) * 2.2 + Math.sin(x * .21 + z * .17) * .25; };
+const NX = 90, NZ = 70, CELL = 2.4, G = new THREE.PlaneGeometry(NX * CELL, NZ * CELL, NX, NZ).toNonIndexed(); G.rotateX(-Math.PI / 2); const base = G.attributes.position.array.slice();
+const dunes = new THREE.Mesh(G, new THREE.MeshStandardMaterial({ color: '#f2a65a', flatShading: true, roughness: 1 })); scene.add(dunes);
+const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(16, 40), new THREE.MeshBasicMaterial({ color: 0xfff2c8, fog: false })); scene.add(sunDisc);
+// 旅人：マントは円すい、首巻きは細長い板
+const trav = new THREE.Group(); { const cloak = new THREE.Mesh(new THREE.ConeGeometry(.55, 1.7, 7), new THREE.MeshStandardMaterial({ color: '#3a4f8a', flatShading: true })); cloak.position.y = .85; const head = new THREE.Mesh(new THREE.IcosahedronGeometry(.26, 0), new THREE.MeshStandardMaterial({ color: '#e8c9a0', flatShading: true })); head.position.y = 1.78; const hat = new THREE.Mesh(new THREE.ConeGeometry(.5, .28, 8), new THREE.MeshStandardMaterial({ color: '#d8c090', flatShading: true })); hat.position.y = 2.02; trav.add(cloak, head, hat); }
+const scarfG = new THREE.PlaneGeometry(1.8, .22, 8, 1); scarfG.translate(.9, 0, 0); const scarf = new THREE.Mesh(scarfG, new THREE.MeshBasicMaterial({ color: '#e0403a', side: THREE.DoubleSide })); scarf.position.y = 1.6; trav.add(scarf); scene.add(trav);
+const sBase = scarfG.attributes.position.array.slice();
+// 仕上げ
+const rt = new THREE.WebGLRenderTarget(4, 4);
+const post = new THREE.ShaderMaterial({ uniforms: { tD: { value: rt.texture }, time: { value: 0 }, hor: { value: .5 }, sunP: { value: new THREE.Vector2(.5, .5) }, res: { value: new THREE.Vector2() } }, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `
+uniform sampler2D tD;uniform float time,hor;uniform vec2 sunP,res;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+  float band=exp(-pow((vUv.y-hor)/.09,2.));
+  vec2 u=vUv;u.x+=sin(vUv.y*170.+time*5.)*.0035*band+sin(vUv.y*61.-time*3.)*.003*band;u.y+=sin(vUv.x*40.+time*4.)*.002*band;
+  vec3 c=pow(max(texture2D(tD,u).rgb,0.),vec3(1./2.2));
+  vec2 d=(vUv-sunP)*vec2(res.x/res.y,1.);float gl=exp(-dot(d,d)*7.);
+  c+=vec3(1.,.72,.38)*gl*.5;c=mix(c,vec3(1.,.93,.8),band*.1);
+  c=mix(c,c*c*(3.-2.*c),.35);
+  c+=(h(vUv*res+fract(time)*71.)-.5)*.045;
+  c*=1.-dot(vUv-.5,vUv-.5)*.5;
+  gl_FragColor=vec4(c,1.);
+}` });
+const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const resize = () => { const w = innerWidth, h = innerHeight, pr = Math.min(devicePixelRatio, 2); renderer.setSize(w, h); rt.setSize(w * pr, h * pr); post.uniforms.res.value.set(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+let last = performance.now(), t = 0; const v = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const tz = -t * 2.6, tx = Math.sin(t * .1) * 6; trav.position.set(tx, H(tx, tz) - .05, tz); trav.rotation.z = Math.sin(t * 5) * .03; trav.position.y += Math.abs(Math.sin(t * 5)) * .06;
+  const sp = scarfG.attributes.position.array; for (let i = 0; i < sp.length; i += 3) { const x = sBase[i]; sp[i + 1] = sBase[i + 1] + Math.sin(x * 3 - t * 9) * .14 * x; sp[i + 2] = Math.sin(x * 2.2 - t * 7) * .2 * x; } scarfG.attributes.position.needsUpdate = true;
+  const ccx = tx + 9 + Math.sin(t * .13) * 2, ccz = tz + 13; cam.position.set(ccx, Math.max(trav.position.y + 3.6, H(ccx, ccz) + 3.2, H(ccx - 3, ccz - 6) + 2.4), ccz); cam.lookAt(tx - 2, trav.position.y + 1.4, tz - 8);
+  const sx = Math.round(tx / CELL) * CELL, sz = Math.round(tz / CELL) * CELL - 50, p = G.attributes.position.array; for (let i = 0; i < p.length; i += 3) p[i + 1] = H(base[i] + sx, base[i + 2] + sz); G.attributes.position.needsUpdate = true; dunes.position.set(sx, 0, sz);
+  sunDisc.position.set(tx - 90, 20, tz - 220); sunDisc.lookAt(cam.position);
+  v.copy(sunDisc.position).project(cam); post.uniforms.sunP.value.set(v.x * .5 + .5, v.y * .5 + .5); v.set(tx, 4, tz - 300).project(cam); post.uniforms.hor.value = v.y * .5 + .5; post.uniforms.time.value = t;
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

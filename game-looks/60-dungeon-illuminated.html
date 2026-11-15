@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 60 ダンジョン探索 中世の彩飾写本</title>
+<style>
+html,body{margin:0;height:100%;background:#3a2c1c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a2a1a;background:#e8d9b0;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 60 ─ ダンジョン探索 / 中世の彩飾写本　｜　見るだけ（騎士が迷宮をめぐる）</div>
+<script>
+// 羊皮紙の 1 ページ。色は青・赤・緑と金だけ。金の所だけは光の帯が横切って「金箔のてり」になる。
+// 迷宮は挿絵として枠の中に描き、壁は焦げ茶の斜め線で埋める。余白には蔓草と小さな生きもの
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const INK = '#3b2a1a', BLUE = '#2b4a8c', RED = '#a8321f', GREEN = '#4d7a3a', SCRIPT = '"Luminari","Apple Chancery","Palatino Linotype",Palatino,Georgia,serif';
+const MAP = ['##########', '#..#.....#', '#..#.##..#', '#.....#..#', '###.#.#.##', '#...#....#', '#.###.##.#', '##########'], CS = 50, MX = 410, MY = 78;
+const PATH = [[1, 1], [1, 3], [5, 3], [5, 5], [7, 5], [7, 3], [8, 3], [8, 1], [4, 1], [4, 3], [3, 3], [3, 5], [1, 5], [1, 6], [1, 5], [3, 5], [3, 3], [1, 3]];
+const cum = [0]; PATH.forEach((p, i) => { const q = PATH[(i + 1) % PATH.length]; cum.push(cum[i] + Math.abs(q[0] - p[0]) + Math.abs(q[1] - p[1])); });
+const at = d => { d = ((d % cum[PATH.length]) + cum[PATH.length]) % cum[PATH.length]; let i = 0; while (cum[i + 1] <= d) i++; const p = PATH[i], q = PATH[(i + 1) % PATH.length], f = (d - cum[i]) / (cum[i + 1] - cum[i]); return [MX + (p[0] + (q[0] - p[0]) * f + .5) * CS, MY + (p[1] + (q[1] - p[1]) * f + .5) * CS]; };
+// 動かない部分は先に 1 枚に描いておく
+const page = document.createElement('canvas'); page.width = LW; page.height = LH; {
+  const p = page.getContext('2d'); p.fillStyle = '#e8d9b0'; p.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 60; i++) { const x = Math.random() * LW, y = Math.random() * LH, r = 50 + Math.random() * 140, gr = p.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(150,110,50,.1)'); gr.addColorStop(1, 'rgba(150,110,50,0)'); p.fillStyle = gr; p.fillRect(x - r, y - r, r * 2, r * 2); }
+  const vg = p.createRadialGradient(480, 300, 260, 480, 300, 620); vg.addColorStop(0, 'rgba(90,60,20,0)'); vg.addColorStop(1, 'rgba(90,60,20,.45)'); p.fillStyle = vg; p.fillRect(0, 0, LW, LH);
+  // 迷宮
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 10; x++) { const X = MX + x * CS, Y = MY + y * CS;
+    if (MAP[y][x] === '#') { p.fillStyle = '#5a422a'; p.fillRect(X, Y, CS, CS); p.save(); p.beginPath(); p.rect(X, Y, CS, CS); p.clip(); p.strokeStyle = 'rgba(30,18,8,.7)'; p.lineWidth = 1; p.beginPath(); for (let k = -CS; k < CS; k += 5) { p.moveTo(X + k, Y + CS); p.lineTo(X + k + CS, Y); } p.stroke(); p.restore(); }
+    else { p.strokeStyle = 'rgba(59,42,26,.28)'; p.lineWidth = .8; p.strokeRect(X + .5, Y + .5, CS / 2, CS / 2); p.strokeRect(X + CS / 2 + .5, Y + CS / 2 + .5, CS / 2, CS / 2); } }
+  p.strokeStyle = INK; p.lineWidth = 2; for (let y = 0; y < 8; y++) for (let x = 0; x < 10; x++) if (MAP[y][x] === '#') { const X = MX + x * CS, Y = MY + y * CS; p.beginPath(); if (MAP[y][x + 1] === '.') { p.moveTo(X + CS, Y); p.lineTo(X + CS, Y + CS); } if (MAP[y][x - 1] === '.') { p.moveTo(X, Y); p.lineTo(X, Y + CS); } if (MAP[y + 1] && MAP[y + 1][x] === '.') { p.moveTo(X, Y + CS); p.lineTo(X + CS, Y + CS); } if (MAP[y - 1] && MAP[y - 1][x] === '.') { p.moveTo(X, Y); p.lineTo(X + CS, Y); } p.stroke(); }
+  p.strokeStyle = RED; p.lineWidth = 3; p.strokeRect(MX - 8, MY - 8, 516, 416); p.lineWidth = 1; p.strokeRect(MX - 14, MY - 14, 528, 428);
+  p.fillStyle = BLUE; for (const [x, y] of [[MX - 20, MY - 20], [MX + 508, MY - 20], [MX - 20, MY + 408], [MX + 508, MY + 408]]) p.fillRect(x, y, 14, 14);
+  // 竜（赤いうねり）
+  p.strokeStyle = RED; p.lineWidth = 6; p.lineCap = 'round'; p.beginPath(); const dx = MX + 5.5 * CS, dy = MY + 6.5 * CS; for (let a = -18; a <= 18; a += 2) p.lineTo(dx + a, dy + Math.sin(a * .45) * 8); p.stroke(); p.fillStyle = RED; p.beginPath(); p.moveTo(dx + 18, dy - 4); p.lineTo(dx + 30, dy - 10); p.lineTo(dx + 26, dy + 6); p.fill();
+  // 本文
+  p.fillStyle = RED; p.font = `20px ${SCRIPT}`; p.fillText('Incipit liber labyrinthi', 62, 60);
+  p.fillStyle = INK; p.font = `19px ${SCRIPT}`; const tx = ['escendit miles', 'in tenebras,', 'lucernam ferens'], tx2 = ['et per vias obscuras ambulat,', 'thesaurum quaerens aureum.', 'Draco rubeus in imo dormit;', 'cave, viator, ne excites eum.', 'Qui exit, sapientior redit,', 'et liber hic finem non habet.'];
+  tx.forEach((s, i) => p.fillText(s, 206, 108 + i * 34)); tx2.forEach((s, i) => p.fillText(s, 62, 262 + i * 34));
+  p.strokeStyle = 'rgba(59,42,26,.25)'; p.lineWidth = .6; for (let i = 0; i < 12; i++) { p.beginPath(); p.moveTo(56, 84 + i * 34 - (i > 3 ? 2 : 0)); p.lineTo(380, 84 + i * 34 - (i > 3 ? 2 : 0)); p.stroke(); }
+  p.fillStyle = BLUE; p.fillRect(60, 78, 134, 134); p.strokeStyle = RED; p.lineWidth = 3; p.strokeRect(60, 78, 134, 134);
+  p.strokeStyle = '#e8d9b0'; p.lineWidth = 1.5; for (let i = 0; i < 4; i++) { p.beginPath(); for (let a = 0; a < 7; a += .2) p.lineTo(127 + (i % 2 ? 44 : -44) + Math.cos(a + i) * a * 2.4, 145 + (i > 1 ? 44 : -44) + Math.sin(a + i) * a * 2.4); p.stroke(); }
+  // 余白の蔓草
+  p.strokeStyle = GREEN; p.lineWidth = 2.5; p.beginPath(); for (let y = 40; y <= 530; y += 6) p.lineTo(34 + Math.sin(y * .05) * 9, y); p.stroke(); p.beginPath(); for (let x = 34; x <= 900; x += 6) p.lineTo(x, 530 + Math.sin(x * .05) * 8); p.stroke();
+  for (let i = 0; i < 34; i++) { const onL = i < 12, q = onL ? 50 + i * 40 : 60 + (i - 12) * 38, x = onL ? 34 + Math.sin(q * .05) * 9 : q, y = onL ? q : 530 + Math.sin(q * .05) * 8, a = (i % 2 ? 1 : -1) * .9 + (onL ? 0 : 1.57);
+    p.fillStyle = i % 3 ? GREEN : BLUE; p.beginPath(); p.ellipse(x + Math.cos(a) * 11, y + Math.sin(a) * 11, 9, 4, a, 0, 7); p.fill(); if (i % 4 === 0) { p.fillStyle = RED; p.beginPath(); p.arc(x - Math.cos(a) * 9, y - Math.sin(a) * 9, 3.5, 0, 7); p.fill(); } }
+}
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, d = t * 1.6, [hx, hy] = at(d);
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(page, 0, 0);
+  // 金：光の帯が左から右へ横切る
+  const o = ((t * 260) % 1700) - 300, gold = g.createLinearGradient(o, 0, o + 220, 90); gold.addColorStop(0, '#b8862b'); gold.addColorStop(.5, '#fff0a8'); gold.addColorStop(1, '#b8862b');
+  g.fillStyle = gold; g.strokeStyle = INK; g.lineWidth = 1.2;
+  g.font = '700 150px Georgia,"Times New Roman",serif'; g.textAlign = 'center'; g.fillText('D', 127, 198); g.strokeText('D', 127, 198);
+  for (let i = 0; i < 34; i += 2) { const onL = i < 12, q = onL ? 70 + i * 40 : 80 + (i - 12) * 38, x = onL ? 34 + Math.sin(q * .05) * 9 : q, y = onL ? q : 530 + Math.sin(q * .05) * 8; g.beginPath(); g.arc(x + (onL ? 14 : 0), y - (onL ? 0 : 15), 4.5, 0, 7); g.fill(); g.stroke(); }
+  for (const [x, y] of [[MX - 13, MY - 13], [MX + 515, MY - 13], [MX - 13, MY + 415], [MX + 515, MY + 415]]) { g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+  const tx0 = MX + 1.5 * CS, ty0 = MY + 6.5 * CS; g.fillRect(tx0 - 13, ty0 - 6, 26, 16); g.strokeRect(tx0 - 13, ty0 - 6, 26, 16); g.beginPath(); g.arc(tx0, ty0 - 6, 13, Math.PI, 0); g.fill(); g.stroke();
+  // 歩いた道（赤い点）
+  g.fillStyle = RED; for (let k = 1; k < 26; k++) { const [x, y] = at(d - k * .35); g.globalAlpha = 1 - k / 26; g.beginPath(); g.arc(x, y, 2.4, 0, 7); g.fill(); } g.globalAlpha = 1;
+  // 騎士
+  const bob = Math.abs(Math.sin(t * 8)) * 2; g.save(); g.translate(hx, hy - bob);
+  g.fillStyle = BLUE; g.beginPath(); g.moveTo(-8, -6); g.lineTo(8, -6); g.lineTo(10, 14); g.lineTo(-10, 14); g.fill(); g.strokeStyle = INK; g.lineWidth = 1.2; g.stroke();
+  g.fillStyle = '#c9c4b8'; g.beginPath(); g.arc(0, -12, 7, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK; g.fillRect(-4, -13, 8, 1.6);
+  g.fillStyle = gold; g.beginPath(); g.moveTo(5, -4); g.lineTo(17, -4); g.lineTo(17, 5); g.lineTo(11, 12); g.lineTo(5, 5); g.closePath(); g.fill(); g.stroke();
+  g.strokeStyle = RED; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -19); g.lineTo(-7, -27); g.stroke(); g.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

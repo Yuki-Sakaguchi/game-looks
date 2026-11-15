@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 79 ダイビング ローポリの海中</title>
+<style>
+html,body{margin:0;height:100%;background:#0a3a52;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dff6ff;opacity:.85}
+</style>
+<div id="cap">LOOK 79 ─ ダイビング / ローポリの海中と水面のゆらめき　｜　見るだけ</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面をぼかさないローポリの海底。その上に、水面を通った光の網もよう（コースティクス）を数式で重ねる。
+// 網もようは上を向いた面ほど強く、時間でゆらぐ。遠くは青緑の霧にとけ、水面からは光の柱が斜めに差す。
+// 色は「青緑の水」と「珊瑚の桃・だいだい」の 2 つの組だけにしぼる
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const WATER = new THREE.Color('#0f5873'); const scene = new THREE.Scene(); scene.background = WATER; scene.fog = new THREE.Fog(WATER, 6, 46);
+const cam = new THREE.PerspectiveCamera(58, 1, .1, 120);
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const U = { time: { value: 0 } };
+// 標準の材質に、光の網もようを足す
+function mat(color, extra = {}) {
+  const m = new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...extra });
+  m.onBeforeCompile = sh => { sh.uniforms.time = U.time;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 wPos;varying vec3 wNor;').replace('#include <begin_vertex>', '#include <begin_vertex>\nwPos=(modelMatrix*vec4(transformed,1.)).xyz;wNor=normalize(mat3(modelMatrix)*normal);');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float time;varying vec3 wPos;varying vec3 wNor;
+float caus(vec2 p,float t){vec2 q=p;float c=0.;for(int i=0;i<3;i++){float f=float(i)+1.;q+=vec2(sin(q.y*1.3*f+t*.9),cos(q.x*1.1*f-t*.7))*.6;c+=1./(abs(sin(q.x*1.7)+cos(q.y*1.9))*6.+.6);}return c/3.;}`)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nfloat cc=caus(wPos.xz*.55+wPos.y*.2,time);totalEmissiveRadiance+=vec3(.55,.9,.85)*pow(cc,1.6)*.75*smoothstep(-.2,.8,wNor.y);'); };
+  return m;
+}
+scene.add(new THREE.HemisphereLight(0x9fe8ff, 0x0a3040, 1.3)); const sun = new THREE.DirectionalLight(0xdffcff, 1.4); sun.position.set(3, 10, 2); scene.add(sun);
+// 海底：数式の高さ。カメラについてくる格子で、頂点の高さだけ毎コマ入れなおす
+const H = (x, z) => Math.sin(x * .13) * 1.6 + Math.sin(z * .17 + 1) * 1.3 + Math.sin((x + z) * .31) * .6 + Math.sin(x * .7) * Math.cos(z * .6) * .35 - 5;
+const NX = 60, NZ = 60, CELL = 1.6, bedG = new THREE.PlaneGeometry(NX * CELL, NZ * CELL, NX, NZ).toNonIndexed(); bedG.rotateX(-Math.PI / 2);
+const bed = new THREE.Mesh(bedG, mat('#c9b88a')); scene.add(bed);
+const base = bedG.attributes.position.array.slice();
+// 岩・珊瑚・海草は、ます目ごとに決まった場所へ置き、カメラの前へ送りなおす
+const props = [], CORAL = ['#ff7a8a', '#ff9a5a', '#ffd06a', '#e86aa8', '#7ad6c8'];
+for (let i = 0; i < 90; i++) { const kind = i % 3, gp = new THREE.Group(); let m;
+  if (kind === 0) { m = new THREE.Mesh(new THREE.IcosahedronGeometry(.8 + hash(i, 1) * 1.4, 0), mat('#6f7f86')); m.scale.y = .6; gp.add(m); }
+  else if (kind === 1) { const c = CORAL[i % 5]; for (let k = 0; k < 5; k++) { const b = new THREE.Mesh(new THREE.ConeGeometry(.16 + hash(i, k) * .14, 1 + hash(k, i) * 1.4, 5), mat(c)); b.position.set(Math.cos(k * 1.26) * .35, .6, Math.sin(k * 1.26) * .35); b.rotation.set(Math.sin(k * 1.26) * .5, 0, -Math.cos(k * 1.26) * .5); gp.add(b); } }
+  else { for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.PlaneGeometry(.3, 3.2 + hash(i, k) * 2, 1, 5), mat('#3f9a6a', { side: THREE.DoubleSide })); b.geometry.translate(0, 1.6, 0); b.position.set(k * .4 - .4, 0, hash(k, i) * .4); b.rotation.y = k; gp.add(b); gp.userData.kelp = 1; } }
+  gp.userData.ox = (hash(i, 7) - .5) * 60; gp.userData.oz = hash(i, 8) * 80; scene.add(gp); props.push(gp); }
+// 魚の群れ
+const fishG = new THREE.ConeGeometry(.12, .5, 4); fishG.rotateX(Math.PI / 2); const fish = new THREE.InstancedMesh(fishG, new THREE.MeshBasicMaterial({ color: '#ffd77a' }), 70); scene.add(fish); const dm = new THREE.Object3D();
+// 光の柱と、ただようちり
+const rays = []; for (let i = 0; i < 9; i++) { const r = new THREE.Mesh(new THREE.PlaneGeometry(1.2 + hash(i, 1) * 2.4, 30), new THREE.MeshBasicMaterial({ color: 0xbff6ff, transparent: true, opacity: .07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); r.rotation.z = .35; r.userData.o = [(hash(i, 2) - .5) * 30, hash(i, 3) * 30]; scene.add(r); rays.push(r); }
+const pg = new THREE.BufferGeometry(), pa = new Float32Array(600 * 3); for (let i = 0; i < 600; i++) { pa[i * 3] = (hash(i, 1) - .5) * 40; pa[i * 3 + 1] = (hash(i, 2) - .5) * 14; pa[i * 3 + 2] = (hash(i, 3) - .5) * 40; } pg.setAttribute('position', new THREE.BufferAttribute(pa, 3));
+const dust = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xdffcff, size: .07, transparent: true, opacity: .7 })); scene.add(dust);
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; U.time.value = t;
+  const cz = -t * 2.2, cx = Math.sin(t * .2) * 5, cy = H(cx, cz - 4) + 3.4 + Math.sin(t * .6) * .4;
+  cam.position.set(cx, cy, cz); cam.lookAt(cx + Math.sin(t * .27) * 3, cy - .9, cz - 10); cam.rotation.z += Math.sin(t * .5) * .04;
+  const sx = Math.round(cx / CELL) * CELL, sz = Math.round(cz / CELL) * CELL - 18, p = bedG.attributes.position.array;
+  for (let i = 0; i < p.length; i += 3) { p[i + 1] = H(base[i] + sx, base[i + 2] + sz); } bedG.attributes.position.needsUpdate = true; bed.position.set(sx, 0, sz);
+  for (const g of props) { const z = cz + 6 - ((((cz + 6 - g.userData.oz) % 80) + 80) % 80), x = g.userData.ox; g.position.set(x, H(x, z) - .1, z); if (g.userData.kelp) g.children.forEach((b, k) => { b.rotation.z = Math.sin(t * 1.2 + x + k) * .22; }); }
+  for (let i = 0; i < 70; i++) { const a = t * .5 + i * .09, r = 3 + hash(i, 1) * 2.5, fx = cx + Math.cos(a) * r + Math.sin(t * .3) * 4, fz = cz - 11 + Math.sin(a) * r * .6, fy = cy - .4 + Math.sin(a * 2 + i) * .8 + hash(i, 2) * 1.6; dm.position.set(fx, fy, fz); dm.rotation.set(0, -a + (Math.sin(t * 8 + i) * .2), 0); dm.updateMatrix(); fish.setMatrixAt(i, dm.matrix); } fish.instanceMatrix.needsUpdate = true;
+  rays.forEach((r, i) => { r.position.set(cx + r.userData.o[0] + Math.sin(t * .3 + i) * 1.5, cy + 9, cz - 6 - r.userData.o[1]); r.material.opacity = .05 + .04 * Math.sin(t * .8 + i * 2); r.lookAt(cam.position.x, r.position.y, cam.position.z); r.rotation.z = .35; });
+  dust.position.set(cx, cy, cz - 8); dust.rotation.y = t * .01;
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

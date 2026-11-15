@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 41 採掘 ボクセルの断面模型</title>
+<style>
+html,body{margin:0;height:100%;background:#dfeaf2;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a4a5a}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 41 ─ 採掘サンドボックス / ボクセルの断面模型　｜　見るだけ（自動で掘る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 小さな立方体だけで作った地面を、角からケーキのように切り取って中の地層を見せる。
+// 立方体は 1 個ずつ少し色をばらつかせ、まわりを囲まれている（奥まった）ものほど暗くして、すきまの暗がりを出す。影はやわらかく
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xdfeaf2);
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 200); cam.position.set(30, 26, 30); cam.lookAt(0, 4.5, 0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa8c0, 1.6));
+const sun = new THREE.DirectionalLight(0xfff0d8, 2.2); sun.position.set(6, 24, 14); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 4; sun.shadow.normalBias = .05;
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 }); scene.add(sun);
+
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const W = 22, D = 22, H = 13;
+const height = (x, z) => Math.round(9 + Math.sin(x * .35) * 1.5 + Math.cos(z * .3) * 1.5 + Math.sin((x + z) * .2) * 1);
+const cutTop = 4;                                             // 切り取った角は高さ 4 まで残す
+const solid = (x, y, z) => x >= 0 && z >= 0 && x < W && z < D && y >= 0 && y < (x >= W / 2 && z >= D / 2 ? cutTop : height(x, z));
+function kind(x, y, z) {
+  const top = height(x, z); if (y === top - 1 && !(x >= W / 2 && z >= D / 2)) return 0x7ac74f;
+  if (y >= top - 4) return 0x9a6b4a;
+  const h = hash(x, y, z); if (h > .965) return 0xf2c230; if (h < .03) return 0x40d8e0; if (h > .9 && y < 5) return 0x3a3a44; if (y < 2 && h > .8) return 0xe0563a;
+  return 0x8a8f9a;
+}
+const cells = []; for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 0; y < H; y++) if (solid(x, y, z)) cells.push([x, y, z]);
+const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), cells.length); mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+const M = new THREE.Matrix4(), col = new THREE.Color(), index = new Map(), gone = new Set();
+const place = (i, s) => { const [x, y, z] = cells[i]; M.makeScale(s, s, s).setPosition(x - W / 2 + .5, y + .5, z - D / 2 + .5); mesh.setMatrixAt(i, M); };
+function shade(i) {
+  const [x, y, z] = cells[i]; let n = 0;
+  for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [1, 1, 0], [-1, 1, 0], [0, 1, 1], [0, 1, -1]]) if (solid(x + dx, y + dy, z + dz) && !gone.has((x + dx) + ',' + (y + dy) + ',' + (z + dz))) n++;
+  col.setHex(kind(x, y, z)).multiplyScalar((1.08 - n * .05) * (.93 + hash(x, y, z + 7) * .14)); mesh.setColorAt(i, col);
+}
+cells.forEach(([x, y, z], i) => { index.set(x + ',' + y + ',' + z, i); place(i, 1); });
+cells.forEach((_, i) => shade(i)); mesh.instanceColor.needsUpdate = true;
+
+// 掘る人と、飛びちるかけら
+const lam = c => new THREE.MeshLambertMaterial({ color: c });
+const miner = new THREE.Group(); scene.add(miner);
+const part = (w, h, d, c, x, y, z, p = miner) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lam(c)); o.position.set(x, y, z); o.castShadow = true; p.add(o); return o; };
+part(.5, .6, .3, 0x3a7fe0, 0, .7, 0); part(.4, .4, .4, 0xf0c8a0, 0, 1.2, 0); part(.44, .14, .44, 0xf2c230, 0, 1.45, 0); part(.2, .4, .2, 0x2a3a5a, -.13, .2, 0); part(.2, .4, .2, 0x2a3a5a, .13, .2, 0);
+const pick = new THREE.Group(); pick.position.set(.3, .9, 0); miner.add(pick); part(.08, .8, .08, 0x8a5a3a, 0, .4, 0, pick); part(.6, .1, .1, 0xb0b4b8, 0, .8, 0, pick);
+const bits = [...Array(8)].map(() => { const o = new THREE.Mesh(new THREE.BoxGeometry(.25, .25, .25), lam(0xffffff)); o.visible = false; scene.add(o); return { o, v: new THREE.Vector3(), a: 9 }; });
+
+// 掘る順番（切り取った角の床を、らせん状に 1 段ずつ）
+const PIT = []; for (let r = 0; r < 3; r++) for (let x = 13 + r; x <= 19 - r; x++) for (let z = 13 + r; z <= 19 - r; z++) if (x === 13 + r || x === 19 - r || z === 13 + r || z === 19 - r) PIT.push([x, z]);
+let di = 0, depth = cutTop - 1, timer = 1;
+function dig() {
+  const [x, z] = PIT[di % PIT.length], key = x + ',' + depth + ',' + z, i = index.get(key);
+  if (i !== undefined) {
+    gone.add(key); place(i, 0); mesh.instanceMatrix.needsUpdate = true;
+    for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0]]) { const j = index.get((x + dx) + ',' + (depth + dy) + ',' + (z + dz)); if (j !== undefined) shade(j); }
+    mesh.instanceColor.needsUpdate = true;
+    const c = kind(x, depth, z); bits.forEach((b, k) => { b.o.visible = true; b.o.material.color.setHex(c); b.o.position.set(x - W / 2 + .5, depth + .8, z - D / 2 + .5); b.v.set((hash(k, di) - .5) * 5, 3 + hash(di, k) * 3, (hash(k, di + 9) - .5) * 5); b.a = 0; });
+  }
+  if (++di % PIT.length === 0 && --depth < 0) {                 // 掘りつくしたら元に戻す
+    depth = cutTop - 1; gone.clear(); cells.forEach((_, i) => { place(i, 1); shade(i); }); mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true;
+  }
+}
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); const a = innerWidth / innerHeight, h = Math.max(13, 19 / a); cam.left = -h * a; cam.right = h * a; cam.top = h; cam.bottom = -h; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if ((timer -= dt) <= 0) { timer = .16; dig(); }
+  const [x, z] = PIT[di % PIT.length];
+  miner.position.lerp(new THREE.Vector3(x - W / 2 + .5 - .9, depth + 1.02 + (PIT.indexOf(PIT[(di + PIT.length - 1) % PIT.length]) >= 0 ? 0 : 0), z - D / 2 + .5), Math.min(1, dt * 14));
+  pick.rotation.z = -1.1 - Math.abs(Math.sin(t * 19.6)) * 1.2;
+  for (const b of bits) if (b.o.visible) { b.a += dt; b.v.y -= 14 * dt; b.o.position.addScaledVector(b.v, dt); b.o.rotation.x += dt * 9; b.o.scale.setScalar(Math.max(.01, 1 - b.a * 1.6)); if (b.a > .6) b.o.visible = false; }
+  renderer.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

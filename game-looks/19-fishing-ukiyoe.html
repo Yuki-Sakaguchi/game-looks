@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 19 釣り 浮世絵の木版</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2622;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,150vh);aspect-ratio:3/2;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ead9b5;background:#2a2622;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 19 ─ 釣り / 浮世絵の木版　｜　見るだけ（自動で釣る）</div>
+<script>
+// 木版画の決まりごとで描く: 色は平らに塗る、形は藍の輪郭線で囲む、空と海の上端だけ「ぼかし」で濃くする、
+// 全体に版木の木目をうっすら重ねる。顔料は藍・朱・黄土・緑青・墨に絞る
+const LW = 960, LH = 640, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const PAPER = '#ead9b5', AI = '#1d3c6e', AI2 = '#3f6d9c', AI3 = '#7fa3b8', SHU = '#c8442e', OUDO = '#c9a25a', ROKU = '#5f8f7a', SUMI = '#2a2622';
+const HY = 250; // 水平線
+
+const grain = document.createElement('canvas'); grain.width = LW * S; grain.height = LH * S;
+{
+  const x = grain.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.strokeStyle = 'rgba(60,40,20,.07)'; x.lineWidth = 1;
+  for (let y = 0; y < LH; y += 3) { x.beginPath(); for (let px = 0; px <= LW; px += 16) x.lineTo(px, y + Math.sin(px * .008 + y * .05) * 5 + Math.sin(px * .03 + y) * 1.2); x.stroke(); }
+  for (let i = 0; i < 3000; i++) { x.fillStyle = 'rgba(60,40,20,.05)'; x.fillRect(Math.random() * LW, Math.random() * LH, 1.5, 1.5); }
+}
+const outline = (w = 2) => { g.strokeStyle = AI; g.lineWidth = w; g.lineJoin = g.lineCap = 'round'; g.stroke(); };
+const fillS = (c, w) => { g.fillStyle = c; g.fill(); outline(w); };
+
+// 霞（端の丸い横帯）
+function kasumi(x, y, w, h) { g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.fillStyle = PAPER; g.fill(); outline(1.2); }
+// 波の列（山の形をくり返し、列ごとに逆向きへ流す）
+function waveRow(y, amp, wl, shift, color) {
+  g.beginPath(); g.moveTo(-10, LH + 10);
+  for (let x = -10; x <= LW + 10; x += 4) { const u = ((x + shift) / wl) % 1, k = (u + 1) % 1; g.lineTo(x, y - amp * Math.pow(Math.sin(k * Math.PI), .6)); }
+  g.lineTo(LW + 10, LH + 10); g.closePath(); fillS(color, 1.8);
+  // 波がしらの白い巻き
+  g.fillStyle = PAPER; g.strokeStyle = AI; g.lineWidth = 1.2;
+  for (let x = -((shift % wl) + wl) % wl - wl; x < LW + wl; x += wl) {
+    const cx = x + wl / 2;
+    for (let k = -1; k <= 1; k++) { g.beginPath(); g.arc(cx + k * amp * .5, y - amp + Math.abs(k) * amp * .28 + 2, amp * .22, Math.PI * .9, Math.PI * 2.2); g.fill(); g.stroke(); }
+  }
+}
+
+const fishes = [...Array(6)].map((_, i) => ({ x: hash(i, 1) * LW, y: 400 + hash(i, 2) * 170, v: (i % 2 ? 1 : -1) * (24 + hash(i, 3) * 26), s: .7 + hash(i, 4) * .6 }));
+let state = 'wait', st = 0, catchN = 0, splash = [];
+const BOAT = { x: 430, y: 372 }, TIP = { x: 590, y: 250 };
+const KANJI = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; st += dt;
+  if (state === 'wait' && st > 3) { state = 'bite'; st = 0; }
+  if (state === 'bite' && st > 1.1) { state = 'fly'; st = 0; for (let i = 0; i < 14; i++) splash.push({ x: 640, y: 420, vx: (Math.random() - .5) * 200, vy: -120 - Math.random() * 220, a: 1 }); }
+  if (state === 'fly' && st > 1.1) { state = 'wait'; st = 0; catchN = (catchN + 1) % 11; }
+  const bob = Math.sin(t * 1.4) * 5, by = BOAT.y + bob;
+
+  g.setTransform(S, 0, 0, S, 0, 0);
+  g.fillStyle = PAPER; g.fillRect(0, 0, LW, LH);
+  // 空の「一文字ぼかし」（上端の藍）と、水平線ぎわの朱
+  let gr = g.createLinearGradient(0, 0, 0, 120); gr.addColorStop(0, AI); gr.addColorStop(.35, AI2); gr.addColorStop(1, 'rgba(63,109,156,0)'); g.fillStyle = gr; g.fillRect(0, 0, LW, 120);
+  gr = g.createLinearGradient(0, HY - 70, 0, HY); gr.addColorStop(0, 'rgba(200,68,46,0)'); gr.addColorStop(1, 'rgba(200,68,46,.55)'); g.fillStyle = gr; g.fillRect(0, HY - 70, LW, 70);
+  // 遠くの山
+  g.beginPath(); g.moveTo(560, HY); g.lineTo(700, 120); g.lineTo(716, 128); g.lineTo(730, 118); g.lineTo(880, HY); g.closePath(); fillS(AI3, 1.8);
+  g.beginPath(); g.moveTo(668, 150); g.lineTo(700, 120); g.lineTo(716, 128); g.lineTo(730, 118); g.lineTo(762, 152); g.lineTo(742, 144); g.lineTo(722, 158); g.lineTo(702, 142); g.lineTo(684, 156); g.closePath(); fillS(PAPER, 1.4);
+  g.beginPath(); g.moveTo(0, HY); g.lineTo(90, 190); g.lineTo(190, 215); g.lineTo(280, 180); g.lineTo(400, HY); g.closePath(); fillS(ROKU, 1.8);
+  kasumi(120 + Math.sin(t * .1) * 20, 150, 300, 20); kasumi(520 - Math.sin(t * .13) * 24, 196, 260, 16); kasumi(-40, 226, 240, 14);
+
+  // 海（上端だけ濃いぼかし）
+  g.fillStyle = AI3; g.fillRect(0, HY, LW, LH - HY);
+  gr = g.createLinearGradient(0, HY, 0, HY + 60); gr.addColorStop(0, AI); gr.addColorStop(1, 'rgba(29,60,110,0)'); g.fillStyle = gr; g.fillRect(0, HY, LW, 60);
+  g.strokeStyle = AI; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, HY); g.lineTo(LW, HY); g.stroke();
+  waveRow(310, 14, 90, t * 14, AI3); waveRow(350, 20, 130, -t * 20, AI2);
+
+  // 舟と釣り人
+  g.save(); g.translate(BOAT.x, by); g.rotate(Math.sin(t * 1.4 + 1) * .03);
+  g.beginPath(); g.moveTo(-120, -12); g.quadraticCurveTo(-90, 26, 0, 26); g.quadraticCurveTo(100, 26, 150, -22); g.lineTo(96, -8); g.closePath(); fillS(OUDO, 2.4);
+  g.beginPath(); g.moveTo(-104, 2); g.lineTo(118, 2); outline(1.2);
+  g.beginPath(); g.moveTo(-12, -8); g.quadraticCurveTo(-18, -52, 8, -58); g.quadraticCurveTo(36, -52, 30, -8); g.closePath(); fillS(AI, 2);        // 着物
+  g.beginPath(); g.arc(12, -66, 10, 0, 7); fillS('#e8c8a0', 1.8);
+  g.beginPath(); g.moveTo(-14, -68); g.lineTo(12, -90); g.lineTo(38, -68); g.closePath(); fillS(OUDO, 2);                                         // 笠
+  const pull = state === 'bite' ? Math.sin(st * 30) * 4 : 0;
+  g.beginPath(); g.moveTo(24, -40); g.lineTo(TIP.x - BOAT.x, TIP.y - BOAT.y + pull); g.strokeStyle = SUMI; g.lineWidth = 2.5; g.stroke();        // 竿
+  for (let i = 0; i < catchN % 6; i++) { g.beginPath(); g.ellipse(-80 + i * 14, -4, 9, 5, -.3, 0, 7); fillS(SHU, 1.4); }
+  g.restore();
+
+  // 糸と魚
+  const tipY = TIP.y + bob + (state === 'bite' ? Math.sin(st * 30) * 4 : 0);
+  let hx = 640, hy = 440 + (state === 'bite' ? Math.sin(st * 26) * 6 : Math.sin(t * 2) * 2);
+  if (state === 'fly') { const f = st / 1.1; hx = 640 + (BOAT.x - 60 - 640) * f; hy = 430 + (by - 20 - 430) * f - Math.sin(f * Math.PI) * 190; }
+  g.beginPath(); g.moveTo(TIP.x, tipY); g.quadraticCurveTo((TIP.x + hx) / 2 + (state === 'wait' ? 14 : 0), (tipY + hy) / 2, hx, hy); g.strokeStyle = SUMI; g.lineWidth = 1; g.stroke();
+  if (state === 'fly') {
+    g.save(); g.translate(hx, hy); g.rotate(-1.2 + st * 3);
+    g.beginPath(); g.ellipse(0, 0, 26, 13, 0, 0, 7); fillS(SHU, 2); g.beginPath(); g.moveTo(-22, 0); g.lineTo(-40, -12); g.lineTo(-40, 12); g.closePath(); fillS(SHU, 2);
+    g.beginPath(); g.arc(14, -3, 3, 0, 7); fillS(PAPER, 1.2); g.restore();
+  } else { g.beginPath(); g.arc(hx, 404 + Math.sin(t * 3) * 2, 5, 0, 7); fillS(SHU, 1.4); }
+
+  waveRow(420, 26, 170, t * 26, AI2);
+  // 水の中の魚影
+  for (const f of fishes) {
+    f.x += f.v * dt; if (f.x > LW + 60) f.x = -60; if (f.x < -60) f.x = LW + 60;
+    const d = Math.sign(f.v); g.fillStyle = 'rgba(29,60,110,.55)';
+    g.beginPath(); g.ellipse(f.x, f.y, 22 * f.s, 8 * f.s, 0, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(f.x - d * 18 * f.s, f.y); g.lineTo(f.x - d * 34 * f.s, f.y - 9 * f.s + Math.sin(t * 8 + f.x) * 3); g.lineTo(f.x - d * 34 * f.s, f.y + 9 * f.s); g.fill();
+  }
+  waveRow(500, 34, 220, -t * 34, AI); waveRow(600, 40, 280, t * 44, AI);
+  // 水しぶき
+  for (let i = splash.length - 1; i >= 0; i--) {
+    const p = splash[i]; p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.y > 440) { splash.splice(i, 1); continue; }
+    g.beginPath(); g.arc(p.x, p.y, 4, 0, 7); fillS(PAPER, 1.2);
+  }
+
+  // 題箋と落款
+  g.fillStyle = SHU; g.fillRect(872, 34, 50, 150); g.strokeStyle = SUMI; g.lineWidth = 1.5; g.strokeRect(872, 34, 50, 150);
+  g.fillStyle = PAPER; g.font = '700 26px "Hiragino Mincho ProN","Yu Mincho",serif'; g.textAlign = 'center';
+  ['釣', '果', KANJI[catchN], '尾'].forEach((ch, i) => g.fillText(ch, 897, 68 + i * 34));
+  g.globalCompositeOperation = 'multiply'; g.drawImage(grain, 0, 0, LW, LH); g.globalCompositeOperation = 'source-over';
+  g.strokeStyle = SUMI; g.lineWidth = 3; g.strokeRect(10, 10, LW - 20, LH - 20);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

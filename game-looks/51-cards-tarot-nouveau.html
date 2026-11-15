@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 51 カードバトル アールヌーヴォーのタロット</title>
+<style>
+html,body{margin:0;height:100%;background:#0c1a19;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#c8a04a;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 51 ─ カードバトル / アールヌーヴォーのタロット　｜　見るだけ（1 枚ずつ出して数をくらべる）</div>
+<script>
+// 色は 6 色だけ（生成り・金・深緑・さび赤・オリーブ・焦げ茶の線）。べた塗りに太い輪郭線、
+// 絵の後ろに金の円光、アーチ形の枠、すみに蔓の曲線。影やグラデーションは札には使わない
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const cl = v => Math.max(0, Math.min(1, v)), sm = v => { v = cl(v); return v * v * (3 - 2 * v); };
+const C = { cream: '#f1e3c0', gold: '#c8a04a', teal: '#1f4e4a', rust: '#b5532e', olive: '#7c8a4a', ink: '#2b1f17', blue: '#3d6c8a' };
+const KIND = [['THE SUN', 'rust'], ['THE MOON', 'blue'], ['THE STAR', 'teal'], ['THE CUP', 'olive'], ['THE SWORD', 'rust']];
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+// 背景：深緑に、うすい金のうずまき
+const bg = document.createElement('canvas'); bg.width = LW; bg.height = LH; {
+  const b = bg.getContext('2d'); const gr = b.createRadialGradient(480, 300, 60, 480, 300, 560); gr.addColorStop(0, '#2a5a54'); gr.addColorStop(1, '#122826'); b.fillStyle = gr; b.fillRect(0, 0, LW, LH);
+  b.strokeStyle = 'rgba(200,160,74,.2)'; b.lineWidth = 2;
+  for (let i = 0; i < 16; i++) { const x = hash(i, 1) * LW, y = hash(i, 2) * LH; b.beginPath(); for (let a = 0; a < 9; a += .1) { const r = 6 + a * a * 1.5, px = x + Math.cos(a + i) * r, py = y + Math.sin(a + i) * r; a ? b.lineTo(px, py) : b.moveTo(px, py); } b.stroke(); }
+  b.strokeStyle = C.gold; b.lineWidth = 3; b.strokeRect(14, 14, LW - 28, LH - 28); b.lineWidth = 1; b.strokeRect(22, 22, LW - 44, LH - 44);
+}
+function emblem(k) {
+  g.lineWidth = 2.5; g.strokeStyle = C.ink; g.lineJoin = 'round';
+  if (k === 0) { for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, r = i % 2 ? 22 : 27; g.beginPath(); g.moveTo(Math.cos(a) * 15, Math.sin(a) * 15); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); g.stroke(); } g.beginPath(); g.arc(0, 0, 13, 0, 7); g.fillStyle = C.cream; g.fill(); g.stroke(); }
+  if (k === 1) { g.beginPath(); g.arc(0, 0, 17, 0, 7); g.fillStyle = C.cream; g.fill(); g.stroke(); g.beginPath(); g.arc(8, -4, 13, 0, 7); g.fillStyle = C.gold; g.fill(); }
+  if (k === 2) { g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283 - 1.571, r = i % 2 ? 8 : (i % 4 ? 15 : 22); g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fillStyle = C.cream; g.fill(); g.stroke(); }
+  if (k === 3) { g.beginPath(); g.moveTo(-15, -16); g.lineTo(15, -16); g.quadraticCurveTo(13, 4, 3, 6); g.lineTo(3, 14); g.lineTo(11, 18); g.lineTo(-11, 18); g.lineTo(-3, 14); g.lineTo(-3, 6); g.quadraticCurveTo(-13, 4, -15, -16); g.closePath(); g.fillStyle = C.cream; g.fill(); g.stroke(); }
+  if (k === 4) { g.beginPath(); g.moveTo(0, -24); g.lineTo(4, -16); g.lineTo(4, 8); g.lineTo(13, 8); g.lineTo(13, 13); g.lineTo(3, 13); g.lineTo(3, 22); g.lineTo(-3, 22); g.lineTo(-3, 13); g.lineTo(-13, 13); g.lineTo(-13, 8); g.lineTo(-4, 8); g.lineTo(-4, -16); g.closePath(); g.fillStyle = C.cream; g.fill(); g.stroke(); }
+}
+// f: 0 = 裏、1 = 表。途中は横幅をつぶして「めくる」
+function card(x, y, rot, sc, c, f, glow, alpha) {
+  g.save(); g.globalAlpha = alpha; g.translate(x, y); g.rotate(rot); g.scale(sc * Math.max(.03, Math.abs(Math.cos(f * Math.PI))), sc);
+  if (glow) { g.shadowColor = '#ffd76a'; g.shadowBlur = 50 * glow * S; }
+  g.beginPath(); g.roundRect(-60, -95, 120, 190, 10); g.fillStyle = f > .5 ? C.cream : C.teal; g.fill(); g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = C.ink; g.stroke();
+  g.beginPath(); g.roundRect(-53, -88, 106, 176, 6); g.lineWidth = 1.5; g.strokeStyle = C.gold; g.stroke();
+  if (f > .5) {
+    const [name, col] = KIND[c.k];
+    g.beginPath(); g.moveTo(-42, 58); g.lineTo(-42, -20); g.arc(0, -20, 42, Math.PI, 0); g.lineTo(42, 58); g.closePath(); g.fillStyle = C[col]; g.fill(); g.lineWidth = 2.5; g.strokeStyle = C.ink; g.stroke();
+    g.beginPath(); g.arc(0, -20, 31, 0, 7); g.fillStyle = C.gold; g.fill(); g.stroke();
+    g.lineWidth = 2; g.strokeStyle = g.fillStyle = C.cream;
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(s * 38, 54); g.bezierCurveTo(s * 6, 48, s * 36, 30, s * 14, 24); g.stroke(); g.beginPath(); g.arc(s * 14, 24, 4, 0, 7); g.fill(); g.beginPath(); g.arc(s * 27, 44, 3, 0, 7); g.fill(); }
+    g.save(); g.translate(0, -20); emblem(c.k); g.restore();
+    g.fillStyle = C.ink; g.textAlign = 'center'; g.font = '700 15px Georgia,"Times New Roman",serif'; g.fillText(ROMAN[c.v - 1], 0, -68);
+    g.font = '700 10px Georgia,"Times New Roman",serif'; g.fillText(name, 0, 79); g.fillRect(-36, 64, 72, 1.5);
+  } else {
+    g.save(); g.beginPath(); g.rect(-53, -88, 106, 176); g.clip(); g.strokeStyle = 'rgba(200,160,74,.55)'; g.lineWidth = 1.2; g.beginPath();
+    for (let i = -300; i < 300; i += 18) { g.moveTo(i, -90); g.lineTo(i + 180, 90); g.moveTo(i, 90); g.lineTo(i + 180, -90); } g.stroke(); g.restore();
+    g.beginPath(); g.arc(0, 0, 24, 0, 7); g.fillStyle = C.teal; g.fill(); g.strokeStyle = C.gold; g.lineWidth = 2; g.stroke(); g.save(); g.scale(.7, .7); emblem(2); g.restore();
+  }
+  g.restore();
+}
+const mk = (i, s) => ({ k: Math.floor(hash(i, s) * 5), v: 1 + Math.floor(hash(i, s + 9) * 10) });
+const me = [...Array(5)].map((_, i) => mk(i, 1)), en = [...Array(5)].map((_, i) => mk(i, 2)), score = [0, 0];
+let lastR = 0; const T = 3.6, start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, r = Math.floor(t / T), p = (t % T) / T, idx = r % 5;
+  if (r !== lastR) { const j = lastR % 5; if (me[j].v > en[j].v) score[0]++; else if (me[j].v < en[j].v) score[1]++; me[j] = mk(r, 3); en[j] = mk(r, 4); lastR = r; }
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(bg, 0, 0);
+  for (let i = 0; i < 5; i++) {
+    const o = i - 2, act = i === idx, a = act ? sm(p / .22) : 0, win = me[i].v - en[i].v, res = act ? sm((p - .46) / .12) : 0, out = act ? sm((p - .86) / .12) : 0;
+    for (const top of [1, 0]) {
+      const hx = 480 + o * 100, hy = top ? 78 + o * o * 3 : 524 - o * o * -3 + 0, tx = top ? 590 : 370, lose = (top ? win > 0 : win < 0) || win === 0;
+      const x = hx + (tx - hx) * a, y = hy + (300 - hy) * a + (lose ? res * 26 : 0), sc = .78 + .34 * a + (lose ? 0 : res * .1);
+      card(x, y, (top ? -1 : 1) * o * .07 * (1 - a), sc, top ? en[i] : me[i], top ? (act ? sm((p - .26) / .16) : 0) : 1, lose ? 0 : res, (1 - out) * (lose ? 1 - res * .45 : 1));
+    }
+  }
+  const pw = sm((p - .46) / .1) * (1 - sm((p - .86) / .1)), w = me[idx].v - en[idx].v;
+  g.globalAlpha = pw; g.fillStyle = C.gold; g.textAlign = 'center'; g.font = '700 54px Georgia,"Times New Roman",serif'; g.fillText(w > 0 ? '>' : w < 0 ? '<' : '=', 480, 318); g.globalAlpha = 1;
+  for (let s = 0; s < 2; s++) for (let i = 0; i < 10; i++) { g.beginPath(); g.arc(s ? 900 : 60, s ? 60 + i * 24 : 540 - i * 24, 7, 0, 7); g.strokeStyle = C.gold; g.lineWidth = 1.5; g.stroke(); if (i < score[s] % 11) { g.fillStyle = C.gold; g.fill(); } }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

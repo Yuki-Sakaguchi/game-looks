@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 02 RPG 提灯の夜</title>
+<style>
+html,body{margin:0;height:100%;background:#0b1020;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,150vh);aspect-ratio:3/2;image-rendering:pixelated;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f2e8c9;text-shadow:0 1px 0 #0b1020}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 02 ─ 見下ろしRPG / 提灯の夜　｜　矢印キーか WASD で歩く（放っておくと自動で歩く）</div>
+<script>
+// 昼の色でドット絵を描いてから、画素ごとに「灯りの段数」を計算して夜の色へ塗り替える
+const W = 240, H = 160, T = 16;
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+const out = cv.getContext('2d');
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const sc = mk(W, H), sg = sc.getContext('2d', { willReadFrequently: true });
+const hash = (x, y, s = 0) => { const n = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453; return n - Math.floor(n); };
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + .5) / 16);
+
+// . 草  = 道  ~ 池  T 木  H 家の左上  h 家の残り  L 提灯  F 花
+const MAP = [
+  'TTTTTTTTTTTTTTT',
+  'T....T...~~~~.T',
+  'T.Hh.....~~~~.T',
+  'T.hh.L...~~~L.T',
+  'T..=..........T',
+  'T..=======L...T',
+  'T.....F..=.Hh.T',
+  'T.L......=.hh.T',
+  'T...F....====.T',
+  'TTTTTTTTTTTTTTT'
+];
+const at = (c, r) => (MAP[r] || '')[c] || 'T';
+const solid = (x, y) => 'T~HhL'.includes(at(Math.floor(x / T), Math.floor(y / T)));
+
+// 地面（動かない部分）
+const bg = mk(W, H), bgg = bg.getContext('2d');
+for (let r = 0; r < 10; r++) for (let c = 0; c < 15; c++) {
+  const ch = at(c, r);
+  for (let py = 0; py < T; py++) for (let px = 0; px < T; px++) {
+    const x = c * T + px, y = r * T + py, h = hash(x, y);
+    let col;
+    if (ch === '=') col = h > .88 ? '#dcbd85' : h < .1 ? '#a88a55' : '#c4a36a';
+    else if (ch === '~') col = at(c, r - 1) !== '~' && py < 3 ? '#2c5a96' : '#3a78bd';
+    else col = h > .9 ? '#6fbf58' : h < .1 ? '#3d8044' : '#4f9a4a';
+    bgg.fillStyle = col; bgg.fillRect(x, y, 1, 1);
+  }
+  if (ch === 'F') for (let k = 0; k < 5; k++) {
+    const fx = c * T + 2 + Math.floor(hash(c, r, k) * 12), fy = r * T + 2 + Math.floor(hash(r, c, k + 9) * 12);
+    bgg.fillStyle = k % 2 ? '#ff7aa8' : '#ffe07a'; bgg.fillRect(fx, fy, 2, 2);
+    bgg.fillStyle = '#fff6d8'; bgg.fillRect(fx, fy, 1, 1);
+  }
+}
+
+// 木
+const tree = mk(20, 24), tg = tree.getContext('2d');
+tg.fillStyle = '#5e4027'; tg.fillRect(8, 16, 4, 7);
+for (let y = 0; y < 18; y++) for (let x = 0; x < 20; x++) {
+  const dx = x - 9.5, dy = y - 8.5, d = Math.hypot(dx, dy * 1.05);
+  if (d < 9) {
+    const s = (dx + dy) / 9 + (hash(x, y, 3) - .5) * .5;
+    tg.fillStyle = d > 8 ? '#174f3a' : s < -.45 ? '#63c06a' : s < .35 ? '#34904e' : '#1f6846';
+    tg.fillRect(x, y, 1, 1);
+  }
+}
+
+// 家
+const house = mk(32, 34), hg = house.getContext('2d');
+hg.fillStyle = '#d8c49a'; hg.fillRect(2, 16, 28, 18);
+for (let y = 18; y < 34; y++) for (let x = 2; x < 30; x++) if (hash(x, y, 5) > .9) { hg.fillStyle = '#c4af85'; hg.fillRect(x, y, 1, 1); }
+hg.fillStyle = '#b9a47c'; hg.fillRect(2, 32, 28, 2);
+for (let y = 2; y < 18; y++) {
+  const x0 = Math.max(0, 6 - (y - 2));
+  hg.fillStyle = y === 2 ? '#d86a55' : y % 4 === 1 ? '#8a2f33' : '#b8463f';
+  hg.fillRect(x0, y, 32 - 2 * x0, 1);
+}
+hg.fillStyle = '#9c8763'; hg.fillRect(2, 18, 28, 2);
+hg.fillStyle = '#7a6a5e'; hg.fillRect(22, 0, 4, 7);
+hg.fillStyle = '#5e4027'; hg.fillRect(13, 23, 7, 11);
+hg.fillStyle = '#e0b060'; hg.fillRect(18, 28, 1, 1);
+hg.fillStyle = '#3a2a20'; hg.fillRect(5, 22, 7, 7);
+
+// 地図から物を拾う
+const props = [], lanterns = [], windows = [];
+for (let r = 0; r < 10; r++) for (let c = 0; c < 15; c++) {
+  const ch = at(c, r), x = c * T, y = r * T;
+  if (ch === 'T') props.push({ base: y + 16, draw: g => g.drawImage(tree, x - 2, y - 8) });
+  if (ch === 'H') { props.push({ base: y + 32, draw: g => g.drawImage(house, x, y - 2) }); windows.push({ x: x + 6, y: y + 21 }); }
+  if (ch === 'L') {
+    props.push({ base: y + 16, draw: g => { g.fillStyle = '#2e2838'; g.fillRect(x + 7, y + 4, 2, 12); g.fillRect(x + 5, y - 1, 6, 7); } });
+    lanterns.push({ x: x + 6, y: y });
+  }
+}
+
+function chr(g, x, y, f, c, up) {
+  x = Math.round(x); y = Math.round(y);
+  g.fillStyle = 'rgba(20,30,40,.35)'; g.fillRect(x - 4, y - 1, 8, 2);
+  g.fillStyle = c.leg; g.fillRect(x - 3, y - 3 - (f ? 1 : 0), 2, 3); g.fillRect(x + 1, y - 3 - (f ? 0 : 1), 2, 3);
+  g.fillStyle = c.body; g.fillRect(x - 4, y - 9, 8, 6);
+  g.fillStyle = c.trim; g.fillRect(x - 4, y - 5, 8, 1);
+  g.fillStyle = '#f2c9a0'; g.fillRect(x - 3, y - 14, 6, 5);
+  g.fillStyle = c.hair; g.fillRect(x - 4, y - 16, 8, 3); g.fillRect(x - 4, y - 13, 1, 2); g.fillRect(x + 3, y - 13, 1, 2);
+  if (up) g.fillRect(x - 3, y - 13, 6, 3);
+  else { g.fillStyle = '#2a2030'; g.fillRect(x - 2, y - 12, 1, 2); g.fillRect(x + 1, y - 12, 1, 2); }
+}
+
+const pt = (c, r) => ({ x: c * T + 8, y: r * T + 12 });
+const route = [pt(3, 4), pt(3, 5), pt(9, 5), pt(9, 8), pt(12, 8)];
+const hero = { ...pt(3, 4), i: 1, dir: 1, up: false, moving: false, col: { body: '#d9483b', trim: '#f2d06b', leg: '#3a3550', hair: '#4a2f22' } };
+const npcs = [
+  { a: pt(6, 2), b: { x: 8 * T, y: 4 * T + 8 }, k: 0, wait: 0, col: { body: '#4f78c8', trim: '#dfe8ff', leg: '#2e3350', hair: '#e0c070' } },
+  { a: pt(4, 7), b: pt(7, 6), k: .5, wait: 0, col: { body: '#7a4fb0', trim: '#f0b0d0', leg: '#3a2a40', hair: '#2a2030' } }
+];
+for (const n of npcs) { n.x = n.a.x; n.y = n.a.y; n.to = 1; n.up = false; n.moving = false; }
+const flies = [...Array(14)].map((_, i) => ({ x: 20 + hash(i, 1) * 200, y: 24 + hash(i, 2) * 112, p: i * 1.7 }));
+
+const keys = {}; let lastKey = -9;
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (e.key.startsWith('Arrow')) e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+function step(o, tx, ty, sp, dt) {
+  const dx = tx - o.x, dy = ty - o.y, d = Math.hypot(dx, dy);
+  if (d < 1) return true;
+  o.x += dx / d * sp * dt; o.y += dy / d * sp * dt; o.up = dy < -Math.abs(dx); o.moving = true;
+  return false;
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+
+  // 主人公
+  const kx = (keys.arrowright || keys.d ? 1 : 0) - (keys.arrowleft || keys.a ? 1 : 0);
+  const ky = (keys.arrowdown || keys.s ? 1 : 0) - (keys.arrowup || keys.w ? 1 : 0);
+  hero.moving = false;
+  if (kx || ky) {
+    lastKey = t;
+    const nx = hero.x + kx * 40 * dt, ny = hero.y + ky * 40 * dt;
+    if (!solid(nx, hero.y)) hero.x = nx;
+    if (!solid(hero.x, ny)) hero.y = ny;
+    hero.up = ky < 0; hero.moving = true;
+  } else if (t - lastKey > 3) {
+    if (step(hero, route[hero.i].x, route[hero.i].y, 26, dt)) {
+      if (hero.i + hero.dir < 0 || hero.i + hero.dir >= route.length) hero.dir *= -1;
+      hero.i += hero.dir;
+    }
+  }
+  for (const n of npcs) {
+    n.moving = false;
+    if (n.wait > 0) { n.wait -= dt; continue; }
+    const g = n.to ? n.b : n.a;
+    if (step(n, g.x, g.y, 14, dt)) { n.to ^= 1; n.wait = 1.5 + n.k * 2; }
+  }
+
+  // 昼の色で場面を描く
+  sg.drawImage(bg, 0, 0);
+  for (let r = 0; r < 10; r++) for (let c = 0; c < 15; c++) if (at(c, r) === '~') for (let k = 0; k < 3; k++) {
+    const x = c * T + Math.floor((hash(c, r, k) * 16 + t * 4 * (k + 1)) % 13), y = r * T + 4 + k * 4 + (r + c + k) % 2;
+    sg.fillStyle = '#7fb6e6'; sg.fillRect(x, y, 3, 1);
+  }
+  const f = t * 6 % 2 < 1;
+  const list = props.concat(
+    [{ base: hero.y, draw: g => chr(g, hero.x, hero.y, hero.moving && f, hero.col, hero.up) }],
+    npcs.map(n => ({ base: n.y, draw: g => chr(g, n.x, n.y, n.moving && f, n.col, n.up) }))
+  ).sort((a, b) => a.base - b.base);
+  for (const o of list) o.draw(sg);
+
+  // 灯りを集める
+  const lights = [];
+  const add = (x, y, r, i) => lights.push({ x, y, r, r2: r * r, i });
+  lanterns.forEach((l, k) => add(l.x + 2, l.y + 11, 46, 1 + .06 * Math.sin(t * 11 + k * 2) + .04 * Math.sin(t * 23 + k)));
+  windows.forEach((w, k) => add(w.x + 2.5, w.y + 6, 26, .8 + .05 * Math.sin(t * 7 + k)));
+  add(hero.x + 5, hero.y - 4, 34, .85 + .05 * Math.sin(t * 13));
+  for (const fl of flies) {
+    fl.cx = fl.x + Math.sin(t * .7 + fl.p) * 10; fl.cy = fl.y + Math.cos(t * .9 + fl.p * 2) * 6; fl.b = Math.sin(t * 2 + fl.p);
+    if (fl.b > 0) add(fl.cx, fl.cy, 11, .55 * fl.b);
+  }
+
+  // 明るさを 5 段に切り、段の境目をディザで混ぜて、青い夜色から暖色へ塗り替える
+  const img = sg.getImageData(0, 0, W, H), d = img.data;
+  for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i += 4) {
+    let L = 0;
+    for (let k = 0; k < lights.length; k++) {
+      const l = lights[k], dx = x - l.x, dy = (y - l.y) * 1.25, q = dx * dx + dy * dy;
+      if (q < l.r2) { const a = 1 - Math.sqrt(q) / l.r; L += a * a * l.i; }
+    }
+    const k = Math.min(5, Math.floor(Math.min(L, .999) * 5 + BAY[(y & 3) * 4 + (x & 3)])) / 5;
+    d[i] *= .2 + 1.05 * k; d[i + 1] *= .3 + .72 * k; d[i + 2] *= .66 + .06 * k;
+  }
+  out.putImageData(img, 0, 0);
+
+  // 光るものは塗り替えのあとに重ねる
+  lanterns.forEach((l, k) => {
+    out.fillStyle = '#ffd76b'; out.fillRect(l.x, l.y, 4, 4);
+    out.fillStyle = '#fff6c8'; out.fillRect(l.x + 1 + (Math.sin(t * 9 + k) > 0 ? 1 : 0), l.y + 1, 1, 2);
+  });
+  for (const w of windows) {
+    out.fillStyle = '#ffd76b'; out.fillRect(w.x, w.y, 5, 5);
+    out.fillStyle = '#b8742a'; out.fillRect(w.x + 2, w.y, 1, 5); out.fillRect(w.x, w.y + 2, 5, 1);
+  }
+  out.fillStyle = '#ffe9a0'; out.fillRect(Math.round(hero.x) + 5, Math.round(hero.y) - 7, 2, 2);
+  for (const fl of flies) if (fl.b > 0) {
+    const x = Math.round(fl.cx), y = Math.round(fl.cy);
+    out.fillStyle = '#d9ff8a'; out.fillRect(x, y, 1, 1);
+    if (fl.b > .7) { out.fillStyle = '#7fbf5a'; out.fillRect(x - 1, y, 1, 1); out.fillRect(x + 1, y, 1, 1); out.fillRect(x, y - 1, 1, 1); out.fillRect(x, y + 1, 1, 1); }
+  }
+  // 池に映る月
+  out.fillStyle = '#cfe0ff';
+  for (let k = 0; k < 6; k++) {
+    const w = [2, 4, 6, 6, 4, 2][k], x = 11 * T - w / 2 + Math.round(Math.sin(t * 2.5 + k * 1.3) * 1.5);
+    out.fillRect(Math.round(x), 2 * T + 2 + k * 2, w, 1);
+  }
+  // 煙突の煙
+  for (let k = 0; k < 5; k++) {
+    const a = (t * .35 + k / 5) % 1, s = 2 + Math.floor(a * 4);
+    const x = Math.round(2 * T + 23 + Math.sin(a * 6 + k) * 3 + a * 8), y = Math.round(2 * T - 3 - a * 24);
+    out.fillStyle = a < .5 ? '#9aa6dc' : '#6a76b4';
+    for (let py = 0; py < s; py++) for (let px = 0; px < s; px++) if (a < .4 || (px + py + k) % 2 === 0) out.fillRect(x + px, y + py, 1, 1);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

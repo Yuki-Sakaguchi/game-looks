@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 07 パズル ステンドグラス</title>
+<style>
+html,body{margin:0;height:100%;background:#0d0b14;overflow:hidden;display:grid;place-items:center}
+canvas{height:100vh;max-width:100vw;aspect-ratio:2/3;display:block;cursor:pointer}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8dcc0}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 07 ─ 落ちものパズル / ステンドグラス　｜　列をクリックで次の1枚を落とす（放っておくと自動）</div>
+<script>
+// 暗い聖堂の窓。ガラスは色のグラデーションと面のむら、間は黒い鉛の線。
+// 同じ絵を 1/16 に縮めて加算で重ねると光のにじみになり、上下反転して床に置くと映り込みになる
+const LW = 480, LH = 720, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const small = document.createElement('canvas'); small.width = LW / 16; small.height = LH / 16;
+const sg = small.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+
+const COLS = 7, ROWS = 9, C = 40, X0 = 100, YB = 560, YT = YB - ROWS * C, R = COLS * C / 2, CX = X0 + R;
+const PAL = [['#ff5a6e', '#a8182c'], ['#5a8cff', '#1c3aa8'], ['#4fd68a', '#157a44'], ['#ffd060', '#d08010'], ['#b47aff', '#5a28a8']];
+
+// 少しゆがめた格子の交点（外周はまっすぐ）
+const V = [];
+for (let i = 0; i <= COLS; i++) {
+  V.push([]);
+  for (let j = 0; j <= ROWS; j++) {
+    const inner = i > 0 && i < COLS && j > 0 && j < ROWS;
+    V[i].push({ x: X0 + i * C + (inner ? (hash(i, j) - .5) * 11 : 0), y: YB - j * C + (inner ? (hash(j, i + 5) - .5) * 11 : 0) });
+  }
+}
+const corners = (c, r) => [V[c][r], V[c + 1][r], V[c + 1][r + 1], V[c][r + 1]];
+function quad(x, c, r, off) {
+  const q = corners(c, r);
+  x.beginPath(); q.forEach((p, i) => i ? x.lineTo(p.x, p.y - off) : x.moveTo(p.x, p.y - off)); x.closePath();
+}
+function wedge(x, k) {
+  const a0 = Math.PI + k * Math.PI / 7, a1 = a0 + Math.PI / 7;
+  x.beginPath(); x.arc(CX, YT, R, a0, a1); x.arc(CX, YT, 46, a1, a0, true); x.closePath();
+}
+function frameShape(x) { x.beginPath(); x.moveTo(X0, YB); x.lineTo(X0, YT); x.arc(CX, YT, R, Math.PI, 0); x.lineTo(X0 + COLS * C, YB); x.closePath(); }
+
+const grid = [...Array(COLS)].map(() => Array(ROWS).fill(null));
+const heightOf = c => grid[c].filter(Boolean).length;
+const shards = [], flashes = [];
+let piece = null, wait = .4, wantCol = null;
+
+function shatter(c, r) {
+  const col = grid[c][r].col, q = corners(c, r), cx = (q[0].x + q[2].x) / 2, cy = (q[0].y + q[2].y) / 2;
+  flashes.push({ c, r, a: 1 });
+  for (let i = 0; i < 6; i++) shards.push({ x: cx + (Math.random() - .5) * 26, y: cy + (Math.random() - .5) * 26, vx: (Math.random() - .5) * 200, vy: -60 - Math.random() * 160, rot: Math.random() * 6, vr: (Math.random() - .5) * 12, life: 1, col, s: 5 + Math.random() * 8 });
+  grid[c][r] = null;
+}
+function collapse() {
+  for (const col of grid) {
+    let w = 0;
+    for (let r = 0; r < ROWS; r++) if (col[r]) { if (r !== w) { col[r].off += (r - w) * C; col[w] = col[r]; col[r] = null; } w++; }
+  }
+}
+function settle() {
+  for (let again = true; again;) {
+    again = false; const seen = new Set();
+    for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) {
+      if (!grid[c][r] || seen.has(c * 99 + r)) continue;
+      const col = grid[c][r].col, group = [], stack = [[c, r]];
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS || !grid[x][y] || grid[x][y].col !== col || seen.has(x * 99 + y)) continue;
+        seen.add(x * 99 + y); group.push([x, y]); stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+      if (group.length >= 3) { group.forEach(([x, y]) => shatter(x, y)); again = true; }
+    }
+    if (again) collapse();
+  }
+}
+function spawn() {
+  if (Math.max(...grid.map((_, c) => heightOf(c))) >= ROWS - 1) {
+    // あふれそうなら、いちばん多い色をまとめて割る
+    const n = [0, 0, 0, 0, 0]; grid.flat().forEach(p => p && n[p.col]++);
+    const k = n.indexOf(Math.max(...n));
+    for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) if (grid[c][r] && grid[c][r].col === k) shatter(c, r);
+    collapse(); settle();
+  }
+  const col = Math.floor(Math.random() * 5);
+  let c = wantCol; wantCol = null;
+  if (c === null || heightOf(c) >= ROWS) {
+    let best = -1; c = 0;
+    for (let x = 0; x < COLS; x++) {
+      const h = heightOf(x); if (h >= ROWS) continue;
+      const same = (a, b) => a >= 0 && a < COLS && b >= 0 && grid[a][b] && grid[a][b].col === col ? 1 : 0;
+      const sc = (Math.random() < .25 ? Math.random() * 3 : same(x - 1, h) + same(x + 1, h) + same(x, h - 1)) + Math.random() * .5;
+      if (sc > best) { best = sc; c = x; }
+    }
+  }
+  piece = { c, col, off: (ROWS - heightOf(c)) * C + 30, vy: 0 };
+}
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * LW;
+  const c = Math.floor((x - X0) / C); if (c >= 0 && c < COLS) wantCol = c;
+});
+
+function glass(c, r, col, off, t) {
+  const q = corners(c, r);
+  const gr = g.createLinearGradient(q[3].x, q[3].y - off, q[1].x, q[1].y - off);
+  gr.addColorStop(0, PAL[col][0]); gr.addColorStop(1, PAL[col][1]);
+  quad(g, c, r, off); g.fillStyle = gr; g.fill();
+  // 面のむら（1 枚の中に明るい三角と暗い三角）
+  const mx = (q[0].x + q[2].x) / 2 + (hash(c, r + 20) - .5) * 14, my = (q[0].y + q[2].y) / 2 - off + (hash(r, c + 30) - .5) * 14;
+  for (let k = 0; k < 2; k++) {
+    const a = q[(k * 2 + (c + r) % 2) % 4], b = q[(k * 2 + 1 + (c + r) % 2) % 4];
+    g.beginPath(); g.moveTo(a.x, a.y - off); g.lineTo(b.x, b.y - off); g.lineTo(mx, my); g.closePath();
+    g.fillStyle = k ? 'rgba(0,0,20,.16)' : 'rgba(255,255,255,.13)'; g.fill();
+  }
+  // 雲の切れ間のように窓を横切る光
+  const light = .5 + .5 * Math.sin(t * .6 - (q[0].x + q[0].y) * .012);
+  quad(g, c, r, off); g.fillStyle = `rgba(255,250,220,${(light * .2).toFixed(3)})`; g.fill();
+}
+function lead(w, color) { g.lineWidth = w; g.strokeStyle = color; g.lineJoin = 'round'; g.stroke(); }
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+
+  // 進行
+  if (piece) {
+    piece.vy += 1500 * dt; piece.off -= piece.vy * dt;
+    if (piece.off <= 0) { grid[piece.c][heightOf(piece.c)] = { col: piece.col, off: 0, vy: 0 }; piece = null; wait = .28; settle(); }
+  } else if ((wait -= dt) <= 0) spawn();
+  for (const p of grid.flat()) if (p && p.off > 0) { p.vy += 1200 * dt; p.off -= p.vy * dt; if (p.off <= 0) { p.off = 0; p.vy = 0; } }
+
+  const panes = [];
+  for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) if (grid[c][r]) panes.push([c, r, grid[c][r].col, grid[c][r].off]);
+  if (piece) panes.push([piece.c, heightOf(piece.c), piece.col, piece.off]);
+
+  // にじみ用の小さな絵
+  sg.setTransform(1 / 16, 0, 0, 1 / 16, 0, 0); sg.clearRect(0, 0, LW, LH);
+  for (let k = 0; k < 7; k++) { wedge(sg, k); sg.fillStyle = PAL[k % 5][0]; sg.fill(); }
+  sg.beginPath(); sg.arc(CX, YT, 46, Math.PI, 0); sg.fillStyle = PAL[3][0]; sg.fill();
+  for (const [c, r, col, off] of panes) { quad(sg, c, r, off); sg.fillStyle = PAL[col][0]; sg.fill(); }
+
+  // 壁
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  const wall = g.createLinearGradient(0, 0, 0, LH); wall.addColorStop(0, '#0d0b14'); wall.addColorStop(.8, '#16131f'); wall.addColorStop(1, '#0d0b14');
+  g.fillStyle = wall; g.fillRect(0, 0, LW, LH);
+  frameShape(g); g.fillStyle = '#12101a'; g.fill();
+
+  // 窓の上の半円（固定の飾り）
+  g.save(); frameShape(g); g.clip();
+  for (let k = 0; k < 7; k++) {
+    wedge(g, k);
+    const gr = g.createRadialGradient(CX, YT, 46, CX, YT, R); gr.addColorStop(0, PAL[k % 5][0]); gr.addColorStop(1, PAL[k % 5][1]);
+    g.fillStyle = gr; g.fill();
+    g.fillStyle = `rgba(255,250,220,${(.1 + .1 * Math.sin(t * .6 + k)).toFixed(3)})`; g.fill();
+  }
+  g.beginPath(); g.arc(CX, YT, 46, Math.PI, 0); g.closePath();
+  const rg = g.createRadialGradient(CX, YT, 4, CX, YT, 46); rg.addColorStop(0, '#fff2b0'); rg.addColorStop(1, PAL[3][1]); g.fillStyle = rg; g.fill();
+
+  // ガラス
+  for (const [c, r, col, off] of panes) glass(c, r, col, off, t);
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    const f = flashes[i]; f.a -= dt * 5; if (f.a <= 0) { flashes.splice(i, 1); continue; }
+    quad(g, f.c, f.r, 0); g.fillStyle = `rgba(255,255,255,${f.a.toFixed(3)})`; g.fill();
+  }
+
+  // 鉛の線（空の枠は細く、ガラスの周りは太く。線の上に細いつやを 1 本）
+  for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) { quad(g, c, r, 0); lead(1.2, '#2a2634'); }
+  for (const [c, r, , off] of panes) { quad(g, c, r, off); lead(4.5, '#0f0d16'); lead(.8, '#565068'); }
+  for (let k = 0; k < 7; k++) { wedge(g, k); lead(4.5, '#0f0d16'); lead(.8, '#565068'); }
+  g.beginPath(); g.arc(CX, YT, 46, Math.PI, 0); lead(4.5, '#0f0d16');
+  g.beginPath(); g.moveTo(X0, YT); g.lineTo(X0 + COLS * C, YT); lead(5, '#0f0d16');
+  g.restore();
+
+  // 石の枠と窓台
+  frameShape(g); lead(14, '#2b2634'); lead(2, '#443d52');
+  g.fillStyle = '#2b2634'; g.fillRect(X0 - 18, YB, COLS * C + 36, 13);
+  g.fillStyle = '#443d52'; g.fillRect(X0 - 18, YB, COLS * C + 36, 2);
+
+  // 光のにじみと、床への映り込み
+  g.globalCompositeOperation = 'lighter'; g.imageSmoothingEnabled = true;
+  g.globalAlpha = .5; g.drawImage(small, 0, 0, LW, LH);
+  g.save(); g.translate(0, YB + 22); g.scale(1, -.36); g.globalAlpha = .5; g.drawImage(small, 0, -YB, LW, LH); g.restore();
+
+  // 割れた破片
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const s = shards[i]; s.life -= dt; if (s.life <= 0) { shards.splice(i, 1); continue; }
+    s.vy += 600 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.vr * dt;
+    g.save(); g.translate(s.x, s.y); g.rotate(s.rot); g.globalAlpha = Math.min(1, s.life * 1.5);
+    g.beginPath(); g.moveTo(0, -s.s); g.lineTo(s.s * .8, s.s * .6); g.lineTo(-s.s * .7, s.s * .4); g.closePath();
+    g.fillStyle = PAL[s.col][0]; g.fill(); g.restore();
+  }
+  // 光の中の塵
+  g.fillStyle = '#fff2c8';
+  for (let i = 0; i < 46; i++) {
+    const x = 70 + hash(i, 1) * 340 + Math.sin(t * .3 + i) * 12, y = (hash(i, 2) * 620 + t * (6 + hash(i, 3) * 10)) % 640 + 40;
+    g.globalAlpha = .12 + .2 * Math.max(0, Math.sin(t * 1.5 + i * 2.3));
+    g.beginPath(); g.arc(x, y, .8 + hash(i, 4), 0, 7); g.fill();
+  }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

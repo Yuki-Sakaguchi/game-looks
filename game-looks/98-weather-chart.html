@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 98 天気パズル 天気図</title>
+<style>
+html,body{margin:0;height:100%;background:#d8dde0;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1c2a4a;background:#f4f6f2;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 98 ─ 天気パズル / 天気図　｜　見るだけ（高気圧と低気圧が動き、町の天気が変わる）</div>
+<script>
+// 天気を絵ではなく「天気図」の記号だけで見せる。気圧の場を式で作り、4 hPa ごとの等圧線を
+// ます目ごとに線分をつないで毎コマ引きなおす。低気圧からは寒冷前線（青・三角）と温暖前線（赤・半円）がのび、
+// 風の矢羽根は等圧線にそって向く。色は紺・赤・うすい陸の色だけ。町の印は真上の気圧で晴れ・くもり・雨に変わる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const NAVY = '#1c2a5a', RED = '#c8322a', SANS = '"Helvetica Neue",Arial,sans-serif', CELL = 16, NX = LW / CELL, NY = Math.ceil(LH / CELL);
+const base = document.createElement('canvas'); base.width = LW * S; base.height = LH * S; {
+  const b = base.getContext('2d'); b.setTransform(S, 0, 0, S, 0, 0); b.fillStyle = '#eaf1f4'; b.fillRect(0, 0, LW, LH);
+  b.strokeStyle = 'rgba(28,42,90,.22)'; b.lineWidth = .7; b.setLineDash([2, 5]); b.beginPath(); for (let x = 60; x < LW; x += 120) { b.moveTo(x, 0); b.quadraticCurveTo(x + 14, 300, x, LH); } for (let y = 50; y < LH; y += 100) { b.moveTo(0, y); b.quadraticCurveTo(480, y + 16, LW, y); } b.stroke(); b.setLineDash([]);
+  for (const [cx, cy, r, sd] of [[330, 300, 150, 1], [650, 210, 90, 2], [720, 430, 60, 3], [150, 120, 50, 4]]) { b.beginPath(); for (let i = 0; i <= 60; i++) { const a = i / 60 * 6.283, rr = r * (1 + .22 * Math.sin(a * 3 + sd) + .12 * Math.sin(a * 7 + sd * 2) + .06 * Math.sin(a * 13 + sd)); b.lineTo(cx + Math.cos(a) * rr * 1.3, cy + Math.sin(a) * rr * .85); } b.closePath(); b.fillStyle = '#f3efdc'; b.fill(); b.strokeStyle = 'rgba(60,70,60,.7)'; b.lineWidth = 1.1; b.stroke(); }
+}
+const CITY = [[300, 250, 'ARDE'], [400, 350, 'MOLN'], [650, 210, 'TESK'], [720, 430, 'OUVA'], [150, 120, 'RIN']];
+const sys = t => [{ x: 480 + Math.cos(t * .11) * 300, y: 300 + Math.sin(t * .17) * 160, p: -26, r: 150, low: 1 }, { x: 480 + Math.cos(t * .09 + 2.6) * 320, y: 300 + Math.sin(t * .13 + 1.4) * 170, p: 20, r: 210 }, { x: 480 + Math.cos(t * .07 + 4.6) * 330, y: 290 + Math.sin(t * .1 + 4) * 190, p: -14, r: 120, low: 1 }, { x: 480 + Math.cos(t * .06 + 1) * 280, y: 300 + Math.sin(t * .15 + 3) * 200, p: 13, r: 170 }];
+const P = (x, y, ss) => { let v = 1012 + (y - 300) * .012; for (const s of ss) { const d2 = (x - s.x) ** 2 + (y - s.y) ** 2; v += s.p * Math.exp(-d2 / (2 * s.r * s.r)); } return v; };
+const grid = new Float32Array((NX + 1) * (NY + 1));
+function icon(x, y, p) { g.strokeStyle = g.fillStyle = NAVY; g.lineWidth = 1.6;
+  if (p > 1017) { g.beginPath(); g.arc(x, y, 6, 0, 7); g.stroke(); g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * .785; g.moveTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9); g.lineTo(x + Math.cos(a) * 13, y + Math.sin(a) * 13); } g.stroke(); }
+  else { g.beginPath(); g.arc(x - 5, y, 5, 0, 7); g.arc(x + 2, y - 3, 6.5, 0, 7); g.arc(x + 8, y + 1, 4.5, 0, 7); g.fill(); if (p < 1005) { g.beginPath(); for (const k of [-6, 0, 6]) { g.moveTo(x + k + 2, y + 8); g.lineTo(x + k - 1, y + 15); } g.stroke(); } } }
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, ss = sys(t);
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(base, 0, 0, LW, LH);
+  for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) grid[j * (NX + 1) + i] = P(i * CELL, j * CELL, ss);
+  // 等圧線：ます目の 4 すみを比べて線分をつなぐ
+  for (let lv = 984; lv <= 1036; lv += 4) { g.strokeStyle = NAVY; g.lineWidth = lv % 20 === 0 ? 2 : 1; g.beginPath();
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const k = j * (NX + 1) + i, a = grid[k], b = grid[k + 1], c = grid[k + NX + 2], d = grid[k + NX + 1], pts = [], x = i * CELL, y = j * CELL;
+      if ((a < lv) !== (b < lv)) pts.push([x + (lv - a) / (b - a) * CELL, y]); if ((b < lv) !== (c < lv)) pts.push([x + CELL, y + (lv - b) / (c - b) * CELL]); if ((d < lv) !== (c < lv)) pts.push([x + (lv - d) / (c - d) * CELL, y + CELL]); if ((a < lv) !== (d < lv)) pts.push([x, y + (lv - a) / (d - a) * CELL]);
+      if (pts.length >= 2) { g.moveTo(pts[0][0], pts[0][1]); g.lineTo(pts[1][0], pts[1][1]); if (pts.length === 4) { g.moveTo(pts[2][0], pts[2][1]); g.lineTo(pts[3][0], pts[3][1]); } } }
+    g.stroke();
+    // 等圧線の数字（決まった 2 本の縦の列を横切る所に置く）
+    g.font = `10px ${SANS}`; g.textAlign = 'center'; for (const ci of [14, 44]) for (let j = 2; j < NY - 2; j++) { const a = grid[j * (NX + 1) + ci], d = grid[(j + 1) * (NX + 1) + ci]; if ((a < lv) !== (d < lv)) { const y = j * CELL + (lv - a) / (d - a) * CELL; g.fillStyle = '#eef3f2'; g.fillRect(ci * CELL - 14, y - 6, 28, 12); g.fillStyle = NAVY; g.fillText(String(lv), ci * CELL, y + 3.5); } } }
+  // 風の矢羽根：等圧線にそった向き（低気圧のまわりは反時計回り）
+  g.strokeStyle = 'rgba(28,42,90,.75)'; g.lineWidth = 1.2; for (let y = 70; y < LH; y += 96) for (let x = 80 + (Math.round(y / 96) % 2) * 48; x < LW; x += 96) { const gx = P(x + 6, y, ss) - P(x - 6, y, ss), gy = P(x, y + 6, ss) - P(x, y - 6, ss), m = Math.hypot(gx, gy), a = Math.atan2(-gx, gy), n = Math.min(4, Math.floor(m * 5));
+    g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.arc(0, 0, 3, 0, 7); g.moveTo(3, 0); g.lineTo(26, 0); for (let k = 0; k < n; k++) { g.moveTo(26 - k * 5, 0); g.lineTo(31 - k * 5, -8); } g.stroke(); g.restore(); }
+  // 前線と、H / L の印
+  for (const s of ss) {
+    if (s.low) { const rot = t * .12; const front = (a0, len, bend, col, tri) => { const pts = []; for (let k = 0; k <= 20; k++) { const u = k / 20, a = a0 + rot + u * bend, r = 14 + u * len; pts.push([s.x + Math.cos(a) * r, s.y + Math.sin(a) * r]); } g.strokeStyle = g.fillStyle = col; g.lineWidth = 2.6; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
+          for (let k = 2; k < 20; k += 3) { const p = pts[k], q = pts[k + 1], an = Math.atan2(q[1] - p[1], q[0] - p[0]); g.save(); g.translate(p[0], p[1]); g.rotate(an); g.beginPath(); if (tri) { g.moveTo(-6, 0); g.lineTo(0, -10); g.lineTo(6, 0); } else g.arc(0, 0, 6, Math.PI, 0); g.fill(); g.restore(); } };
+      front(1.9, s.r * 1.25, 1, '#2456c8', true); front(.2, s.r * .95, -.7, RED, false); }
+    g.font = `900 30px ${SANS}`; g.textAlign = 'center'; g.fillStyle = '#eef3f2'; g.beginPath(); g.arc(s.x, s.y - 2, 19, 0, 7); g.fill(); g.fillStyle = s.low ? RED : '#2456c8'; g.fillText(s.low ? 'L' : 'H', s.x, s.y + 9); g.font = `700 11px ${SANS}`; g.fillStyle = NAVY; g.fillText(P(s.x, s.y, ss).toFixed(0), s.x, s.y + 26); }
+  // 町
+  for (const [x, y, name] of CITY) { const p = P(x, y, ss); g.fillStyle = '#fff'; g.strokeStyle = NAVY; g.lineWidth = 1.4; g.beginPath(); g.roundRect(x - 34, y - 46, 68, 34, 5); g.fill(); g.stroke(); icon(x - 14, y - 30, p); g.fillStyle = NAVY; g.font = `700 10px ${SANS}`; g.textAlign = 'left'; g.fillText(name, x, y - 32); g.font = `10px ${SANS}`; g.fillText(p.toFixed(0), x, y - 20); g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); g.beginPath(); g.moveTo(x, y - 12); g.lineTo(x, y); g.stroke(); }
+  g.fillStyle = '#fff'; g.fillRect(16, LH - 76, 250, 38); g.strokeStyle = NAVY; g.lineWidth = 1.2; g.strokeRect(16, LH - 76, 250, 38); g.fillStyle = NAVY; g.textAlign = 'left'; g.font = `700 13px ${SANS}`; g.fillText('SURFACE ANALYSIS  No. 98', 26, LH - 60); g.font = `11px ${SANS}`; const h = Math.floor(t * 1.2) % 24; g.fillText('VALID ' + String(h).padStart(2, '0') + '00 UTC   ISOBARS EVERY 4 hPa', 26, LH - 45);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

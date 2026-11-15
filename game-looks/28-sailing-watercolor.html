@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 28 航海 水彩</title>
+<style>
+html,body{margin:0;height:100%;background:#3a3632;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f7f3e8;background:#3a3632;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 28 ─ 帆船の航海 / 水彩　｜　見るだけ（島をめぐる）</div>
+<script>
+// 水彩の決まりごと: 色は紙に「乗算」で薄く重ねる（重なった所だけ濃くなる）、広い面は小さく描いて拡大し、ふちをにじませる、
+// 塗りのふちは少し濃く、鉛筆の下描きは塗りと少しずれる、白は塗らずに紙を残す。1 秒に 6 回だけ描き直して手描きのゆれを出す
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), HY = 300;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const soft = document.createElement('canvas'); soft.width = LW / 8; soft.height = LH / 8; const sg = soft.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+
+// 紙の目と、絵の具の粒
+const grain = document.createElement('canvas'); grain.width = LW * S; grain.height = LH * S;
+{
+  const x = grain.getContext('2d'), im = x.createImageData(grain.width, grain.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { const px = (i / 4) % grain.width, py = Math.floor(i / 4 / grain.width); const v = 247 + 8 * Math.sin(px * .9) * Math.sin(py * .9) - Math.random() * 14; d[i] = d[i + 1] = v; d[i + 2] = v - 4; d[i + 3] = 255; }
+  x.putImageData(im, 0, 0);
+}
+let boil = 0;
+const J = (seed, amp) => (hash(seed, boil) - .5) * amp;
+// 塗り（ふちを少し濃く）と鉛筆線
+function wash(pts, color, a = .5, seed = 0) {
+  g.beginPath(); pts.forEach((p, i) => { const x = p[0] + J(seed + i, 3), y = p[1] + J(seed + i + 50, 3); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+  g.fillStyle = color; g.globalAlpha = a; g.fill(); g.strokeStyle = color; g.globalAlpha = a * .7; g.lineWidth = 2.2; g.lineJoin = 'round'; g.stroke(); g.globalAlpha = 1;
+}
+function pencil(pts, seed = 0, close = true) {
+  g.beginPath(); pts.forEach((p, i) => { const x = p[0] + 3 + J(seed + i + 9, 2), y = p[1] - 2 + J(seed + i + 70, 2); i ? g.lineTo(x, y) : g.moveTo(x, y); }); if (close) g.closePath();
+  g.strokeStyle = 'rgba(70,70,80,.55)'; g.lineWidth = 1; g.stroke();
+}
+
+const isles = [...Array(5)].map((_, i) => ({ x: i * 420 + hash(i, 1) * 200, w: 160 + hash(i, 2) * 180, h: 40 + hash(i, 3) * 80, c: i % 2 ? '#6f9a6a' : '#7f8fa8' }));
+let t = 0, last = performance.now(), scroll = 0, lastBoil = -1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; scroll += 30 * dt;
+  boil = Math.floor(t * 6);
+  if (boil === lastBoil) return requestAnimationFrame(frame);
+  lastBoil = boil; const tq = boil / 6;
+
+  // にじむ層（1/8 の大きさで描く）
+  sg.setTransform(1 / 8, 0, 0, 1 / 8, 0, 0); sg.globalCompositeOperation = 'source-over'; sg.clearRect(0, 0, LW, LH);
+  let gr = sg.createLinearGradient(0, 0, 0, HY); gr.addColorStop(0, 'rgba(90,150,215,.55)'); gr.addColorStop(.7, 'rgba(170,205,230,.22)'); gr.addColorStop(1, 'rgba(250,205,165,.3)');
+  sg.fillStyle = gr; sg.fillRect(0, 0, LW, HY);
+  sg.fillStyle = 'rgba(255,190,60,.8)'; sg.beginPath(); sg.arc(730, 110, 46, 0, 7); sg.fill();
+  sg.globalCompositeOperation = 'destination-out';                       // 雲は塗らずに抜く
+  for (let i = 0; i < 5; i++) { const cx = ((i * 260 - scroll * .15) % 1300 + 1300) % 1300 - 150, cy = 70 + hash(i, 5) * 110; for (let k = 0; k < 4; k++) { sg.beginPath(); sg.ellipse(cx + k * 34 + J(i * 9 + k, 8), cy + (k % 2) * 12, 48, 22, 0, 0, 7); sg.fill(); } }
+  sg.globalCompositeOperation = 'source-over';
+  for (const s of isles) {                                              // 遠くの島
+    const x = ((s.x - scroll * .4) % 2100 + 2100) % 2100 - 400;
+    sg.fillStyle = s.c; sg.globalAlpha = .7; sg.beginPath(); sg.moveTo(x, HY + 4);
+    for (let k = 0; k <= 10; k++) sg.lineTo(x + s.w * k / 10, HY + 4 - s.h * Math.sin(k / 10 * Math.PI) * (.7 + .3 * hash(k, s.w)));
+    sg.closePath(); sg.fill(); sg.globalAlpha = 1;
+  }
+  gr = sg.createLinearGradient(0, HY, 0, LH); gr.addColorStop(0, 'rgba(90,170,200,.3)'); gr.addColorStop(1, 'rgba(60,130,190,.45)'); sg.fillStyle = gr; sg.fillRect(0, HY + 2, LW, LH - HY);
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#f7f3e8'; g.fillRect(0, 0, LW, LH);
+  g.globalCompositeOperation = 'multiply'; g.imageSmoothingEnabled = true; g.drawImage(soft, 0, 0, LW, LH);
+
+  // 波（透明な帯を重ねる。重なりが濃くなる）
+  const band = (y, amp, wl, sp, color, a, seed) => {
+    const pts = []; for (let x = -20; x <= LW + 20; x += 24) pts.push([x, y + Math.sin((x + scroll * sp) / wl) * amp + Math.sin((x - scroll * sp * .6) / wl * 2.3) * amp * .4]);
+    pts.push([LW + 20, LH + 20], [-20, LH + 20]); wash(pts, color, a, seed);
+  };
+  band(330, 5, 60, 1, '#6ab4c8', .2, 100); band(380, 8, 90, 1.5, '#5aa2c8', .2, 200);
+  // 船（鉛筆の下描きと、少しずれた塗り）
+  const bx = 400 + Math.sin(tq * .5) * 30, by = 398 + Math.sin(tq * 1.6) * 6, r = Math.sin(tq * 1.6 + 1) * .05;
+  g.save(); g.translate(bx, by); g.rotate(r);
+  const hull = [[-80, -10], [80, -14], [58, 22], [-60, 22]], sail1 = [[4, -150], [4, -22], [78, -22]], sail2 = [[-6, -124], [-6, -22], [-58, -22]];
+  // 船の所は海を塗り残す（紙の白を戻してから色を置く）
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(247,243,232,.9)';
+  for (const s of [hull, sail1, sail2]) { g.beginPath(); s.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.fill(); }
+  g.globalCompositeOperation = 'multiply';
+  wash(hull, '#8a5a3a', .6, 1); wash(sail1, '#d8482e', .55, 2); wash(sail2, '#e8a23a', .5, 3); wash([[0, -164], [26, -156], [0, -148]], '#3a6ab0', .6, 4);
+  pencil(hull, 1); pencil(sail1, 2); pencil(sail2, 3); pencil([[0, -168], [0, -10]], 5, false);
+  g.restore();
+  band(440, 11, 130, 2.2, '#4a92c0', .24, 300); band(520, 14, 180, 3, '#3a78b8', .28, 400);
+  // かもめ（鉛筆だけ）
+  for (let i = 0; i < 4; i++) { const x = ((i * 300 + tq * 40) % 1100) - 60, y = 120 + i * 34 + Math.sin(tq * 2 + i) * 8, w = 9 + Math.sin(tq * 8 + i) * 3; pencil([[x - 12, y - w * .4], [x - 5, y - w], [x, y], [x + 5, y - w], [x + 12, y - w * .4]], i * 20 + 600, false); }
+  // 紙の目と粒
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(grain, 0, 0); g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

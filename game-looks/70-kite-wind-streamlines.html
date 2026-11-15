@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 70 凧あげ 風の流線</title>
+<style>
+html,body{margin:0;height:100%;background:#16335c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6f0fa;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 70 ─ 凧あげ / 風の流線　｜　見るだけ（見えないはずの風が見える）</div>
+<script>
+// 風を白い細い線で見えるようにする。900 個の粒を風の向きに流し、通った跡を少しずつ消しながら残すと、
+// 流れの筋が浮かぶ。速い風ほど線が白く太い。凧としっぽは同じ風の式で押されるので、筋に沿ってなびく
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const tr = document.createElement('canvas'); tr.width = LW; tr.height = LH; const q = tr.getContext('2d');
+const flow = (x, y, t) => { const a = Math.sin(x * .006 + t * .4) * Math.cos(y * .008 - t * .3) * 1.1 + Math.sin((x + y) * .003 + t * .2) * .5 - .12, sp = 110 + 70 * Math.sin(x * .004 - t * .5 + y * .006); return [Math.cos(a) * sp, Math.sin(a) * sp, sp]; };
+const ps = [...Array(900)].map(() => ({ x: Math.random() * LW, y: Math.random() * LH, life: Math.random() * 4 }));
+const AX = 150, AY = 514, L = 540, kite = { x: 560, y: 180, vx: 0, vy: 0 }, tail = [...Array(16)].map((_, i) => ({ x: 560 - i * 12, y: 180 }));
+const hill = (x, k) => 520 - k * 26 + Math.sin(x * .007 + k * 2) * 22 + Math.sin(x * .019 + k) * 8;
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 風の粒
+  q.globalCompositeOperation = 'destination-out'; q.fillStyle = 'rgba(0,0,0,.05)'; q.fillRect(0, 0, LW, LH); q.globalCompositeOperation = 'source-over'; q.lineCap = 'round';
+  for (const p of ps) { const [vx, vy, sp] = flow(p.x, p.y, t), nx = p.x + vx * dt, ny = p.y + vy * dt, k = (sp - 40) / 140; q.strokeStyle = `rgba(255,255,255,${.12 + k * .55})`; q.lineWidth = .6 + k * 1.5; q.beginPath(); q.moveTo(p.x, p.y); q.lineTo(nx, ny); q.stroke(); p.x = nx; p.y = ny; p.life -= dt; if (p.life < 0 || nx > LW + 10 || ny < -10 || ny > LH + 10 || nx < -10) { p.x = Math.random() < .6 ? -5 : Math.random() * LW; p.y = Math.random() * LH; p.life = 2 + Math.random() * 4; } }
+  // 凧：風に押され、糸の長さで止められる
+  const [fx, fy] = flow(kite.x, kite.y, t); kite.vx += ((fx * .9 - kite.vx) * 1.6) * dt; kite.vy += ((fy * .9 - 60 - kite.vy) * 1.6) * dt; kite.x += kite.vx * dt; kite.y += kite.vy * dt;
+  let dx = kite.x - AX, dy = kite.y - AY, d = Math.hypot(dx, dy); if (d > L) { kite.x = AX + dx / d * L; kite.y = AY + dy / d * L; const rv = (kite.vx * dx + kite.vy * dy) / d; if (rv > 0) { kite.vx -= dx / d * rv; kite.vy -= dy / d * rv; } }
+  if (kite.y > 380) { kite.y = 380; kite.vy = -30; } if (kite.y < 50) { kite.y = 50; kite.vy = 20; } if (kite.x < 380) kite.vx += 200 * dt;
+  const ang = Math.atan2(kite.y - AY, kite.x - AX) + Math.sin(t * 2.2) * .12;
+  tail[0].x = kite.x - Math.cos(ang) * 34; tail[0].y = kite.y - Math.sin(ang) * 34 + 10;
+  for (let i = 1; i < tail.length; i++) { const a = tail[i], b = tail[i - 1], [wx, wy] = flow(a.x, a.y, t); a.x += (wx * .35 - 30) * dt * (i * .12); a.y += (wy * .35 + 30) * dt; const ex = a.x - b.x, ey = a.y - b.y, el = Math.hypot(ex, ey) || 1; a.x = b.x + ex / el * 13; a.y = b.y + ey / el * 13; }
+  // 絵
+  g.setTransform(S, 0, 0, S, 0, 0); const sky = g.createLinearGradient(0, 0, 0, LH); sky.addColorStop(0, '#173a70'); sky.addColorStop(.6, '#4d86bd'); sky.addColorStop(1, '#a8d0e6'); g.fillStyle = sky; g.fillRect(0, 0, LW, LH);
+  g.drawImage(tr, 0, 0);
+  ['#3d7a6a', '#2b5f52', '#1c4439'].forEach((c, k) => { g.fillStyle = c; g.beginPath(); g.moveTo(0, LH); for (let x = 0; x <= LW; x += 12) g.lineTo(x, hill(x, 2 - k)); g.lineTo(LW, LH); g.fill(); });
+  g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(AX + 8, AY - 34); g.quadraticCurveTo((AX + kite.x) / 2, (AY + kite.y) / 2 + 60, kite.x, kite.y); g.stroke();
+  g.lineWidth = 2; g.strokeStyle = '#ffe26a'; g.beginPath(); g.moveTo(tail[0].x, tail[0].y); for (const s of tail) g.lineTo(s.x, s.y); g.stroke();
+  tail.forEach((s, i) => { if (i % 3 === 2) { g.fillStyle = i % 2 ? '#ff6a4a' : '#fff'; g.save(); g.translate(s.x, s.y); g.rotate(t * 3 + i); g.beginPath(); g.moveTo(-8, -4); g.lineTo(8, 4); g.lineTo(8, -4); g.lineTo(-8, 4); g.fill(); g.restore(); } });
+  g.save(); g.translate(kite.x, kite.y); g.rotate(ang + Math.PI / 2);
+  g.fillStyle = '#ff5a3c'; g.beginPath(); g.moveTo(0, -40); g.lineTo(26, -6); g.lineTo(0, 44); g.closePath(); g.fill(); g.fillStyle = '#ffd24a'; g.beginPath(); g.moveTo(0, -40); g.lineTo(-26, -6); g.lineTo(0, 44); g.closePath(); g.fill();
+  g.strokeStyle = '#7a2a1a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, -40); g.lineTo(0, 44); g.moveTo(-26, -6); g.lineTo(26, -6); g.stroke(); g.restore();
+  g.fillStyle = '#0f2a24'; g.beginPath(); g.arc(AX, AY - 44, 7, 0, 7); g.fill(); g.fillRect(AX - 5, AY - 38, 10, 22); g.fillRect(AX - 5, AY - 18, 4, 18); g.fillRect(AX + 1, AY - 18, 4, 18); g.lineWidth = 3; g.strokeStyle = '#0f2a24'; g.beginPath(); g.moveTo(AX, AY - 32); g.lineTo(AX + 9, AY - 35); g.stroke();
+  g.fillStyle = 'rgba(230,240,250,.85)'; g.font = '12px ui-monospace,Menlo,Consolas,monospace'; g.textAlign = 'right'; g.fillText('WIND ' + (Math.hypot(fx, fy) / 14).toFixed(1) + ' m/s   LINE ' + (d / 6).toFixed(0) + ' m', LW - 20, 30);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

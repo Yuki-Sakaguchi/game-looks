@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 83 シューティング 万華鏡</title>
+<style>
+html,body{margin:0;height:100%;background:#07060a;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e6ff;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 83 ─ シューティング / 万華鏡　｜　見るだけ（1 つの戦いが鏡で 12 に増える）</div>
+<script>
+// 実際に動かしているのは、細い三角形（30 度のくさび）の中の小さな撃ち合い 1 つだけ。
+// それを回しながら鏡写しにして 12 枚並べ、円い模様にする。自機は円のふちに 12 機並び、中心からわく敵を撃つ。
+// 背景には色ガラスのかけらを流し、筒の中をのぞいたように周りを黒く丸く切る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), R = 286;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const src = document.createElement('canvas'); src.width = src.height = Math.ceil((R + 4) * S); const s = src.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const TAN = Math.tan(Math.PI / 6), JEWEL = ['#ff3d6e', '#ffb02e', '#3de0c0', '#4a8dff', '#c05cff', '#f6f1d0'];
+const shards = [...Array(40)].map((_, i) => ({ x: hash(i, 1) * R, y: hash(i, 2) * R * TAN, r: 14 + hash(i, 3) * 40, a: hash(i, 4) * 6.283, c: JEWEL[i % 6], v: (hash(i, 5) - .5) * 20, w: (hash(i, 6) - .5) * .8 }));
+let foes = [], shots = [], sparks = [], last = performance.now(), t = 0, fireT = 0, spawnT = 0;
+function gem(x, y, r, c, rot) { s.save(); s.translate(x, y); s.rotate(rot); s.fillStyle = c; s.beginPath(); for (let i = 0; i < 6; i++) s.lineTo(Math.cos(i * 1.047) * r, Math.sin(i * 1.047) * r); s.fill(); s.fillStyle = 'rgba(255,255,255,.55)'; s.beginPath(); s.moveTo(0, 0); s.lineTo(r, 0); s.lineTo(Math.cos(1.047) * r, Math.sin(1.047) * r); s.fill(); s.fillStyle = 'rgba(0,0,0,.3)'; s.beginPath(); s.moveTo(0, 0); s.lineTo(-r, 0); s.lineTo(Math.cos(4.189) * r, Math.sin(4.189) * r); s.fill(); s.restore(); }
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const py = (Math.sin(t * 1.7) * .5 + .5) * 250 * TAN * .86 + 8, pxr = 250;
+  if ((spawnT -= dt) < 0) { spawnT = .5; foes.push({ x: 14, y: 4, vx: 34 + Math.random() * 30, ty: Math.random(), c: JEWEL[Math.floor(Math.random() * 5)], r: 9 + Math.random() * 6, rot: 0 }); }
+  if ((fireT -= dt) < 0) { fireT = .14; shots.push({ x: pxr - 14, y: py }); }
+  for (const f of foes) { f.x += f.vx * dt; f.y = f.ty * f.x * TAN * .9 + Math.sin(t * 3 + f.ty * 9) * 4; f.rot += dt * 2; }
+  for (const b of shots) { b.x -= 330 * dt; for (const f of foes) if (!f.dead && Math.hypot(f.x - b.x, f.y - b.y) < f.r + 4) { f.dead = b.dead = 1; for (let k = 0; k < 9; k++) sparks.push({ x: f.x, y: f.y, vx: (Math.random() - .5) * 190, vy: (Math.random() - .5) * 190, l: .5, c: f.c }); } }
+  foes = foes.filter(f => !f.dead && f.x < R + 20); shots = shots.filter(b => !b.dead && b.x > 0); for (const p of sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt; } sparks = sparks.filter(p => p.l > 0);
+  // くさびの中の絵
+  s.setTransform(S, 0, 0, S, 0, 0); s.globalCompositeOperation = 'source-over'; s.fillStyle = '#0c0a18'; s.fillRect(0, 0, R + 4, R + 4);
+  s.globalCompositeOperation = 'lighter';
+  for (const q of shards) { q.x += q.v * dt; q.a += q.w * dt; if (q.x < -40) q.x = R + 40; if (q.x > R + 40) q.x = -40; s.globalAlpha = .34; s.fillStyle = q.c; s.beginPath(); for (let i = 0; i < 3; i++) s.lineTo(q.x + Math.cos(q.a + i * 2.094) * q.r, q.y + Math.sin(q.a + i * 2.094) * q.r); s.fill(); } s.globalAlpha = 1;
+  s.globalCompositeOperation = 'source-over';
+  for (const f of foes) gem(f.x, f.y, f.r, f.c, f.rot);
+  s.fillStyle = '#fff8d0'; s.shadowColor = '#ffd76a'; s.shadowBlur = 8 * S; for (const b of shots) { s.beginPath(); s.ellipse(b.x, b.y, 7, 2.2, 0, 0, 7); s.fill(); } s.shadowBlur = 0;
+  for (const p of sparks) { s.globalAlpha = p.l * 2; s.fillStyle = p.c; s.fillRect(p.x - 2, p.y - 2, 4, 4); } s.globalAlpha = 1;
+  s.fillStyle = '#f6f1d0'; s.beginPath(); s.moveTo(pxr - 16, py); s.lineTo(pxr + 8, py - 9); s.lineTo(pxr + 2, py); s.lineTo(pxr + 8, py + 9); s.closePath(); s.fill(); s.fillStyle = '#ff3d6e'; s.beginPath(); s.arc(pxr + 2, py, 3.4, 0, 7); s.fill();
+  // 鏡で 12 枚に
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#07060a'; g.fillRect(0, 0, LW, LH);
+  for (let k = 0; k < 12; k++) { g.save(); g.translate(480, 300); g.rotate(k * Math.PI / 6 + (k % 2 ? Math.PI / 6 : 0) + t * .05); if (k % 2) g.scale(1, -1); g.beginPath(); g.moveTo(0, 0); g.lineTo(R + 2, -.6); g.lineTo(R + 2, (R + 2) * TAN + .6); g.closePath(); g.clip(); g.drawImage(src, 0, 0, R + 4, R + 4); g.restore(); }
+  // 筒のふち
+  const vg = g.createRadialGradient(480, 300, R * .55, 480, 300, R); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = vg; g.beginPath(); g.arc(480, 300, R, 0, 7); g.fill();
+  g.strokeStyle = '#07060a'; g.lineWidth = 60; g.beginPath(); g.arc(480, 300, R + 26, 0, 7); g.stroke();
+  const br = g.createLinearGradient(200, 20, 760, 580); br.addColorStop(0, '#f2d27a'); br.addColorStop(.5, '#7a5a22'); br.addColorStop(1, '#e0b85a'); g.strokeStyle = br; g.lineWidth = 7; g.beginPath(); g.arc(480, 300, R - 2, 0, 7); g.stroke();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 13 ローグライク ノートの落書き</title>
+<style>
+html,body{margin:0;height:100%;background:#4a4640;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fbfaf3;background:#4a4640;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 13 ─ ローグライク / ノートの落書き　｜　見るだけ（自動で探索）</div>
+<script>
+// 罫線ノートにボールペンで描いた迷宮。線は少しずつ折って揺らし、1 秒に 4 回だけ描き直す（線がふるえる）。
+// 通った部屋は蛍光ペンを乗算で塗る。倒した敵は赤ペンでバツ
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const PEN = '#2a3fa8', RED = '#d23a3a', PENCIL = '#9a9a9a', PAPER = '#fbfaf3';
+const HAND = '"Bradley Hand","Marker Felt","Comic Sans MS","Hiragino Maru Gothic ProN",cursive';
+
+const lines = document.createElement('canvas'); lines.width = LW * S; lines.height = LH * S;
+{
+  const x = lines.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  x.strokeStyle = '#a8c8e8'; x.lineWidth = 1; x.beginPath();
+  for (let y = 40; y < LH; y += 26) { x.moveTo(0, y); x.lineTo(LW, y); } x.stroke();
+  x.strokeStyle = '#e8a0a0'; x.beginPath(); x.moveTo(84, 0); x.lineTo(84, LH); x.stroke();
+  x.fillStyle = '#4a4640'; for (const y of [90, 300, 510]) { x.beginPath(); x.arc(34, y, 9, 0, 7); x.fill(); }
+}
+
+let boil = 0;
+function wline(x1, y1, x2, y2, seed, amp = 2.4) {
+  const len = Math.hypot(x2 - x1, y2 - y1), n = Math.max(2, Math.ceil(len / 14)), nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
+  for (let i = 0; i <= n; i++) {
+    const f = i / n, j = (hash(seed + i * 7.3, boil) - .5) * amp;
+    const x = x1 + (x2 - x1) * f + nx * j, y = y1 + (y2 - y1) * f + ny * j;
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  }
+}
+const pen = (color, w = 1.8) => { g.strokeStyle = color; g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.stroke(); };
+
+// 迷宮（4×3 の部屋を木の形につなぐ）
+const COLS = 4, ROWS = 3;
+let rooms, edges, route, ri, hero, seed = 1, pause = 0, fight = 0, stars = 0;
+function build() {
+  rooms = []; edges = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const i = r * COLS + c, w = 112 + hash(i, seed) * 50, h = 82 + hash(i, seed, 2) * 36;
+    const x = 120 + c * 205 + hash(i, seed, 3) * 30, y = 60 + r * 172 + hash(i, seed, 4) * 24;
+    rooms.push({ x, y, w, h, cx: x + w / 2, cy: y + h / 2, seen: false, kind: i ? Math.floor(hash(i, seed, 5) * 4) : 0, done: false });
+  }
+  const seen = new Set([0]); route = [0];
+  (function walk(i) {
+    const c = i % COLS, r = Math.floor(i / COLS);
+    const nb = [[c + 1, r], [c - 1, r], [c, r + 1], [c, r - 1]].filter(([x, y]) => x >= 0 && y >= 0 && x < COLS && y < ROWS).map(([x, y]) => y * COLS + x)
+      .sort((a, b) => hash(a, i, seed) - hash(b, i, seed));
+    for (const n of nb) if (!seen.has(n)) { seen.add(n); edges.push([i, n]); route.push(n); walk(n); route.push(i); }
+  })(0);
+  ri = 0; hero = { x: rooms[0].cx, y: rooms[0].cy }; rooms[0].seen = true;
+}
+build();
+
+function figure(x, y, f) {
+  g.beginPath(); g.arc(x, y - 22, 6, 0, 7);
+  wline(x, y - 16, x, y - 4, 1, 1); wline(x, y - 4, x - 5, y + (f ? 6 : 4), 2, 1); wline(x, y - 4, x + 5, y + (f ? 4 : 6), 3, 1);
+  wline(x - 7, y - 10, x + 7, y - 12, 4, 1); wline(x + 7, y - 12, x + 15, y - 24, 5, 1); pen(PEN, 2);
+}
+function monster(R) {
+  const x = R.cx + 22, y = R.cy + 4;
+  g.beginPath();
+  if (R.kind === 1) { for (let i = 0; i <= 12; i++) { const a = Math.PI + i / 12 * Math.PI, r = 14 + (hash(i, boil, 9) - .5) * 2; g.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 1.1); } g.closePath(); }
+  else { wline(x - 18, y - 8, x - 8, y, 11, 1.5); wline(x - 8, y, x, y - 8, 12, 1.5); wline(x, y - 8, x + 8, y, 13, 1.5); wline(x + 8, y, x + 18, y - 8, 14, 1.5); g.moveTo(x + 6, y - 2); g.arc(x, y - 2, 6, 0, 7); }
+  pen(PEN);
+  g.fillStyle = PEN; g.fillRect(x - 5, y - 6, 2, 2); g.fillRect(x + 3, y - 6, 2, 2);
+  if (R.done) { g.beginPath(); wline(x - 16, y - 18, x + 16, y + 10, 21); wline(x + 16, y - 18, x - 16, y + 10, 22); pen(RED, 2.6); }
+}
+function star(R) {
+  const x = R.cx + 22, y = R.cy;
+  g.beginPath(); for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i * 4 * Math.PI / 5; g.lineTo(x + Math.cos(a) * 13 + (hash(i, boil, 30) - .5) * 1.5, y + Math.sin(a) * 13); }
+  pen(PEN);
+  if (R.done) { g.beginPath(); wline(x - 12, y, x - 4, y + 10, 31, 1); wline(x - 4, y + 10, x + 14, y - 14, 32, 1); pen(RED, 2.6); }
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt; boil = Math.floor(t * 4);
+
+  // 進行
+  if (pause > 0) { pause -= dt; if (pause <= 0 && ri >= route.length - 1) { seed++; build(); } }
+  else if (fight > 0) { fight -= dt; if (fight <= 0) rooms[route[ri]].done = true; }
+  else {
+    const R = rooms[route[ri + 1]], dx = R.cx - hero.x, dy = R.cy - hero.y, d = Math.hypot(dx, dy);
+    if (d < 3) {
+      ri++; R.seen = true;
+      if (!R.done && (R.kind === 1 || R.kind === 3)) fight = .9;
+      else if (!R.done && R.kind === 2) { R.done = true; stars++; pause = .4; }
+      if (ri >= route.length - 1) pause = 2.5;
+    } else { hero.x += dx / d * 130 * dt; hero.y += dy / d * 130 * dt; }
+  }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over';
+  g.fillStyle = PAPER; g.fillRect(0, 0, LW, LH);
+  // 通路（2 本線）
+  for (const [a, b] of edges) {
+    const A = rooms[a], B = rooms[b], known = A.seen && B.seen, horiz = Math.abs(A.cx - B.cx) > Math.abs(A.cy - B.cy);
+    g.beginPath(); g.setLineDash(known ? [] : [5, 6]);
+    for (const o of [-6, 6]) horiz ? wline(A.cx, A.cy + o, B.cx, B.cy + o, a * 31 + b + o) : wline(A.cx + o, A.cy, B.cx + o, B.cy, a * 31 + b + o);
+    pen(known ? PEN : PENCIL, known ? 1.8 : 1.3);
+  }
+  g.setLineDash([]);
+  for (const R of rooms) { g.fillStyle = PAPER; g.fillRect(R.x, R.y, R.w, R.h); }
+  g.globalCompositeOperation = 'multiply'; g.drawImage(lines, 0, 0, LW, LH);
+  // 蛍光ペン
+  rooms.forEach((R, i) => {
+    if (!R.seen) return;
+    g.beginPath(); const sv = boil; boil = 0;
+    for (let y = R.y + 12; y < R.y + R.h - 4; y += 19) wline(R.x + 6, y + hash(i, y) * 4, R.x + R.w - 6, y + hash(y, i) * 4, i + y, 3);
+    boil = sv; pen(i === route[ri] ? '#b8f5a0' : '#fff27a', 17);
+  });
+  g.globalCompositeOperation = 'source-over';
+  // 部屋の枠と中身
+  rooms.forEach((R, i) => {
+    g.beginPath(); g.setLineDash(R.seen ? [] : [6, 6]);
+    wline(R.x - 3, R.y, R.x + R.w + 4, R.y, i * 9 + 1); wline(R.x + R.w, R.y - 3, R.x + R.w, R.y + R.h + 3, i * 9 + 2);
+    wline(R.x + R.w + 3, R.y + R.h, R.x - 4, R.y + R.h, i * 9 + 3); wline(R.x, R.y + R.h + 3, R.x, R.y - 4, i * 9 + 4);
+    pen(R.seen ? PEN : PENCIL, R.seen ? 2 : 1.3); g.setLineDash([]);
+    if (!R.seen) { g.fillStyle = PENCIL; g.font = `26px ${HAND}`; g.textAlign = 'center'; g.fillText('?', R.cx, R.cy + 9); return; }
+    if (R.kind === 1 || R.kind === 3) monster(R); if (R.kind === 2) star(R);
+  });
+  const sh = fight > 0 ? (hash(boil, t * 60) - .5) * 8 : 0;
+  figure(hero.x - 14 + sh, hero.y + 12, Math.floor(t * 8) % 2);
+  if (fight > 0) { g.fillStyle = RED; g.font = `22px ${HAND}`; g.textAlign = 'center'; g.fillText('えいっ!', hero.x, hero.y - 34); }
+
+  // 余白の書きこみ
+  g.fillStyle = PEN; g.textAlign = 'left'; g.font = `20px ${HAND}`;
+  g.fillText('だんじょん B' + seed + 'F', 100, 34);
+  g.fillStyle = RED; g.fillText('HP ♥♥♥', 700, 34); g.fillStyle = PEN; g.fillText('★ × ' + stars, 830, 34);
+  g.font = `15px ${HAND}`; g.fillStyle = PENCIL; g.fillText('← いまここ', hero.x + 6, hero.y - 16);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

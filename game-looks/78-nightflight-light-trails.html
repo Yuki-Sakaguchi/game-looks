@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 78 夜間飛行 長時間露光の光跡</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#cdd;opacity:.75}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 78 ─ 夜間飛行 / 長時間露光の光跡　｜　見るだけ（光るものは全部、線になる）</div>
+<script>
+// シャッターを開けっぱなしにした夜景写真。形は描かず、光る点だけを毎コマ描きたして、少しずつ消す。
+// すると車のライトは道にそった線に、星は北極星を中心にした弧に、翼の灯は飛んだ道の線になる。
+// 点滅する灯（白いストロボ）は破線になる。星の層はゆっくり、地上の層は速く消す
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), HOR = 300;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = LW; c.height = LH; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, LW, LH); return x; };
+const sky = mk(), gnd = mk();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const stars = [...Array(260)].map((_, i) => ({ r: 30 + Math.pow(hash(i, 1), .6) * 640, a: hash(i, 2) * 6.283, b: .3 + hash(i, 3) * .7, c: ['255,255,255', '200,220,255', '255,225,190'][i % 3] }));
+const cars = [...Array(150)].map((_, i) => ({ lane: Math.floor(hash(i, 1) * 9) - 4, z: hash(i, 2) * 60, dir: i % 2, sp: 5 + hash(i, 3) * 6, cross: i % 5 === 0, x: (hash(i, 4) - .5) * 120 }));
+const lamps = [...Array(240)].map((_, i) => ({ x: (hash(i, 5) - .5) * 160, z: hash(i, 6) * 60, c: hash(i, 7) > .7 ? '255,190,110' : '255,236,200' }));
+const fade = (x, a) => { x.globalCompositeOperation = 'source-over'; x.fillStyle = `rgba(0,0,0,${a})`; x.fillRect(0, 0, LW, LH); x.globalCompositeOperation = 'lighter'; };
+const dot = (x, px, py, r, c, a) => { x.fillStyle = `rgba(${c},${a})`; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); };
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const bank = Math.sin(t * .35) * .45, camx = Math.sin(t * .35 - 1.2) * 14, fly = 7;
+  const proj = (x, z) => [480 + (x - camx) / z * 300, HOR + 190 / z];
+  // 星：北極星のまわりを回る
+  fade(sky, .012); for (const s of stars) { const a = s.a + t * .09, x = 560 + Math.cos(a) * s.r, y = 40 + Math.sin(a) * s.r; if (y < HOR + 10 && x > 0 && x < LW) dot(sky, x, y, .8, s.c, s.b * .5); }
+  // 地上：車と街灯
+  fade(gnd, .07);
+  for (const l of lamps) { l.z -= fly * dt; if (l.z < .25) l.z += 60; const [x, y] = proj(l.x, l.z); if (y < LH) dot(gnd, x, y, Math.min(3, .5 + 1.2 / l.z), l.c, Math.min(1, .25 + .5 / l.z)); }
+  for (const c of cars) {
+    if (c.cross) { c.x += (c.dir ? 1 : -1) * c.sp * 2 * dt; if (Math.abs(c.x) > 70) c.x *= -1; c.z -= fly * dt; if (c.z < .3) c.z += 60; const [x, y] = proj(c.x, c.z); dot(gnd, x, y, Math.min(3, .5 + 1 / c.z), c.dir ? '255,60,40' : '255,250,235', .8); continue; }
+    c.z += (c.dir ? c.sp : -c.sp) * dt - fly * dt; if (c.z < .3) c.z += 60; if (c.z > 60) c.z -= 60;
+    for (const off of [-.12, .12]) { const [x, y] = proj(c.lane * 9 + (c.dir ? .5 : -.5) + off, c.z); if (y < LH + 5) dot(gnd, x, y, Math.min(3.4, .5 + 1.3 / c.z), c.dir ? '255,50,36' : '255,250,235', Math.min(1, .35 + .6 / c.z)); } }
+  // 自分の翼の灯（赤・緑）と、点滅する白い灯
+  const px = 480 + Math.sin(t * .35) * 150, py = 440 + Math.sin(t * .7) * 26, wx = Math.cos(bank) * 62, wy = Math.sin(bank) * 62;
+  dot(gnd, px - wx, py - wy, 2.2, '255,40,40', 1); dot(gnd, px + wx, py + wy, 2.2, '60,255,120', 1); if ((t * 2.2) % 1 < .12) dot(gnd, px, py + 4, 4, '255,255,255', 1);
+  // 1 枚の写真にまとめる
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over';
+  const bg = g.createLinearGradient(0, 0, 0, LH); bg.addColorStop(0, '#050816'); bg.addColorStop(.45, '#141a34'); bg.addColorStop(.5, '#3a2a2a'); bg.addColorStop(.56, '#0c0a10'); bg.addColorStop(1, '#040406'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+  const glow = g.createRadialGradient(480 - camx * 6, HOR, 10, 480 - camx * 6, HOR, 460); glow.addColorStop(0, 'rgba(255,170,90,.42)'); glow.addColorStop(1, 'rgba(255,170,90,0)'); g.fillStyle = glow; g.fillRect(0, 0, LW, LH);
+  g.globalCompositeOperation = 'lighter'; g.drawImage(sky.canvas, 0, 0); g.drawImage(gnd.canvas, 0, 0);
+  g.filter = 'blur(6px)'; g.globalAlpha = .7; g.drawImage(gnd.canvas, 0, 0); g.filter = 'none'; g.globalAlpha = 1;       // にじみ
+  g.globalCompositeOperation = 'source-over';
+  // 機体の影（黒い形だけ）
+  g.save(); g.translate(px, py); g.rotate(bank); g.fillStyle = 'rgba(0,0,0,.85)'; g.beginPath(); g.moveTo(-62, 0); g.lineTo(-6, -7); g.lineTo(0, -26); g.lineTo(6, -7); g.lineTo(62, 0); g.lineTo(6, 6); g.lineTo(14, 22); g.lineTo(0, 18); g.lineTo(-14, 22); g.lineTo(-6, 6); g.closePath(); g.fill(); g.restore();
+  g.fillStyle = 'rgba(205,220,225,.8)'; g.font = '12px ui-monospace,Menlo,Consolas,monospace'; g.textAlign = 'right'; g.fillText('f/8   ISO 200   ' + Math.floor(t) + ' s', LW - 20, 28);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

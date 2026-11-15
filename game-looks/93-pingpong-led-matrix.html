@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 93 卓球 電光掲示板</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c0e;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffb020;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 93 ─ 卓球 / 電光掲示板（だいだいの LED）　｜　見るだけ</div>
+<script>
+// 画面は横 112 ×縦 64 個の丸い LED。消えている LED もうすく見え、点いた LED のまわりには光がにじむ。
+// LED はすぐには消えないので、速い球はうしろに尾を引く。得点や流れる文字は、小さな字を 1 度描いて
+// その濃さを LED の点き・消えに読みかえている
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), GW = 112, GH = 64, P = 7.6, OX = (LW - GW * P) / 2, OY = 56;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const lit = new Float32Array(GW * GH), low = document.createElement('canvas'); low.width = GW; low.height = GH; const lc = low.getContext('2d', { willReadFrequently: true });
+const glow = document.createElement('canvas'); glow.width = GW; glow.height = GH; const gc = glow.getContext('2d'), gim = gc.createImageData(GW, GH);
+const off = document.createElement('canvas'); off.width = LW * S; off.height = LH * S; { const o = off.getContext('2d'); o.setTransform(S, 0, 0, S, 0, 0); o.fillStyle = '#060606'; o.fillRect(OX - 14, OY - 14, GW * P + 28, GH * P + 28); o.fillStyle = '#2b1a06'; for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) { o.beginPath(); o.arc(OX + (x + .5) * P, OY + (y + .5) * P, P * .34, 0, 7); o.fill(); } }
+const ball = { x: 56, y: 36, vx: 46, vy: 22 }, pad = [36, 36], score = [0, 0]; let msgX = GW, last = performance.now(), t = 0, flash = 0;
+const MSG = 'FINAL GAME   —   RALLY ON   —   LOOK 93   —   ';
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; flash = Math.max(0, flash - dt);
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt; if (ball.y < 17) { ball.y = 17; ball.vy = Math.abs(ball.vy); } if (ball.y > GH - 3) { ball.y = GH - 3; ball.vy = -Math.abs(ball.vy); }
+  for (const s of [0, 1]) { const mine = s ? ball.vx > 0 : ball.vx < 0, err = Math.sin(t * 1.3 + s * 2) * 5; pad[s] += ((mine ? ball.y + err : 38) - pad[s]) * Math.min(1, dt * (mine ? 5.2 : 2)); pad[s] = Math.max(20, Math.min(GH - 6, pad[s])); }
+  if (ball.x < 6 && ball.vx < 0) { if (Math.abs(ball.y - pad[0]) < 6) { ball.vx = Math.abs(ball.vx) * 1.04; ball.vy += (ball.y - pad[0]) * 5; } else if (ball.x < 0) { score[1]++; flash = .6; Object.assign(ball, { x: 56, y: 36, vx: 46, vy: 20 * (Math.random() < .5 ? 1 : -1) }); } }
+  if (ball.x > GW - 7 && ball.vx > 0) { if (Math.abs(ball.y - pad[1]) < 6) { ball.vx = -Math.abs(ball.vx) * 1.04; ball.vy += (ball.y - pad[1]) * 5; } else if (ball.x > GW) { score[0]++; flash = .6; Object.assign(ball, { x: 56, y: 36, vx: -46, vy: 20 * (Math.random() < .5 ? 1 : -1) }); } }
+  if (score[0] > 10 || score[1] > 10) score[0] = score[1] = 0; ball.vy = Math.max(-60, Math.min(60, ball.vy));
+  // 小さな絵に描く（白 = 点灯）
+  lc.fillStyle = '#000'; lc.fillRect(0, 0, GW, GH); lc.fillStyle = '#fff'; lc.textBaseline = 'top';
+  lc.font = 'bold 9px "Courier New",Courier,monospace'; msgX -= dt * 22; const mw = lc.measureText(MSG).width; if (msgX < -mw) msgX += mw; lc.fillText(MSG + MSG + MSG, msgX, 1);
+  lc.fillRect(0, 13, GW, 1);
+  lc.font = 'bold 15px "Courier New",Courier,monospace'; lc.textAlign = 'right'; lc.fillText(String(score[0]), 50, 18); lc.textAlign = 'left'; lc.fillText(String(score[1]), 63, 18);
+  for (let y = 16; y < GH; y += 4) lc.fillRect(55, y, 2, 2);
+  lc.fillRect(2, Math.round(pad[0]) - 5, 2, 10); lc.fillRect(GW - 4, Math.round(pad[1]) - 5, 2, 10); lc.fillRect(Math.round(ball.x) - 1, Math.round(ball.y) - 1, 3, 3);
+  if (flash > 0 && Math.floor(flash * 10) % 2) lc.fillRect(0, 15, GW, GH - 15);
+  const src = lc.getImageData(0, 0, GW, GH).data;
+  for (let i = 0; i < lit.length; i++) { const v = src[i * 4] > 110 ? 1 : 0; lit[i] = v > lit[i] ? v : Math.max(v, lit[i] - dt * 7); const o = i * 4; gim.data[o] = 255; gim.data[o + 1] = 150; gim.data[o + 2] = 20; gim.data[o + 3] = lit[i] * 255; }
+  gc.putImageData(gim, 0, 0);
+  // 掲示板
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; const body = g.createLinearGradient(0, 0, 0, LH); body.addColorStop(0, '#2a2c30'); body.addColorStop(1, '#15161a'); g.fillStyle = body; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = '#0c0c0e'; g.beginPath(); g.roundRect(OX - 30, OY - 30, GW * P + 60, GH * P + 60, 10); g.fill();
+  g.drawImage(off, 0, 0, LW, LH);
+  g.globalCompositeOperation = 'lighter'; g.imageSmoothingEnabled = true; g.globalAlpha = .55; g.drawImage(glow, OX - P * 1.5, OY - P * 1.5, GW * P + P * 3, GH * P + P * 3); g.globalAlpha = .9; g.drawImage(glow, OX, OY, GW * P, GH * P); g.globalAlpha = 1;
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) { const v = lit[y * GW + x]; if (v < .04) continue; g.fillStyle = `rgba(255,${Math.round(150 + v * 70)},${Math.round(30 + v * 90)},${v})`; g.beginPath(); g.arc(OX + (x + .5) * P, OY + (y + .5) * P, P * .36, 0, 7); g.fill(); }
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#6a6e76'; for (const [x, y] of [[OX - 18, OY - 18], [OX + GW * P + 18, OY - 18], [OX - 18, OY + GH * P + 18], [OX + GW * P + 18, OY + GH * P + 18]]) { g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

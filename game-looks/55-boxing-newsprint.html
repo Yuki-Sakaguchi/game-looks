@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 55 ボクシング 新聞の網点写真</title>
+<style>
+html,body{margin:0;height:100%;background:#cfc8b4;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#222;background:#e9e2cf;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 55 ─ ボクシング / 新聞の網点写真　｜　見るだけ</div>
+<script>
+// 試合は 220×108 の小さな白黒の絵として描く。それを 1 点ずつ読み、暗いほど大きい黒丸にして
+// 斜め 45 度の格子に並べる（新聞写真の網点）。黒インク 1 色と紙の色だけで濃淡を出す
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const GW = 220, GH = 108, sc = document.createElement('canvas'); sc.width = GW; sc.height = GH; const s = sc.getContext('2d', { willReadFrequently: true });
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const PX = 40, PY = 112, PW = 880, PH = 432, INK = '#1b1a18', PAPER = '#e9e2cf';
+function boxer(x, dir, skin, trunks, glove, punch, bob) {
+  s.save(); s.translate(x, 86 + bob); s.scale(dir, 1); s.lineCap = 'round';
+  s.strokeStyle = skin; s.lineWidth = 6; s.beginPath(); s.moveTo(-3, -22); s.lineTo(-9, 0); s.moveTo(3, -22); s.lineTo(8, 0); s.stroke();
+  s.fillStyle = trunks; s.fillRect(-8, -30, 16, 12);
+  s.fillStyle = skin; s.beginPath(); s.ellipse(0, -40, 8, 13, .1, 0, 7); s.fill(); s.beginPath(); s.arc(3, -58, 6, 0, 7); s.fill();
+  s.lineWidth = 5; s.beginPath(); s.moveTo(2, -48); s.lineTo(9, -42); s.lineTo(11, -52); s.stroke();                         // 引いた腕
+  s.beginPath(); s.moveTo(2, -48); s.lineTo(10 + punch * 8, -46 - punch * 4); s.lineTo(14 + punch * 20, -52 - punch * 4); s.stroke(); // 打つ腕
+  s.fillStyle = glove; s.beginPath(); s.arc(11, -54, 4.5, 0, 7); s.fill(); s.beginPath(); s.arc(15 + punch * 21, -53 - punch * 4, 4.8, 0, 7); s.fill();
+  s.restore();
+}
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, pa = Math.pow(Math.max(0, Math.sin(t * 4.2)), 3), pb = Math.pow(Math.max(0, Math.sin(t * 4.2 + 2.6)), 3);
+  // 白黒の元絵
+  const bgG = s.createLinearGradient(0, 0, 0, GH); bgG.addColorStop(0, '#0c0c0c'); bgG.addColorStop(.75, '#3a3a3a'); s.fillStyle = bgG; s.fillRect(0, 0, GW, GH);
+  for (const lx of [60, 110, 160]) { const cg = s.createLinearGradient(0, 0, 0, 90); cg.addColorStop(0, 'rgba(255,255,255,.55)'); cg.addColorStop(1, 'rgba(255,255,255,0)'); s.fillStyle = cg; s.beginPath(); s.moveTo(lx - 3, 0); s.lineTo(lx + 3, 0); s.lineTo(lx + 44, 90); s.lineTo(lx - 44, 90); s.fill(); }
+  for (let i = 0; i < 60; i++) { const x = hash(i, 1) * GW, y = 44 + hash(i, 2) * 26; s.fillStyle = hash(i, Math.floor(t * 6)) > .96 ? '#fff' : '#1a1a1a'; s.beginPath(); s.arc(x, y, 3 + hash(i, 3) * 2, 0, 7); s.fill(); }
+  s.fillStyle = '#c9c9c9'; s.fillRect(0, 86, GW, 22); s.fillStyle = '#8a8a8a'; s.fillRect(0, 86, GW, 2);
+  s.fillStyle = '#eee'; for (const y of [50, 62, 74]) s.fillRect(0, y, GW, 1.4); s.fillStyle = '#ddd'; s.fillRect(14, 44, 4, 44); s.fillRect(GW - 18, 44, 4, 44);
+  const ax = 92 + Math.sin(t * .7) * 8 + pa * 4, bx = 128 + Math.sin(t * .7) * 8 - pb * 4;
+  s.fillStyle = 'rgba(0,0,0,.4)'; s.beginPath(); s.ellipse(ax, 88, 13, 2.5, 0, 0, 7); s.ellipse(bx, 88, 13, 2.5, 0, 0, 7); s.fill();
+  boxer(ax, 1, '#e6e6e6', '#fafafa', '#222', pa, Math.sin(t * 9) * 1.2); boxer(bx, -1, '#777', '#161616', '#f2f2f2', pb, Math.cos(t * 9) * 1.2);
+  if (pa > .8 || pb > .8) { const hx = pa > .8 ? bx - 2 : ax + 2; s.fillStyle = '#fff'; s.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283, r = i % 2 ? 4 : 11; s.lineTo(hx + Math.cos(a) * r, 30 + Math.sin(a) * r); } s.fill(); }
+  const d = s.getImageData(0, 0, GW, GH).data;
+  // 紙面
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = PAPER; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = INK; g.textAlign = 'left'; g.font = '900 54px Georgia,"Times New Roman",serif'; g.fillText('TITLE FIGHT GOES THE DISTANCE', PX - 2, 76, PW);
+  g.fillRect(PX, 20, PW, 3); g.fillRect(PX, 92, PW, 1.5); g.font = '11px Georgia,serif'; g.fillText('SPORTS — FINAL EDITION', PX, 106); g.textAlign = 'right'; g.fillText('PAGE 55', PX + PW, 106);
+  g.beginPath();
+  const st = 7; for (let r = 0, y = PY; y < PY + PH; r++, y += st / 2) for (let x = PX + (r % 2) * st / 2; x < PX + PW; x += st) {
+    const i = (Math.min(GH - 1, Math.floor((y - PY) / PH * GH)) * GW + Math.min(GW - 1, Math.floor((x - PX) / PW * GW))) * 4, rad = (1 - d[i] / 255) * 3.7;
+    if (rad > .35) { g.moveTo(x + rad, y); g.arc(x, y, rad, 0, 6.3); }
+  }
+  g.fill(); g.lineWidth = 1.5; g.strokeStyle = INK; g.strokeRect(PX, PY, PW, PH);
+  g.textAlign = 'left'; g.font = 'italic 13px Georgia,serif'; g.fillText('Round ' + (1 + Math.floor(t / 20) % 12) + ' — both men trade blows under the ring lights.', PX, 566);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

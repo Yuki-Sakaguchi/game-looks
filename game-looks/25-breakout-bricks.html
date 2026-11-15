@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 25 ブロック崩し ポッチ付きブロック</title>
+<style>
+html,body{margin:0;height:100%;background:#2b2f36;overflow:hidden;display:grid;place-items:center}
+canvas{height:100vh;max-width:100vw;aspect-ratio:3/4;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;background:#2b2f36;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 25 ─ ブロック崩し / ポッチ付きブロック　｜　見るだけ（自動で打ち返す）</div>
+<script>
+// 真上から見たプラスチックのブロック。ふちの明暗（左上が明るく右下が暗い）、ポッチの三日月形のつや、
+// 斜めに走る白いてかり、下の板に落ちる影で厚みを出す。当たったブロックは手前にはじけ飛ぶ
+const P = 20, GW = 30, GH = 40, LW = GW * P, LH = GH * P, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const shade = (hex, f) => '#' + [1, 3, 5].map(i => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * f))).toString(16).padStart(2, '0')).join('');
+const COLORS = ['#e3322b', '#f5c518', '#1f6fd0', '#2ca04a', '#f08a1e', '#f4f4f4'];
+
+function stud(x, cx, cy, color) {
+  x.fillStyle = 'rgba(0,0,0,.28)'; x.beginPath(); x.arc(cx + 1.6, cy + 2, 6.4, 0, 7); x.fill();
+  x.fillStyle = color; x.beginPath(); x.arc(cx, cy, 6.2, 0, 7); x.fill();
+  x.strokeStyle = shade(color, .72); x.lineWidth = 1.2; x.beginPath(); x.arc(cx, cy, 5.6, .2, 2.2); x.stroke();
+  x.strokeStyle = 'rgba(255,255,255,.75)'; x.lineWidth = 1.6; x.beginPath(); x.arc(cx, cy, 4.2, 3.5, 4.9); x.stroke();
+}
+function brick(x, px, py, w, h, color) {   // w,h はポッチの数
+  const W = w * P, H = h * P;
+  x.fillStyle = shade(color, .7); x.beginPath(); x.roundRect(px, py, W, H, 2.5); x.fill();
+  x.fillStyle = shade(color, 1.18); x.beginPath(); x.roundRect(px, py, W - 1.5, H - 1.5, 2.5); x.fill();
+  x.fillStyle = color; x.beginPath(); x.roundRect(px + 1.5, py + 1.5, W - 3, H - 3, 2); x.fill();
+  x.save(); x.beginPath(); x.rect(px, py, W, H); x.clip(); x.fillStyle = 'rgba(255,255,255,.14)';
+  x.beginPath(); x.moveTo(px + W * .1, py); x.lineTo(px + W * .3, py); x.lineTo(px + W * .3 - H, py + H); x.lineTo(px + W * .1 - H, py + H); x.fill(); x.restore();
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) stud(x, px + i * P + P / 2, py + j * P + P / 2, color);
+}
+// あらかじめ描いておく
+const sprite = (w, h, color) => { const c = document.createElement('canvas'); c.width = (w * P + 8) * S; c.height = (h * P + 8) * S; const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 4 * S, 4 * S); brick(x, 0, 0, w, h, color); return c; };
+const BR = COLORS.map(c => sprite(4, 2, c)), PADDLE = sprite(6, 2, '#9aa0aa'), BALL = sprite(1, 1, '#ffffff');
+const plate = document.createElement('canvas'); plate.width = LW * S; plate.height = LH * S;
+{ const x = plate.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.fillStyle = '#3f9a52'; x.fillRect(0, 0, LW, LH); for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) stud(x, i * P + P / 2, j * P + P / 2, '#3f9a52'); }
+const draw = (spr, x, y, w, h) => g.drawImage(spr, x - 4, y - 4, w * P + 8, h * P + 8);
+const shadow = (x, y, w, h, d) => { g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.roundRect(x + d, y + d * 1.3, w * P, h * P, 3); g.fill(); };
+
+let bricks, flying = [], ball, pad;
+function reset() {
+  bricks = [];
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 7; c++) bricks.push({ x: (1 + c * 4) * P, y: (4 + r * 2) * P, col: r });
+  ball = { x: LW / 2, y: LH * .6, vx: 190, vy: -260 }; pad = { x: LW / 2 - 3 * P };
+}
+reset();
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.033, (now - last) / 1000)); last = now; t += dt;
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  if (ball.x < 10) { ball.x = 10; ball.vx = Math.abs(ball.vx); } if (ball.x > LW - 10) { ball.x = LW - 10; ball.vx = -Math.abs(ball.vx); }
+  if (ball.y < 10) { ball.y = 10; ball.vy = Math.abs(ball.vy); }
+  pad.x += Math.max(-420 * dt, Math.min(420 * dt, ball.x - 3 * P + Math.sin(t * 1.3) * 34 - pad.x)); pad.x = Math.max(0, Math.min(LW - 6 * P, pad.x));
+  const py = LH - 4 * P;
+  if (ball.vy > 0 && ball.y > py - 9 && ball.y < py + 20 && ball.x > pad.x - 8 && ball.x < pad.x + 6 * P + 8) { ball.vy = -Math.abs(ball.vy); ball.vx = (ball.x - (pad.x + 3 * P)) * 5.5; }
+  if (ball.y > LH + 30) { ball.x = pad.x + 3 * P; ball.y = py - 12; ball.vy = -260; }
+  for (const b of bricks) {
+    if (ball.x > b.x - 9 && ball.x < b.x + 4 * P + 9 && ball.y > b.y - 9 && ball.y < b.y + 2 * P + 9) {
+      const ox = Math.min(ball.x - (b.x - 9), b.x + 4 * P + 9 - ball.x), oy = Math.min(ball.y - (b.y - 9), b.y + 2 * P + 9 - ball.y);
+      if (ox < oy) ball.vx = -ball.vx; else ball.vy = -ball.vy;
+      b.dead = true; flying.push({ ...b, z: 0, vz: 2.6, vx: ball.vx * .3, vy: -60, rot: 0, vr: (Math.random() - .5) * 7 }); break;
+    }
+  }
+  bricks = bricks.filter(b => !b.dead); if (!bricks.length && !flying.length) reset();
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(plate, 0, 0, LW, LH);
+  for (const b of bricks) shadow(b.x, b.y, 4, 2, 5);
+  shadow(pad.x, py, 6, 2, 5); shadow(ball.x - 10, ball.y - 10, 1, 1, 8);
+  for (const b of bricks) draw(BR[b.col], b.x, b.y, 4, 2);
+  draw(PADDLE, pad.x, py, 6, 2); draw(BALL, ball.x - 10, ball.y - 10, 1, 1);
+  // はじけ飛ぶブロック（手前に来るほど大きく、影は遠く薄く）
+  for (let i = flying.length - 1; i >= 0; i--) {
+    const f = flying[i]; f.vz -= 4.5 * dt; f.z += f.vz * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 500 * dt * Math.max(0, .6 - f.z); f.rot += f.vr * dt;
+    if (f.z < -.2 || f.y > LH + 100) { flying.splice(i, 1); continue; }
+    const sc = 1 + f.z * .9, cx = f.x + 2 * P, cy = f.y + P;
+    g.save(); g.translate(cx + f.z * 40, cy + f.z * 56); g.rotate(f.rot); g.globalAlpha = .22; g.fillStyle = '#000'; g.beginPath(); g.roundRect(-2 * P * sc, -P * sc, 4 * P * sc, 2 * P * sc, 6); g.fill(); g.restore();
+    g.save(); g.translate(cx, cy); g.rotate(f.rot); g.scale(sc, sc); draw(BR[f.col], -2 * P, -P, 4, 2); g.restore();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

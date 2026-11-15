@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 45 鉄道運行 列車ダイヤ図</title>
+<style>
+html,body{margin:0;height:100%;background:#35403a;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f2f0e0;background:#35403a;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 45 ─ 鉄道運行シム / 列車ダイヤ図　｜　見るだけ（時刻が進み、遅れが波及する）</div>
+<script>
+// 鉄道の現場で使う「ダイヤ図」をそのまま画面にする。横が時刻、縦が駅で、列車は 1 本の斜めの線（駅で止まると水平）。
+// うすい緑の方眼紙に、普通は黒、快速は赤、貨物は青の破線。赤い縦線が「いま」で、右側は予定（うすい線）。右端に路線の模式図
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const ST = [['みなと', 0], ['汐見橋', 3], ['さくら台', 7], ['中央', 11], ['北山口', 16], ['湖畔', 20], ['峠', 26], ['高原', 30]];
+const X0 = 110, X1 = 800, Y0 = 70, Y1 = 540, KM = 30, SPAN = 60;                    // 図に入るのは 60 分ぶん
+const yOf = km => Y0 + (Y1 - Y0) * km / KM;
+const TYPES = { L: { c: '#1a1a1a', w: 1.6, v: .9, stop: i => true, dash: [] }, R: { c: '#d8281e', w: 2.4, v: 1.5, stop: i => i === 0 || i === 3 || i === 7, dash: [] }, F: { c: '#2a5ab0', w: 1.6, v: .7, stop: i => i === 0 || i === 7, dash: [7, 4] } };
+// 列車の時刻表（点の列）を作る。delay は途中駅での足止め
+function plan(type, dep, down, delayAt = -1, delay = 0) {
+  const T = TYPES[type], pts = []; let tm = dep;
+  const order = down ? ST.map((_, i) => i) : ST.map((_, i) => ST.length - 1 - i);
+  order.forEach((si, k) => {
+    if (k) tm += Math.abs(ST[si][1] - ST[order[k - 1]][1]) / T.v;
+    pts.push([tm, ST[si][1]]);
+    if (k < order.length - 1 && T.stop(si) && k) { tm += .8 + (si === delayAt ? delay : 0); pts.push([tm, ST[si][1]]); }
+  });
+  return { type, pts };
+}
+let trains = [], t0 = 360, clock = 360 + 8, nextDep = 356, n = 0;
+function addTrains() {
+  while (nextDep < clock + SPAN) {
+    const k = n++, late = k % 7 === 3;
+    trains.push(plan(k % 4 === 1 ? 'R' : k % 6 === 4 ? 'F' : 'L', nextDep, k % 2 === 0, late ? 3 : -1, late ? 5 : 0));
+    nextDep += 4 + (k % 3) * 2;
+  }
+  trains = trains.filter(tr => tr.pts[tr.pts.length - 1][0] > clock - SPAN);
+}
+const posAt = (tr, tm) => { const p = tr.pts; if (tm < p[0][0] || tm > p[p.length - 1][0]) return null; for (let i = 0; i < p.length - 1; i++) if (tm <= p[i + 1][0]) return p[i][1] + (p[i + 1][1] - p[i][1]) * (tm - p[i][0]) / Math.max(.001, p[i + 1][0] - p[i][0]); };
+const hhmm = m => Math.floor(m / 60) % 24 + ':' + String(Math.floor(m % 60)).padStart(2, '0');
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; clock += dt * 1.6;   // 1 秒で 1.6 分進む
+  addTrains();
+  const left = clock - SPAN * .62, xOf = tm => X0 + (X1 - X0) * (tm - left) / SPAN, nowX = xOf(clock);
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#f2f0e0'; g.fillRect(0, 0, LW, LH);
+  // 方眼（1 分ごとの細線、10 分ごとの太線）
+  for (let m = Math.ceil(left); m < left + SPAN; m++) { const x = xOf(m); g.strokeStyle = m % 10 ? 'rgba(60,140,90,.22)' : 'rgba(60,140,90,.7)'; g.lineWidth = m % 10 ? .6 : 1.2; g.beginPath(); g.moveTo(x, Y0); g.lineTo(x, Y1); g.stroke(); if (m % 10 === 0) { g.fillStyle = '#2a5a3a'; g.font = '700 13px "Helvetica Neue",Arial,sans-serif'; g.textAlign = 'center'; g.fillText(hhmm(m), x, Y0 - 10); } }
+  ST.forEach(([name, km], i) => { const y = yOf(km); g.strokeStyle = 'rgba(60,140,90,.8)'; g.lineWidth = TYPES.R.stop(i) ? 1.8 : .9; g.beginPath(); g.moveTo(X0, y); g.lineTo(X1, y); g.stroke(); g.fillStyle = '#1a1a1a'; g.font = '14px "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif'; g.textAlign = 'right'; g.fillText(name, X0 - 12, y + 5); });
+  // 列車のすじ（「いま」より右は予定なので薄く）
+  g.save(); g.beginPath(); g.rect(X0, Y0 - 2, X1 - X0, Y1 - Y0 + 4); g.clip();
+  for (const pass of [0, 1]) {
+    g.save(); g.beginPath(); pass ? g.rect(nowX, 0, LW, LH) : g.rect(0, 0, nowX, LH); g.clip(); g.globalAlpha = pass ? .28 : 1;
+    for (const tr of trains) { const T = TYPES[tr.type]; g.strokeStyle = T.c; g.lineWidth = T.w; g.setLineDash(T.dash); g.lineJoin = 'round'; g.beginPath(); tr.pts.forEach(([tm, km], i) => i ? g.lineTo(xOf(tm), yOf(km)) : g.moveTo(xOf(tm), yOf(km))); g.stroke(); }
+    g.restore();
+  }
+  g.setLineDash([]); g.restore();
+  g.strokeStyle = '#d8281e'; g.lineWidth = 2; g.beginPath(); g.moveTo(nowX, Y0 - 24); g.lineTo(nowX, Y1 + 10); g.stroke();
+  g.fillStyle = '#d8281e'; g.fillRect(nowX - 30, Y0 - 44, 60, 20); g.fillStyle = '#fff'; g.font = '700 13px "Helvetica Neue",Arial,sans-serif'; g.textAlign = 'center'; g.fillText(hhmm(clock), nowX, Y0 - 29);
+  // 右の模式図（いま走っている列車）
+  const RX = 880; g.strokeStyle = '#1a1a1a'; g.lineWidth = 4; g.beginPath(); g.moveTo(RX - 7, Y0); g.lineTo(RX - 7, Y1); g.moveTo(RX + 7, Y0); g.lineTo(RX + 7, Y1); g.stroke();
+  ST.forEach(([, km], i) => { g.fillStyle = '#f2f0e0'; g.strokeStyle = '#1a1a1a'; g.lineWidth = 2; g.beginPath(); g.roundRect(RX - 16, yOf(km) - 6, 32, 12, 6); g.fill(); g.stroke(); });
+  for (const tr of trains) {
+    const km = posAt(tr, clock); if (km == null) continue; const down = tr.pts[0][1] === 0, y = yOf(km), x = RX + (down ? -7 : 7);
+    g.fillStyle = TYPES[tr.type].c; g.beginPath(); g.roundRect(x - 5, y - 11, 10, 22, 3); g.fill(); g.fillStyle = '#fff'; g.fillRect(x - 3, y + (down ? 5 : -8), 6, 3);
+    g.strokeStyle = TYPES[tr.type].c; g.lineWidth = 1; g.beginPath(); g.moveTo(nowX, y); g.lineTo(X1 + 10, y); g.stroke();
+  }
+  // 凡例と枠
+  g.strokeStyle = '#1a1a1a'; g.lineWidth = 1.5; g.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
+  [['普通', 'L'], ['快速', 'R'], ['貨物', 'F']].forEach(([name, k], i) => { const x = 120 + i * 130; g.strokeStyle = TYPES[k].c; g.lineWidth = TYPES[k].w; g.setLineDash(TYPES[k].dash); g.beginPath(); g.moveTo(x, 572); g.lineTo(x + 46, 572); g.stroke(); g.setLineDash([]); g.fillStyle = '#1a1a1a'; g.font = '13px "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif'; g.textAlign = 'left'; g.fillText(name, x + 54, 577); });
+  g.textAlign = 'right'; g.fillText('湖北線 列車運行図表　LOOK 45', 800, 577);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

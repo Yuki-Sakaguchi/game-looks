@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-10 スケート 魚眼のビデオカメラ</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+.o{position:fixed;font:700 20px/1.3 ui-monospace,Menlo,Consolas,monospace;color:#fff;letter-spacing:.08em;text-shadow:2px 2px 0 rgba(0,0,0,.6)}
+#a{left:7%;top:8%} #b{right:7%;top:8%;text-align:right} #c{right:7%;bottom:10%;text-align:right}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;opacity:.7}
+</style>
+<div class="o" id="a"></div><div class="o" id="b"></div><div class="o" id="c"></div>
+<div id="cap">2-10 ─ スケート / 魚眼レンズのビデオカメラ　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 地面すれすれから、魚眼レンズを付けたビデオカメラで追いかけて撮る。まん中は大きく、ふちは強く曲がって小さくなり、
+// 画面のすみは丸く黒く欠ける。色は少し濃いめで、動きの速い所には 1 行おきの横ずれ（古いビデオのくし形）が出る。
+// 夕方の低い日ざしで影を長くのばす。壁の落書きはドット絵。着地のほこりもドット絵
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 112, far: 400 }), { add, box, flat, glow, hash } = K;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+scene.background = K.sky([[0, '#3a6ac0'], [.45, '#8ab8e8'], [.62, '#ffd8a8'], [1, '#e8b890']]); scene.fog = new THREE.Fog('#f0d0b0', 40, 160);
+scene.add(new THREE.HemisphereLight(0xbcd8ff, 0xb09a80, 1.3)); const sun = new THREE.DirectionalLight(0xffc890, 3); sun.position.set(-40, 22, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 5, far: 120 }); sun.shadow.bias = -.0008; sun.shadow.normalBias = .07; scene.add(sun);
+const S = m => { m.castShadow = true; m.receiveShadow = true; return m; };
+const conc = K.pix((i, j) => hash(i, j) > .86 ? .78 : (i === 0 || j === 0) ? .82 : .92 + hash(i + 5, j) * .08, 16, 24);
+S(add(scene, new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: '#c8c2b8', map: conc, roughness: .9 }), 0, 0, 0)).rotation.x = -Math.PI / 2;
+// 落書きの壁（ドット絵）
+const PAL = ['#ff3d7a', '#ffd23a', '#3ad0ff', '#7aff6a', '#b06aff', '#ff8a2a', '#ffffff'];
+const graf = s => K.pix((i, j) => { const a = Math.sin(i * .8 + s) * 3 + 8, b = Math.hypot(i - 5 - s % 5, j - 8); return j > 13 ? '#8a8478' : Math.abs(j - a) < 2.2 ? PAL[s % 7] : b < 3.4 ? PAL[(s + 2) % 7] : (i + j + s) % 7 === 0 ? PAL[(s + 4) % 7] : hash(i + s, j) > .9 ? '#6a665e' : '#a8a296'; }, 16);
+for (let k = 0; k < 6; k++) S(box(scene, 9.8, 4, .5, new THREE.MeshStandardMaterial({ map: graf(k * 3 + 1), roughness: .9 }), -25 + k * 10, 2, -24));
+for (let k = 0; k < 4; k++) S(box(scene, .5, 4, 9.8, new THREE.MeshStandardMaterial({ map: graf(k * 5 + 2), roughness: .9 }), 30, 2, -19 + k * 10));
+// セクション：クォーターパイプ、ファンボックス、レール、階段、ベンチ
+const qp = (x, z, ry, w) => { const g = new THREE.CylinderGeometry(4, 4, w, 10, 1, true, Math.PI, Math.PI / 2); const m = S(add(scene, g, flat('#b8b2a8', { side: THREE.DoubleSide }), x, 4, z)); m.rotation.set(0, ry, Math.PI / 2, 'YXZ'); S(box(scene, ry ? 1.4 : w, 4, ry ? w : 1.4, '#a8a298', x + (ry ? Math.sign(x) * 4.7 : 0), 2, z + (ry ? 0 : Math.sign(z) * 4.7))); };
+qp(0, -18.6, 0, 22); qp(-24.6, 2, Math.PI / 2, 20);
+S(box(scene, 7, 1, 4, '#b0aaa0', 6, .5, 4)); for (const s of [-1, 1]) { const r = S(box(scene, 4.2, .2, 4, '#b0aaa0', 6 + s * 5.4, .5, 4)); r.rotation.z = -s * .245; } S(box(scene, 7, .12, .3, '#e8c040', 6, 1.02, 2.2));
+S(add(scene, new THREE.CylinderGeometry(.07, .07, 9, 6), flat('#d8dce2', { roughness: .3, metalness: .7 }), -6, .8, 12)).rotation.z = Math.PI / 2; for (const s of [-3.6, 0, 3.6]) box(scene, .1, .8, .1, '#8a8e94', -6 + s, .4, 12);
+for (let k = 0; k < 5; k++) S(box(scene, 6, .35 * (5 - k), .9, '#b8b2a8', 20, .175 * (5 - k), 12 + k * .9)); S(box(scene, 6, 1.75, 6, '#b8b2a8', 20, .875, 8.5)); const hr = S(add(scene, new THREE.CylinderGeometry(.06, .06, 5.2, 6), flat('#d8dce2', { metalness: .7, roughness: .3 }), 17.4, 1.5, 14.2)); hr.rotation.x = 1.19;
+S(box(scene, 4, .5, 1, '#8a6a4a', -14, .5, 18)); S(box(scene, .9, .6, .5, '#2a2a30', -12.6, 1.05, 18)); for (const s of [-.25, .25]) add(scene, new THREE.CircleGeometry(.17, 10), glow('#8a8a94'), -12.6 + s, 1.05, 18.26);
+for (let i = 0; i < 6; i++) { const x = -34 + i * 14, g = new THREE.Group(); g.position.set(x, 0, 28); for (let k = 0; k < 6; k++) S(add(g, new THREE.CylinderGeometry(.22, .26, 1.5, 5), '#8a6a4a', k * k * .05, .75 + k * 1.45, 0)).rotation.z = -k * .04; for (let k = 0; k < 7; k++) { const pv = new THREE.Group(); pv.position.set(1.9, 9.2, 0); pv.rotation.y = k * .9; const lf = S(add(pv, new THREE.ConeGeometry(.6, 3.6, 3), '#3f9a5a', 0, 0, 0)); lf.geometry.translate(0, 1.8, 0); lf.rotation.z = -1.9; lf.scale.z = .3; g.add(pv); } scene.add(g); }
+// 滑る人と板、見ている 2 人
+const sk = new THREE.Group(), body = new THREE.Group(), board = new THREE.Group(); sk.add(body, board); scene.add(sk);
+S(box(board, .44, .06, 1.7, '#2a2a30', 0, .2, 0)); box(board, .46, .02, 1.72, glow('#ff3d7a'), 0, .165, 0); for (const z of [-.6, .6]) for (const s of [-.2, .2]) add(board, new THREE.CylinderGeometry(.09, .09, .08, 8), '#f4f0e0', s, .09, z).rotation.z = Math.PI / 2;
+S(box(body, .5, .66, .34, '#f4f4f4', 0, 1.25, 0)); S(add(body, new THREE.IcosahedronGeometry(.25, 0), '#e8c8a0', 0, 1.8, 0)); S(box(body, .54, .2, .5, '#2a5ae0', 0, 1.98, 0)); box(body, .5, .06, .34, '#2a5ae0', 0, 1.9, .34);
+const lg = [-1, 1].map(s => { const l = S(box(body, .2, .7, .22, '#3a4a6a', s * .15, .6, s * .34)); return l; }), ar = [-1, 1].map(s => { const a = S(box(body, .14, .62, .14, '#e8c8a0', s * .4, 1.3, 0)); a.geometry.translate(0, -.2, 0); return a; });
+for (const [x, c] of [[-15, '#ff8a2a'], [-13.6, '#7aff6a']]) { S(box(scene, .5, .6, .34, c, x, 1.15, 17.9)); S(add(scene, new THREE.IcosahedronGeometry(.24, 0), '#e8c8a0', x, 1.7, 17.9)); box(scene, .2, .2, .7, '#3a4a6a', x - .12, .85, 18.3); box(scene, .2, .2, .7, '#3a4a6a', x + .12, .85, 18.3); }
+const fx = K.fx(scene, 80);
+const post = K.post(renderer, `void main(){float asp=res.x/res.y;vec2 c=vUv-.5;c.x*=asp;float r=length(c);
+vec2 u=c*(1.+1.1*r*r+.6*r*r*r*r);u.x/=asp;u=u*.5+.5;
+float line=floor(vUv.y*size.y*.5);u.x+=(mod(line,2.)-.5)*.0035*(.4+.6*sin(time*2.));
+vec3 col=(u.x<0.||u.x>1.||u.y<0.||u.y>1.)?vec3(0.):src(u);
+float l=dot(col,vec3(.3,.59,.11));col=mix(vec3(l),col,1.3);col=(col-.5)*1.12+.5;
+col*=smoothstep(.98,.72,r/(.5*max(asp,1.)*1.05+.18));col+=(h(vUv*size+fract(time)*53.)-.5)*.05;
+gl_FragColor=vec4(col,1.);}`); onResize(post.resize);
+const O = id => document.getElementById(id); const path = t => [Math.sin(t * .42) * 17, Math.sin(t * .84) * 9 + 3];
+let wasAir = 0;
+K.loop((dt, t) => {
+  const [x, z] = path(t), [x2, z2] = path(t + .05), yaw = Math.atan2(x2 - x, z2 - z), jp = (t % 3.2) / 3.2, air = jp > .7 ? Math.sin((jp - .7) / .3 * Math.PI) : 0, onBox = Math.abs(x - 6) < 3.5 && Math.abs(z - 4) < 2 ? 1 : 0;
+  sk.position.set(x, onBox + air * 1.5, z); sk.rotation.y = yaw; board.rotation.z = air > 0 ? (jp - .7) / .3 * Math.PI * 2 : 0; board.position.y = air * -.25;
+  const crouch = jp > .55 && jp < .7 ? (jp - .55) / .15 : air > 0 ? -.3 : 0; body.position.y = -crouch * .3; body.rotation.x = crouch * .4 + .08; body.rotation.y = Math.PI / 2 * .8; lg.forEach((l, i) => { l.scale.y = 1 - crouch * .4; }); ar.forEach((a, i) => { a.rotation.z = (i ? 1 : -1) * (.5 + air * 1.2 + Math.sin(t * 3 + i) * .15); });
+  if (wasAir && !air) for (let k = 0; k < 5; k++) fx.emit('puff', x, .3 + onBox, z, { spread: 3, vy: .8, life: .6, size: .45, grow: 1.4, tint: '#f4e8d8' }); wasAir = air > 0;
+  fx.update(dt);
+  const [cx, cz] = path(t - .62); cam.position.set(cx + Math.sin(t * .7) * .6, .75 + Math.sin(t * 5) * .04 + onBox * .3, cz + Math.cos(t * .5) * .6); cam.lookAt(x, 1.1 + air * 1.2 + onBox, z); cam.rotation.z += Math.sin(t * .9) * .08;
+  post.render(scene, cam, t);
+  const s = 192 + Math.floor(t); O('a').innerHTML = '<span style="color:#ff3a2a">' + (Math.floor(t * 2) % 2 ? '●' : '&nbsp;') + '</span> REC'; O('b').textContent = 'SP ▭▭▭'; O('c').innerHTML = 'PM 5:' + String(12 + Math.floor(t / 60) % 40).padStart(2, '0') + '<br>0:' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+});
+</script>
+</html>

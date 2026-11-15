@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 94 玉落とし ブリキのおもちゃ</title>
+<style>
+html,body{margin:0;height:100%;background:#3a2e26;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f6e8c6;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 94 ─ 玉落とし / 印刷ブリキのおもちゃ　｜　見るだけ（玉がくぎに当たって落ちる）</div>
+<script>
+// 色を印刷したブリキ板のおもちゃ。色は赤・黄・青緑・生成りのべた塗りに黒い輪郭で、版が少しずれている。
+// 金属なので、板の上を明るい帯がゆっくり横切る。ふちや角には、はげとさびを点々と置く。
+// くぎと鉄の玉は丸い金属として、白い映りこみと下側の影で立体に見せる。全体をガラスのふたがおおう
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const X0 = 240, X1 = 720, Y0 = 30, Y1 = 570, RED = '#d8382c', YEL = '#f2c230', TEAL = '#2f8f86', CREAM = '#f6e8c6', INK = '#1d1a18', SANS = '"Futura","Avenir Next Condensed","Arial Black",Arial,sans-serif';
+const pins = []; for (let r = 0; r < 9; r++) for (let k = 0; k < (r % 2 ? 9 : 10); k++) pins.push([X0 + 42 + k * 44 + (r % 2 ? 22 : 0), 150 + r * 36]);
+const SLOTS = [10, 30, 50, 100, 50, 30, 10], SW = (X1 - X0) / 7;
+const board = document.createElement('canvas'); board.width = LW * S; board.height = LH * S; {
+  const b = board.getContext('2d'); b.setTransform(S, 0, 0, S, 0, 0); b.fillStyle = '#3a2e26'; b.fillRect(0, 0, LW, LH);
+  b.fillStyle = 'rgba(0,0,0,.4)'; b.beginPath(); b.roundRect(X0 - 14, Y0 - 6, X1 - X0 + 40, Y1 - Y0 + 24, 26); b.fill();
+  const face = off => { b.save(); b.translate(off, off * .7);
+    b.fillStyle = TEAL; b.beginPath(); b.roundRect(X0 - 20, Y0 - 12, X1 - X0 + 40, Y1 - Y0 + 24, 26); b.fill();
+    b.fillStyle = CREAM; b.beginPath(); b.roundRect(X0, Y0 + 8, X1 - X0, Y1 - Y0 - 16, 14); b.fill();
+    for (let i = 0; i < 24; i++) { b.fillStyle = i % 2 ? YEL : CREAM; b.beginPath(); b.moveTo(480, 300); b.arc(480, 300, 420, i / 24 * 6.283, (i + 1) / 24 * 6.283); b.fill(); }
+    b.fillStyle = RED; b.beginPath(); b.roundRect(X0 + 30, 44, X1 - X0 - 60, 62, 31); b.fill();
+    SLOTS.forEach((v, i) => { b.fillStyle = [TEAL, YEL, RED, CREAM, RED, YEL, TEAL][i]; b.fillRect(X0 + i * SW, 486, SW, 76); });
+    b.restore(); };
+  b.save(); b.beginPath(); b.roundRect(X0 - 20, Y0 - 12, X1 - X0 + 40, Y1 - Y0 + 24, 26); b.clip(); face(2); b.restore();
+  b.save(); b.beginPath(); b.roundRect(X0, Y0 + 8, X1 - X0, Y1 - Y0 - 16, 14); b.clip(); b.globalAlpha = 0; b.restore();
+  b.strokeStyle = INK; b.lineWidth = 3; b.lineJoin = 'round'; b.beginPath(); b.roundRect(X0 - 20, Y0 - 12, X1 - X0 + 40, Y1 - Y0 + 24, 26); b.stroke(); b.beginPath(); b.roundRect(X0, Y0 + 8, X1 - X0, Y1 - Y0 - 16, 14); b.stroke(); b.beginPath(); b.roundRect(X0 + 30, 44, X1 - X0 - 60, 62, 31); b.stroke();
+  b.fillStyle = CREAM; b.strokeStyle = INK; b.lineWidth = 2; b.font = `900 40px ${SANS}`; b.textAlign = 'center'; b.strokeText('LUCKY  DROP', 480, 90); b.fillText('LUCKY  DROP', 480, 90);
+  SLOTS.forEach((v, i) => { const x = X0 + i * SW; b.lineWidth = 3; b.strokeRect(x, 486, SW, 76); b.fillStyle = i === 3 ? RED : INK; b.font = `900 ${v === 100 ? 24 : 26}px ${SANS}`; b.fillText(String(v), x + SW / 2, 548); });
+  for (const [x, y] of [[300, 128], [660, 128], [282, 300], [678, 300]]) { b.fillStyle = RED; b.strokeStyle = INK; b.lineWidth = 2; b.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283 - 1.571, r = i % 2 ? 6 : 14; b.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } b.closePath(); b.fill(); b.stroke(); }
+  // はげ・さび・びょう
+  for (let i = 0; i < 260; i++) { const e = Math.floor(hash(i, 1) * 4), u = hash(i, 2), d = hash(i, 3) * hash(i, 3) * 26, x = e < 2 ? X0 - 18 + u * (X1 - X0 + 36) : (e === 2 ? X0 - 18 + d : X1 + 18 - d), y = e < 2 ? (e ? Y0 - 10 + d : Y1 + 10 - d) : Y0 + u * (Y1 - Y0); b.fillStyle = hash(i, 4) > .5 ? 'rgba(120,60,30,.7)' : 'rgba(190,190,180,.7)'; b.beginPath(); b.arc(x, y, .8 + hash(i, 5) * 2.4, 0, 7); b.fill(); }
+  for (const [x, y] of [[X0 - 8, Y0], [X1 + 8, Y0], [X0 - 8, Y1], [X1 + 8, Y1]]) { const r = b.createRadialGradient(x - 2, y - 2, 1, x, y, 7); r.addColorStop(0, '#fff'); r.addColorStop(1, '#6a6a66'); b.fillStyle = r; b.beginPath(); b.arc(x, y, 6, 0, 7); b.fill(); }
+}
+function metal(x, y, r) { g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(x + r * .35, y + r * .5, r, 0, 7); g.fill(); const gr = g.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r); gr.addColorStop(0, '#ffffff'); gr.addColorStop(.35, '#c9ccd2'); gr.addColorStop(.8, '#5a5e66'); gr.addColorStop(1, '#2a2c30'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+let balls = [], spawn = 0, last = performance.now(), t = 0, total = 0, lastHit = -1, hitT = 9; const R = 9;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.033, (now - last) / 1000)); last = now; t += dt; hitT += dt;
+  if ((spawn -= dt) < 0) { spawn = .8; balls.push({ x: 480 + (Math.random() - .5) * 240, y: 118, vx: (Math.random() - .5) * 60, vy: 0 }); }
+  for (const b of balls) for (let it = 0; it < 2; it++) { const h = dt / 2; b.vy += 620 * h; b.x += b.vx * h; b.y += b.vy * h;
+    for (const [px, py] of pins) { const dx = b.x - px, dy = b.y - py, d = Math.hypot(dx, dy); if (d < R + 4 && d > 0) { const nx = dx / d, ny = dy / d, vn = b.vx * nx + b.vy * ny; b.x = px + nx * (R + 4); b.y = py + ny * (R + 4); if (vn < 0) { b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; b.vx += (Math.random() - .5) * 30; } } }
+    if (b.x < X0 + R + 2) { b.x = X0 + R + 2; b.vx = Math.abs(b.vx) * .6; } if (b.x > X1 - R - 2) { b.x = X1 - R - 2; b.vx = -Math.abs(b.vx) * .6; }
+    if (b.y > 486) { const k = Math.round((b.x - X0) / SW); const wx = X0 + k * SW; if (Math.abs(b.x - wx) < R + 2 && k > 0 && k < 7) { b.x = wx + Math.sign(b.x - wx || 1) * (R + 2); b.vx *= -.4; } }
+    if (b.y > 562 - R && !b.done) { b.done = 1; b.y = 562 - R; const k = Math.max(0, Math.min(6, Math.floor((b.x - X0) / SW))); total += SLOTS[k]; lastHit = k; hitT = 0; b.fade = 1; } if (b.done) { b.vy = 0; b.vx = 0; b.y = 562 - R; } }
+  balls = balls.filter(b => !b.done || (b.fade -= dt * .7) > 0);
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(board, 0, 0, LW, LH);
+  if (hitT < .5) { g.fillStyle = `rgba(255,255,255,${(.5 - hitT) * 1.4})`; g.fillRect(X0 + lastHit * SW, 486, SW, 76); }
+  g.fillStyle = INK; for (let i = 1; i < 7; i++) g.fillRect(X0 + i * SW - 2.5, 486, 5, 76);
+  for (const [x, y] of pins) metal(x, y, 4.5);
+  for (const b of balls) { g.globalAlpha = b.done ? Math.max(0, b.fade) : 1; metal(b.x, b.y, R); g.globalAlpha = 1; }
+  // 金属の照りと、ガラスのふた
+  g.save(); g.beginPath(); g.roundRect(X0 - 20, Y0 - 12, X1 - X0 + 40, Y1 - Y0 + 24, 26); g.clip();
+  const sx = X0 - 200 + ((t * 70) % 900), sh = g.createLinearGradient(sx, 0, sx + 160, 90); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.5, 'rgba(255,255,255,.2)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(X0 - 20, 0, 520, LH);
+  const gl = g.createLinearGradient(X0, Y0, X1, Y1); gl.addColorStop(0, 'rgba(255,255,255,.2)'); gl.addColorStop(.25, 'rgba(255,255,255,0)'); gl.addColorStop(.7, 'rgba(255,255,255,0)'); gl.addColorStop(1, 'rgba(0,0,0,.2)'); g.fillStyle = gl; g.fillRect(X0 - 20, 0, 520, LH); g.restore();
+  // 点数の札
+  g.save(); g.translate(120, 300); g.rotate(-.06); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-70, -44, 148, 96); g.fillStyle = YEL; g.fillRect(-74, -48, 148, 96); g.strokeStyle = INK; g.lineWidth = 3; g.strokeRect(-74, -48, 148, 96); g.fillStyle = INK; g.textAlign = 'center'; g.font = `900 16px ${SANS}`; g.fillText('SCORE', 0, -20); g.fillStyle = RED; g.font = `900 40px ${SANS}`; g.fillText(String(total % 100000), 0, 26); g.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

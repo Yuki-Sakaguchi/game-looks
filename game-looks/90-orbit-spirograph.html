@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 90 軌道パズル 歯車定規のペン画</title>
+<style>
+html,body{margin:0;height:100%;background:#c9c2b2;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#223;background:#fbfaf5;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 90 ─ 軌道パズル / 歯車定規とボールペンの模様　｜　見るだけ（お手本の点線をなぞって描く）</div>
+<script>
+// 輪の内側で小さな歯車を転がし、歯車の穴にさしたペンで模様を描くおもちゃ。
+// 線はボールペンの細い線で、色は赤・青・緑・黒の 4 本。同じ所を何度も通るので重なった所が濃くなる。
+// お手本はうすい灰色の点線。歯車と輪は半透明の色つきプラスチックとして、紙の上に重ねて描く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), CX = 400, CY = 300, R = 230;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const ink = document.createElement('canvas'); ink.width = LW * S; ink.height = LH * S; const q = ink.getContext('2d'); q.setTransform(S, 0, 0, S, 0, 0); q.lineCap = 'round';
+const SETS = [{ r: 77, d: 58, c: '#d2332b', turns: 77 / 1 }, { r: 92, d: 80, c: '#2456c8', turns: 2 }, { r: 138, d: 60, c: '#1f8a4a', turns: 3 }, { r: 115, d: 100, c: '#1b1b22', turns: 1 }];
+const gcd = (a, b) => b ? gcd(b, a % b) : a; SETS.forEach(s => { s.rev = s.r / gcd(R, s.r); });      // 何周で閉じるか
+const pt = (s, th) => { const k = R - s.r; return [CX + k * Math.cos(th) + s.d * Math.cos(k / s.r * th), CY + k * Math.sin(th) - s.d * Math.sin(k / s.r * th)]; };
+function teeth(x, y, rad, n, rot, inner) { g.beginPath(); for (let i = 0; i <= n * 2; i++) { const a = rot + i / (n * 2) * 6.283, rr = rad + (i % 2 ? 3 : -3) * (inner ? -1 : 1); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); }
+let idx = 0, th = 0, lastP = null, hold = 0, last = performance.now(), page = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; const s = SETS[idx], end = s.rev * 6.2832;
+  if (th < end) { const steps = 14; for (let k = 0; k < steps; k++) { th = Math.min(end, th + dt * 9 / steps); const p = pt(s, th); if (lastP) { q.strokeStyle = s.c; q.globalAlpha = .62 + Math.sin(th * 7) * .12; q.lineWidth = 1.15; q.beginPath(); q.moveTo(lastP[0], lastP[1]); q.lineTo(p[0], p[1]); q.stroke(); } lastP = p; } }
+  else if ((hold += dt) > 1.2) { hold = 0; th = 0; lastP = null; idx++; if (idx >= SETS.length) { idx = 0; page++; q.clearRect(0, 0, LW, LH); } }
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#c9c2b2'; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(46, 28, 880, 556); g.fillStyle = '#fbfaf5'; g.fillRect(40, 22, 880, 556);
+  g.fillStyle = 'rgba(240,220,150,.8)'; for (const [x, y, a] of [[40, 22, -.7], [920, 22, .7], [40, 578, .7], [920, 578, -.7]]) { g.save(); g.translate(x, y); g.rotate(a); g.fillRect(-34, -11, 68, 22); g.restore(); }
+  // お手本（点線）
+  g.strokeStyle = 'rgba(60,60,70,.3)'; g.lineWidth = 1; g.setLineDash([2, 5]); g.beginPath(); for (let a = 0; a <= end + .01; a += .03) { const p = pt(s, a); g.lineTo(p[0], p[1]); } g.stroke(); g.setLineDash([]);
+  g.drawImage(ink, 0, 0, LW, LH);
+  // 輪と歯車（半透明のプラスチック）
+  g.fillStyle = 'rgba(90,170,220,.16)'; g.strokeStyle = 'rgba(40,110,170,.6)'; g.lineWidth = 1.2; g.beginPath(); g.arc(CX, CY, R + 30, 0, 7); teeth(CX, CY, R, 96, 0, true); g.fill('evenodd'); g.beginPath(); g.arc(CX, CY, R + 30, 0, 7); g.stroke(); teeth(CX, CY, R, 96, 0, true); g.stroke();
+  for (let i = 0; i < 4; i++) { const a = i * 1.571 + .785; g.fillStyle = '#c9cdd2'; g.beginPath(); g.arc(CX + Math.cos(a) * (R + 16), CY + Math.sin(a) * (R + 16), 4, 0, 7); g.fill(); g.fillStyle = '#d2332b'; g.beginPath(); g.arc(CX + Math.cos(a) * (R + 16), CY + Math.sin(a) * (R + 16), 1.8, 0, 7); g.fill(); }
+  const k = R - s.r, gx = CX + k * Math.cos(th), gy = CY + k * Math.sin(th), rot = -k / s.r * th, p = pt(s, th);
+  g.fillStyle = 'rgba(240,120,150,.2)'; g.strokeStyle = 'rgba(190,50,90,.65)'; teeth(gx, gy, s.r, Math.round(s.r * 96 / R), rot, false); g.fill(); g.stroke();
+  for (let i = 1; i < 8; i++) { const hr = i * s.r / 8.5, a = rot + i * .9; g.beginPath(); g.arc(gx + Math.cos(a) * hr, gy + Math.sin(a) * hr, 2.2, 0, 7); g.stroke(); }
+  g.beginPath(); g.arc(gx, gy, 3, 0, 7); g.stroke();
+  // ペン
+  g.save(); g.translate(p[0], p[1]); g.rotate(-.6); g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(4, 6, 150, 8); g.fillStyle = '#e9e9ee'; g.fillRect(8, -5, 140, 10); g.fillStyle = s.c; g.fillRect(118, -5, 30, 10); g.beginPath(); g.moveTo(0, 0); g.lineTo(9, -4.5); g.lineTo(9, 4.5); g.fill(); g.restore();
+  // 右の記録
+  g.fillStyle = '#223'; g.textAlign = 'left'; g.font = '22px "Bradley Hand","Segoe Script","Comic Sans MS",cursive'; g.fillText('pattern no. ' + (page * 4 + idx + 1), 690, 80);
+  g.font = '16px ui-monospace,Menlo,Consolas,monospace'; [['ring', R + ' teeth'], ['wheel', s.r + ' teeth'], ['pen hole', s.d + ' mm'], ['closes in', s.rev + ' turns']].forEach(([a, b], i) => { g.fillStyle = '#667'; g.fillText(a, 690, 130 + i * 30); g.fillStyle = '#223'; g.fillText(b, 790, 130 + i * 30); });
+  const pc = Math.min(100, th / end * 100); g.strokeStyle = '#223'; g.lineWidth = 1.2; g.strokeRect(690, 262, 200, 12); g.fillStyle = s.c; g.fillRect(692, 264, 196 * pc / 100, 8);
+  g.fillStyle = '#d2332b'; g.font = '26px "Bradley Hand","Segoe Script","Comic Sans MS",cursive'; g.fillText('match ' + pc.toFixed(0) + '%', 690, 316);
+  SETS.forEach((z, i) => { g.fillStyle = z.c; g.globalAlpha = i <= idx ? 1 : .25; g.fillRect(690 + i * 52, 350, 40, 8); g.globalAlpha = 1; });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

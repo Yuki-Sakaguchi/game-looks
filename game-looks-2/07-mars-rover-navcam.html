@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-07 火星ローバー 探査カメラの映像</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+.o{position:fixed;font:600 13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#f4e6d4;letter-spacing:.06em;text-shadow:0 0 4px rgba(0,0,0,.8)}
+#a{left:4%;top:5%} #b{right:4%;top:5%;text-align:right} #c{left:4%;bottom:8%} #d{right:4%;bottom:8%;text-align:right}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e6d4;opacity:.7}
+</style>
+<div class="o" id="a"></div><div class="o" id="b"></div><div class="o" id="c"></div><div class="o" id="d"></div>
+<div id="cap">2-07 ─ 火星ローバー / 探査カメラが送ってきた映像　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 遠い星から届く映像。広角レンズでふちが曲がり、四すみが暗く、レンズには位置合わせ用の小さな十字が並ぶ。
+// 絵は少しずつ送られてくるので、まだ粗いままの帯が上から下へ通りすぎ、通ったあとが細かくなる。
+// 空はうすい黄土色、地面は赤茶のローポリ。車輪のあとが地面に残り、砂ぼこりはドット絵
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 78, far: 700 }), { add, box, flat, glow, hash } = K;
+scene.background = K.sky([[0, '#8a6a52'], [.45, '#c9a27a'], [.6, '#e6c79a'], [1, '#b98a62']]); scene.fog = new THREE.Fog('#d8b48a', 30, 260);
+scene.add(new THREE.HemisphereLight(0xe8c8a0, 0x7a4a34, 1.3)); const sun = new THREE.DirectionalLight(0xfff0dc, 2.2); scene.add(sun, sun.target);
+add(scene, new THREE.CircleGeometry(5, 20), glow('#fff8ea', { fog: false }), -90, 70, -300);
+const C = K.colors('#b0623c', '#a45a38', '#bc6e44', '#8a4a30', '#c88a5a');
+const H = (x, z) => Math.sin(x * .05) * Math.cos(z * .04) * 3 + Math.sin(x * .13 + z * .09) * 1 + Math.sin(z * .021) * 4 + Math.abs(Math.sin(x * .017 + 1)) * 5 * Math.min(1, Math.abs(x) / 30);
+const land = K.terrain(H, 84, 84, 2.4, (y, x, z) => C[Math.floor(hash(Math.round(x * .4), Math.round(z * .4)) * 5)]); scene.add(land.mesh);
+// 岩（先へ送りなおす）と、遠くの台地
+const SPAN = 200, rocks = [...Array(150)].map((_, i) => { const m = add(scene, new THREE.IcosahedronGeometry(.25 + Math.pow(hash(i, 1), 3) * 3, 0), i % 3 ? '#8a4a30' : '#6a3a2a'); m.scale.y = .6; m.rotation.set(i, i * 2, 0); m.userData = { x: (hash(i, 2) - .5) * 180, oz: hash(i, 3) * SPAN }; return m; });
+const mesas = [...Array(7)].map((_, i) => { const m = add(scene, new THREE.CylinderGeometry(30 + hash(i, 4) * 30, 46 + hash(i, 5) * 36, 26 + hash(i, 6) * 26, 7), '#a8603e'); m.userData = { x: (i - 3) * 130 + hash(i, 7) * 50 }; return m; });
+// ローバー
+const rv = new THREE.Group(); scene.add(rv);
+box(rv, 2.2, .5, 3, '#e8e2d4', 0, 1.3, 0); const panelT = K.pix((i, j) => (i % 4 === 0 || j % 8 === 0) ? .5 : .16, 16, 2); box(rv, 2.6, .08, 3.2, new THREE.MeshStandardMaterial({ color: '#4a6ac0', map: panelT, roughness: .4, metalness: .4 }), 0, 1.62, 0);
+box(rv, .7, .7, .6, '#3a3a44', 0, 1.3, 1.7); for (let k = 0; k < 4; k++) box(rv, .04, .6, .5, '#8a8a94', -.3 + k * .2, 1.4, 2.1);
+const mast = new THREE.Group(); mast.position.set(.7, 1.7, -1.1); add(mast, new THREE.CylinderGeometry(.07, .07, 1.5, 5), '#c8ccd2', 0, .75, 0); const headG = new THREE.Group(); headG.position.y = 1.55; box(headG, .8, .34, .36, '#e8e2d4', 0, 0, 0); for (const s of [-1, 1]) add(headG, new THREE.CylinderGeometry(.11, .11, .1, 8), '#15161a', s * .24, 0, -.2).rotation.x = Math.PI / 2; mast.add(headG); rv.add(mast);
+const dish = add(rv, new THREE.ConeGeometry(.6, .25, 10, 1, true), flat('#f4f0e8', { side: THREE.DoubleSide }), -.7, 2.3, .6); dish.rotation.x = -2.2; add(rv, new THREE.CylinderGeometry(.03, .03, .7, 4), '#c8ccd2', -.7, 1.95, .6);
+const armG = new THREE.Group(); armG.position.set(-.6, 1.1, -1.5); box(armG, .1, .1, 1.3, '#c8ccd2', 0, 0, -.65); box(armG, .34, .34, .3, '#6a6a74', 0, 0, -1.35); rv.add(armG);
+const wheels = []; for (const s of [-1, 1]) { box(rv, .1, .1, 3.2, '#8a8a94', s * 1.35, 1, 0).rotation.x = .06; for (const z of [-1.5, 0, 1.5]) { const w = add(rv, new THREE.CylinderGeometry(.5, .5, .42, 10), '#3a3a44', s * 1.5, .5, z); w.rotation.z = Math.PI / 2; box(w, .2, .46, .2, '#8a8a94', 0, 0, 0); wheels.push(w); box(rv, .08, .6, .08, '#8a8a94', s * 1.38, .78, z); } }
+// 車輪のあと
+const TR = 140, tr = new THREE.InstancedMesh(new THREE.PlaneGeometry(.5, .5), new THREE.MeshBasicMaterial({ color: '#6a3524', transparent: true, opacity: .55 }), TR), dm = new THREE.Object3D(); tr.frustumCulled = false; scene.add(tr); let trI = 0, trD = 0;
+const fx = K.fx(scene, 140); let pT = 0;
+const post = K.post(renderer, `void main(){float asp=res.x/res.y;vec2 c=vUv-.5;c.x*=asp;float r2=dot(c,c)/max(1.,asp*asp*.35);vec2 u=c*(1.+.34*r2);u.x/=asp;u=u*.86+.5;
+vec3 col=vec3(0.);if(u.x>0.&&u.x<1.&&u.y>0.&&u.y<1.){
+  float band=fract(time*.11),below=step(1.-u.y,band),blk=mix(18.,1.,below);blk=mix(blk,6.,smoothstep(.05,0.,abs(1.-u.y-band)));
+  vec2 q=(floor(u*size/blk)+.5)*blk/size;col=src(q);
+  col=mix(vec3(dot(col,vec3(.3,.59,.11))),col,.92)*vec3(1.04,1.,.94);
+  col+=(h(u*size+fract(time)*37.)-.5)*.06;
+  vec2 g=abs(fract(vUv*vec2(8.*asp/1.6,8.))-.5);float cr=step(max(g.x,g.y),.035)*step(min(g.x,g.y),.004);col=mix(col,vec3(.05),cr*.8);
+  col=mix(col,vec3(1.,.9,.7),smoothstep(.006,0.,abs(1.-u.y-band))*.5);}
+col*=1.-r2*1.15;gl_FragColor=vec4(col,1.);}`); onResize(post.resize);
+const O = id => document.getElementById(id);
+K.loop((dt, t) => {
+  const z = -t * 2.4, x = Math.sin(t * .09) * 8, y = H(x, z), dx = Math.cos(t * .09) * .09 * 8 / 2.4, pitch = (H(x, z - 1.5) - H(x, z + 1.5)) / 3, roll = (H(x + 1.4, z) - H(x - 1.4, z)) / 2.8;
+  rv.position.set(x, y + .25, z); rv.rotation.set(pitch * .5, -Math.atan(dx), -roll * .5, 'YXZ'); wheels.forEach(w => { w.rotation.x = t * 4.8; });
+  headG.rotation.y = Math.sin(t * .25) * 1; headG.rotation.x = Math.sin(t * .4) * .2 - .1; armG.rotation.x = -.2 + Math.sin(t * .3) * .25;
+  land.follow(x, z, -60);
+  for (const m of rocks) { const rz = z + 30 - ((((m.userData.oz - z) % SPAN) + SPAN) % SPAN), rx = m.userData.x + (Math.abs(m.userData.x - x) < 4 ? 8 : 0); m.position.set(rx, H(rx, rz) + .1, rz); }
+  for (const m of mesas) m.position.set(x * .8 + m.userData.x, y + 4, z - 330);
+  sun.position.set(x - 40, y + 60, z - 80); sun.target.position.set(x, y, z);
+  trD += 2.4 * dt; if (trD > .55) { trD = 0; for (const s of [-1.5, 1.5]) { const wx = x + s, wz = z + 1.6; dm.position.set(wx, H(wx, wz) + .06, wz); dm.rotation.set(-Math.PI / 2, 0, 0); dm.updateMatrix(); tr.setMatrixAt(trI++ % TR, dm.matrix); } tr.instanceMatrix.needsUpdate = true; }
+  if ((pT -= dt) < 0) { pT = .1; fx.emit('puff', x + (Math.random() < .5 ? -1.5 : 1.5), y + .3, z + 1.8, { vy: .8, vz: .8, spread: .8, life: 1.6, size: .7, grow: 2.2, tint: '#d8a070' });
+    const dvx = x + 40 + Math.sin(t * .2) * 20, dvz = z - 60; fx.emit('puff', dvx + Math.sin(t * 6) * 1.5, H(dvx, dvz) + Math.random() * 2, dvz + Math.cos(t * 6) * 1.5, { vy: 5, vx: Math.cos(t * 6) * 2, vz: -Math.sin(t * 6) * 2, life: 2.6, size: 2, grow: 2.5, tint: '#c89468' }); }
+  fx.update(dt);
+  const ca = Math.sin(t * .1) * .5; const kx = x + 5.5 + ca * 2, kz = z + 7.5; cam.position.set(kx, Math.max(y + 3.2, H(kx, kz) + 1.8, H(kx - 2, kz - 3) + 1.4), kz); cam.lookAt(x - 1 + ca * 4, y + 1, z - 8);
+  post.render(scene, cam, t);
+  const s = 51722 + Math.floor(t); O('a').innerHTML = 'SOL 0412 &nbsp; NAVCAM-R<br>LMST ' + [Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60, s % 60].map(v => String(v).padStart(2, '0')).join(':'); O('b').innerHTML = 'DOWNLINK ' + String(Math.floor((t * .11 % 1) * 100)).padStart(3, '0') + '%<br>SEQ ' + String(207 + Math.floor(t * .11)).padStart(5, '0');
+  O('c').innerHTML = 'ODOM ' + (1284.6 + t * 2.4).toFixed(1) + ' m<br>TILT ' + (pitch * 57).toFixed(1) + '° / ' + (roll * 57).toFixed(1) + '°'; O('d').innerHTML = 'HDG ' + String(Math.round(((-Math.atan(dx) * 57 + 360) % 360))).padStart(3, '0') + '°<br>BUS 28.4 V &nbsp; −61 °C';
+});
+</script>
+</html>

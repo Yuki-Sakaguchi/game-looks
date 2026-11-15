@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-06 配達ドライブ 雨の夜のミニチュア撮影</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0c14;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffd0e8;opacity:.85}
+</style>
+<div id="cap">2-06 ─ 配達ドライブ / 雨の夜の街をミニチュア撮影　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 遠くから望遠レンズで見下ろし、画面の上と下だけを大きくぼかすと、街が机の上の模型に見える（ミニチュア撮影）。
+// 夜の雨なので、路面をつやのある黒にして、ネオンと街灯の色が地面にのびて映るようにする。
+// 色は強めに。雨粒が地面ではねる所だけ、ドット絵の小さなしぶきを置く
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 20, far: 400 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#0a0c14'); scene.fog = new THREE.Fog('#0a0c14', 110, 190);
+scene.add(new THREE.HemisphereLight(0x4a5a9a, 0x101018, .7));
+add(scene, new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ color: '#1a1e28', roughness: .22, metalness: .55 }), 0, 0, 0).rotation.x = -Math.PI / 2;
+// 窓あかりの模様（建物ごとに 4 種類から選ぶ）
+const WIN = [0, 1, 2, 3].map(s => K.pix((i, j) => (i % 4 === 0 || j % 4 === 0) ? '#000000' : hash(Math.floor(i / 4) + s * 9, Math.floor(j / 4)) > .5 ? (hash(i + s, j) > .2 ? '#ffd890' : '#ffb060') : hash(Math.floor(i / 4), Math.floor(j / 4) + s) > .8 ? '#7ac8ff' : '#06080c', 16));
+const WALL = ['#4a4e62', '#5a4a5a', '#3f5262', '#62564a', '#4a5a52'];
+function building(x, z, w, d, h, i) { const t = WIN[i % 4].clone(); t.repeat.set(Math.max(1, Math.round(w / 3)), Math.max(1, Math.round(h / 3))); t.needsUpdate = true; const m = flat(WALL[i % 5], { emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .95 }), r = flat('#2a2c36');
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [m, m, r, r, m, m]); b.position.set(x, h / 2 + .25, z); scene.add(b);
+  box(scene, w + .3, .25, d + .3, '#2a2c36', x, h + .37, z); box(scene, 1.1, .7, .8, '#6a7078', x - w * .2, h + .85, z + d * .15); if (i % 3 === 0) { add(scene, new THREE.CylinderGeometry(.6, .6, 1.2, 8), '#5a4a42', x + w * .2, h + 1.5, z - d * .2); box(scene, .9, .5, .9, '#3a3a40', x + w * .2, h + .7, z - d * .2); }
+  if (i % 2) { const c = ['#ff4a9a', '#3ae0ff', '#ffe04a', '#7aff8a'][i % 4]; box(scene, .25, 2.2, 1, glow(c), x + w / 2 + .2, 2.6, z + (hash(i, 3) - .5) * d * .5); } }
+let bi = 0; for (const bx of [-11, 11]) for (const bz of [-11, 11]) { box(scene, 15, .25, 15, '#3a3e4a', bx, .125, bz); for (const [ox, oz] of [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]]) { building(bx + ox, bz + oz, 5.4 + hash(bi, 1), 5.4 + hash(bi, 2), 3 + Math.floor(hash(bi, 4) * 5) * 1.5, bi); bi++; } }
+// 横断歩道、街灯、ネオン看板の光、信号、自販機、街路樹
+for (const [cx, cz, rot] of [[0, 5.5, 0], [0, -5.5, 0], [5.5, 0, 1], [-5.5, 0, 1]]) for (let k = -2; k <= 2; k++) { const s = box(scene, .5, .02, 2.2, glow('#c8ccd8'), cx + (rot ? 0 : k * .95), .02, cz + (rot ? k * .95 : 0)); if (rot) s.rotation.y = Math.PI / 2; }
+const NEON = [['#ff4a9a', -4, 4.4], ['#3ae0ff', 4.4, -4], ['#ffe04a', 4.2, 4.2], ['#ff8a3a', -4.4, -4.2]];
+for (const [c, x, z] of NEON) { const l = new THREE.PointLight(c, 40, 16, 1.6); l.position.set(x, 2.6, z); scene.add(l); box(scene, 1.6, .7, .2, glow(c), x, 3.2, z); }
+for (const [x, z] of [[-4.2, 17.2], [4.2, -17.2], [17.2, 4.2], [-17.2, -4.2]]) { add(scene, new THREE.CylinderGeometry(.07, .09, 4, 5), '#3a3e4a', x, 2, z); add(scene, new THREE.SphereGeometry(.28, 8, 6), glow('#fff0c8'), x, 4.1, z); const l = new THREE.PointLight(0xffe0a8, 30, 14, 1.6); l.position.set(x, 3.8, z); scene.add(l); }
+const sig = [[3.6, 3.6], [-3.6, -3.6]].map(([x, z]) => { add(scene, new THREE.CylinderGeometry(.06, .06, 3, 5), '#3a3e4a', x, 1.5, z); box(scene, .3, .9, .3, '#1a1c22', x, 3.3, z); return [box(scene, .2, .2, .34, glow('#30ff60'), x, 3.05, z), box(scene, .2, .2, .34, glow('#401010'), x, 3.55, z)]; });
+box(scene, .8, 1.5, .6, glow('#dff4ff'), -17.4, 1, 6); box(scene, .8, 1.5, .6, glow('#ffd0d8'), -17.4, 1, 7);
+for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, x = Math.sign(Math.cos(a)) * 17.6, z = Math.sin(a) * 15; add(scene, new THREE.CylinderGeometry(.1, .12, 1.2, 5), '#4a3a30', x, .85, z); add(scene, new THREE.IcosahedronGeometry(.9, 0), '#2f5a4a', x, 2, z); }
+// 乗りもの：外まわりの道を回る。配達スクーターは箱つき
+const LOOP = [[-23, -23], [23, -23], [23, 23], [-23, 23]], LEN = 46 * 4;
+const onLoop = d => { d = ((d % LEN) + LEN) % LEN; const i = Math.floor(d / 46), f = (d - i * 46) / 46, p = LOOP[i], q = LOOP[(i + 1) % 4]; return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f, Math.atan2(q[0] - p[0], q[1] - p[1])]; };
+const sc = new THREE.Group(); box(sc, .34, .3, 1.3, '#e8e8f0', 0, .5, 0); box(sc, .5, .5, .5, '#ff6a3a', 0, .95, -.5); box(sc, .3, .5, .3, '#3f8ad0', 0, 1, .1); add(sc, new THREE.IcosahedronGeometry(.2, 0), '#ffd84a', 0, 1.42, .1); for (const z of [-.5, .55]) add(sc, new THREE.CylinderGeometry(.22, .22, .12, 8), '#15161a', 0, .22, z).rotation.z = Math.PI / 2; box(sc, .2, .12, .06, glow('#fff6d0'), 0, .7, .68); box(sc, .2, .1, .06, glow('#ff3020'), 0, .6, -.78); scene.add(sc);
+const head = new THREE.SpotLight(0xfff0c8, 120, 16, .5, .6, 1.5); head.position.set(0, .8, .7); head.target.position.set(0, 0, 6); sc.add(head, head.target);
+const cars = [0, 1, 2].map(i => { const g = new THREE.Group(); box(g, 1.3, .55, 2.6, ['#c8483c', '#3f6a9a', '#d8c8a0'][i], 0, .5, 0); box(g, 1.1, .45, 1.3, '#20242c', 0, .98, -.1); box(g, 1.1, .12, .06, glow('#fff6d0'), 0, .5, 1.32); box(g, 1.1, .12, .06, glow('#ff3020'), 0, .5, -1.32); scene.add(g); return g; });
+// かさをさした人
+const walkers = [...Array(8)].map((_, i) => { const g = new THREE.Group(); box(g, .3, .7, .24, ['#34405a', '#5a3a4a', '#3a5a4a'][i % 3], 0, .6, 0); add(g, new THREE.IcosahedronGeometry(.16, 0), '#f0cfa8', 0, 1.1, 0); add(g, new THREE.ConeGeometry(.62, .3, 8), ['#ff5a7a', '#ffd84a', '#5ad8ff', '#f4f4f8'][i % 4], 0, 1.6, 0); add(g, new THREE.CylinderGeometry(.015, .015, .5, 3), '#ccc', 0, 1.3, 0); scene.add(g); return g; });
+// 雨
+const RN = 900, rg = new THREE.BufferGeometry(), ra = new Float32Array(RN * 6), rp = [...Array(RN)].map((_, i) => [(hash(i, 1) - .5) * 70, hash(i, 2) * 26, (hash(i, 3) - .5) * 70]); rg.setAttribute('position', new THREE.BufferAttribute(ra, 3));
+scene.add(new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: '#9ab0d8', transparent: true, opacity: .45 })));
+const fx = K.fx(scene, 120); let sT = 0;
+// 仕上げ：上下だけ大きくぼかし、色を強める
+const post = K.post(renderer, `void main(){float rad=smoothstep(.08,.46,abs(vUv.y-.5))*6.;vec3 c=vec3(0.);
+for(int i=-3;i<=3;i++)for(int j=-3;j<=3;j++)c+=src(vUv+vec2(float(i),float(j))*rad/size);c/=49.;
+float l=dot(c,vec3(.3,.59,.11));c=mix(vec3(l),c,1.4)*1.12;c*=1.-dot(vUv-.5,vUv-.5)*.8;gl_FragColor=vec4(c,1.);}`, {}, { scale: .7 }); onResize(post.resize);
+K.loop((dt, t) => {
+  const [x, z, a] = onLoop(t * 7); sc.position.set(x, 0, z); sc.rotation.y = a; sc.rotation.z = Math.sin(t * 2) * .03;
+  cars.forEach((c, i) => { const [cx, cz, ca] = onLoop(t * (4.5 + i) + 40 + i * 55); c.position.set(cx + Math.cos(ca) * 1.6, 0, cz - Math.sin(ca) * 1.6); c.rotation.y = ca; });
+  walkers.forEach((w, i) => { const d = ((t * (.9 + i * .1) + i * 4) % 15) - 7.5, side = i % 4, bx = side < 2 ? -18.6 : 18.6; if (i % 2) w.position.set(bx * (side % 2 ? .22 : 1) * (side < 2 ? -1 : 1) * -1, .25, d * 2.2); else w.position.set(d * 2.2, .25, bx * .22 * (side < 2 ? 1 : -1)); w.position.y = .25 + Math.abs(Math.sin(t * 6 + i)) * .04; });
+  const ph = Math.floor(t / 4) % 2; sig.forEach(([g, r], i) => { const go = (ph + i) % 2; g.material.color.set(go ? '#30ff60' : '#0a2a12'); r.material.color.set(go ? '#401010' : '#ff3828'); });
+  for (let i = 0; i < RN; i++) { const p = rp[i]; p[1] -= 30 * dt; if (p[1] < 0) p[1] += 26; ra[i * 6] = p[0]; ra[i * 6 + 1] = p[1]; ra[i * 6 + 2] = p[2]; ra[i * 6 + 3] = p[0] + .15; ra[i * 6 + 4] = p[1] + .9; ra[i * 6 + 5] = p[2]; } rg.attributes.position.needsUpdate = true;
+  if ((sT -= dt) < 0) { sT = .02; fx.emit('splash', (Math.random() - .5) * 50, .25, (Math.random() - .5) * 50, { life: .35, size: .55, vy: .6, tint: '#cfe0ff' }); }
+  fx.update(dt);
+  const ca = .78 + Math.sin(t * .05) * .25; cam.position.set(Math.sin(ca) * 110, 78, Math.cos(ca) * 110); cam.lookAt(0, 1, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

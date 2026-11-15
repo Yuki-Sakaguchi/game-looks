@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 54 月着陸 月面写真</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ddd;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 54 ─ 月着陸 / 月面の記録写真　｜　見るだけ（降りて、また飛び立つ）</div>
+<script>
+// 空気がないので影はまっ黒で、遠くもかすまない。空には星を描かない（地面に露出を合わせた写真には写らない）。
+// 白黒フィルムの粒、位置合わせ用の十字マーク、周辺の暗さを重ねて「記録写真」にする
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const grain = document.createElement('canvas'); grain.width = grain.height = 256; { const q = grain.getContext('2d'), im = q.createImageData(256, 256); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 46; } q.putImageData(im, 0, 0); }
+const hor = x => 330 + Math.sin(x * .006) * 16 + Math.sin(x * .019 + 2) * 7;      // 地平線
+const far = x => 300 + Math.sin(x * .004 + 1) * 30 + Math.sin(x * .013) * 12;
+const craters = [...Array(16)].map((_, i) => { const d = .12 + hash(i, 1) * .88; return { x: hash(i, 2) * LW, y: 345 + d * d * 240, r: 14 + d * 70 * hash(i, 3) }; }).filter(c => Math.abs(c.x - 480) > c.r + 70 || c.y < 430);
+const rocks = [...Array(26)].map((_, i) => { const d = hash(i, 5); return { x: hash(i, 6) * LW, y: 350 + d * d * 240, r: 2 + d * 9 }; });
+const PADY = 490, start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, c = t % 14, alt = c < 7 ? 380 * Math.pow(1 - c / 7, 1.6) : c < 10 ? 0 : 380 * Math.pow((c - 10) / 4, 2), burn = c < 6.9 || c > 10, lx = 480 + (c < 7 ? (1 - c / 7) * -120 : 0), ly = PADY - alt;
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#000'; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = '#8d8d8d'; g.beginPath(); g.moveTo(0, LH); for (let x = 0; x <= LW; x += 8) g.lineTo(x, far(x)); g.lineTo(LW, LH); g.fill();
+  const gr = g.createLinearGradient(0, 320, 0, LH); gr.addColorStop(0, '#e4e4e4'); gr.addColorStop(.5, '#bdbdbd'); gr.addColorStop(1, '#8a8a8a'); g.fillStyle = gr;
+  g.beginPath(); g.moveTo(0, LH); for (let x = 0; x <= LW; x += 8) g.lineTo(x, hor(x)); g.lineTo(LW, LH); g.fill();
+  // クレーター：光は左から。左の内壁は影、右の内壁は明るい
+  for (const k of craters) { const ry = k.r * .32;
+    g.fillStyle = '#f4f4f4'; g.beginPath(); g.ellipse(k.x, k.y, k.r * 1.06, ry * 1.12, 0, 0, 7); g.fill();
+    g.fillStyle = '#a8a8a8'; g.beginPath(); g.ellipse(k.x, k.y, k.r, ry, 0, 0, 7); g.fill();
+    g.fillStyle = '#0a0a0a'; g.beginPath(); g.ellipse(k.x, k.y, k.r, ry, 0, 1.571, 4.712); g.ellipse(k.x + k.r * .45, k.y, k.r * .62, ry, 0, 4.712, 1.571, true); g.fill(); }
+  for (const r of rocks) { g.fillStyle = '#000'; g.beginPath(); g.ellipse(r.x + r.r * 2.2, r.y + r.r * .2, r.r * 2.4, r.r * .45, 0, 0, 7); g.fill(); g.fillStyle = '#eee'; g.beginPath(); g.moveTo(r.x - r.r, r.y + r.r * .4); g.lineTo(r.x - r.r * .4, r.y - r.r); g.lineTo(r.x + r.r * .7, r.y - r.r * .6); g.lineTo(r.x + r.r, r.y + r.r * .4); g.fill(); g.fillStyle = '#555'; g.beginPath(); g.moveTo(r.x + r.r * .1, r.y - r.r * .8); g.lineTo(r.x + r.r * .7, r.y - r.r * .6); g.lineTo(r.x + r.r, r.y + r.r * .4); g.lineTo(r.x + r.r * .2, r.y + r.r * .4); g.fill(); }
+  // 着陸船の影（高いほど右へ離れる）
+  g.fillStyle = '#000'; g.beginPath(); g.ellipse(lx + 70 + alt * 1.3, PADY + 6, 64, 9, 0, 0, 7); g.fill();
+  // 砂ぼこり
+  if (burn && alt < 120) for (let k = 0; k < 40; k++) { const q = (t * 1.6 + hash(k, 1)) % 1, dir = k % 2 ? 1 : -1, x = 480 + dir * q * (160 + hash(k, 2) * 120), y = PADY + 4 - Math.sin(q * 3.14) * 16 * hash(k, 3); g.fillStyle = `rgba(235,235,235,${(1 - q) * (1 - alt / 120) * .7})`; g.beginPath(); g.arc(x, y, 3 + q * 10, 0, 7); g.fill(); }
+  // 着陸船
+  g.save(); g.translate(lx, ly);
+  if (burn) { const f = 46 + hash(Math.floor(t * 40), 1) * 26; const fg = g.createLinearGradient(0, -10, 0, f); fg.addColorStop(0, '#fff'); fg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = fg; g.beginPath(); g.moveTo(-9, -12); g.lineTo(9, -12); g.lineTo(0, f); g.fill(); }
+  g.strokeStyle = '#e8e8e8'; g.lineWidth = 3; for (const sgn of [-1, 1]) { g.beginPath(); g.moveTo(sgn * 18, -30); g.lineTo(sgn * 40, 0); g.moveTo(sgn * 22, -14); g.lineTo(sgn * 40, 0); g.stroke(); g.fillStyle = sgn < 0 ? '#fff' : '#666'; g.fillRect(sgn * 40 - 9, -1, 18, 4); }
+  g.fillStyle = '#f6f6f6'; g.fillRect(-26, -42, 26, 28); g.fillStyle = '#3c3c3c'; g.fillRect(0, -42, 26, 28);
+  g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-20, -42); g.lineTo(-14, -70); g.lineTo(0, -74); g.lineTo(0, -42); g.fill(); g.fillStyle = '#2a2a2a'; g.beginPath(); g.moveTo(0, -42); g.lineTo(0, -74); g.lineTo(14, -70); g.lineTo(20, -42); g.fill();
+  g.fillStyle = '#000'; g.beginPath(); g.moveTo(-12, -62); g.lineTo(-4, -64); g.lineTo(-4, -54); g.lineTo(-13, -54); g.fill(); g.fillStyle = '#777'; g.fillRect(-8, -14, 16, 4);
+  g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, -74); g.lineTo(14, -92); g.stroke(); g.restore();
+  // 十字マーク、粒、周辺の暗さ
+  g.globalCompositeOperation = 'difference'; g.fillStyle = '#b0b0b0'; for (let y = 60; y < LH; y += 120) for (let x = 120; x < LW; x += 120) { g.fillRect(x - 9, y - .6, 18, 1.2); g.fillRect(x - .6, y - 9, 1.2, 18); }
+  g.globalCompositeOperation = 'overlay'; const ox = Math.floor(Math.random() * 256), oy = Math.floor(Math.random() * 256); for (let y = -oy; y < LH; y += 256) for (let x = -ox; x < LW; x += 256) g.drawImage(grain, x, y);
+  g.globalCompositeOperation = 'source-over'; const vg = g.createRadialGradient(480, 300, 280, 480, 300, 620); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = '#dcdcdc'; g.font = '12px ui-monospace,Menlo,Consolas,monospace'; g.textAlign = 'left'; g.fillText('MAG 54/N   FRAME ' + String(127 + Math.floor(t / 2)).padStart(4, '0'), 24, 30); g.textAlign = 'right'; g.fillText('ALT ' + (alt * .4).toFixed(0).padStart(3, '0') + ' m', LW - 24, 30);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

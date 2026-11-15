@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-11 海岸レース 初期 3D ゲーム機風の夕方</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1a40;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+.o{position:fixed;font:900 italic 26px/1.2 "Arial Black",Arial,sans-serif;color:#ffe04a;letter-spacing:.02em;text-shadow:3px 3px 0 #2a1030,-1px -1px 0 #2a1030}
+#a{left:5%;top:6%} #b{right:5%;top:6%;text-align:right} #c{right:5%;bottom:9%;text-align:right;font-size:44px;color:#fff}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.8}
+</style>
+<div class="o" id="a"></div><div class="o" id="b"></div><div class="o" id="c"></div>
+<div id="cap">2-11 ─ 海岸レース / 初期の 3D ゲーム機風、夕方の海ぞい　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 初期の 3D ゲーム機の絵。横 320 ドット、模様はにじませず、頂点は画面のドットの位置に丸めるので形がかくかく震える。
+// 色数が少ないので、なめらかな所は点の並び（ディザ）で混ぜる。道は本当はまっすぐで、
+// 「遠い頂点ほど横と上下へずらす」ことで、カーブと坂に見せている。時間は夕方で、空と海をだいだいに
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 62, far: 400, aa: false, pr: 1 }), { hash } = K;
+scene.background = K.sky([[0, '#2a1a5a'], [.3, '#8a3a7a'], [.48, '#ff6a4a'], [.58, '#ffc05a'], [.66, '#ffe9a0'], [1, '#ff8a5a']]); scene.fog = new THREE.Fog('#ff9a6a', 60, 260);
+scene.add(new THREE.HemisphereLight(0xffc8b0, 0x6a4a7a, 1.9)); const sun = new THREE.DirectionalLight(0xffb060, 2.4); sun.position.set(30, 14, -80); scene.add(sun);
+const U = { bend: { value: new THREE.Vector2() }, snap: { value: new THREE.Vector2(160, 100) } };
+// どの材質にも「遠くを曲げる」「頂点をドットに丸める」を足す
+const M = (color, map, extra = {}) => { const m = new THREE.MeshLambertMaterial({ color, map: map || null, flatShading: true, ...extra }); m.onBeforeCompile = sh => { sh.uniforms.bend = U.bend; sh.uniforms.snap = U.snap; sh.vertexShader = 'uniform vec2 bend,snap;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\nmvPosition.x+=bend.x*mvPosition.z*mvPosition.z;mvPosition.y+=bend.y*mvPosition.z*mvPosition.z;gl_Position=projectionMatrix*mvPosition;gl_Position.xy=floor(gl_Position.xy/gl_Position.w*snap+.5)/snap*gl_Position.w;'); }; return m; };
+const B = (m, w, h, d, x, y, z, p = scene) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); p.add(o); return o; };
+const T = { road: K.pix((i, j) => (i === 7 || i === 8) && j < 9 ? '#ffe04a' : (i === 0 || i === 15) ? '#f4f4f4' : hash(i, j) > .8 ? '#4a4652' : '#56525e', 16), rock: K.pix((i, j) => hash(i >> 1, j >> 1) > .6 ? '#b0705a' : hash(i, j) > .7 ? '#8a5446' : '#9a6050', 16), sea: K.pix((i, j) => (i + j * 3) % 8 < 2 && j % 4 < 2 ? '#ffd890' : hash(i, j) > .9 ? '#ffb070' : '#e8704a', 16), grass: K.pix((i, j) => hash(i, j) > .7 ? '#5a8a4a' : '#4a7a44', 16), wall: K.pix((i, j) => j % 8 === 0 || (i + (j >> 3) * 4) % 8 === 0 ? '#c8c2b8' : '#e8e2d4', 16), chev: K.pix((i, j) => ((i + Math.abs(j - 8)) % 8 < 4) ? '#e0302a' : '#f4f4f4', 16) };
+const SPAN = 240, SEG = 24, pool = [];
+for (let k = 0; k < SPAN / SEG; k++) { const g = new THREE.Group(); g.userData.oz = k * SEG;
+  const rt = T.road.clone(); rt.repeat.set(1, 3); rt.needsUpdate = true; const r = new THREE.Mesh(new THREE.PlaneGeometry(12, SEG, 2, 6), M('#ffffff', rt)); r.rotation.x = -Math.PI / 2; g.add(r);
+  const ct = T.rock.clone(); ct.repeat.set(3, 2); ct.needsUpdate = true; const cl = new THREE.Mesh(new THREE.PlaneGeometry(SEG, 16, 6, 3), M('#ffffff', ct)); cl.rotation.y = Math.PI / 2; cl.position.set(-8.5, 8, 0); cl.rotation.z = -.14; g.add(cl);
+  const gt = T.grass.clone(); gt.repeat.set(2, 3); gt.needsUpdate = true; const gr = new THREE.Mesh(new THREE.PlaneGeometry(5, SEG, 1, 4), M('#ffffff', gt)); gr.rotation.x = -Math.PI / 2; gr.position.set(-8.4, .05, 0); g.add(gr); const top = new THREE.Mesh(new THREE.PlaneGeometry(40, SEG, 2, 4), M('#ffffff', gt)); top.rotation.x = -Math.PI / 2; top.position.set(-30.6, 15.9, 0); g.add(top);
+  for (let q = 0; q < 4; q++) { B(M('#d8dce2'), .12, .7, .12, 6.4, .35, -SEG / 2 + q * 6 + 3, g); } B(M('#f4f4f4'), .1, .3, SEG, 6.4, .62, 0, g);
+  const cq = new THREE.Mesh(new THREE.PlaneGeometry(SEG, 6, 6, 1), M('#ffffff', (() => { const t = T.rock.clone(); t.repeat.set(3, 1); t.needsUpdate = true; return t; })())); cq.rotation.y = -Math.PI / 2; cq.position.set(6.9, -3, 0); g.add(cq);
+  if (k % 2 === 0) { const pg = new THREE.Group(); pg.position.set(-7.4, 0, 4); for (let q = 0; q < 5; q++) B(M('#8a6a4a'), .34, 1.5, .34, q * q * .06, .75 + q * 1.45, 0, pg); for (let q = 0; q < 6; q++) { const pv = new THREE.Group(); pv.position.set(1.5, 7.8, 0); pv.rotation.y = q * 1.05; const lf = new THREE.Mesh(new THREE.ConeGeometry(.6, 3.4, 3), M('#3f9a5a')); lf.geometry.translate(0, 1.7, 0); lf.rotation.z = -1.9; lf.scale.z = .3; pv.add(lf); pg.add(pv); } g.add(pg); }
+  if (k % 5 === 2) { const ch = T.chev.clone(); ch.repeat.set(3, 1); ch.needsUpdate = true; B(M('#ffffff', ch), .2, 1.6, 5, 6.7, 1.9, 0, g); }
+  if (k % 5 === 4) { const s = new THREE.Group(); s.position.set(-7.6, 0, -6); B(M('#3a3a44'), .2, 5, .2, 0, 2.5, 0, s); B(M(['#ff3d7a', '#3ad0ff', '#ffd23a'][k % 3]), 4.4, 2.2, .2, .6, 5.6, 0, s); B(M('#ffffff'), 3.6, .5, .24, .6, 5.6, 0, s); g.add(s); }
+  scene.add(g); pool.push(g); }
+const seaT = T.sea.clone(); seaT.repeat.set(40, 40); seaT.needsUpdate = true; const sea = new THREE.Mesh(new THREE.PlaneGeometry(700, 700, 24, 24), M('#ffffff', seaT)); sea.rotation.x = -Math.PI / 2; sea.position.set(350, -6, 0); scene.add(sea);
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(26, 14), new THREE.MeshBasicMaterial({ color: '#fff0b0', fog: false })); scene.add(sunD);
+const isles = [...Array(5)].map((_, i) => { const m = new THREE.Mesh(new THREE.ConeGeometry(14 + hash(i, 1) * 12, 12 + hash(i, 2) * 14, 5), M('#7a4a6a')); m.userData = { x: 60 + i * 44, oz: hash(i, 3) * 400 }; scene.add(m); return m; });
+// 車：自分と、追いぬく相手
+function car(body, stripe) { const g = new THREE.Group(); B(M(body), 1.9, .5, 4.2, 0, .55, 0, g); B(M('#20202a'), 1.6, .46, 1.9, 0, 1.02, -.2, g); B(M(body), 1.66, .1, 1.6, 0, 1.3, -.2, g); B(M(stripe), .5, .52, 4.24, 0, .56, 0, g); B(M(body), 2, .12, .5, 0, 1.2, 1.9, g); for (const s of [-.6, .6]) B(new THREE.MeshBasicMaterial({ color: '#ff2a1a' }), .5, .16, .06, s, .66, 2.12, g); for (const [x, z] of [[-.95, 1.3], [.95, 1.3], [-.95, -1.3], [.95, -1.3]]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, .3, 8), M('#15151c')); w.rotation.z = Math.PI / 2; w.position.set(x, .4, z); g.add(w); } scene.add(g); return g; }
+const me = car('#e8302a', '#f4f4f4'), rivals = [car('#2a6ae0', '#ffe04a'), car('#f2c230', '#20202a'), car('#3ab06a', '#f4f4f4')]; rivals.forEach((r, i) => { r.userData = { z: -40 - i * 55, x: i % 2 ? 3 : -3, v: 24 + i * 3 }; });
+const post = K.post(renderer, K.DITHER(15, 1), {}, { width: 320 }); onResize((w, h) => { post.resize(w, h); U.snap.value.set(160, Math.round(160 * h / w)); });
+const O = id => document.getElementById(id);
+K.loop((dt, t) => {
+  const v = 38, d = t * v, curve = Math.sin(t * .23) * .0026 + Math.sin(t * .11) * .0016, hill = Math.sin(t * .17) * .0012;
+  U.bend.value.set(curve, hill);
+  for (const g of pool) g.position.z = ((((g.userData.oz + d) % SPAN) + SPAN) % SPAN) - (SPAN - 24);
+  seaT.offset.set(0, d * .012); for (const m of isles) m.position.set(m.userData.x, -1, ((((m.userData.oz + d * .3) % 400) + 400) % 400) - 370);
+  const mx = Math.sin(t * .5) * 2.4 - curve * 500; me.position.set(mx, Math.abs(Math.sin(t * 22)) * .03, 0); me.rotation.y = -Math.cos(t * .5) * .08 - curve * 30; me.rotation.z = curve * 18;
+  for (const r of rivals) { r.userData.z += (v - r.userData.v) * dt; if (r.userData.z > 14) r.userData.z -= 190; r.position.set(r.userData.x + Math.sin(t + r.userData.v) * .5, 0, r.userData.z); }
+  sunD.position.set(70 + curve * -9000, 20, -330);
+  cam.position.set(mx * .5, 3.1 + Math.sin(t * 20) * .02, 8.6); cam.lookAt(mx * .8, 1.4, -10); cam.rotation.z = -curve * 14;
+  post.render(scene, cam, t);
+  const s = t % 100; O('a').textContent = 'POSITION 3/8'; O('b').textContent = "LAP 2/3  " + Math.floor(s / 60) + "'" + String(Math.floor(s) % 60).padStart(2, '0') + '"' + String(Math.floor(s * 100) % 100).padStart(2, '0'); O('c').textContent = Math.round(172 + Math.sin(t * .7) * 9) + ' km/h';
+});
+</script>
+</html>

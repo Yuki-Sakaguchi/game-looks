@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 86 札合わせ 花札調</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2a1c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f1ead0;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 86 ─ 札合わせ（神経衰弱） / 花札調の木版　｜　見るだけ（2 枚めくって、そろえば取る）</div>
+<script>
+// 小さくて厚い札に、赤・黒・黄・紫・緑のべた塗りと太い黒の輪郭だけで花や月を描く（絵柄はこの試作用に作ったもの）。
+// 色の版は輪郭から 1 ピクセルずらし、札のふちには厚紙の黒い縁を付ける。場は畳で、い草の目と黒いへりを描く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const CW = 92, CH = 150, COLS = 6, GX = 480 - (COLS * 112 - 20) / 2, GY = 64;
+const K = { red: '#c8102e', ink: '#17130f', cream: '#f1e6c4', yel: '#e8b72e', pur: '#6a3f9a', grn: '#3f7a3a', pink: '#f0a0a8', brn: '#6b4423' };
+const tatami = document.createElement('canvas'); tatami.width = LW; tatami.height = LH; { const c = tatami.getContext('2d'); c.fillStyle = '#b9b27a'; c.fillRect(0, 0, LW, LH); for (let x = 0; x < LW; x += 3) { c.fillStyle = `rgba(70,80,30,${.08 + Math.random() * .14})`; c.fillRect(x, 0, 1.4, LH); } for (let y = 0; y < LH; y += 22) { c.fillStyle = 'rgba(60,60,20,.1)'; c.fillRect(0, y, LW, 1); }
+  c.fillStyle = '#1c2418'; c.fillRect(0, 0, LW, 30); c.fillRect(0, LH - 30, LW, 30); c.fillStyle = '#c9a84a'; for (let x = 10; x < LW; x += 40) { c.beginPath(); c.arc(x, 15, 5, 0, 7); c.arc(x + 20, LH - 15, 5, 0, 7); c.fill(); } }
+const flower = (x, y, r, col, n = 5) => { g.fillStyle = col; for (let i = 0; i < n; i++) { const a = i / n * 6.283 - 1.57; g.beginPath(); g.arc(x + Math.cos(a) * r * .6, y + Math.sin(a) * r * .6, r * .5, 0, 7); g.fill(); g.stroke(); } g.fillStyle = K.yel; g.beginPath(); g.arc(x, y, r * .28, 0, 7); g.fill(); g.stroke(); };
+const ART = [
+  () => { g.fillStyle = K.red; g.fillRect(0, 0, CW, 96); g.fillStyle = '#fbf7e8'; g.beginPath(); g.arc(46, 52, 30, 0, 7); g.fill(); g.stroke(); g.fillStyle = K.ink; g.beginPath(); g.moveTo(0, CH); g.lineTo(0, 110); g.quadraticCurveTo(46, 66, CW, 110); g.lineTo(CW, CH); g.fill(); },
+  () => { g.fillStyle = K.red; g.fillRect(0, 0, CW, 30); g.fillStyle = K.brn; g.fillRect(40, 60, 9, 90); g.strokeRect(40, 60, 9, 90); for (const [x, y, r] of [[30, 112, 30], [62, 84, 28], [34, 58, 26]]) { g.fillStyle = K.grn; g.beginPath(); g.arc(x, y, r, Math.PI, 0); g.closePath(); g.fill(); g.stroke(); g.beginPath(); for (let i = 1; i < 6; i++) { g.moveTo(x, y); g.lineTo(x + Math.cos(Math.PI + i * .52) * r, y + Math.sin(Math.PI + i * .52) * r); } g.stroke(); } },
+  () => { g.strokeStyle = K.brn; g.lineWidth = 5; g.beginPath(); g.moveTo(8, 100); g.quadraticCurveTo(50, 70, 84, 20); g.stroke(); g.strokeStyle = K.ink; g.lineWidth = 2; for (const [x, y] of [[22, 84], [44, 62], [66, 40], [30, 46], [70, 76]]) flower(x, y, 15, K.pink); for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? K.pur : K.red; g.fillRect(i * 16 - 2, 112, 16, 40); } g.strokeRect(-2, 112, 98, 40); },
+  () => { g.fillStyle = K.grn; for (const [x, a] of [[24, -.25], [46, 0], [66, .22]]) { g.save(); g.translate(x, 148); g.rotate(a); g.beginPath(); g.moveTo(-6, 0); g.quadraticCurveTo(-4, -60, 0, -92); g.quadraticCurveTo(4, -60, 6, 0); g.fill(); g.stroke(); g.restore(); } g.fillStyle = K.pur; for (const [x, y, a] of [[46, 40, 0], [28, 58, -1], [64, 58, 1]]) { g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.moveTo(0, 20); g.quadraticCurveTo(-18, 0, 0, -24); g.quadraticCurveTo(18, 0, 0, 20); g.fill(); g.stroke(); g.restore(); } g.fillStyle = K.yel; g.beginPath(); g.moveTo(0, 120); g.lineTo(40, 108); g.lineTo(50, 124); g.lineTo(CW, 112); g.lineTo(CW, 126); g.lineTo(46, 138); g.lineTo(36, 122); g.lineTo(0, 134); g.fill(); g.stroke(); },
+  () => { g.strokeStyle = K.ink; g.lineWidth = 4; g.beginPath(); g.moveTo(80, 6); g.quadraticCurveTo(40, 60, 14, 146); g.stroke(); g.lineWidth = 2; for (const [x, y, r] of [[30, 40, 17], [62, 62, 20], [28, 92, 18], [66, 116, 16], [58, 24, 12]]) { g.fillStyle = K.red; g.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283 - 1.57, q = i % 2 ? r * .42 : r; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); } g.closePath(); g.fill(); g.stroke(); } },
+  () => { g.fillStyle = K.grn; for (const [x, y, a] of [[20, 96, -.6], [72, 92, .6]]) { g.beginPath(); g.ellipse(x, y, 20, 9, a, 0, 7); g.fill(); g.stroke(); } g.fillStyle = K.yel; for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; g.beginPath(); g.ellipse(46 + Math.cos(a) * 22, 52 + Math.sin(a) * 22, 12, 5.5, a, 0, 7); g.fill(); g.stroke(); } g.fillStyle = K.red; g.beginPath(); g.arc(46, 52, 11, 0, 7); g.fill(); g.stroke(); g.beginPath(); g.moveTo(22, 118); g.lineTo(70, 118); g.quadraticCurveTo(66, 142, 46, 142); g.quadraticCurveTo(26, 142, 22, 118); g.fill(); g.stroke(); g.fillStyle = '#fbf7e8'; g.beginPath(); g.ellipse(46, 119, 22, 5, 0, 0, 7); g.fill(); g.stroke(); }];
+function card(x, y, kind, f, lift, alpha) {
+  g.save(); g.globalAlpha = alpha; g.translate(x + CW / 2, y + CH / 2 - lift); g.scale(Math.max(.03, Math.abs(Math.cos(f * Math.PI))) * (1 + lift * .004), 1 + lift * .004);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.roundRect(-CW / 2 + 4, -CH / 2 + 6 + lift, CW, CH, 5); g.fill();
+  g.fillStyle = K.ink; g.beginPath(); g.roundRect(-CW / 2 - 4, -CH / 2 - 4, CW + 8, CH + 8, 6); g.fill();
+  g.translate(-CW / 2, -CH / 2); g.beginPath(); g.rect(0, 0, CW, CH); g.clip();
+  if (f > .5) { g.fillStyle = K.cream; g.fillRect(0, 0, CW, CH); g.strokeStyle = K.ink; g.lineWidth = 2; g.lineJoin = 'round'; g.save(); g.translate(1, .8); ART[kind](); g.restore(); }
+  else { g.fillStyle = '#7a1420'; g.fillRect(0, 0, CW, CH); g.strokeStyle = 'rgba(0,0,0,.3)'; g.lineWidth = 1; for (let i = -CH; i < CW; i += 7) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + CH, CH); g.stroke(); } }
+  g.restore();
+}
+let cards, picks, timer, state, known, taken, last = performance.now();
+function deal() { const k = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5].sort(() => Math.random() - .5); cards = k.map((kind, i) => ({ kind, i, f: 0, tf: 0, gone: 0, x: GX + (i % COLS) * 112, y: GY + Math.floor(i / COLS) * 176 })); picks = []; timer = 1; state = 0; known = {}; taken = 0; }
+deal();
+function choose() {
+  const live = cards.filter(c => !c.gone && !picks.includes(c));
+  if (picks.length === 1) { const m = live.find(c => c.kind === picks[0].kind && known[c.i]); if (m) return m; }
+  else { for (const a of live) if (known[a.i] && live.some(b => b !== a && known[b.i] && b.kind === a.kind)) return a; }
+  const unk = live.filter(c => !known[c.i]); return (unk.length ? unk : live)[Math.floor(Math.random() * (unk.length ? unk : live).length)];
+}
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;
+  if ((timer -= dt) < 0) {
+    if (state === 0) { const c = choose(); if (c) { c.tf = 1; known[c.i] = 1; picks.push(c); timer = .65; if (picks.length === 2) { state = 1; timer = 1.1; } } else { state = 2; timer = 2; } }
+    else if (state === 1) { if (picks[0].kind === picks[1].kind) { picks.forEach(c => { c.gone = 1; c.order = taken; }); taken++; } else picks.forEach(c => { c.tf = 0; }); picks = []; state = 0; timer = .5; }
+    else deal();
+  }
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(tatami, 0, 0);
+  for (const c of cards) { c.f += (c.tf - c.f) * Math.min(1, dt * 9); if (c.gone) { const tx = 60 + c.order * 150 + (c.i % 2) * 24, ty = 404; c.x += (tx - c.x) * Math.min(1, dt * 5); c.y += (ty - c.y) * Math.min(1, dt * 5); } }
+  for (const c of cards.filter(c => !c.gone)) card(c.x, c.y, c.kind, c.f, picks.includes(c) ? 8 : 0, 1);
+  for (const c of cards.filter(c => c.gone).sort((a, b) => a.i - b.i)) { g.save(); g.translate(c.x + CW / 2, c.y + CH / 2); g.scale(.62, .62); g.rotate((c.i % 2 ? .1 : -.08)); g.translate(-c.x - CW / 2, -c.y - CH / 2); card(c.x, c.y, c.kind, 1, 0, 1); g.restore(); }
+  g.fillStyle = '#17130f'; g.font = '600 16px "Hiragino Mincho ProN","Yu Mincho",Georgia,serif'; g.textAlign = 'right'; g.fillText('取り札 ' + taken + ' / 6', LW - 40, 66);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

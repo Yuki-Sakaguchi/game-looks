@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 14 見下ろしレース ミニチュア</title>
+<style>
+html,body{margin:0;height:100%;background:#cfe8f5;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;text-shadow:0 1px 2px #0008}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 14 ─ 見下ろしレース / ミニチュア撮影　｜　見るだけ（自動で走る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 模型を接写したように見せる: 望遠ぎみの画角で高い所から見下ろし、画面の上下を大きくぼかす（中央の帯だけピント）。
+// 色は濃いめ、影はくっきり
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xcfe8f5);
+const cam = new THREE.PerspectiveCamera(30, 1, 1, 100);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa66, 1.5));
+const sun = new THREE.DirectionalLight(0xfff4dc, 2.6); sun.position.set(8, 14, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 50 }); scene.add(sun);
+
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; return o; };
+
+const ground = mesh(new THREE.PlaneGeometry(60, 60), lam(0x7ac74f)); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+
+// コース（閉じた曲線に沿って帯を作る）
+const curve = new THREE.CatmullRomCurve3([[-8, -3], [-5, -6], [2, -6], [4, -2], [8, -1], [8, 4], [3, 6], [0, 3], [-4, 6], [-8, 3]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true);
+const N = 240, pts = curve.getSpacedPoints(N);
+function ribbon(off, w, color, y) {
+  const pos = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const p = pts[i % N], q = pts[(i + 1) % N], tx = q.x - p.x, tz = q.z - p.z, l = Math.hypot(tx, tz), nx = -tz / l, nz = tx / l;
+    pos.push(p.x + nx * (off - w / 2), y, p.z + nz * (off - w / 2), p.x + nx * (off + w / 2), y, p.z + nz * (off + w / 2));
+    if (i < N) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide })); m.receiveShadow = true; scene.add(m);
+}
+ribbon(0, 1.7, 0x4a4e5a, .02); ribbon(-.85, .1, 0xffffff, .03); ribbon(.85, .1, 0xffffff, .03);
+for (let i = 0; i < N; i += 4) { const p = pts[i], q = pts[i + 1] || pts[0]; const d = mesh(new THREE.BoxGeometry(.06, .01, .3), lam(0xfff27a), p.x, .035, p.z); d.lookAt(q.x, .035, q.z); d.castShadow = false; scene.add(d); }
+
+const far = (x, z, r) => pts.every(p => Math.hypot(p.x - x, p.z - z) > r);
+const roofG = new THREE.ConeGeometry(.75, .55, 4); roofG.rotateY(Math.PI / 4);
+const WALL = [0xfff3d6, 0xf7c9a8, 0xd6ecff], ROOF = [0xe2574c, 0x4f7fd8, 0xf0a030];
+for (let i = 0, n = 0; i < 200 && n < 16; i++) {
+  const x = (hash(i, 1) - .5) * 24, z = (hash(i, 2) - .5) * 18; if (!far(x, z, 1.9)) continue;
+  n++; const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = hash(i, 3) * 3;
+  g.add(mesh(new THREE.BoxGeometry(.9, .6, .9), lam(WALL[n % 3]), 0, .3, 0), mesh(roofG, lam(ROOF[n % 3]), 0, .87, 0)); scene.add(g);
+}
+const treeG = new THREE.ConeGeometry(.3, .8, 6), trunkG = new THREE.CylinderGeometry(.06, .08, .25, 5);
+for (let i = 0, n = 0; i < 400 && n < 70; i++) {
+  const x = (hash(i, 5) - .5) * 28, z = (hash(i, 6) - .5) * 22; if (!far(x, z, 1.3)) continue;
+  n++; const s = .7 + hash(i, 7) * .8;
+  const a = mesh(trunkG, lam(0x8a5a3a), x, .12 * s, z), b = mesh(treeG, lam(n % 3 ? 0x3f9a4a : 0x2f7a40), x, .62 * s, z); a.scale.setScalar(s); b.scale.setScalar(s); scene.add(a, b);
+}
+// 車
+const cars = [0xe8433a, 0x3a7fe8, 0xf0c030, 0xffffff, 0x9a4fd0, 0x30b890].map((c, i) => {
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(.3, .14, .56), lam(c), 0, .13, 0), mesh(new THREE.BoxGeometry(.26, .12, .26), lam(0x2a3040), 0, .25, .03));
+  scene.add(g); return { g, u: i / 6, v: .055 + hash(i, 9) * .02, lane: (i % 2 ? 1 : -1) * .35 };
+});
+
+const rt = new THREE.WebGLRenderTarget(4, 4, { samples: 4 });
+const post = new THREE.ShaderMaterial({
+  uniforms: { t: { value: rt.texture }, res: { value: new THREE.Vector2() } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+  fragmentShader: `
+    uniform sampler2D t;uniform vec2 res;varying vec2 vUv;
+    void main(){
+      float coc=smoothstep(.07,.5,abs(vUv.y-.5))*res.y*.035;
+      vec3 c=vec3(0.);
+      for(int i=0;i<24;i++){float a=float(i)*2.39996,r=sqrt((float(i)+.5)/24.)*coc;c+=texture2D(t,vUv+vec2(cos(a),sin(a))*r/res).rgb;}
+      c=pow(c/24.,vec3(.4545));
+      c=mix(vec3(dot(c,vec3(.3,.59,.11))),c,1.4);
+      c=(c-.5)*1.08+.52;
+      vec2 q=vUv-.5;c*=1.-dot(q,q)*.5;
+      gl_FragColor=vec4(c,1.);
+    }`
+});
+const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
+const pc = new THREE.Camera();
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  const s = renderer.getDrawingBufferSize(new THREE.Vector2()); rt.setSize(s.x, s.y); post.uniforms.res.value.copy(s);
+  cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const p = new THREE.Vector3(), q = new THREE.Vector3();
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  for (const c of cars) {
+    c.u = (c.u + c.v * dt) % 1; curve.getPointAt(c.u, p); curve.getTangentAt(c.u, q);
+    c.g.position.set(p.x - q.z * c.lane, 0, p.z + q.x * c.lane); c.g.lookAt(c.g.position.x + q.x, 0, c.g.position.z + q.z);
+  }
+  const a = t * .06; cam.position.set(Math.sin(a) * 22, 20, Math.cos(a) * 22); cam.lookAt(0, 0, 0);
+  renderer.setRenderTarget(rt); renderer.render(scene, cam);
+  renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

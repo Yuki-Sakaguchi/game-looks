@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 27 キャッチゲーム セグメント液晶</title>
+<style>
+html,body{margin:0;height:100%;background:#26282c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(96vw,150vh);aspect-ratio:3/2;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8e8e0;background:#26282c;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 27 ─ キャッチゲーム / セグメント液晶　｜　見るだけ（自動で受けとめる）</div>
+<script>
+// 昔の携帯液晶ゲームの見え方: 絵は決まった場所に決まった形でしか出ない（点いていない絵もうっすら見える）、
+// 動きはカチカチと 1 段ずつ、黒い絵には少しずれた影、うしろには色つきの背景画が印刷してある
+const LW = 900, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const SX = 110, SY = 70, SW = 680, SH = 440;                      // 液晶の窓
+const LANE = i => SX + 110 + i * 153, STEP = k => SY + 96 + k * 62;
+
+// 絵の形（パスを作るだけ）
+function apple(x, y) { g.moveTo(x + 15, y); g.arc(x, y, 15, 0, 7); g.moveTo(x, y - 14); g.lineTo(x + 3, y - 24); g.lineTo(x + 6, y - 23); g.lineTo(x + 3, y - 14); g.moveTo(x + 5, y - 20); g.ellipse(x + 12, y - 22, 8, 4, -.4, 0, 7); }
+function catcher(x, y) {
+  g.moveTo(x + 13, y - 62); g.arc(x, y - 62, 13, 0, 7);
+  g.roundRect(x - 13, y - 46, 26, 34, 6);
+  g.rect(x - 12, y - 12, 9, 24); g.rect(x + 3, y - 12, 9, 24);
+  g.moveTo(x - 13, y - 42); g.lineTo(x - 34, y - 70); g.lineTo(x - 27, y - 75); g.lineTo(x - 8, y - 46);
+  g.moveTo(x + 13, y - 42); g.lineTo(x + 34, y - 70); g.lineTo(x + 27, y - 75); g.lineTo(x + 8, y - 46);
+  g.moveTo(x - 42, y - 100); g.lineTo(x + 42, y - 100); g.lineTo(x + 32, y - 74); g.lineTo(x - 32, y - 74); g.closePath();
+}
+function splat(x, y) { for (let k = 0; k < 7; k++) { const a = Math.PI + k / 6 * Math.PI; g.moveTo(x + Math.cos(a) * 12, y + Math.sin(a) * 6); g.lineTo(x + Math.cos(a) * 30, y + Math.sin(a) * 20); g.lineTo(x + Math.cos(a + .2) * 14, y + Math.sin(a + .2) * 7); } g.moveTo(x + 16, y); g.ellipse(x, y, 16, 6, 0, 0, 7); }
+const SEG = { a: [0, 0, 1, 0], b: [1, 0, 1, 1], c: [1, 1, 1, 2], d: [0, 2, 1, 2], e: [0, 1, 0, 2], f: [0, 0, 0, 1], g: [0, 1, 1, 1] }, DIG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+function digit(x, y, s, segs) { for (const k of segs) { const q = SEG[k], x1 = x + q[0] * s, y1 = y + q[1] * s, x2 = x + q[2] * s, y2 = y + q[3] * s; if (y1 === y2) g.rect(x1 + 3, y1 - 3, s - 6, 6); else g.rect(x1 - 3, y1 + 3, 6, s - 6); } }
+
+// うしろの背景画（一度だけ）
+const back = document.createElement('canvas'); back.width = LW * S; back.height = LH * S;
+{
+  const x = back.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  x.fillStyle = '#b8342c'; x.beginPath(); x.roundRect(0, 0, LW, LH, 40); x.fill();
+  x.fillStyle = '#d8d2c0'; x.beginPath(); x.roundRect(60, 30, LW - 120, LH - 60, 22); x.fill();
+  x.fillStyle = '#2a2c2a'; x.beginPath(); x.roundRect(SX - 18, SY - 18, SW + 36, SH + 36, 10); x.fill();
+  const gr = x.createLinearGradient(0, SY, 0, SY + SH); gr.addColorStop(0, '#c9cdb6'); gr.addColorStop(1, '#b4b9a2'); x.fillStyle = gr; x.fillRect(SX, SY, SW, SH);
+  x.save(); x.beginPath(); x.rect(SX, SY, SW, SH); x.clip(); x.globalAlpha = .55;
+  x.fillStyle = '#7fb98a'; x.fillRect(SX, SY, SW, 74); for (let i = 0; i < 9; i++) { x.beginPath(); x.arc(SX + i * 90, SY + 74, 52, 0, 7); x.fill(); }
+  x.fillStyle = '#a98a5a'; x.fillRect(SX, SY + SH - 46, SW, 46); x.fillStyle = '#8fc0d8'; x.fillRect(SX, SY + 150, SW, 4);
+  x.fillStyle = '#9a7248'; x.fillRect(SX + 10, SY + 60, 26, SH); x.fillRect(SX + SW - 36, SY + 60, 26, SH);
+  x.restore();
+  x.fillStyle = '#b8342c'; x.font = '700 15px "Helvetica Neue",Arial,sans-serif'; x.textAlign = 'center'; x.fillText('APPLE CATCH   ・   LOOK 27', LW / 2, LH - 42);
+}
+
+let apples = [], lane = 1, score = 0, miss = 0, splatAt = -1, tick = 0, timer = 0, half = false;
+function step() {
+  splatAt = -1;
+  for (const a of apples) a.k++;
+  for (const a of apples) if (a.k === 4) { if (a.l === lane) score = (score + 1) % 1000; else { miss++; splatAt = a.l; } }
+  apples = apples.filter(a => a.k < 4);
+  if (miss >= 3) { miss = 0; score = 0; apples = []; }
+  if (!apples.some(a => a.k === 0) && Math.random() < .62) apples.push({ l: Math.floor(Math.random() * 4), k: 0 });
+  tick++;
+}
+function moveCatcher() { const low = apples.slice().sort((a, b) => b.k - a.k)[0]; if (low && Math.random() < .93) lane += Math.sign(low.l - lane); }
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if ((timer -= dt) <= 0) { timer = .24; half = !half; if (half) step(); moveCatcher(); }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(back, 0, 0, LW, LH);
+  // 1 回目: 全部の絵をうっすら（点いていない状態）。2 回目: 点いている絵の影。3 回目: 点いている絵
+  const pass = (on, dx, alpha) => {
+    g.save(); g.translate(dx, dx); g.fillStyle = '#1b1e1a'; g.globalAlpha = alpha; g.beginPath();
+    for (let l = 0; l < 4; l++) for (let k = 0; k < 4; k++) if (!on || apples.some(a => a.l === l && a.k === k)) apple(LANE(l), STEP(k));
+    for (let l = 0; l < 4; l++) { if (!on || l === lane) catcher(LANE(l), SY + SH - 44); if (!on || l === splatAt) splat(LANE(l) + 52, SY + SH - 30); }
+    const sc = String(score).padStart(3, '0');
+    for (let i = 0; i < 3; i++) digit(SX + SW - 150 + i * 44, SY + 16, 26, on ? DIG[+sc[i]] : 'abcdefg');
+    for (let i = 0; i < 3; i++) if (!on || i < miss) { const x = SX + 26 + i * 34, y = SY + 22; g.moveTo(x, y); g.lineTo(x + 20, y + 20); g.lineTo(x + 24, y + 16); g.lineTo(x + 4, y - 4); g.moveTo(x + 20, y - 4); g.lineTo(x, y + 16); g.lineTo(x + 4, y + 20); g.lineTo(x + 24, y); }
+    g.fill('nonzero'); g.restore();
+  };
+  pass(false, 0, .07); pass(true, 3, .16); pass(true, 0, .92);
+  // ガラスの反射
+  const gl = g.createLinearGradient(SX, SY, SX + SW, SY + SH); gl.addColorStop(0, 'rgba(255,255,255,.16)'); gl.addColorStop(.4, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(SX, SY, SW, SH);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

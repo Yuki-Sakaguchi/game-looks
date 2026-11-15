@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 46 障害物走 ピクトグラム</title>
+<style>
+html,body{margin:0;height:100%;background:#d8dade;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(96vw,154vh);aspect-ratio:8/5;display:block;border-radius:28px;box-shadow:0 10px 30px #0004}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#2a3a4a}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 46 ─ 障害物走 / 案内標識のピクトグラム　｜　見るだけ（自動で跳ぶ・くぐる）</div>
+<script>
+// 画面全体を 1 枚の案内標識にする。色は標識の青・白・黄・赤だけ、人は「頭は離れた丸、体は端の丸い太い線」。
+// 障害物も警告の三角、禁止の丸、矢印といった標識の形だけで作る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), GY = 450;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const BLUE = '#0b57a4', DEEP = '#094a8c', WHITE = '#ffffff', YELLOW = '#ffd21f', RED = '#d8281e', BLACK = '#1a1a1a';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const limb = (pts, w) => { g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke(); };
+const ang = (o, a, l) => [o[0] + Math.sin(a) * l, o[1] + Math.cos(a) * l];
+
+// 人のピクトグラム（mode: 走る / 跳ぶ / くぐる）
+function person(x, y, ph, mode) {
+  g.strokeStyle = g.fillStyle = WHITE;
+  if (mode === 'slide') { const hip = [x - 10, y - 16], sh = [x - 44, y - 28]; limb([sh, hip], 22); limb([hip, [x + 26, y - 20], [x + 54, y - 8]], 14); limb([hip, [x + 22, y - 6], [x + 40, y - 6]], 14); limb([sh, [x - 62, y - 8]], 12); g.beginPath(); g.arc(x - 60, y - 44, 15, 0, 7); g.fill(); return; }
+  const lean = .22, hip = [x, y - 62], sh = ang(hip, Math.PI - lean, 52), a = mode === 'jump' ? 1.1 : Math.sin(ph) * .95, b = mode === 'jump' ? -.5 : -a;
+  const leg = (th, bend) => { const k = ang(hip, th, 34); limb([hip, k, ang(k, th - bend, 34)], 15); };
+  leg(a, a > 0 ? .3 : 1.3); leg(b, b > 0 ? .3 : 1.3);
+  const arm = th => { const e = ang(sh, th, 26); limb([sh, e, ang(e, th + 1.2, 24)], 12); };
+  limb([hip, sh], 24); arm(-a * .9); arm(-b * .9);
+  g.beginPath(); g.arc(sh[0] + 8, sh[1] - 26, 16, 0, 7); g.fill();
+}
+// 障害物
+function obstacle(o, x) {
+  if (o.kind === 0) {                                            // 警告の三角（跳びこえる）
+    g.fillStyle = YELLOW; g.strokeStyle = BLACK; g.lineWidth = 7; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x, GY - 78); g.lineTo(x + 46, GY - 4); g.lineTo(x - 46, GY - 4); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = BLACK; g.fillRect(x - 4, GY - 54, 8, 26); g.beginPath(); g.arc(x, GY - 18, 5, 0, 7); g.fill();
+  } else if (o.kind === 1) {                                     // 禁止の丸（高い位置。くぐる）
+    g.fillStyle = WHITE; g.strokeStyle = WHITE; g.lineWidth = 8; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, GY - 150); g.stroke();
+    g.beginPath(); g.arc(x, GY - 104, 46, 0, 7); g.fill(); g.strokeStyle = RED; g.lineWidth = 11; g.beginPath(); g.arc(x, GY - 104, 38, 0, 7); g.moveTo(x - 27, GY - 131); g.lineTo(x + 27, GY - 77); g.stroke();
+  } else {                                                       // 柵（跳びこえる）
+    g.strokeStyle = WHITE; g.lineWidth = 9; g.lineCap = 'round'; g.beginPath(); g.moveTo(x - 30, GY - 4); g.lineTo(x - 30, GY - 60); g.moveTo(x + 30, GY - 4); g.lineTo(x + 30, GY - 60); g.stroke();
+    g.fillStyle = WHITE; g.fillRect(x - 40, GY - 62, 80, 20); g.fillStyle = RED; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(x - 40 + k * 22, GY - 62); g.lineTo(x - 28 + k * 22, GY - 62); g.lineTo(x - 40 + k * 22 + 2, GY - 42); g.lineTo(x - 52 + k * 22 + 2, GY - 42); g.closePath(); g.fill(); }
+  }
+}
+function arrow(x, y, s) { g.beginPath(); g.moveTo(x - s, y - s * .32); g.lineTo(x + s * .2, y - s * .32); g.lineTo(x + s * .2, y - s * .8); g.lineTo(x + s, y); g.lineTo(x + s * .2, y + s * .8); g.lineTo(x + s * .2, y + s * .32); g.lineTo(x - s, y + s * .32); g.closePath(); g.fill(); }
+
+const obs = []; let nextX = 700, dist = 0, y = 0, vy = 0, slide = 0, t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; dist += 330 * dt;
+  while (nextX < dist + 1400) { obs.push({ x: nextX, kind: Math.floor(hash(nextX, 3) * 3) }); nextX += 430 + hash(nextX, 5) * 260; }
+  while (obs.length && obs[0].x < dist - 300) obs.shift();
+  const HX = 250, near = obs.find(o => o.x - dist - HX > -60 && o.x - dist - HX < 150);
+  if (near && y === 0 && slide <= 0) { const d = near.x - dist - HX; if (near.kind === 1 && d < 130) slide = .75; else if (near.kind !== 1 && d < 105) vy = -640; }
+  vy += 1700 * dt; y = Math.min(0, y + vy * dt); if (y === 0) vy = 0; slide -= dt;
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = BLUE; g.fillRect(0, 0, LW, LH);
+  // 遠くを流れる大きな標識の形
+  g.fillStyle = DEEP;
+  for (let i = 0; i < 6; i++) { const x = ((i * 420 - dist * .3) % 2520 + 2520) % 2520 - 300, k = i % 3; if (k === 0) arrow(x, 190, 110); else if (k === 1) { g.beginPath(); g.arc(x, 200, 100, 0, 7); g.fill(); g.fillStyle = BLUE; g.beginPath(); g.arc(x, 200, 62, 0, 7); g.fill(); g.fillStyle = DEEP; } else { g.beginPath(); g.moveTo(x, 80); g.lineTo(x + 130, 300); g.lineTo(x - 130, 300); g.closePath(); g.fill(); } }
+  // 地面
+  g.fillStyle = WHITE; g.fillRect(0, GY, LW, 10);
+  for (let x = -((dist) % 90); x < LW; x += 90) g.fillRect(x, GY + 26, 46, 8);
+  for (const o of obs) obstacle(o, o.x - dist);
+  person(HX, GY + y, t * 13, slide > 0 ? 'slide' : y < 0 ? 'jump' : 'run');
+  // 標識の枠、距離、ねじ
+  g.strokeStyle = WHITE; g.lineWidth = 10; g.beginPath(); g.roundRect(16, 16, LW - 32, LH - 32, 22); g.stroke();
+  g.fillStyle = WHITE; g.font = '700 54px "Helvetica Neue","Arial",sans-serif'; g.textAlign = 'right'; g.fillText(String(Math.floor(dist / 33)).padStart(4, '0') + ' m', LW - 60, 96);
+  arrow(92, 76, 30); g.textAlign = 'left'; g.font = '700 26px "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif'; g.fillText('出口 Exit', 136, 86);
+  g.fillStyle = '#b8c0c8'; for (const [x, yy] of [[40, 40], [LW - 40, 40], [40, LH - 40], [LW - 40, LH - 40]]) { g.beginPath(); g.arc(x, yy, 7, 0, 7); g.fill(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

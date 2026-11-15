@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-03 雲海フライト ローポリの夕焼け雲</title>
+<style>
+html,body{margin:0;height:100%;background:#5a3a80;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d8;opacity:.85}
+</style>
+<div id="cap">2-03 ─ 雲海フライト / ローポリの夕焼け雲 ＋ ドット絵の排気　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雲は角ばった玉のかたまり。面をぼかさないので、夕日側の面はだいだい、反対側の面は青紫と、
+// 1 つの玉の中で色がぱきっと分かれる。これを何百個も並べて雲の海にする。
+// 遠い雲は霧の色（夕焼けの桃色）にとけるので、奥行きが色の変化で伝わる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 44, far: 900 }), { add, box, flat, glow, hash } = K;
+scene.background = K.sky([[0, '#1c1a4a'], [.3, '#5a3a80'], [.5, '#d8607a'], [.63, '#ffa860'], [.76, '#ffe2a8'], [1, '#d8a0a8']]); scene.fog = new THREE.Fog('#f09a84', 50, 430);
+scene.add(K.stars(200, 600)); scene.add(new THREE.HemisphereLight(0xcabcff, 0xe08a90, 2.3));
+const SUN = new THREE.Vector3(-150, 16, -500), sun = new THREE.DirectionalLight(0xffa458, 3.4); sun.position.copy(SUN); scene.add(sun);
+add(scene, new THREE.CircleGeometry(34, 40), glow('#fff2c8', { fog: false }), SUN.x, SUN.y + 6, SUN.z);
+const gc = document.createElement('canvas'); gc.width = gc.height = 128; { const x = gc.getContext('2d'), g = x.createRadialGradient(64, 64, 4, 64, 64, 64); g.addColorStop(0, 'rgba(255,230,170,.9)'); g.addColorStop(1, 'rgba(255,200,140,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); halo.scale.set(420, 420, 1); halo.position.set(SUN.x, SUN.y + 6, SUN.z + 5); scene.add(halo);
+add(scene, new THREE.PlaneGeometry(2000, 2000), flat('#f0b8a4'), 0, -21, 0).rotation.x = -Math.PI / 2;
+// 雲：420 個の玉を 60 のかたまりに分ける
+const N = 420, SPAN = 460, cl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), flat('#fff6ee', { roughness: 1 }), N), blobs = [], dm = new THREE.Object3D(); scene.add(cl);
+for (let c = 0; c < 60; c++) { const cx = (hash(c, 1) - .5) * 360, cz = -hash(c, 2) * SPAN, tall = hash(c, 3) > .8 && Math.abs(cx) > 44 ? 16 : 0, cy = -17 + hash(c, 4) * 4; for (let k = 0; k < 7; k++) blobs.push({ x: cx + (hash(c, k + 10) - .5) * 22, y: cy + hash(c, k + 20) * (4 + tall), z: cz + (hash(c, k + 30) - .5) * 16, s: 3.5 + hash(c, k + 40) * 5 }); }
+const peaks = [...Array(7)].map((_, i) => { const m = add(scene, new THREE.ConeGeometry(26 + hash(i, 5) * 20, 44 + hash(i, 6) * 30, 5), '#6a4a88', (hash(i, 7) - .5) * 520, 6, -hash(i, 8) * 420 - 160); m.rotation.y = i; return m; });
+// 複葉機
+const P = new THREE.Group(); scene.add(P);
+box(P, .8, .8, 3.8, '#d8483c', 0, 0, 0); add(P, new THREE.CylinderGeometry(.42, .34, .7, 8), '#3a3a44', 0, 0, -2.2).rotation.x = Math.PI / 2; box(P, .5, .5, 1.6, '#c03c32', 0, .05, 2.5);
+box(P, 6.4, .12, 1.15, '#f6e8c8', 0, 1, -.6); box(P, 5.8, .12, 1.05, '#f6e8c8', 0, -.36, -.3);
+for (const sx of [-2.2, -1.1, 1.1, 2.2]) box(P, .07, 1.36, .07, '#6a4a30', sx, .32, -.45);
+box(P, 2.4, .08, .8, '#f6e8c8', 0, .1, 3.1); box(P, .08, .95, .8, '#f2c230', 0, .55, 3.1);
+for (const sx of [-.8, .8]) { add(P, new THREE.CylinderGeometry(.3, .3, .16, 8), '#2a2a34', sx, -.95, -.9).rotation.z = Math.PI / 2; box(P, .06, .6, .06, '#6a4a30', sx, -.65, -.9); }
+add(P, new THREE.IcosahedronGeometry(.3, 0), '#f0cfa8', 0, .62, .5); box(P, .5, .18, .3, '#5a4030', 0, .86, .5); const scarf = box(P, .14, .1, 1.1, glow('#fff8ec'), .1, .5, 1.3);
+const prop = new THREE.Group(); prop.position.set(0, 0, -2.6); box(prop, 2.6, .16, .05, '#3a2a20', 0, 0, 0); add(prop, new THREE.CircleGeometry(1.3, 20), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: .14, side: THREE.DoubleSide, depthWrite: false }), 0, 0, 0); P.add(prop);
+// 気球が 2 つ、ゆっくり通りすぎる
+const balloons = [0, 1].map(i => { const g = new THREE.Group(), b = add(g, new THREE.IcosahedronGeometry(5, 1), i ? '#ffcf5a' : '#5ab0d8', 0, 0, 0); b.scale.y = 1.2; add(g, new THREE.ConeGeometry(3.4, 4, 8), i ? '#e8703a' : '#f6e8c8', 0, -5.6, 0).rotation.x = Math.PI; box(g, 1.4, 1.1, 1.4, '#8a6240', 0, -9.4, 0); g.userData.z = -150 - i * 220; g.position.x = i ? 36 : -44; scene.add(g); return g; });
+const fx = K.fx(scene, 80); let eT = 0;
+K.loop((dt, t) => {
+  const sp = 46, px = Math.sin(t * .4) * 7, py = 1 + Math.sin(t * .66) * 1.8, roll = -Math.cos(t * .4) * .35;
+  P.position.set(px, py, 0); P.rotation.set(Math.cos(t * .66) * .08, 0, roll); prop.rotation.z = t * 40; scarf.rotation.y = Math.sin(t * 14) * .25; scarf.rotation.x = Math.sin(t * 11) * .15;
+  blobs.forEach((b, i) => { b.z += sp * dt; if (b.z > 30) b.z -= SPAN; dm.position.set(b.x, b.y + Math.sin(t * .3 + i) * .3, b.z); dm.scale.setScalar(b.s); dm.rotation.set(i, i * 2, 0); dm.updateMatrix(); cl.setMatrixAt(i, dm.matrix); }); cl.instanceMatrix.needsUpdate = true;
+  for (const m of peaks) { m.position.z += sp * .25 * dt; if (m.position.z > 40) m.position.z -= 620; }
+  for (const b of balloons) { b.userData.z += sp * .7 * dt; if (b.userData.z > 60) b.userData.z -= 460; b.position.set(b.position.x, 8 + Math.sin(t * .5 + b.position.x) * 1.5, b.userData.z); }
+  if ((eT -= dt) < 0) { eT = .07; fx.emit('puff', px, py - .2, 2.2, { vz: sp * .6, vy: .4, life: 1.5, size: .7, grow: 2.4, spread: .6, tint: '#fff0e0' }); }
+  fx.update(dt);
+  cam.position.set(px * .45 + 5.5 + Math.sin(t * .13) * 2, py + 2.6, 12.5); cam.lookAt(px * .8, py + .2, -8);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

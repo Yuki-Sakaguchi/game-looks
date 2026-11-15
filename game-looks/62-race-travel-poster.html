@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 62 レース 観光ポスター</title>
+<style>
+html,body{margin:0;height:100%;background:#1d3a52;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f2e3c2;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 62 ─ 疑似 3D レース / 昔の観光ポスター　｜　見るだけ</div>
+<script>
+// 色は 6 つのべた塗りだけ（生成り・だいだい・青緑・紺・からし・うす緑）。ぼかしも輪郭線も使わない。
+// 遠近は「形の大きさ」と「色の重なり」だけで出す。太陽は横じまで切り、木は 2 色の半分ずつ。
+// まわりに余白と題字を置いて 1 枚のポスターにし、最後に紙の粒を重ねる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const C = { cream: '#f2e3c2', orange: '#e8763a', teal: '#2f7f86', navy: '#1d3a52', must: '#e0b23e', mint: '#8fc2ae', peach: '#f6cf9a' };
+const grain = document.createElement('canvas'); grain.width = 240; grain.height = 150; { const q = grain.getContext('2d'), im = q.createImageData(240, 150); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random(); im.data[i] = im.data[i + 1] = im.data[i + 2] = v > .5 ? 255 : 0; im.data[i + 3] = 14 + v * 14; } q.putImageData(im, 0, 0); }
+const X0 = 28, Y0 = 28, X1 = 932, Y1 = 500, HOR = 250;
+const FONT = '"Futura","Avenir Next","Century Gothic","Gill Sans",sans-serif';
+const start = performance.now();
+function ridge(base, amp, f, ph, col, shift) { g.fillStyle = col; g.beginPath(); g.moveTo(X0, HOR + 2); for (let x = X0; x <= X1; x += 12) { const u = (x + shift) * f + ph; g.lineTo(x, base - Math.abs(Math.sin(u)) * amp - Math.abs(Math.sin(u * 2.7 + 1)) * amp * .35); } g.lineTo(X1, HOR + 2); g.fill(); }
+function frame(now) {
+  const t = (now - start) / 1000, curve = Math.sin(t * .35) * .9 + Math.sin(t * .13) * .3;
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = C.cream; g.fillRect(0, 0, LW, LH);
+  g.save(); g.beginPath(); g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.clip();
+  g.fillStyle = C.peach; g.fillRect(X0, Y0, LW, HOR);
+  // 太陽：横じまで切る
+  const sx = 640 - curve * 60; g.fillStyle = C.orange; g.beginPath(); g.arc(sx, 190, 104, 0, 7); g.fill(); g.fillStyle = C.peach; for (let i = 0; i < 4; i++) g.fillRect(sx - 110, 206 + i * 20, 220, 4 + i * 2.5);
+  g.fillStyle = C.cream; for (const [x, y, w] of [[150, 90, 150], [230, 112, 90], [760, 70, 120], [420, 60, 70]]) { g.beginPath(); g.roundRect(x - curve * 30, y, w, 14, 7); g.fill(); }
+  ridge(HOR, 86, .006, 0, C.mint, curve * 40); ridge(HOR, 56, .011, 2, C.teal, curve * 90); ridge(HOR, 26, .02, 4, C.navy, curve * 150);
+  // 道：手前から奥へ、横の帯を積む
+  const cx = p => 480 + curve * Math.pow(1 - p, 2.2) * 380, hw = p => p * 440 + 5;
+  for (let y = HOR; y < Y1; y += 2) { const p = (y - HOR) / (Y1 - HOR), z = 1 / (p + .03), seg = (((z * 1.6 + t * 7) % 2) + 2) % 2 < 1, c = cx(p), h = hw(p);
+    g.fillStyle = seg ? C.must : '#d3a332'; g.fillRect(X0, y, c - X0, 2); g.fillStyle = seg ? C.teal : '#2a747b'; g.fillRect(c, y, X1 - c, 2);
+    g.fillStyle = C.cream; g.fillRect(c - h * 1.1, y, h * 2.2, 2); g.fillStyle = C.navy; g.fillRect(c - h, y, h * 2, 2);
+    if (seg) { g.fillStyle = C.must; g.fillRect(c - h * .03, y, h * .06, 2); } }
+  // 道ばたの木（奥から手前へ）
+  for (let k = 13; k >= 0; k--) { const zf = (((k / 14 - t * .33) % 1) + 1) % 1, p = Math.pow(1 - zf, 3.2), y = HOR + p * (Y1 - HOR), sgn = k % 2 ? 1 : -1, x = cx(p) + sgn * (hw(p) * 1.25 + p * 90 + 6), s = p * 200 + 6;
+    g.fillStyle = C.navy; g.fillRect(x - s * .03, y - s * .25, s * .06, s * .25);
+    g.fillStyle = sgn > 0 ? C.navy : C.teal; g.beginPath(); g.ellipse(x, y - s * .7, s * .2, s * .55, 0, 0, 7); g.fill(); g.fillStyle = sgn > 0 ? C.mint : C.navy; g.beginPath(); g.ellipse(x, y - s * .7, s * .2, s * .55, 0, -1.571, 1.571); g.fill(); }
+  // 車
+  const kx = 480 - curve * 26, ky = 462 + Math.sin(t * 30) * .7;
+  g.fillStyle = 'rgba(10,20,35,.45)'; g.beginPath(); g.ellipse(kx, ky + 26, 92, 9, 0, 0, 7); g.fill();
+  g.fillStyle = C.navy; g.fillRect(kx - 70, ky + 6, 26, 22); g.fillRect(kx + 44, ky + 6, 26, 22);
+  g.fillStyle = C.orange; g.beginPath(); g.roundRect(kx - 78, ky - 22, 156, 40, 12); g.fill(); g.beginPath(); g.moveTo(kx - 52, ky - 20); g.lineTo(kx - 38, ky - 50); g.lineTo(kx + 38, ky - 50); g.lineTo(kx + 52, ky - 20); g.fill();
+  g.fillStyle = C.mint; g.beginPath(); g.moveTo(kx - 42, ky - 24); g.lineTo(kx - 32, ky - 44); g.lineTo(kx + 32, ky - 44); g.lineTo(kx + 42, ky - 24); g.fill();
+  g.fillStyle = C.cream; g.fillRect(kx - 70, ky - 12, 26, 9); g.fillRect(kx + 44, ky - 12, 26, 9); g.fillStyle = C.navy; g.fillRect(kx - 22, ky - 2, 44, 10);
+  g.restore();
+  // 題字
+  g.fillStyle = C.navy; g.textAlign = 'center'; g.font = `700 46px ${FONT}`; try { g.letterSpacing = '10px'; } catch (e) {} g.fillText('THE COAST ROAD', 480, 552);
+  g.fillStyle = C.orange; g.font = `600 13px ${FONT}`; try { g.letterSpacing = '5px'; } catch (e) {} g.fillText('SEE IT BY MOTOR CAR  ·  NO. 62', 480, 578); try { g.letterSpacing = '0px'; } catch (e) {}
+  g.globalCompositeOperation = 'multiply'; for (let y = 0; y < LH; y += 150) for (let x = 0; x < LW; x += 240) g.drawImage(grain, x, y); g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

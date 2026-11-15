@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 48 探偵アドベンチャー フィルムノワール</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,177.78vh);aspect-ratio:16/9;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ddd;background:#000;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 48 ─ 探偵アドベンチャー / フィルムノワール　｜　見るだけ（自動で進む）</div>
+<script>
+// 1940 年代の白黒映画の絵作り: 人も家具も黒い影、光は窓のブラインド越しのしま模様と街灯の円すいだけ。
+// 雨、たばこの煙、フィルムの粒とたて傷、四隅の暗さ、画面のかすかな揺れ。色はネオンの赤 1 つ。文字はタイプライターで打たれる
+const LW = 960, LH = 540, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const grain = document.createElement('canvas'); grain.width = grain.height = 256;
+{ const x = grain.getContext('2d'), im = x.createImageData(256, 256), d = im.data; for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = Math.random() * 255; d[i + 3] = 255; } x.putImageData(im, 0, 0); }
+const smoke = [...Array(26)].map((_, i) => ({ a: i / 26 }));
+const rain = [...Array(140)].map((_, i) => ({ x: hash(i, 1) * LW, y: hash(i, 2) * LH, v: 700 + hash(i, 3) * 500 }));
+const LINES = [['雨は三日降りつづいていた。', '依頼人はまだ来ない。'], ['路地の向こうで、赤いネオンが', '切れかけの息をしている。']];
+const CHOICE = [['引き出しを調べる', '窓の外を見る'], ['男を追う', '店に入る']];
+const poly = (pts, c) => { g.fillStyle = c; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.fill(); };
+
+function office(t, flash) {
+  const wall = g.createLinearGradient(0, 0, LW, LH); wall.addColorStop(0, '#2a2a2a'); wall.addColorStop(1, '#0a0a0a'); g.fillStyle = wall; g.fillRect(0, 0, LW, LH);
+  // ブラインド越しの光（壁に斜めにのびる、しまの入った平行四辺形）
+  g.save(); g.beginPath(); g.moveTo(330, 60); g.lineTo(900, 20); g.lineTo(940, 330); g.lineTo(370, 400); g.closePath(); g.clip();
+  for (let k = 0; k < 16; k++) { g.fillStyle = `rgba(255,255,255,${(.5 + flash * .5) * (.75 + .25 * Math.sin(t * 3 + k))})`; g.beginPath(); g.moveTo(300, 60 + k * 23); g.lineTo(960, 10 + k * 21); g.lineTo(960, 22 + k * 21); g.lineTo(300, 73 + k * 23); g.closePath(); g.fill(); }
+  g.restore();
+  // 天井の扇風機の影
+  g.save(); g.translate(250, 60); g.rotate(t * 2.2); g.fillStyle = 'rgba(0,0,0,.5)'; for (let k = 0; k < 4; k++) { g.rotate(Math.PI / 2); g.beginPath(); g.ellipse(120, 0, 120, 22, 0, 0, 7); g.fill(); } g.restore();
+  // 机、電話、探偵の影
+  poly([[0, 430], [700, 400], [960, 440], [960, 540], [0, 540]], '#000');
+  poly([[120, 410], [200, 404], [206, 380], [126, 384]], '#000'); g.fillStyle = '#000'; g.beginPath(); g.ellipse(163, 376, 46, 10, -.06, 0, 7); g.fill();
+  const bx = 560, by = 420;
+  poly([[bx - 110, by], [bx - 96, by - 130], [bx - 40, by - 172], [bx + 46, by - 172], [bx + 100, by - 128], [bx + 116, by]], '#000');
+  g.fillStyle = '#000'; g.beginPath(); g.arc(bx + 2, by - 204, 38, 0, 7); g.fill(); g.beginPath(); g.ellipse(bx + 2, by - 226, 76, 13, -.05, 0, 7); g.fill(); g.fillRect(bx - 34, by - 268, 72, 44);
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(bx + 46, by - 172); g.lineTo(bx + 100, by - 128); g.lineTo(bx + 114, by - 20); g.stroke(); g.beginPath(); g.arc(bx + 2, by - 204, 38, -1.1, .5); g.stroke();   // ふちの光
+  // たばこの火と煙
+  g.fillStyle = '#fff'; g.fillRect(bx + 52, by - 190, 22, 3); g.fillStyle = '#ff5a3a'; g.fillRect(bx + 72, by - 190, 4, 3);
+  for (const s of smoke) { const a = (s.a + t * .12) % 1, x = bx + 76 + Math.sin(a * 9 + s.a * 20) * 22 * a + a * 40, y = by - 190 - a * 230; const gr = g.createRadialGradient(x, y, 0, x, y, 10 + a * 46); gr.addColorStop(0, `rgba(230,230,230,${.16 * (1 - a)})`); gr.addColorStop(1, 'rgba(230,230,230,0)'); g.fillStyle = gr; g.fillRect(x - 60, y - 60, 120, 120); }
+}
+function alley(t, flash) {
+  g.fillStyle = flash > .5 ? '#3a3a3a' : '#0c0c0c'; g.fillRect(0, 0, LW, LH);
+  poly([[0, 0], [300, 0], [300, 400], [0, 440]], '#000'); poly([[640, 0], [960, 0], [960, 450], [640, 395]], '#030303');
+  g.fillStyle = '#d8d8d8'; for (const [x, y] of [[60, 110], [150, 200], [720, 90], [860, 170], [790, 250]]) g.fillRect(x, y, 34, 46);
+  // 街灯の光
+  const cone = g.createLinearGradient(0, 96, 0, 430); cone.addColorStop(0, 'rgba(255,255,255,.5)'); cone.addColorStop(1, 'rgba(255,255,255,.04)'); g.fillStyle = cone;
+  g.beginPath(); g.moveTo(420, 96); g.lineTo(250, 440); g.lineTo(610, 440); g.closePath(); g.fill();
+  g.fillStyle = '#000'; g.fillRect(418, 60, 7, 400); g.fillRect(380, 60, 44, 6); g.fillStyle = '#fff'; g.beginPath(); g.ellipse(402, 82, 24, 14, 0, 0, 7); g.fill();
+  // ぬれた路面と、のびる影
+  const road = g.createLinearGradient(0, 400, 0, LH); road.addColorStop(0, '#1c1c1c'); road.addColorStop(1, '#050505'); g.fillStyle = road; g.fillRect(0, 400, LW, 140);
+  g.fillStyle = 'rgba(255,255,255,.22)'; for (let k = 0; k < 18; k++) g.fillRect(300 + hash(k, 1) * 260, 420 + k * 6, 30 + hash(k, 2) * 90, 2);
+  const fx = 470 + Math.sin(t * .5) * 30, fy = 436;
+  poly([[fx - 18, fy], [fx + 18, fy], [fx + 170, 540], [fx + 60, 540]], 'rgba(0,0,0,.85)');
+  poly([[fx - 22, fy], [fx - 26, fy - 120], [fx + 26, fy - 120], [fx + 22, fy]], '#000'); g.fillStyle = '#000'; g.beginPath(); g.arc(fx, fy - 138, 17, 0, 7); g.fill(); g.beginPath(); g.ellipse(fx, fy - 148, 34, 6, 0, 0, 7); g.fill(); g.fillRect(fx - 15, fy - 168, 30, 20);
+  // 赤いネオン（切れかけ）
+  const on = hash(Math.floor(t * 9), 4) > .25 ? 1 : .15;
+  g.fillStyle = `rgba(230,40,40,${on})`; g.font = '900 54px "Arial Black",Impact,sans-serif'; g.textAlign = 'center'; g.shadowColor = '#ff2020'; g.shadowBlur = 26 * on; g.fillText('BAR', 800, 360); g.shadowBlur = 0;
+  g.fillStyle = `rgba(230,40,40,${.28 * on})`; for (let k = 0; k < 8; k++) g.fillRect(740 + hash(k, 6) * 40, 410 + k * 14, 80 + hash(k, 7) * 50, 4);
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const scene = Math.floor(t / 11) % 2, st = t % 11, flash = hash(Math.floor(t * 12), 8) > .985 ? 1 : 0;
+  g.setTransform(S, 0, 0, S, (hash(Math.floor(t * 24), 1) - .5) * 1.5 * S, (hash(Math.floor(t * 24), 2) - .5) * 1.5 * S);
+  scene ? alley(t, flash) : office(t, flash);
+  // 雨
+  g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1; g.beginPath();
+  for (const r of rain) { r.y += r.v * dt; r.x -= r.v * .18 * dt; if (r.y > LH) { r.y = -20; r.x = Math.random() * (LW + 100); } if (scene || (r.x > 330 && r.x < 940 && r.y < 380)) { g.moveTo(r.x, r.y); g.lineTo(r.x - 4, r.y + 22); } }
+  g.stroke();
+  // 場面の切りかえ（丸く閉じて開く）
+  const iris = st < .8 ? st / .8 : st > 10.2 ? (11 - st) / .8 : 1;
+  if (iris < 1) { g.fillStyle = '#000'; g.beginPath(); g.rect(-10, -10, LW + 20, LH + 20); g.arc(LW / 2, LH / 2, iris * 620, 0, 7, true); g.fill(); }
+  // 字幕（タイプライター）と選択肢
+  g.textAlign = 'left'; g.font = '20px "Courier New","Hiragino Mincho ProN",monospace'; g.fillStyle = '#f0f0f0';
+  const n = Math.max(0, Math.floor((st - 1.2) * 9)); let left = n;
+  LINES[scene].forEach((s, i) => { const k = Math.min(s.length, left); left -= k; g.fillStyle = 'rgba(0,0,0,.6)'; if (k) g.fillRect(74, 452 + i * 30 - 20, k * 21 + 14, 28); g.fillStyle = '#f0f0f0'; g.fillText(s.slice(0, k), 80, 452 + i * 30); });
+  if (st > 6.5) CHOICE[scene].forEach((s, i) => { const sel = st > 8.6 && i === scene; g.fillStyle = sel ? '#f0f0f0' : 'rgba(0,0,0,.7)'; g.fillRect(640, 64 + i * 44, 260, 34); g.strokeStyle = '#f0f0f0'; g.lineWidth = 1.5; g.strokeRect(640, 64 + i * 44, 260, 34); g.fillStyle = sel ? '#000' : '#f0f0f0'; g.fillText((i === (Math.floor(st * 1.2) % 2) && st < 8.6 || sel ? '▶ ' : '　 ') + s, 652, 88 + i * 44); });
+  // フィルムの粒、たて傷、四隅の暗さ、上下の黒帯
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'overlay'; g.globalAlpha = .28;
+  const ox = Math.random() * 256, oy = Math.random() * 256; for (let y = -256; y < LH; y += 256) for (let x = -256; x < LW; x += 256) g.drawImage(grain, x + ox, y + oy);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  if (hash(Math.floor(t * 8), 3) > .6) { g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(hash(Math.floor(t * 8), 5) * LW, 0, 1, LH); }
+  const v = g.createRadialGradient(LW / 2, LH / 2, 240, LW / 2, LH / 2, 600); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); g.fillStyle = v; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = '#000'; g.fillRect(0, 0, LW, 34); g.fillRect(0, LH - 34, LW, 34);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 36 早撃ち決闘 一色木版</title>
+<style>
+html,body{margin:0;height:100%;background:#161412;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#efe6d2;background:#161412;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 36 ─ 早撃ち決闘 / 一色木版（リノカット）　｜　見るだけ（自動で決闘）</div>
+<script>
+// 黒インク 1 色＋赤 1 色の版画。形は黒のべた、明るい所は「彫り刀で削った白い線」（両端が細い紡錘形）で表す。
+// 空は黒く残して太陽から放射状に彫り、地面は白く残して黒い線を置く。最後にインクのかすれ粒をまぶす
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2), GY = 430;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const K = '#161412', W = '#efe6d2', RED = '#c8281e';
+// 彫りあと（紡錘形の線）
+function cut(x, x1, y1, x2, y2, w) { const nx = -(y2 - y1), ny = x2 - x1, l = Math.hypot(nx, ny) || 1, mx = (x1 + x2) / 2, my = (y1 + y2) / 2; x.moveTo(x1, y1); x.quadraticCurveTo(mx + nx / l * w, my + ny / l * w, x2, y2); x.quadraticCurveTo(mx - nx / l * w, my - ny / l * w, x1, y1); }
+
+// 動かない背景を 1 枚作る
+const bg = document.createElement('canvas'); bg.width = LW * S; bg.height = LH * S;
+{
+  const x = bg.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  x.fillStyle = K; x.fillRect(0, 0, LW, GY); x.fillStyle = W; x.fillRect(0, GY, LW, LH - GY);
+  const SX = 480, SY = 300;
+  x.fillStyle = W; x.beginPath();
+  for (let i = 0; i < 150; i++) { const a = Math.PI + i / 150 * Math.PI + (hash(i, 1) - .5) * .02, r0 = 150 + hash(i, 2) * 60, r1 = r0 + 60 + hash(i, 3) * 420; cut(x, SX + Math.cos(a) * r0, SY + Math.sin(a) * r0, SX + Math.cos(a) * r1, SY + Math.sin(a) * r1, 1.5 + hash(i, 4) * 3.5); }
+  x.fill();
+  x.fillStyle = RED; x.beginPath(); x.arc(SX, SY, 128, 0, 7); x.fill();
+  // 町なみ
+  x.fillStyle = K; x.beginPath();
+  for (const [bx, bw, bh] of [[30, 120, 120], [150, 90, 80], [240, 70, 150], [650, 80, 140], [730, 110, 90], [840, 100, 130]]) { x.rect(bx, GY - bh, bw, bh); x.rect(bx - 8, GY - bh - 14, bw + 16, 14); }
+  x.rect(262, GY - 210, 26, 60); x.moveTo(250, GY - 210); x.lineTo(275, GY - 250); x.lineTo(300, GY - 210); x.fill();
+  x.fillStyle = W; x.beginPath();
+  for (const [wx, wy] of [[52, 340], [100, 340], [170, 372], [262, 310], [672, 320], [760, 366], [800, 366], [866, 330], [902, 330]]) { x.rect(wx, wy, 22, 30); }
+  for (let i = 0; i < 40; i++) { const bx = [30, 150, 240, 650, 730, 840][i % 6] + hash(i, 5) * 60 + 6, by = GY - 20 - hash(i, 6) * 70; cut(x, bx, by, bx + 30 + hash(i, 7) * 30, by + 2, 1.6); }
+  x.fill();
+  // 地面の線、サボテン
+  x.fillStyle = K; x.beginPath();
+  for (let i = 0; i < 90; i++) { const y = GY + 8 + Math.pow(hash(i, 8), 1.6) * 160, px = hash(i, 9) * LW, l = 30 + (y - GY) * .9 * hash(i, 10) + 20; cut(x, px, y, px + l, y + (hash(i, 11) - .5) * 4, 1 + (y - GY) * .025); }
+  for (const [cx, h] of [[400, 90], [590, 70]]) { x.roundRect(cx - 9, GY - h + 30, 18, h, 9); x.roundRect(cx - 34, GY - h + 50, 12, 34, 6); x.rect(cx - 34, GY - h + 76, 30, 10); x.roundRect(cx + 22, GY - h + 40, 12, 30, 6); x.rect(cx + 6, GY - h + 62, 28, 10); }
+  x.rect(0, GY - 3, LW, 6); x.fill();
+}
+const speck = document.createElement('canvas'); speck.width = LW * S; speck.height = LH * S;
+{ const x = speck.getContext('2d'), im = x.createImageData(speck.width, speck.height), d = im.data; for (let i = 0; i < d.length; i += 4) { const r = Math.random(); if (r < .035) { d[i] = 239; d[i + 1] = 230; d[i + 2] = 210; d[i + 3] = 255; } else if (r > .985) { d[i] = d[i + 1] = d[i + 2] = 22; d[i + 3] = 255; } } x.putImageData(im, 0, 0); }
+
+// ガンマン（右向きに描いて、左右反転で使う）
+function gunman(x, y, face, pose, hatOff) {
+  g.save(); g.translate(x, y); g.scale(face, 1);
+  if (pose === 'down') { g.translate(-10, -14); g.rotate(-Math.PI / 2 + .12); g.translate(0, 20); }
+  g.fillStyle = K; g.beginPath();
+  g.moveTo(-26, 0); g.lineTo(-14, -70); g.lineTo(14, -70); g.lineTo(30, 0); g.lineTo(14, 0); g.lineTo(2, -52); g.lineTo(-10, 0); g.closePath();     // 足
+  g.moveTo(-22, -64); g.lineTo(-30, -150); g.lineTo(26, -150); g.lineTo(22, -64); g.closePath();                                            // 上着
+  g.moveTo(-34, -70); g.lineTo(-22, -110); g.lineTo(-18, -66); g.closePath();
+  g.rect(-12, -178, 26, 30);                                                                                                               // 頭
+  if (pose === 'aim') { g.moveTo(18, -140); g.lineTo(82, -146); g.lineTo(82, -132); g.lineTo(20, -122); g.closePath(); g.rect(80, -150, 34, 9); }
+  else { g.moveTo(18, -144); g.lineTo(36, -92); g.lineTo(26, -86); g.lineTo(10, -130); g.closePath(); g.rect(24, -92, 10, 22); }
+  g.fill();
+  if (!hatOff) { g.beginPath(); g.ellipse(1, -176, 44, 8, 0, 0, 7); g.rect(-16, -206, 34, 30); g.fill(); }
+  g.fillStyle = W; g.beginPath();                                                                                                           // 彫りあと
+  cut(g, -22, -140, -18, -76, 2.5); cut(g, 8, -144, 14, -80, 2.5); cut(g, -4, -144, -2, -100, 1.8); cut(g, -20, -62, 20, -62, 2.2); cut(g, 0, -168, 10, -166, 2.4);
+  if (!hatOff) cut(g, -15, -182, 17, -182, 2.2); g.fill();
+  g.fillStyle = RED; g.beginPath(); g.moveTo(-12, -150); g.lineTo(14, -150); g.lineTo(2, -134); g.closePath(); g.fill();                       // 赤い首巻き
+  g.restore();
+}
+
+let state = 'wait', st = 0, winner = 1, hat = null, weed = -60, round = 0;
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; st += dt; weed += 90 * dt; if (weed > LW + 80) weed = -80;
+  if (state === 'wait' && st > 3.2) { state = 'draw'; st = 0; winner = hash(++round, 3) > .5 ? 1 : -1; }
+  if (state === 'draw' && st > .5) { state = 'shot'; st = 0; hat = { x: winner > 0 ? 730 : 230, y: GY - 190, vx: winner * 160, vy: -260, r: 0 }; }
+  if (state === 'shot' && st > 3) { state = 'wait'; st = 0; hat = null; }
+  const shake = state === 'shot' && st < .15 ? (Math.random() - .5) * 10 : 0;
+
+  g.setTransform(S, 0, 0, S, shake * S, 0); g.drawImage(bg, 0, 0, LW, LH);
+  const pose = side => state === 'wait' ? 'idle' : state === 'draw' ? 'aim' : side === winner ? 'aim' : 'down';
+  gunman(230, GY + 40, 1, pose(1), state === 'shot' && winner < 0); gunman(730, GY + 40, -1, pose(-1), state === 'shot' && winner > 0);
+  // 回転草
+  g.strokeStyle = K; g.lineWidth = 2.2; g.beginPath(); for (let i = 0; i < 9; i++) { const a = weed * .04 + i * .7; g.moveTo(weed + Math.cos(a) * 22, GY + 62 + Math.sin(a) * 22 - Math.abs(Math.sin(weed * .03)) * 16); g.arc(weed, GY + 62 - Math.abs(Math.sin(weed * .03)) * 16, 22 - i * 2, a, a + 2.4); } g.stroke();
+  if (hat) { hat.vy += 700 * dt; hat.x += hat.vx * dt; hat.y = Math.min(GY + 60, hat.y + hat.vy * dt); if (hat.y < GY + 60) hat.r += dt * 9; g.save(); g.translate(hat.x, hat.y); g.rotate(hat.r); g.fillStyle = K; g.beginPath(); g.ellipse(0, 6, 44, 8, 0, 0, 7); g.rect(-17, -24, 34, 30); g.fill(); g.restore(); }
+  // 撃った瞬間の光
+  if (state === 'shot' && st < .18) { const mx = winner > 0 ? 348 : 612, my = GY - 106; g.fillStyle = W; g.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, r = i % 2 ? 26 : 76; g.lineTo(mx + Math.cos(a) * r, my + Math.sin(a) * r); } g.fill(); }
+  // 文字
+  g.textAlign = 'center'; g.font = '900 120px "Rockwell","Playbill","Georgia",serif';
+  if (state === 'draw' || (state === 'shot' && st < .6)) { g.fillStyle = W; g.fillText('DRAW!', 484, 154); g.fillStyle = RED; g.fillText('DRAW!', 480, 150); }
+  if (state === 'wait') { g.font = '900 54px "Rockwell","Georgia",serif'; g.fillStyle = W; const n = 3 - Math.floor(st); if (n > 0 && st % 1 < .6) g.fillText('· '.repeat(n).trim(), 480, 110); }
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(speck, 0, 0);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

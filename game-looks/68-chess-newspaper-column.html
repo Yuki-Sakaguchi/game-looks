@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 68 チェス 新聞の棋譜欄</title>
+<style>
+html,body{margin:0;height:100%;background:#cfc8b4;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#222;background:#ebe4d0;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 68 ─ チェス / 新聞の棋譜欄　｜　見るだけ（1 手ずつ進み、棋譜が増える）</div>
+<script>
+// 新聞の片すみの盤面図。黒インク 1 色なので、黒ますは塗らずに斜めの細い線で埋める。
+// 駒は活字の記号。白い駒が斜線に埋もれないよう、後ろに紙の色の丸を置く（印刷の図と同じやり方）。
+// 動かした手はペンの矢印で、棋譜は横の欄に 1 手ずつ足していく
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const INK = '#1b1a18', PAPER = '#ebe4d0', SERIF = 'Georgia,"Times New Roman",serif', SYM = '"Apple Symbols","Segoe UI Symbol","Noto Sans Symbols2","DejaVu Sans",serif';
+const BX = 62, BY = 98, SQ = 50, VS = '︎';
+const GL = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+const START = ['rnbqkbnr', 'pppppppp', '........', '........', '........', '........', 'PPPPPPPP', 'RNBQKBNR'];
+const MOVES = [['e2e4', 'e4'], ['e7e5', 'e5'], ['g1f3', 'Nf3'], ['b8c6', 'Nc6'], ['f1c4', 'Bc4'], ['g8f6', 'Nf6'], ['f3g5', 'Ng5'], ['d7d5', 'd5'], ['e4d5', 'exd5'], ['f6d5', 'Nxd5'], ['g5f7', 'Nxf7'], ['e8f7', 'Kxf7'], ['d1f3', 'Qf3+'], ['f7e6', 'Ke6'], ['b1c3', 'Nc3']];
+const sq = s => [s.charCodeAt(0) - 97, 8 - +s[1]], ctr = ([f, r]) => [BX + (f + .5) * SQ, BY + (r + .5) * SQ];
+const grain = document.createElement('canvas'); grain.width = 240; grain.height = 150; { const q = grain.getContext('2d'), im = q.createImageData(240, 150); for (let i = 0; i < im.data.length; i += 4) { const v = Math.random(); im.data[i] = im.data[i + 1] = im.data[i + 2] = 90; im.data[i + 3] = v * v * 40; } q.putImageData(im, 0, 0); }
+function piece(ch, x, y) { g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `44px ${SYM}`; if (ch === ch.toUpperCase()) { g.fillStyle = PAPER; g.beginPath(); g.arc(x, y, 19, 0, 7); g.fill(); } else { g.fillStyle = PAPER; g.beginPath(); g.arc(x, y, 21, 0, 7); g.fill(); } g.fillStyle = INK; g.fillText(GL[ch] + VS, x, y + 2); g.textBaseline = 'alphabetic'; }
+const start = performance.now(), STEP = 1.5;
+function frame(now) {
+  const t = ((now - start) / 1000) % (MOVES.length * STEP + 4), n = Math.min(MOVES.length, Math.floor(t / STEP)), f = n < MOVES.length ? Math.min(1, (t - n * STEP) / .55) : 0;
+  const bd = START.map(r => r.split('')); for (let i = 0; i < n; i++) { const [a, b] = [sq(MOVES[i][0].slice(0, 2)), sq(MOVES[i][0].slice(2))]; bd[b[1]][b[0]] = bd[a[1]][a[0]]; bd[a[1]][a[0]] = '.'; }
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = PAPER; g.fillRect(0, 0, LW, LH);
+  // 欄の罫線と見出し
+  g.fillStyle = INK; g.fillRect(40, 26, 880, 3); g.fillRect(40, 32, 880, 1); g.fillRect(500, 60, 1, 500);
+  g.textAlign = 'left'; g.font = `900 34px ${SERIF}`; g.fillText('CHESS', 526, 92); g.font = `italic 16px ${SERIF}`; g.fillText('conducted by our correspondent', 668, 92); g.fillRect(526, 104, 394, 1);
+  g.font = `700 15px ${SERIF}`; g.fillText('GAME No. 68 — An old attack, played briskly', 526, 130);
+  g.font = `14.5px ${SERIF}`; ['White gives up a knight on the seventh', 'move to draw the king into the open.', 'Readers may follow the play below.'].forEach((s, i) => g.fillText(s, 526, 154 + i * 20));
+  g.font = `700 13px ${SERIF}`; g.fillText('WHITE', 570, 236); g.fillText('BLACK', 700, 236); g.fillRect(526, 242, 394, .8);
+  g.font = `16px ${SERIF}`; for (let i = 0; i < n + (f >= 1 ? 1 : 0) && i < MOVES.length; i++) { const row = Math.floor(i / 2), y = 266 + row * 26; if (i % 2 === 0) g.fillText((row + 1) + '.', 530, y); g.fillText(MOVES[i][1], i % 2 ? 700 : 570, y); }
+  g.font = `italic 13px ${SERIF}`; g.fillText(n >= MOVES.length ? '— and White has a winning attack.' : (n % 2 ? 'Black' : 'White') + ' to move.', 526, 266 + 8 * 26 + 8);
+  g.font = `11px ${SERIF}`; g.fillText('Solutions to last week’s problem on page 12.', 526, 548);
+  // 盤：黒ますは斜線
+  for (let r = 0; r < 8; r++) for (let fl = 0; fl < 8; fl++) if ((r + fl) % 2) { const x = BX + fl * SQ, y = BY + r * SQ; g.save(); g.beginPath(); g.rect(x, y, SQ, SQ); g.clip(); g.strokeStyle = INK; g.lineWidth = .9; g.beginPath(); for (let k = -SQ; k < SQ; k += 4.5) { g.moveTo(x + k, y + SQ); g.lineTo(x + k + SQ, y); } g.stroke(); g.restore(); }
+  g.strokeStyle = INK; g.lineWidth = 2.5; g.strokeRect(BX, BY, SQ * 8, SQ * 8); g.lineWidth = 1; g.strokeRect(BX - 5, BY - 5, SQ * 8 + 10, SQ * 8 + 10);
+  g.fillStyle = INK; g.font = `13px ${SERIF}`; g.textAlign = 'center'; for (let i = 0; i < 8; i++) { g.fillText('abcdefgh'[i], BX + (i + .5) * SQ, BY + SQ * 8 + 24); g.fillText(String(8 - i), BX - 18, BY + (i + .5) * SQ + 5); }
+  g.font = `700 13px ${SERIF}`; g.fillText('BLACK', BX + SQ * 4, BY - 16); g.fillText('WHITE', BX + SQ * 4, BY + SQ * 8 + 46);
+  // 駒
+  let mv = null; if (n < MOVES.length) mv = [sq(MOVES[n][0].slice(0, 2)), sq(MOVES[n][0].slice(2))];
+  for (let r = 0; r < 8; r++) for (let fl = 0; fl < 8; fl++) { const ch = bd[r][fl]; if (ch === '.' || (mv && mv[0][0] === fl && mv[0][1] === r)) continue; if (mv && f > .8 && mv[1][0] === fl && mv[1][1] === r) continue; const [x, y] = ctr([fl, r]); piece(ch, x, y); }
+  if (mv) { const a = ctr(mv[0]), b = ctr(mv[1]), e = f * f * (3 - 2 * f); piece(bd[mv[0][1]][mv[0][0]], a[0] + (b[0] - a[0]) * e, a[1] + (b[1] - a[1]) * e); }
+  // 直前の手の矢印
+  if (n > 0) { const a = ctr(sq(MOVES[n - 1][0].slice(0, 2))), b = ctr(sq(MOVES[n - 1][0].slice(2))), ang = Math.atan2(b[1] - a[1], b[0] - a[0]), ex = b[0] - Math.cos(ang) * 22, ey = b[1] - Math.sin(ang) * 22;
+    g.strokeStyle = INK; g.lineWidth = 1.6; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(ex, ey); g.stroke(); g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex - Math.cos(ang - .4) * 11, ey - Math.sin(ang - .4) * 11); g.moveTo(ex, ey); g.lineTo(ex - Math.cos(ang + .4) * 11, ey - Math.sin(ang + .4) * 11); g.stroke(); g.beginPath(); g.arc(a[0], a[1], 3, 0, 7); g.stroke(); }
+  g.globalCompositeOperation = 'multiply'; for (let y = 0; y < LH; y += 150) for (let x = 0; x < LW; x += 240) g.drawImage(grain, x, y); g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 88 アリの巣 観察ケースの断面</title>
+<style>
+html,body{margin:0;height:100%;background:#20241c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#eef0e2;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 88 ─ アリの巣づくり / 観察ケースの断面　｜　見るだけ（通路がのびて、アリが土を運ぶ）</div>
+<script>
+// 2 枚のガラスにはさまれた、うすい砂の層を横から見る。砂は粒の粗い模様と色の違う地層で描き、
+// 通路は「砂がなくなって奥の暗さが見えている所」として、ふちのでこぼこした暗い帯で表す。
+// 手前にガラスの斜めの映りこみと、緑の樹脂のわくを重ねる。掘った砂は地上に山になってたまる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const X0 = 60, X1 = 900, Y0 = 40, Y1 = 560, SURF = 150;
+const sand = document.createElement('canvas'); sand.width = 420; sand.height = 260; { const q = sand.getContext('2d'), im = q.createImageData(420, 260);
+  for (let y = 0; y < 260; y++) for (let x = 0; x < 420; x++) { const band = Math.sin(y * .045 + Math.sin(x * .02) * 1.4), v = Math.random(), i = (y * 420 + x) * 4, dk = band > .55 ? .78 : band < -.6 ? 1.08 : 1; im.data[i] = (206 + v * 40) * dk; im.data[i + 1] = (172 + v * 40) * dk; im.data[i + 2] = (112 + v * 36) * dk; im.data[i + 3] = 255; } q.putImageData(im, 0, 0); }
+let segs, ants, t, mound;
+function build() {
+  segs = []; const grow = (x, y, a, depth, parent) => { const len = 50 + Math.random() * 50, nx = Math.max(X0 + 40, Math.min(X1 - 40, x + Math.cos(a) * len)), ny = Math.min(Y1 - 40, y + Math.sin(a) * len); const id = segs.length; segs.push({ x0: x, y0: y, x1: nx, y1: ny, parent, room: depth > 2 && Math.random() < .4 ? 14 + Math.random() * 12 : 0 });
+    if (depth < 7 && ny < Y1 - 60) { grow(nx, ny, a * .5 + 1.57 * .5 + (Math.random() - .5) * 1.5, depth + 1, id); if (Math.random() < .45) grow(nx, ny, (Math.random() < .5 ? .2 : 2.94) + (Math.random() - .5) * .6, depth + 2, id); } };
+  for (const sx of [300, 620]) grow(sx, SURF, 1.57 + (Math.random() - .5) * .5, 0, -1);
+  segs.forEach((s, i) => { s.start = i * .7; }); ants = [...Array(34)].map(() => ({ path: [], d: 0, dir: 1, sp: 50 + Math.random() * 40, wait: Math.random() * 4 })); t = 0; mound = [0, 0];
+}
+build();
+const prog = s => Math.max(0, Math.min(1, (t - s.start) / .7));
+function ant(x, y, a, carry) { g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = '#1c1210'; g.beginPath(); g.ellipse(-5, 0, 3.6, 2.4, 0, 0, 7); g.ellipse(0, 0, 2.2, 1.7, 0, 0, 7); g.ellipse(4, 0, 2.4, 2, 0, 0, 7); g.fill(); g.strokeStyle = '#1c1210'; g.lineWidth = .8; g.beginPath(); for (const k of [-2, 0, 2]) { g.moveTo(k, 0); g.lineTo(k - 1, -5); g.moveTo(k, 0); g.lineTo(k - 1, 5); } g.moveTo(6, 0); g.lineTo(10, -3); g.moveTo(6, 0); g.lineTo(10, 3); g.stroke(); if (carry) { g.fillStyle = '#e8cc90'; g.beginPath(); g.arc(9, 0, 2.6, 0, 7); g.fill(); } g.restore(); }
+let last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; if (t > segs.length * .7 + 14) build();
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#20241c'; g.fillRect(0, 0, LW, LH);
+  g.save(); g.beginPath(); g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.clip();
+  const air = g.createLinearGradient(0, Y0, 0, SURF); air.addColorStop(0, '#cfe4ea'); air.addColorStop(1, '#eef4e6'); g.fillStyle = air; g.fillRect(X0, Y0, LW, SURF);
+  g.imageSmoothingEnabled = false; g.drawImage(sand, X0, SURF, X1 - X0, Y1 - SURF); g.imageSmoothingEnabled = true;
+  // 通路：でこぼこの暗い帯
+  for (const pass of [0, 1]) { g.fillStyle = pass ? '#2a1c12' : '#8a6a40'; for (const s of segs) { const p = prog(s); if (p <= 0) continue; const n = Math.ceil(Math.hypot(s.x1 - s.x0, s.y1 - s.y0) / 5); for (let k = 0; k <= n * p; k++) { const f = k / n, x = s.x0 + (s.x1 - s.x0) * f, y = s.y0 + (s.y1 - s.y0) * f, r = 7 + Math.sin(k * 1.7 + s.x0) * 1.6 + (pass ? 0 : 2.4); g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } if (s.room && p >= 1) { g.beginPath(); g.ellipse(s.x1, s.y1, s.room * 1.5 + (pass ? 0 : 2.4), s.room + (pass ? 0 : 2.4), 0, 0, 7); g.fill(); if (pass) { g.fillStyle = '#f4f0dc'; for (let e = 0; e < 6; e++) { g.beginPath(); g.ellipse(s.x1 - 12 + e * 5, s.y1 + s.room * .5 - (e % 2) * 4, 2.6, 1.7, .4, 0, 7); g.fill(); } g.fillStyle = '#2a1c12'; } } } }
+  // 地上：草、掘った砂の山、えさ
+  const done = segs.filter(s => prog(s) >= 1).length; mound[0] += (Math.min(34, done * 1.6) - mound[0]) * dt; g.fillStyle = '#d8b878';
+  for (const [sx, k] of [[300, 1], [620, -1]]) { g.beginPath(); g.moveTo(sx + k * 16, SURF + 2); g.quadraticCurveTo(sx + k * 46, SURF - mound[0] * 1.5, sx + k * 90, SURF + 2); g.fill(); }
+  g.strokeStyle = '#5a8a3a'; g.lineWidth = 1.6; g.beginPath(); for (let x = X0; x < X1; x += 7) { if (Math.abs(x - 300) < 30 || Math.abs(x - 620) < 30) continue; g.moveTo(x, SURF + 2); g.lineTo(x + Math.sin(x) * 4 + Math.sin(t + x) * 1.5, SURF - 8 - (x * 7 % 9)); } g.stroke();
+  g.fillStyle = '#d04a3a'; g.beginPath(); g.arc(470, SURF - 9, 10, 0, 7); g.fill(); g.fillStyle = '#f2e6c8'; g.beginPath(); g.arc(466, SURF - 12, 3, 0, 7); g.fill();
+  // アリ：根もとから、掘り終わった通路の先まで往復する
+  const open = segs.map((s, i) => i).filter(i => prog(segs[i]) >= 1);
+  for (const a of ants) {
+    if (!a.path.length) { if ((a.wait -= dt) > 0 || !open.length) continue; let i = open[Math.floor(Math.random() * open.length)]; const chain = []; while (i >= 0) { chain.unshift(segs[i]); i = segs[i].parent; } a.path = chain; a.d = 0; a.dir = 1; a.len = chain.reduce((q, s) => q + Math.hypot(s.x1 - s.x0, s.y1 - s.y0), 0); }
+    a.d += a.dir * a.sp * dt; if (a.d >= a.len) { a.d = a.len; a.dir = -1; } if (a.d < 0) { a.path = []; a.wait = Math.random() * 2; continue; }
+    let rem = a.d, s = a.path[0]; for (const q of a.path) { const l = Math.hypot(q.x1 - q.x0, q.y1 - q.y0); s = q; if (rem <= l) break; rem -= l; } const l = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), f = Math.min(1, rem / l), ang = Math.atan2(s.y1 - s.y0, s.x1 - s.x0) + (a.dir < 0 ? Math.PI : 0);
+    ant(s.x0 + (s.x1 - s.x0) * f + Math.sin(a.sp) * 2.5, s.y0 + (s.y1 - s.y0) * f + Math.cos(a.sp) * 2.5 + Math.sin(t * 30 + a.sp) * .4, ang, a.dir < 0);
+  }
+  for (let i = 0; i < 5; i++) ant(X0 + ((t * 30 + i * 190) % 840), SURF - 2, 0, false);
+  // ガラスの映りこみ
+  const gl = g.createLinearGradient(X0, Y0, X0 + 520, Y1); gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(.3, 'rgba(255,255,255,0)'); gl.addColorStop(.36, 'rgba(255,255,255,.2)'); gl.addColorStop(.44, 'rgba(255,255,255,.04)'); gl.addColorStop(.5, 'rgba(255,255,255,.14)'); gl.addColorStop(.54, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(X0, Y0, X1 - X0, Y1 - Y0);
+  g.restore();
+  // 樹脂のわく
+  g.strokeStyle = '#3f8a5a'; g.lineWidth = 26; g.lineJoin = 'round'; g.strokeRect(X0 - 12, Y0 - 12, X1 - X0 + 24, Y1 - Y0 + 24); g.strokeStyle = '#6ab884'; g.lineWidth = 3; g.strokeRect(X0 - 22, Y0 - 22, X1 - X0 + 44, Y1 - Y0 + 44); g.strokeStyle = '#255a38'; g.lineWidth = 2; g.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
+  g.fillStyle = '#f4f6ea'; g.font = '700 12px ui-monospace,Menlo,Consolas,monospace'; g.textAlign = 'left'; g.fillText('DAY ' + (1 + Math.floor(t / 4)) + '   TUNNELS ' + done + '/' + segs.length, X0 + 6, Y0 - 6);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 72 潜入 防犯カメラ</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+.osd{position:fixed;font:600 16px/1.3 ui-monospace,Menlo,Consolas,monospace;color:#e8f2ea;text-shadow:0 0 6px rgba(200,255,220,.6);letter-spacing:.08em}
+#tl{left:5%;top:6%} #tr{right:5%;top:6%} #bl{left:5%;bottom:9%} #cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#cfe;opacity:.75}
+</style>
+<div id="tl" class="osd"></div><div id="tr" class="osd"></div><div id="bl" class="osd"></div>
+<div id="cap">LOOK 72 ─ 潜入ステルス / 防犯カメラの映像　｜　見るだけ（カメラが切りかわる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ゲームを「天井すみの防犯カメラ」から見る。広角レンズで画面がたる形にゆがみ、色はなく、
+// 横じまと粒のノイズがのり、1 秒 12 コマでかくかく動く。数秒ごとに別のカメラへ切りかわり、砂嵐が走る
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(1); renderer.shadowMap.enabled = true; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x05070a);
+const cams = [[12, 7.5, 9, 'CAM 01  LOADING BAY'], [-12, 7.5, -9, 'CAM 02  STORAGE B'], [12, 7.5, -9, 'CAM 03  EAST AISLE']].map(([x, y, z, name]) => { const c = new THREE.PerspectiveCamera(96, 1, .1, 100); c.position.set(x, y, z); c.lookAt(0, 0, 0); c.userData.name = name; return c; });
+const fc = document.createElement('canvas'); fc.width = fc.height = 128; { const c = fc.getContext('2d'); for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { c.fillStyle = (x + y) % 2 ? '#8a8f94' : '#6f7479'; c.fillRect(x * 64, y * 64, 64, 64); } c.strokeStyle = '#3c4044'; c.lineWidth = 3; c.strokeRect(0, 0, 128, 128); }
+const ftex = new THREE.CanvasTexture(fc); ftex.wrapS = ftex.wrapT = THREE.RepeatWrapping; ftex.repeat.set(8, 6); ftex.colorSpace = THREE.SRGBColorSpace;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(28, 22), new THREE.MeshStandardMaterial({ map: ftex, roughness: .8 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const box = (w, h, d, x, y, z, col) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: col, roughness: .85 })); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; scene.add(m); return m; };
+box(28, 6, .4, 0, 3, -11, '#9a9a94'); box(28, 6, .4, 0, 3, 11, '#9a9a94'); box(.4, 6, 22, -14, 3, 0, '#8d8d88'); box(.4, 6, 22, 14, 3, 0, '#8d8d88');
+for (let i = 0; i < 16; i++) { const s = 1 + hash(i, 1) * 1.4, x = -10 + (i % 4) * 6.5 + hash(i, 2) * 2, z = -7 + Math.floor(i / 4) * 4.6 + hash(i, 3) * 1.5; if (Math.abs(x) < 1.6 || Math.abs(z) < 1.2) continue; box(s, s, s, x, s / 2, z, i % 3 ? '#a08a62' : '#7c8a96').rotation.y = hash(i, 4); if (hash(i, 5) > .6) box(s * .7, s * .7, s * .7, x, s + s * .35, z, '#b09a70').rotation.y = hash(i, 6); }
+for (const z of [-10.2, 10.2]) for (let k = 0; k < 3; k++) box(7, 3.4, .9, -8 + k * 8, 1.7, z, '#5d6670');
+scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x2a2c30, 1.1));
+const lamp = new THREE.PointLight(0xffffff, 160, 40); lamp.position.set(0, 5.6, 0); scene.add(lamp);
+function person(col, h) { const gp = new THREE.Group(), m = new THREE.MeshStandardMaterial({ color: col, roughness: .7 }); const b = new THREE.Mesh(new THREE.CylinderGeometry(.32, .38, h, 10), m); b.position.y = h / 2; const hd = new THREE.Mesh(new THREE.SphereGeometry(.26, 10, 8), m); hd.position.y = h + .22; b.castShadow = hd.castShadow = true; gp.add(b, hd); scene.add(gp); return gp; }
+const guard = person('#dfe4ea', 1.5), thief = person('#30343a', 1.0);
+const torch = new THREE.SpotLight(0xffffff, 1400, 18, .5, .5); torch.position.set(0, 1.3, 0); torch.target.position.set(0, .2, 5); torch.castShadow = true; torch.shadow.mapSize.set(512, 512); guard.add(torch, torch.target);
+const GP = [[-11, 0], [-11, -8.6], [11, -8.6], [11, 0], [11, 8.6], [-11, 8.6]], TP = [[-3, 2.4], [3.2, 2.4], [3.2, -2.2], [-6.5, -2.2], [-6.5, 6.6], [6, 6.6], [6, 2.4]];
+function along(P, d) { let tot = 0; const L = P.map((p, i) => { const q = P[(i + 1) % P.length], l = Math.hypot(q[0] - p[0], q[1] - p[1]); tot += l; return l; }); d = ((d % tot) + tot) % tot; let i = 0; while (d > L[i]) { d -= L[i]; i++; } const p = P[i], q = P[(i + 1) % P.length], f = d / L[i]; return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f, Math.atan2(q[0] - p[0], q[1] - p[1])]; }
+// 仕上げ：ゆがみ・白黒・横じま・ノイズ
+const rt = new THREE.WebGLRenderTarget(4, 4);
+const post = new THREE.ShaderMaterial({ uniforms: { tD: { value: rt.texture }, time: { value: 0 }, sw: { value: 0 }, res: { value: new THREE.Vector2() } }, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `
+uniform sampler2D tD;uniform float time,sw;uniform vec2 res;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+  float asp=res.x/res.y;vec2 c=vUv-.5;c.x*=asp;float r2=dot(c,c)/max(1.,asp*asp*.4);
+  vec2 u=c*(1.+.5*r2+.25*r2*r2);u.x/=asp;u=u*.8+.5;
+  u.x+=step(.985,h(vec2(floor(time*12.),floor(vUv.y*36.))))*.035;
+  vec3 col=vec3(0.);
+  if(u.x>0.&&u.x<1.&&u.y>0.&&u.y<1.){float l=dot(texture2D(tD,u).rgb,vec3(.3,.59,.11));l=pow(max(l,0.),1./2.2)*1.3-.03;col=vec3(l)*vec3(.88,1.,.92);}
+  col*=.8+.2*sin(vUv.y*res.y*3.14159);
+  col+=(h(vUv*res+fract(time)*91.)-.5)*.14;
+  col*=1.-r2*.9;
+  col=mix(col,vec3(h(vec2(floor(vUv.y*res.y*.5),floor(vUv.x*res.x*.25)+time*70.))),sw);
+  gl_FragColor=vec4(col,1.);
+}` });
+const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const resize = () => { const w = innerWidth, h = innerHeight; renderer.setSize(w, h); rt.setSize(Math.round(w * .75), Math.round(h * .75)); post.uniforms.res.value.set(w, h); cams.forEach(c => { c.aspect = w / h; c.updateProjectionMatrix(); }); }; addEventListener('resize', resize); resize();
+const tl = document.getElementById('tl'), trE = document.getElementById('tr'), bl = document.getElementById('bl');
+let last = performance.now(), t = 0, acc = 1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; acc += dt;
+  const ci = Math.floor(t / 7) % 3, sw = Math.max(0, 1 - (t % 7) / .35);
+  if (acc > 1 / 12) { acc = 0;                                 // 映像は 1 秒 12 コマでしか更新しない
+    const [gx, gz, ga] = along(GP, t * 1.7); guard.position.set(gx, 0, gz); guard.rotation.y = ga + Math.sin(t * 1.3) * .5;
+    const st = t * .9, [tx, tz] = along(TP, Math.floor(st / 3) * 5.2 + Math.min(1, (st % 3) / 1.2) * 5.2); thief.position.set(tx, 0, tz);
+    lamp.intensity = 160 * (hash(Math.floor(t * 12), 1) > .92 ? .3 : 1);
+    renderer.setRenderTarget(rt); renderer.render(scene, cams[ci]); renderer.setRenderTarget(null);
+    tl.textContent = cams[ci].userData.name; trE.textContent = (Math.floor(t * 2) % 2 ? '●' : ' ') + ' REC'; const s = Math.floor(t) + 3 * 3600 + 14 * 60; bl.textContent = '2031-11-15  ' + [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(v => String(v).padStart(2, '0')).join(':') + ':' + String(Math.floor(t * 12) % 12).padStart(2, '0'); }
+  post.uniforms.time.value = t; post.uniforms.sw.value = sw; renderer.render(ps, pc); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 39 宇宙シューティング 赤青めがね</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;mix-blend-mode:difference}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 39 ─ 宇宙シューティング / 赤青めがねの立体視　｜　マウスで自機を動かす（放っておくと自動）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 同じ場面を左目用と右目用に少しずれた位置から 2 回描き、左は赤だけ、右は青緑だけに書きこむ。
+// 赤青めがねで見ると飛び出して見え、めがねなしでも赤と青緑の色ずれが独特の絵になる。物はわざと白黒にする
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.autoClear = false;
+const gl = renderer.getContext();
+const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x000000, 40, 130);
+const cam = new THREE.PerspectiveCamera(60, 1, .1, 200); cam.position.set(0, 0, 0); cam.focus = 12;
+const stereo = new THREE.StereoCamera(); stereo.eyeSep = .45; stereo.aspect = 1;
+scene.add(new THREE.AmbientLight(0xffffff, .5));
+const sun = new THREE.DirectionalLight(0xffffff, 2.6); sun.position.set(-3, 4, 5); scene.add(sun);
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const gray = v => new THREE.MeshLambertMaterial({ color: new THREE.Color(v, v, v), flatShading: true });
+const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+// 小惑星と星
+const rocks = [...Array(70)].map((_, i) => {
+  const g = new THREE.IcosahedronGeometry(1, 0), p = g.attributes.position;
+  for (let k = 0; k < p.count; k++) { const s = .7 + hash(Math.round(p.getX(k) * 9) + i, Math.round(p.getY(k) * 9 + p.getZ(k) * 5)) * .6; p.setXYZ(k, p.getX(k) * s, p.getY(k) * s, p.getZ(k) * s); }
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, gray(.45 + hash(i, 2) * .4)), a = hash(i, 3) * 6.28, r = 4 + hash(i, 4) * 16;
+  m.position.set(Math.cos(a) * r, Math.sin(a) * r * .7, -hash(i, 5) * 140); m.scale.setScalar(.5 + hash(i, 6) * 2.2); m.userData.spin = new THREE.Vector3(hash(i, 7) - .5, hash(i, 8) - .5, 0); scene.add(m); return m;
+});
+const N = 500, sp = new Float32Array(N * 3); for (let i = 0; i < N; i++) { sp[i * 3] = (hash(i, 9) - .5) * 80; sp[i * 3 + 1] = (hash(i, 10) - .5) * 50; sp[i * 3 + 2] = -hash(i, 11) * 140; }
+const starG = new THREE.BufferGeometry(); starG.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+scene.add(new THREE.Points(starG, new THREE.PointsMaterial({ color: 0xffffff, size: .14 })));
+// 輪（くぐる目標）
+const rings = [...Array(5)].map((_, i) => { const m = new THREE.Mesh(new THREE.TorusGeometry(2.4, .12, 6, 28), white); m.position.set(Math.sin(i * 2) * 3, Math.cos(i * 3) * 2, -30 - i * 28); scene.add(m); return m; });
+// 自機と弾
+const ship = new THREE.Group(); scene.add(ship);
+{ const b = new THREE.ConeGeometry(.35, 1.6, 5); b.rotateX(-Math.PI / 2); ship.add(new THREE.Mesh(b, gray(.9))); const w = new THREE.Mesh(new THREE.BoxGeometry(2.2, .08, .6), gray(.7)); w.position.z = .4; ship.add(w); const f = new THREE.Mesh(new THREE.BoxGeometry(.08, .6, .5), gray(.6)); f.position.set(0, .3, .6); ship.add(f); }
+const bolts = [...Array(8)].map(() => { const m = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 2), white); m.visible = false; scene.add(m); return m; });
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+let mx = 0, my = 0, mouseT = -9;
+addEventListener('pointermove', e => { mx = e.clientX / innerWidth * 2 - 1; my = e.clientY / innerHeight * 2 - 1; mouseT = t; });
+
+const V = 26;
+let t = 0, last = performance.now(), shotT = 0, bi = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  for (const r of rocks) { r.position.z += V * dt; r.rotation.x += r.userData.spin.x * dt * 2; r.rotation.y += r.userData.spin.y * dt * 2; if (r.position.z > 6) r.position.z -= 140; }
+  for (let i = 0; i < N; i++) { sp[i * 3 + 2] += V * 1.4 * dt; if (sp[i * 3 + 2] > 4) sp[i * 3 + 2] -= 140; } starG.attributes.position.needsUpdate = true;
+  for (const r of rings) { r.position.z += V * dt; r.rotation.z += dt; if (r.position.z > 4) { r.position.z -= 140; r.position.x = (Math.random() - .5) * 8; r.position.y = (Math.random() - .5) * 5; } }
+  let next = null; for (const r of rings) if (r.position.z < -8 && (!next || r.position.z > next.position.z)) next = r;
+  const man = t - mouseT < 2.5, tx = man ? mx * 5 : next ? next.position.x : 0, ty = man ? -my * 3 : next ? next.position.y : 0;
+  const px = ship.position.x; ship.position.x += (tx - px) * Math.min(1, dt * 2); ship.position.y += (ty - ship.position.y) * Math.min(1, dt * 2); ship.position.z = -7;
+  ship.rotation.z = -(ship.position.x - px) / Math.max(dt, .001) * .12;
+  if ((shotT -= dt) <= 0) { shotT = .22; const b = bolts[bi++ % 8]; b.visible = true; b.position.copy(ship.position); b.position.x += bi % 2 ? .9 : -.9; }
+  for (const b of bolts) if (b.visible) { b.position.z -= 90 * dt; if (b.position.z < -120) b.visible = false; }
+  cam.position.set(ship.position.x * .3, ship.position.y * .3 + .8, 0); cam.lookAt(ship.position.x * .5, ship.position.y * .5, -20);
+
+  cam.updateMatrixWorld(); stereo.update(cam);
+  gl.colorMask(true, true, true, true); renderer.clear();
+  gl.colorMask(true, false, false, true); renderer.render(scene, stereo.cameraL);     // 左目 = 赤
+  renderer.clearDepth();
+  gl.colorMask(false, true, true, true); renderer.render(scene, stereo.cameraR);      // 右目 = 青緑
+  gl.colorMask(true, true, true, true);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

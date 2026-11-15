@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 82 街づくり 等角ドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1c2c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f4f4;opacity:.85}
+</style>
+<canvas id="c" width="320" height="200"></canvas>
+<div id="cap">LOOK 82 ─ 街づくり / 等角（斜め見下ろし）のドット絵 16 色　｜　見るだけ（ビルが 1 階ずつ建つ）</div>
+<script>
+// 320×200 の画面に 16 色だけで描く。ますは横 24・縦 12 のひし形（2:1 の等角図）。
+// 建物は「上の面＝明るい色、左の面＝暗い色、右の面＝中間の色」の 3 色で立体に見せる。
+// 線がにじまないよう、図形はすべて縦 1 ドット幅の棒を並べて描く。雲の影は市松のドットで暗くする
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const P = ['#1a1c2c', '#5d275d', '#b13e53', '#ef7d57', '#ffcd75', '#a7f070', '#38b764', '#257179', '#29366f', '#3b5dc9', '#41a6f6', '#73eff7', '#f4f4f4', '#94b0c2', '#566c86', '#333c57'];
+const N = 11, OX = 160, OY = 34;
+const pos = (i, j) => [OX + (i - j) * 12, OY + (i + j) * 6];
+function roof(sx, sy, c) { g.fillStyle = c; for (let dx = -12; dx < 12; dx++) { const h = 6 - Math.ceil(Math.abs(dx + .5) / 2); if (h > 0) g.fillRect(sx + dx, sy - h, 1, h * 2); } }
+function sides(sx, sy, H, cl, cr, win, lit) {            // sy = 屋根のひし形の中心。H = 高さ
+  for (let dx = -12; dx < 12; dx++) { const left = dx < 0, yb = sy + Math.floor((left ? dx + 12 : 11 - dx) / 2); g.fillStyle = left ? cl : cr; g.fillRect(sx + dx, yb, 1, H);
+    if (win && H > 5) { const k = left ? dx + 12 : dx; if (k % 3 === 1) for (let y = 3; y < H - 2; y += 4) { g.fillStyle = hash(k + (left ? 0 : 40), y + lit) > .45 ? (left ? P[4] : P[12]) : (left ? P[8] : P[9]); g.fillRect(sx + dx, yb + y, 1, 2); } } }
+}
+const cellType = (i, j) => (i === 4 || j === 6) ? 'road' : (i === 8 && j < 6) ? 'road' : hash(i * 3 + 1, j * 7 + 2) > .34 ? 'bld' : 'park';
+const SCH = [[P[13], P[14], P[15]], [P[4], P[3], P[2]], [P[12], P[13], P[14]], [P[11], P[10], P[9]], [P[3], P[2], P[1]]];
+const DIG = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+function num(s, x, y, c) { g.fillStyle = c; for (const ch of s) { const d = DIG[+ch]; if (d) for (let k = 0; k < 15; k++) if (d[k] === '1') g.fillRect(x + k % 3, y + Math.floor(k / 3), 1, 1); x += 4; } }
+const start = performance.now();
+function frame(now) {
+  const t = ((now - start) / 1000) % 46;
+  g.fillStyle = P[0]; g.fillRect(0, 0, 320, 200);
+  for (let y = 0; y < 200; y += 2) for (let x = (y % 4) / 2; x < 320; x += 6) if (hash(x, y) > .93) { g.fillStyle = P[15]; g.fillRect(x * 1, y, 1, 1); }
+  let pop = 0;
+  for (let s = 0; s <= 2 * (N - 1); s++) for (let i = Math.max(0, s - N + 1); i <= Math.min(N - 1, s); i++) {       // 奥から手前へ
+    const j = s - i, [sx, sy] = pos(i, j), ty = cellType(i, j);
+    if (ty === 'road') { roof(sx, sy, P[15]); sides(sx, sy, 3, P[0], P[0]); g.fillStyle = P[4]; if (i === 4 || i === 8) { g.fillRect(sx - 3, sy + 1, 2, 1); g.fillRect(sx + 3, sy - 2, 2, 1); } else { g.fillRect(sx + 2, sy + 1, 2, 1); g.fillRect(sx - 4, sy - 2, 2, 1); } continue; }
+    if (ty === 'park') { roof(sx, sy, (i + j) % 2 ? P[6] : P[5]); sides(sx, sy, 3, P[7], P[7]);
+      for (let k = 0; k < 2; k++) { const tx = sx - 5 + k * 9 + Math.floor(hash(i, j + k) * 3), tyy = sy - 2 + k * 2; g.fillStyle = P[1]; g.fillRect(tx, tyy - 2, 1, 3); g.fillStyle = P[7]; g.fillRect(tx - 2, tyy - 6, 5, 4); g.fillStyle = P[6]; g.fillRect(tx - 1, tyy - 8, 3, 4); g.fillStyle = P[5]; g.fillRect(tx - 1, tyy - 7, 1, 1); } continue; }
+    const target = 8 + Math.floor(hash(i * 5, j * 3) * 9) * 4, delay = hash(i, j) * 22 + 1, H = Math.max(0, Math.min(target, Math.floor((t - delay) * 5 / 4) * 4)), sc = SCH[Math.floor(hash(i + 9, j + 4) * 5)], build = H < target && t > delay;
+    roof(sx, sy, P[14]); sides(sx, sy, 3, P[0], P[0]);
+    if (H > 0) { sides(sx, sy - H, H, sc[2], sc[1], true, i * 13 + j); roof(sx, sy - H, sc[0]); pop += H * 3;
+      if (!build) { g.fillStyle = sc[2]; g.fillRect(sx - 3, sy - H - 4, 4, 3); g.fillStyle = sc[1]; g.fillRect(sx + 1, sy - H - 4, 2, 3); if (target > 30) { g.fillStyle = P[12]; g.fillRect(sx + 4, sy - H - 9, 1, 8); g.fillStyle = Math.floor(t * 2) % 2 ? P[2] : P[1]; g.fillRect(sx + 4, sy - H - 10, 1, 1); } } }
+    if (build) { const yy = sy - H; g.fillStyle = P[4]; for (let dx = -12; dx < 12; dx += 2) { const yb = yy + Math.floor((dx < 0 ? dx + 12 : 11 - dx) / 2); g.fillRect(sx + dx, yb - 3, 1, 3); } g.fillStyle = P[3]; g.fillRect(sx, yy - 22, 1, 20); g.fillRect(sx - 8, yy - 22, 14, 1); g.fillStyle = P[12]; const hook = sx - 7 + Math.floor((Math.sin(t * 2 + i) * .5 + .5) * 6); g.fillRect(hook, yy - 21, 1, 6 + Math.floor(Math.sin(t * 3 + j) * 2 + 2)); }
+  }
+  // 車
+  for (let k = 0; k < 7; k++) { const u = ((t * .12 + k / 7 + hash(k, 1)) % 1) * (N - 1), onI = k % 2, [ax, ay] = onI ? pos(4, 0) : pos(0, 6), [bx, by] = onI ? pos(4, N - 1) : pos(N - 1, 6), f = u / (N - 1), x = Math.round(ax + (bx - ax) * f), y = Math.round(ay + (by - ay) * f) - 2; g.fillStyle = P[0]; g.fillRect(x - 1, y + 1, 4, 1); g.fillStyle = [P[2], P[10], P[12], P[4]][k % 4]; g.fillRect(x - 1, y - 1, 4, 2); g.fillStyle = P[11]; g.fillRect(x, y - 2, 2, 1); }
+  // 雲の影：市松のドット
+  for (let c = 0; c < 3; c++) { const cx = ((t * 9 + c * 150) % 460) - 70, cy = 60 + c * 46; g.fillStyle = P[0]; for (let y = -12; y < 12; y++) for (let x = -34; x < 34; x++) if ((x * x) / 1156 + (y * y) / 144 < 1 && ((x + y) & 1) === 0 && ((y & 1) === 0)) g.fillRect(Math.round(cx + x), Math.round(cy + y), 1, 1); }
+  g.fillStyle = P[15]; g.fillRect(4, 4, 62, 9); g.fillStyle = P[4]; g.fillRect(6, 6, 5, 5); g.fillStyle = P[3]; g.fillRect(7, 7, 3, 3); num(String(pop * 7).padStart(6, '0'), 14, 6, P[12]); num(String(Math.floor(t)).padStart(2, '0'), 44, 6, P[11]); g.fillStyle = P[13]; g.fillRect(53, 6, 1, 5); g.fillRect(55, 8, 1, 1); g.fillRect(57, 6, 1, 5);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

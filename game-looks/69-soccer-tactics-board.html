@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 69 サッカー 作戦ボード</title>
+<style>
+html,body{margin:0;height:100%;background:#3b3f46;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8eaee;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 69 ─ サッカー / 作戦ボード　｜　見るだけ（矢印を書く → マグネットが動く → 消す）</div>
+<script>
+// 試合を「監督の作戦ボード」として見せる。選手はつやのある丸いマグネットで、板に小さな影を落とす。
+// 動きは先にマーカーで矢印を書いてから、その線の上をすべらせる。走る線は黒の実線、パスは赤の破線。
+// 線は少しふるえ、消したあとには灰色のこすり跡が残る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+const PX0 = 90, PX1 = 870, PY0 = 60, PY1 = 500, SANS = '"Helvetica Neue",Arial,sans-serif';
+const red = [[200, 280], [330, 150], [330, 410], [470, 230], [470, 340]].map(p => ({ x: p[0], y: p[1] })), blue = [[760, 280], [640, 160], [640, 400], [540, 280], [700, 280]].map(p => ({ x: p[0], y: p[1] }));
+let ballAt = 0, plays = [], cyc = -1;
+const board = document.createElement('canvas'); board.width = LW; board.height = LH; {
+  const b = board.getContext('2d'); const fr = b.createLinearGradient(0, 0, 0, LH); fr.addColorStop(0, '#c9cdd3'); fr.addColorStop(.5, '#8f959d'); fr.addColorStop(1, '#b4b9c0'); b.fillStyle = fr; b.beginPath(); b.roundRect(24, 14, 912, 572, 10); b.fill();
+  b.fillStyle = '#fbfbf8'; b.fillRect(40, 30, 880, 510);
+  b.lineCap = 'round'; for (let i = 0; i < 14; i++) { b.strokeStyle = `rgba(90,90,100,${.03 + Math.random() * .04})`; b.lineWidth = 30 + Math.random() * 40; b.beginPath(); const x = 80 + Math.random() * 800, y = 60 + Math.random() * 440; b.moveTo(x, y); b.quadraticCurveTo(x + 60, y - 30 + Math.random() * 60, x + 120 + Math.random() * 100, y + Math.random() * 40 - 20); b.stroke(); }
+  b.strokeStyle = '#2f8a4e'; b.lineWidth = 2.5; b.strokeRect(PX0, PY0, PX1 - PX0, PY1 - PY0); b.beginPath(); b.moveTo(480, PY0); b.lineTo(480, PY1); b.stroke(); b.beginPath(); b.arc(480, 280, 62, 0, 7); b.stroke();
+  for (const sgn of [0, 1]) { const x = sgn ? PX1 : PX0, d = sgn ? -1 : 1; b.strokeRect(Math.min(x, x + d * 120), 150, 120, 260); b.strokeRect(Math.min(x, x + d * 44), 220, 44, 120); b.strokeRect(Math.min(x, x - d * 14), 250, 14, 60); b.beginPath(); b.arc(x + d * 84, 280, 62, sgn ? 2.2 : -.94, sgn ? 4.08 : .94); b.stroke(); }
+  b.fillStyle = '#2f8a4e'; b.beginPath(); b.arc(480, 280, 4, 0, 7); b.fill();
+  const tr = b.createLinearGradient(0, 544, 0, 576); tr.addColorStop(0, '#70767e'); tr.addColorStop(1, '#a9aeb5'); b.fillStyle = tr; b.fillRect(40, 546, 880, 28);
+  [['#1d1d1f', 120], ['#d2332b', 210], ['#2a5fc0', 300]].forEach(([c, x]) => { b.fillStyle = '#e6e6e6'; b.beginPath(); b.roundRect(x, 550, 70, 13, 6); b.fill(); b.fillStyle = c; b.beginPath(); b.roundRect(x, 550, 20, 13, 6); b.fill(); });
+  b.fillStyle = '#3a3d42'; b.fillRect(760, 548, 90, 20); b.fillStyle = '#d8d3c4'; b.fillRect(760, 562, 90, 7);
+}
+function curve(a, b, seed) { const mx = (a.x + b.x) / 2 + (hash(seed, 1) - .5) * 120, my = (a.y + b.y) / 2 + (hash(seed, 2) - .5) * 120; return u => { const v = 1 - u; return [v * v * a.x + 2 * v * u * mx + u * u * b.x, v * v * a.y + 2 * v * u * my + u * u * b.y]; }; }
+function marker(fn, k, col, dash, seed, alpha) {
+  if (k <= 0) return; g.globalAlpha = alpha; g.strokeStyle = col; g.lineCap = 'round'; g.lineJoin = 'round'; g.setLineDash(dash ? [12, 11] : []);
+  for (const [w, a] of [[5, .8], [2.5, 1]]) { g.lineWidth = w; g.globalAlpha = alpha * a; g.beginPath(); for (let i = 0; i <= 30 * k; i++) { const [x, y] = fn(Math.min(.94, i / 30)); g.lineTo(x + (hash(i, seed) - .5) * 1.8, y + (hash(i, seed + 5) - .5) * 1.8); } g.stroke(); }
+  g.setLineDash([]); if (k >= 1) { const [x, y] = fn(.95), [x0, y0] = fn(.85), an = Math.atan2(y - y0, x - x0); g.lineWidth = 4.5; g.beginPath(); g.moveTo(x - Math.cos(an - .5) * 16, y - Math.sin(an - .5) * 16); g.lineTo(x, y); g.lineTo(x - Math.cos(an + .5) * 16, y - Math.sin(an + .5) * 16); g.stroke(); }
+  g.globalAlpha = 1;
+}
+function magnet(x, y, col, hi, txt, r = 19) {
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.arc(x + 3, y + 5, r, 0, 7); g.fill();
+  const gr = g.createRadialGradient(x - r * .35, y - r * .4, 1, x, y, r); gr.addColorStop(0, hi); gr.addColorStop(1, col); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r - 4, 3.6, 5); g.stroke();
+  if (txt) { g.fillStyle = '#fff'; g.font = `700 ${r}px ${SANS}`; g.textAlign = 'center'; g.fillText(txt, x, y + r * .36); }
+}
+const start = performance.now(), T = 7.2;
+function frame(now) {
+  const t = (now - start) / 1000, c = Math.floor(t / T), p = t % T;
+  if (c !== cyc) { for (const pl of plays) { pl.who.x = pl.to.x; pl.who.y = pl.to.y; } if (plays.pass !== undefined) ballAt = plays.pass; cyc = c; plays = [];
+    const pick = [0, 1, 2, 3, 4].sort((a, b) => hash(a, c) - hash(b, c)).slice(0, 3);
+    for (const i of pick) { const who = red[i], to = { x: Math.max(PX0 + 40, Math.min(PX1 - 60, who.x + (hash(i, c + 1) - .3) * 260)), y: Math.max(PY0 + 30, Math.min(PY1 - 30, who.y + (hash(i, c + 2) - .5) * 240)) }; plays.push({ who, from: { x: who.x, y: who.y }, to, fn: curve(who, to, i + c * 7), red: 1 }); }
+    for (const i of [1, 2, 3]) { const who = blue[i], tg = plays[i - 1].to, to = { x: Math.min(PX1 - 40, tg.x + 46), y: tg.y + (hash(i, c) - .5) * 50 }; plays.push({ who, from: { x: who.x, y: who.y }, to, fn: curve(who, to, i + c * 11) }); }
+    let np = pick[Math.floor(hash(c, 9) * 3)]; if (np === ballAt) np = pick.find(i => i !== ballAt); plays.pass = np; const tgt = plays.find(pl => pl.who === red[np]); plays.passFn = curve(red[ballAt], tgt ? tgt.to : red[np], c * 13 + 3); }
+  const draw = sm(p / 2), move = sm((p - 2.5) / 2.2), wipe = 1 - sm((p - 5.9) / .8);
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(board, 0, 0);
+  plays.forEach((pl, i) => { if (pl.red) marker(pl.fn, sm((p - i * .35) / 1), '#1d1d1f', false, i * 9 + c, wipe); });
+  marker(plays.passFn, sm((p - 1.2) / .9), '#d2332b', true, 77 + c, wipe);
+  if (wipe < 1 && wipe > 0) { g.strokeStyle = `rgba(110,110,120,${.1 * (1 - wipe)})`; g.lineWidth = 46; g.lineCap = 'round'; g.beginPath(); g.moveTo(200, 180); g.lineTo(200 + (1 - wipe) * 560, 240); g.moveTo(240, 360); g.lineTo(240 + (1 - wipe) * 520, 330); g.stroke(); }
+  const pos = who => { const pl = plays.find(q => q.who === who); if (!pl) return [who.x, who.y]; const [x, y] = pl.fn(move * .94); return move > 0 ? [x + (pl.to.x - pl.fn(.94)[0]) * move, y + (pl.to.y - pl.fn(.94)[1]) * move] : [who.x, who.y]; };
+  blue.forEach((b, i) => { const [x, y] = pos(b); magnet(x, y, '#1f4fae', '#7fa8ff', String(i + 1)); });
+  red.forEach((b, i) => { const [x, y] = pos(b); magnet(x, y, '#b9261f', '#ff8a7a', String(i + 7)); });
+  const hold = pos(red[ballAt]), bm = sm((p - 3) / 1.2), bp = bm > 0 && bm < 1 ? plays.passFn(bm * .94) : bm >= 1 ? pos(red[plays.pass]) : hold;
+  magnet(bp[0] + 16, bp[1] + 14, '#d9d9d9', '#ffffff', '', 9); g.fillStyle = '#222'; g.beginPath(); g.arc(bp[0] + 16, bp[1] + 14, 3, 0, 7); g.fill();
+  const gl = g.createLinearGradient(200, 30, 560, 540); gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(.48, 'rgba(255,255,255,.22)'); gl.addColorStop(.6, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(40, 30, 880, 510);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 21 ステルス サーモグラフィ</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;background:#000;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 21 ─ 見下ろしステルス / サーモグラフィ　｜　見るだけ（自動で忍びこむ）</div>
+<script>
+// 画面は「温度」だけ。200×125 の温度の表を毎コマ少しにじませて冷まし、人や機械の位置に熱を足す。
+// だから歩いたあとに足あとの熱が残る。温度は 黒→紫→赤→橙→黄→白 の色に置き換え、荒い解像度を拡大してぼかす
+const GW = 200, GH = 125, LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const lo = document.createElement('canvas'); lo.width = GW; lo.height = GH; const lg = lo.getContext('2d'), img = lg.createImageData(GW, GH);
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+
+// 色の表
+const STOPS = [[0, 0, 0, 10], [.2, 60, 0, 110], [.45, 200, 20, 60], [.65, 250, 120, 0], [.85, 255, 220, 40], [1, 255, 255, 255]];
+const LUT = new Uint8Array(256 * 3);
+for (let i = 0; i < 256; i++) { const v = i / 255; let k = 0; while (v > STOPS[k + 1][0]) k++; const a = STOPS[k], b = STOPS[k + 1], f = (v - a[0]) / (b[0] - a[0]); for (let c = 0; c < 3; c++) LUT[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * f; }
+
+// 建物（壁は少し冷たく、機械と配管は温かい）
+const base = new Float32Array(GW * GH).fill(.16), wall = new Uint8Array(GW * GH);
+const rect = (x, y, w, h, v, isWall) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) { base[j * GW + i] = v; if (isWall) wall[j * GW + i] = 1; } };
+rect(0, 0, GW, 4, .06, 1); rect(0, GH - 4, GW, 4, .06, 1); rect(0, 0, 4, GH, .06, 1); rect(GW - 4, 0, 4, GH, .06, 1);
+rect(66, 0, 4, 78, .06, 1); rect(66, 96, 4, 29, .06, 1); rect(132, 30, 4, 95, .06, 1); rect(66, 58, 40, 4, .06, 1); rect(122, 58, 14, 4, .06, 1); rect(136, 74, 34, 4, .06, 1);
+rect(12, 12, 16, 10, .5); rect(34, 12, 10, 10, .42); rect(150, 12, 30, 8, .55); rect(80, 108, 40, 6, .34); rect(180, 90, 10, 24, .46); rect(84, 14, 8, 8, .08);
+for (let i = 4; i < 66; i++) base[40 * GW + i] = .3;
+
+const T = new Float32Array(GW * GH), T2 = new Float32Array(GW * GH);
+function heat(x, y, amt, r = 3) {
+  const R = Math.ceil(r) + 2;
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+    const px = Math.round(x) + dx, py = Math.round(y) + dy; if (px < 0 || py < 0 || px >= GW || py >= GH) continue;
+    const i = py * GW + px; T[i] = Math.min(.95, T[i] + amt * Math.exp(-(dx * dx + dy * dy) / (r * r)));
+  }
+}
+const walker = (pts, v, r) => ({ pts, v, r, i: 0, x: pts[0][0], y: pts[0][1], dir: 1 });
+const guards = [walker([[20, 30], [56, 30], [56, 100], [20, 100]], 9, 3.2), walker([[80, 40], [120, 40], [120, 20], [80, 20]], 8, 3.2), walker([[150, 40], [186, 40], [186, 66], [150, 66]], 10, 3.2)];
+const player = walker([[10, 116], [60, 116], [60, 86], [100, 86], [114, 70], [114, 48], [100, 30], [126, 10], [160, 26], [144, 66], [176, 100]], 7, 2.6);
+function walk(w, dt, loop) {
+  const p = w.pts[w.i], dx = p[0] - w.x, dy = p[1] - w.y, d = Math.hypot(dx, dy);
+  if (d < 1) { if (loop) w.i = (w.i + 1) % w.pts.length; else if (w.i < w.pts.length - 1) w.i++; else return true; }
+  else { w.x += dx / d * w.v * dt; w.y += dy / d * w.v * dt; }
+}
+
+let t = 0, last = performance.now(), frameN = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; frameN++;
+  for (const gd of guards) { walk(gd, dt, true); heat(gd.x, gd.y, 5 * dt, gd.r); }
+  if (walk(player, dt * (Math.sin(t * .9) > -.3 ? 1 : 0), false)) { player.i = 0; player.x = 10; player.y = 116; }
+  heat(player.x, player.y, 5 * dt, player.r);
+
+  // にじませて冷ます（壁は熱を通しにくい）
+  const keep = Math.pow(.8, dt);
+  for (let y = 1; y < GH - 1; y++) for (let x = 1; x < GW - 1; x++) {
+    const i = y * GW + x, k = wall[i] ? .02 : .12;
+    T2[i] = (T[i] * (1 - k) + (T[i - 1] + T[i + 1] + T[i - GW] + T[i + GW]) * k / 4) * keep;
+  }
+  T.set(T2);
+  const d = img.data;
+  for (let i = 0; i < GW * GH; i++) {
+    const v = base[i] + T[i] + (hash(i, frameN) - .5) * .035 + ((i % GW) % 7 === 0 ? .008 : 0);
+    const k = Math.max(0, Math.min(255, v * 255 | 0)) * 3; d[i * 4] = LUT[k]; d[i * 4 + 1] = LUT[k + 1]; d[i * 4 + 2] = LUT[k + 2]; d[i * 4 + 3] = 255;
+  }
+  lg.putImageData(img, 0, 0);
+  g.setTransform(S, 0, 0, S, 0, 0); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(lo, 0, 0, LW, LH);
+
+  // 計器の表示
+  g.strokeStyle = g.fillStyle = '#fff'; g.lineWidth = 1.2; g.font = '13px ui-monospace,Menlo,monospace'; g.textAlign = 'left';
+  const cx = player.x / GW * LW, cy = player.y / GH * LH;
+  g.beginPath(); g.arc(cx, cy, 20, 0, 7); g.moveTo(cx - 30, cy); g.lineTo(cx - 10, cy); g.moveTo(cx + 10, cy); g.lineTo(cx + 30, cy); g.moveTo(cx, cy - 30); g.lineTo(cx, cy - 10); g.moveTo(cx, cy + 10); g.lineTo(cx, cy + 30); g.stroke();
+  g.fillText('36.' + (4 + Math.floor(hash(Math.floor(t * 3)) * 5)) + '°C', cx + 26, cy - 22);
+  for (let i = 0; i < 160; i++) { const k = (255 - Math.floor(i / 160 * 255)) * 3; g.fillStyle = `rgb(${LUT[k]},${LUT[k + 1]},${LUT[k + 2]})`; g.fillRect(LW - 44, 60 + i * 3, 14, 3); }
+  g.strokeStyle = g.fillStyle = '#fff'; g.strokeRect(LW - 44, 60, 14, 480); g.textAlign = 'right'; g.fillText('41.0', LW - 50, 70); g.fillText('12.5', LW - 50, 540);
+  g.textAlign = 'left'; g.fillText('THERMAL CAM 21   ε 0.95', 24, 34); g.fillText('REC ' + (Math.floor(t * 2) % 2 ? '●' : ' ') + ' ' + new Date(t * 1000).toISOString().slice(14, 19), 24, 54);
+  for (const [x, y, sx, sy] of [[16, 16, 1, 1], [LW - 16, 16, -1, 1], [16, LH - 16, 1, -1], [LW - 16, LH - 16, -1, -1]]) { g.beginPath(); g.moveTo(x + sx * 22, y); g.lineTo(x, y); g.lineTo(x, y + sy * 22); g.stroke(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

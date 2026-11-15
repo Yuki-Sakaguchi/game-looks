@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 43 宇宙ストラテジー 古い星図</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2218;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8d8b0;background:#2a2218;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 43 ─ 宇宙ストラテジー / 古い星図　｜　見るだけ（3 つの勢力が広がる）</div>
+<script>
+// 羊皮紙に刷った古い天球図として描く: セピアの線、等級で大きさの変わる星印、星座線、斜体のラテン風の地名、経緯線、飾り枠。
+// 勢力の領土は、昔の地図の手彩色のように、にじんだ薄い色を乗算で重ねる
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const INK = '#4a3420', SERIF = '"Baskerville","Hoefler Text","Georgia",serif';
+const EMP = [{ c: '200,70,60', name: 'IMPERIVM RVBRVM' }, { c: '50,100,170', name: 'FOEDVS CAERVLEVM' }, { c: '70,140,80', name: 'REGNVM VIRIDE' }];
+const SYL = ['Al', 'Be', 'Ca', 'Dor', 'El', 'Fo', 'Ga', 'Hy', 'Ix', 'Ke', 'Lu', 'Mi', 'No', 'Or', 'Pa', 'Ri', 'Sa', 'Ta', 'Ve', 'Zu'], END = ['ris', 'na', 'tor', 'ae', 'ion', 'um', 'a', 'ix'];
+
+const paper = document.createElement('canvas'); paper.width = LW * S; paper.height = LH * S;
+{
+  const x = paper.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.fillStyle = '#e8d8b0'; x.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 160; i++) { x.fillStyle = `rgba(${Math.random() < .5 ? '150,110,60' : '255,245,215'},.05)`; x.beginPath(); x.arc(Math.random() * LW, Math.random() * LH, 20 + Math.random() * 90, 0, 7); x.fill(); }
+  const v = x.createRadialGradient(LW / 2, LH / 2, 200, LW / 2, LH / 2, 620); v.addColorStop(0, 'rgba(90,60,30,0)'); v.addColorStop(1, 'rgba(90,60,30,.5)'); x.fillStyle = v; x.fillRect(0, 0, LW, LH);
+  x.strokeStyle = 'rgba(74,52,32,.22)'; x.lineWidth = .8;                                 // 経緯線
+  for (let k = -6; k <= 6; k++) { x.beginPath(); x.ellipse(LW / 2, LH / 2, Math.abs(k) * 80 + 1, 300, 0, 0, 7); x.stroke(); x.beginPath(); x.ellipse(LW / 2, LH / 2 + k * 70, 520, 60 + Math.abs(k) * 12, 0, 0, 7); x.stroke(); }
+  x.strokeStyle = INK; x.lineWidth = 3; x.strokeRect(18, 18, LW - 36, LH - 36); x.lineWidth = 1; x.strokeRect(26, 26, LW - 52, LH - 52);
+  for (let i = 0; i < 92; i++) { const px = 26 + i * 10; x.beginPath(); x.moveTo(px, 26); x.lineTo(px, i % 5 ? 30 : 34); x.moveTo(px, LH - 26); x.lineTo(px, LH - (i % 5 ? 30 : 34)); x.stroke(); }
+  // 方位盤
+  x.save(); x.translate(860, 500); for (let i = 0; i < 16; i++) { x.rotate(Math.PI / 8); x.fillStyle = i % 2 ? 'rgba(74,52,32,.25)' : INK; x.beginPath(); x.moveTo(0, 0); x.lineTo(4, -12); x.lineTo(0, i % 4 === 3 ? -46 : i % 2 ? -30 : -22); x.closePath(); x.fill(); } x.beginPath(); x.arc(0, 0, 50, 0, 7); x.stroke(); x.restore();
+}
+const wash = document.createElement('canvas'); wash.width = LW / 8; wash.height = LH / 8; const wg = wash.getContext('2d');
+
+let stars, links, fleets, seed = 0, timer = 1, done = 0;
+function build() {
+  seed++; stars = []; links = []; fleets = []; done = 0;
+  for (let i = 0; stars.length < 34 && i < 600; i++) { const x = 70 + hash(i, seed) * 820, y = 70 + hash(seed, i + 3) * 440; if (stars.every(s => Math.hypot(s.x - x, s.y - y) > 72) && Math.hypot(x - 860, y - 500) > 90) stars.push({ x, y, mag: 1 + Math.floor(hash(i, seed + 5) * 4), owner: -1, name: SYL[Math.floor(hash(i, 7 + seed) * 20)] + SYL[Math.floor(hash(i, 9) * 20)].toLowerCase() + END[Math.floor(hash(i, 11) * 8)] }); }
+  stars.forEach((a, i) => stars.map((b, j) => [Math.hypot(a.x - b.x, a.y - b.y), j]).sort((p, q) => p[0] - q[0]).slice(1, 3).forEach(([d, j]) => { if (d < 190 && !links.some(l => (l[0] === i && l[1] === j) || (l[0] === j && l[1] === i))) links.push([i, j]); }));
+  [0, 1, 2].forEach(e => { const s = stars.slice().sort((a, b) => Math.hypot(a.x - [140, 820, 480][e], a.y - [140, 160, 500][e]) - Math.hypot(b.x - [140, 820, 480][e], b.y - [140, 160, 500][e]))[0]; s.owner = e; s.mag = 5; });
+}
+build();
+function expand() {
+  for (let e = 0; e < 3; e++) {
+    const opts = links.flatMap(([a, b]) => stars[a].owner === e && stars[b].owner < 0 ? [[a, b]] : stars[b].owner === e && stars[a].owner < 0 ? [[b, a]] : []).filter(([, b]) => !fleets.some(f => f.to === b));
+    if (opts.length) { const [a, b] = opts[Math.floor(Math.random() * opts.length)]; fleets.push({ from: a, to: b, f: 0, e }); }
+  }
+}
+function starMark(x, y, m) {
+  const r = 2 + m * 1.6; g.fillStyle = INK; g.beginPath();
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, rr = i % 2 ? r * .38 : i % 4 ? r * .75 : r * 1.5; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.fill();
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if ((timer -= dt) <= 0) { timer = .9; expand(); if (!fleets.length) { if (++done > 3) build(); } else done = 0; }
+  for (let i = fleets.length - 1; i >= 0; i--) { const f = fleets[i]; f.f += dt * .7; if (f.f >= 1) { if (stars[f.to].owner < 0) stars[f.to].owner = f.e; fleets.splice(i, 1); } }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.drawImage(paper, 0, 0, LW, LH);
+  // 手彩色の領土
+  g.globalCompositeOperation = 'multiply'; g.imageSmoothingEnabled = true;
+  EMP.forEach((e, k) => {
+    wg.setTransform(1 / 8, 0, 0, 1 / 8, 0, 0); wg.clearRect(0, 0, LW, LH); wg.fillStyle = `rgba(${e.c},.5)`;
+    for (const s of stars) if (s.owner === k) { wg.beginPath(); wg.arc(s.x, s.y, 58, 0, 7); wg.fill(); }
+    g.drawImage(wash, 0, 0, LW, LH);
+  });
+  g.globalCompositeOperation = 'source-over';
+  // 星座線、航路、星
+  g.strokeStyle = INK; g.lineWidth = .9;
+  for (const [a, b] of links) { const A = stars[a], B = stars[b], same = A.owner >= 0 && A.owner === B.owner; g.setLineDash(same ? [] : [2, 5]); g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke(); }
+  g.setLineDash([]);
+  for (const s of stars) {
+    starMark(s.x, s.y, s.mag);
+    if (s.owner >= 0) { g.strokeStyle = `rgb(${EMP[s.owner].c})`; g.lineWidth = 1.4; g.beginPath(); g.arc(s.x, s.y, 12 + s.mag, 0, 7); g.stroke(); }
+    g.fillStyle = INK; g.font = `italic ${s.mag > 4 ? 15 : 12}px ${SERIF}`; g.textAlign = 'left'; g.fillText(s.name, s.x + 12, s.y - 8);
+  }
+  for (const f of fleets) {                                                            // 艦隊（小さな帆の印）
+    const A = stars[f.from], B = stars[f.to], x = A.x + (B.x - A.x) * f.f, y = A.y + (B.y - A.y) * f.f, a = Math.atan2(B.y - A.y, B.x - A.x);
+    g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = `rgb(${EMP[f.e].c})`; g.strokeStyle = INK; g.lineWidth = 1; g.beginPath(); g.moveTo(9, 0); g.lineTo(-6, -5); g.lineTo(-3, 0); g.lineTo(-6, 5); g.closePath(); g.fill(); g.stroke(); g.restore();
+  }
+  // 題字と凡例
+  g.fillStyle = '#e8d8b0'; g.strokeStyle = INK; g.lineWidth = 1.5; g.fillRect(44, 470, 250, 92); g.strokeRect(44, 470, 250, 92); g.strokeRect(48, 474, 242, 84);
+  g.fillStyle = INK; g.textAlign = 'center'; g.font = `600 17px ${SERIF}`; g.fillText('TABVLA STELLARVM ' + ['I', 'II', 'III', 'IV', 'V', 'VI'][(seed - 1) % 6], 169, 496);
+  EMP.forEach((e, k) => { g.fillStyle = `rgba(${e.c},.6)`; g.fillRect(62, 506 + k * 16, 18, 10); g.fillStyle = INK; g.textAlign = 'left'; g.font = `11px ${SERIF}`; g.fillText(e.name + '  ·  ' + stars.filter(s => s.owner === k).length, 88, 515 + k * 16); });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

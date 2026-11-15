@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 92 花火 蒔絵</title>
+<style>
+html,body{margin:0;height:100%;background:#050404;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6c66a;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 92 ─ 花火 / 黒うるしに金粉の蒔絵　｜　見るだけ（散った火の粉が金粉として残る）</div>
+<script>
+// 黒いうるしの板に、金粉をまいて絵にする技法。花火の火の粉は通った所に細かい金の粒を落とし、
+// 粒はすぐには消えず、うっすら残って積もる。粒の明るさは 1 つずつ違い、ちらちら光る。
+// 月と川面は貝のかけら（青や桃色に色が変わる）で、柳と橋は金の細い線で描く。うるしのつやは斜めのうすい映りこみ
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const dust = document.createElement('canvas'); dust.width = LW; dust.height = LH; const d = dust.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const GOLD = ['255,214,110', '232,178,70', '255,236,170', '200,150,60'];
+let ps = [], rockets = [], last = performance.now(), t = 0, next = .5, frameN = 0;
+const shards = [...Array(70)].map((_, i) => ({ x: 60 + hash(i, 1) * 840, y: 500 + hash(i, 2) * 60, r: 5 + hash(i, 3) * 9, a: hash(i, 4) * 6.283, h: hash(i, 5) * 360 }));
+const moon = [...Array(26)].map((_, i) => { const a = hash(i, 6) * 6.283, r = Math.sqrt(hash(i, 7)) * 40; return { x: 790 + Math.cos(a) * r, y: 110 + Math.sin(a) * r, r: 7 + hash(i, 8) * 8, a: hash(i, 9) * 6.283, h: hash(i, 10) * 360 }; });
+function burst(x, y) {
+  const kind = Math.floor(Math.random() * 3), n = kind === 2 ? 70 : 110, red = Math.random() < .35;
+  for (let i = 0; i < n; i++) { const a = i / n * 6.283 + Math.random() * .04, ring = kind === 1 ? (i % 2 ? 1 : .55) : .4 + Math.random() * .6, sp = (kind === 2 ? 190 : 150) * ring; ps.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, l: 1.5 + Math.random() * .7, c: red && i % 3 === 0 ? '230,70,50' : GOLD[i % 4], willow: kind === 2 }); }
+}
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; frameN++;
+  if ((next -= dt) < 0) { next = .7 + Math.random() * 1.1; rockets.push({ x: 150 + Math.random() * 560, y: 520, ty: 110 + Math.random() * 170, vx: (Math.random() - .5) * 30 }); }
+  // 積もった金粉は、ごくゆっくり暗くなる
+  if (frameN % 3 === 0) { d.globalCompositeOperation = 'destination-out'; d.fillStyle = 'rgba(0,0,0,.02)'; d.fillRect(0, 0, LW, LH); d.globalCompositeOperation = 'source-over'; }
+  for (const r of rockets) { r.y -= 300 * dt; r.x += r.vx * dt; d.fillStyle = `rgba(${GOLD[0]},.5)`; d.fillRect(r.x + (Math.random() - .5) * 3, r.y, 1.3, 1.3); if (r.y < r.ty) { r.dead = 1; burst(r.x, r.y); } } rockets = rockets.filter(r => !r.dead);
+  for (const p of ps) { p.vx *= 1 - 1.5 * dt; p.vy = p.vy * (1 - 1.5 * dt) + (p.willow ? 90 : 46) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt;
+    for (let k = 0; k < 2; k++) { d.fillStyle = `rgba(${p.c},${.25 + Math.random() * .6})`; const s = .6 + Math.random() * 1.3; d.fillRect(p.x + (Math.random() - .5) * 4, p.y + (Math.random() - .5) * 4, s, s); } } ps = ps.filter(p => p.l > 0 && p.y < 500);
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over';
+  const bg = g.createLinearGradient(0, 0, LW, LH); bg.addColorStop(0, '#0a0707'); bg.addColorStop(.5, '#120b0a'); bg.addColorStop(1, '#050303'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+  // 貝のかけら：月と川
+  const shard = q => { g.fillStyle = `hsla(${(q.h + t * 30 + q.x * .3) % 360},70%,${62 + Math.sin(t * 2 + q.a) * 10}%,.85)`; g.beginPath(); for (let i = 0; i < 4; i++) g.lineTo(q.x + Math.cos(q.a + i * 1.571 + (i % 2) * .4) * q.r, q.y + Math.sin(q.a + i * 1.571 + (i % 2) * .4) * q.r * .55); g.fill(); };
+  moon.forEach(shard); shards.forEach(q => shard({ ...q, x: q.x + Math.sin(t * .5 + q.y) * 3 }));
+  // 金の線：橋と柳
+  g.strokeStyle = '#d8b050'; g.lineWidth = 2; g.beginPath(); g.moveTo(40, 500); g.quadraticCurveTo(250, 420, 460, 500); g.moveTo(40, 480); g.quadraticCurveTo(250, 400, 460, 480); for (let i = 0; i <= 14; i++) { const x = 40 + i * 30, u = i / 14, y = 480 - Math.sin(u * Math.PI) * 40; g.moveTo(x, y); g.lineTo(x, y + 20); } g.stroke();
+  g.lineWidth = 1.2; g.beginPath(); for (let i = 0; i < 16; i++) { const x0 = 880 - i * 9, sway = Math.sin(t * .8 + i * .5) * 12; g.moveTo(900, 30); g.bezierCurveTo(x0 + 20, 60, x0 - 20, 140, x0 - 40 + sway, 250 + (i % 5) * 26); } g.stroke(); g.lineWidth = 6; g.beginPath(); g.moveTo(930, 0); g.quadraticCurveTo(900, 20, 900, 30); g.stroke();
+  // 金粉
+  g.globalCompositeOperation = 'lighter'; g.drawImage(dust, 0, 0);
+  for (const p of ps) { g.fillStyle = `rgba(${p.c},${Math.min(1, p.l)})`; g.shadowColor = `rgb(${p.c})`; g.shadowBlur = 6 * S; g.beginPath(); g.arc(p.x, p.y, 1.6, 0, 7); g.fill(); } g.shadowBlur = 0;
+  for (let i = 0; i < 130; i++) { const x = hash(i, 20) * LW, y = hash(i, 21) * 400; g.fillStyle = `rgba(${GOLD[i % 4]},${.15 + .35 * (Math.sin(t * 2 + i * 1.7) * .5 + .5)})`; g.fillRect(x, y, 1.2, 1.2); }
+  g.globalCompositeOperation = 'source-over';
+  // うるしのつやと、箱のふちの金線
+  const gl = g.createLinearGradient(100, 0, 640, 600); gl.addColorStop(0, 'rgba(255,255,255,0)'); gl.addColorStop(.42, 'rgba(255,240,220,.07)'); gl.addColorStop(.5, 'rgba(255,240,220,.02)'); gl.addColorStop(.56, 'rgba(255,240,220,.06)'); gl.addColorStop(.62, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(0, 0, LW, LH);
+  g.strokeStyle = '#c9a040'; g.lineWidth = 2.5; g.beginPath(); g.roundRect(16, 16, LW - 32, LH - 32, 16); g.stroke(); g.lineWidth = 1; g.beginPath(); g.roundRect(24, 24, LW - 48, LH - 48, 11); g.stroke();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

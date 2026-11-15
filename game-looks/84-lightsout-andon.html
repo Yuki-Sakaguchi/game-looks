@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 84 ライツアウト 和紙の行灯</title>
+<style>
+html,body{margin:0;height:100%;background:#0d0906;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4dcae;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 84 ─ ライツアウト / 和紙の行灯　｜　見るだけ（押すと十字に明かりが入れかわる）</div>
+<script>
+// 5×5 のますを、木の格子に和紙を張った行灯にする。点いたますは、紙の向こうのろうそくが透けて
+// 中心ほど明るく、ふちは暗いだいだい色になり、炎のゆれで明るさが細かくふるえる。
+// 紙には繊維と墨の模様があり、灯りが入ると模様が影になって浮かぶ。部屋は暗く、床に明かりが映る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const N = 5, CS = 84, GX = 480 - N * CS / 2, GY = 52;
+const washi = document.createElement('canvas'); washi.width = washi.height = N * CS; { const w = washi.getContext('2d'); for (let i = 0; i < 1300; i++) { const x = Math.random() * N * CS, y = Math.random() * N * CS, a = Math.random() * 6.283, l = 5 + Math.random() * 20; w.strokeStyle = `rgba(60,30,10,${.06 + Math.random() * .12})`; w.lineWidth = .6 + Math.random() * .8; w.beginPath(); w.moveTo(x, y); w.quadraticCurveTo(x + Math.cos(a) * l * .5 + 3, y + Math.sin(a) * l * .5 - 3, x + Math.cos(a) * l, y + Math.sin(a) * l); w.stroke(); }
+  // 墨の模様：円・波・竹・月
+  w.strokeStyle = w.fillStyle = 'rgba(40,18,6,.5)'; w.lineCap = 'round';
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const cx = (i + .5) * CS, cy = (j + .5) * CS, k = (i * 2 + j * 3) % 4; w.lineWidth = 5;
+    if (k === 0) { w.beginPath(); w.arc(cx, cy, 20, .4, 6.1); w.stroke(); }
+    if (k === 1) for (let q = 0; q < 3; q++) { w.lineWidth = 3.5; w.beginPath(); for (let x = -24; x <= 24; x += 4) w.lineTo(cx + x, cy - 12 + q * 12 + Math.sin(x * .28 + q) * 4); w.stroke(); }
+    if (k === 2) { w.lineWidth = 6; w.beginPath(); w.moveTo(cx - 6, cy + 26); w.lineTo(cx - 3, cy + 4); w.moveTo(cx - 3, cy); w.lineTo(cx + 1, cy - 26); w.stroke(); w.lineWidth = 3; w.beginPath(); w.moveTo(cx - 2, cy + 2); w.lineTo(cx + 18, cy - 8); w.moveTo(cx - 2, cy + 2); w.lineTo(cx + 20, cy + 4); w.stroke(); }
+    if (k === 3) { w.beginPath(); w.arc(cx + 4, cy - 4, 15, 0, 7); w.fill(); w.globalCompositeOperation = 'destination-out'; w.beginPath(); w.arc(cx + 11, cy - 9, 13, 0, 7); w.fill(); w.globalCompositeOperation = 'source-over'; w.lineWidth = 3; w.beginPath(); w.moveTo(cx - 24, cy + 16); w.lineTo(cx + 6, cy + 16); w.stroke(); } } }
+const on = new Uint8Array(N * N).fill(1), br = new Float32Array(N * N).fill(1);
+const press = k => { const i = k % N, j = Math.floor(k / N); for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = i + a, y = j + b; if (x >= 0 && y >= 0 && x < N && y < N) on[y * N + x] ^= 1; } };
+let seq = [], step = 0, phase = 0, timer = 1.5, hit = -1, hitT = 9, last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; hitT += dt;
+  if ((timer -= dt) < 0) {
+    if (phase === 0) { if (step < 8) { let k; do k = Math.floor(Math.random() * N * N); while (seq.includes(k)); seq.push(k); press(k); hit = k; hitT = 0; step++; timer = .22; } else { phase = 1; step = 0; seq.sort(() => Math.random() - .5); timer = 1.2; } }
+    else if (step < seq.length) { press(seq[step]); hit = seq[step]; hitT = 0; step++; timer = .85; } else { phase = 0; step = 0; seq = []; timer = 2.6; }
+  }
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#0d0906'; g.fillRect(0, 0, LW, LH);
+  let sum = 0; for (let k = 0; k < N * N; k++) { br[k] += (on[k] - br[k]) * Math.min(1, dt * 7); sum += br[k]; }
+  // 部屋にもれる明かり
+  const room = g.createRadialGradient(480, 260, 60, 480, 260, 560); room.addColorStop(0, `rgba(255,170,80,${.05 + sum / 25 * .26})`); room.addColorStop(1, 'rgba(255,170,80,0)'); g.fillStyle = room; g.fillRect(0, 0, LW, LH);
+  for (let k = 0; k < N * N; k++) { const i = k % N, j = Math.floor(k / N), x = GX + i * CS, y = GY + j * CS, b = br[k] * (.9 + .1 * Math.sin(t * 11 + k * 2.3) * Math.sin(t * 6.1 + k)) ;
+    g.fillStyle = '#3a2a1c'; g.fillRect(x, y, CS, CS);
+    const gr = g.createRadialGradient(x + CS / 2, y + CS * .58, 2, x + CS / 2, y + CS / 2, CS * .78); gr.addColorStop(0, `rgba(255,246,214,${b})`); gr.addColorStop(.35, `rgba(255,206,120,${b})`); gr.addColorStop(1, `rgba(214,110,40,${b * .9})`); g.fillStyle = gr; g.fillRect(x, y, CS, CS);
+    if (k === hit && hitT < .5) { g.fillStyle = `rgba(255,255,255,${(.5 - hitT) * .9})`; g.fillRect(x, y, CS, CS); } }
+  g.globalAlpha = .9; g.drawImage(washi, GX, GY); g.globalAlpha = 1;
+  // 木の格子
+  g.fillStyle = '#1e130b'; for (let i = 0; i <= N; i++) { g.fillRect(GX + i * CS - 5, GY - 5, 10, N * CS + 10); g.fillRect(GX - 5, GY + i * CS - 5, N * CS + 10, 10); }
+  g.fillStyle = 'rgba(120,80,40,.5)'; for (let i = 0; i <= N; i++) { g.fillRect(GX + i * CS - 5, GY - 5, 1.5, N * CS + 10); g.fillRect(GX - 5, GY + i * CS - 5, N * CS + 10, 1.5); }
+  g.fillStyle = '#1e130b'; g.fillRect(GX - 22, GY - 22, N * CS + 44, 18); g.fillRect(GX - 22, GY + N * CS + 4, N * CS + 44, 18); g.fillRect(GX - 14, GY + N * CS + 20, 16, 30); g.fillRect(GX + N * CS - 2, GY + N * CS + 20, 16, 30);
+  // 押した指のかわりの輪
+  if (hit >= 0 && hitT < .6) { const x = GX + (hit % N + .5) * CS, y = GY + (Math.floor(hit / N) + .5) * CS; g.strokeStyle = `rgba(255,255,255,${1 - hitT / .6})`; g.lineWidth = 3; g.beginPath(); g.arc(x, y, 12 + hitT * 70, 0, 7); g.stroke(); }
+  // 床の映りこみ
+  g.save(); g.translate(0, (GY + N * CS + 50) * 2); g.scale(1, -1); for (let k = 0; k < N * N; k++) { const i = k % N, j = Math.floor(k / N); if (j < 3) continue; g.fillStyle = `rgba(255,180,90,${br[k] * (.05 + (j - 3) * .06)})`; g.fillRect(GX + i * CS, GY + j * CS, CS, CS); } g.restore();
+  const fl = g.createLinearGradient(0, GY + N * CS + 50, 0, LH); fl.addColorStop(0, 'rgba(13,9,6,.2)'); fl.addColorStop(1, '#0d0906'); g.fillStyle = fl; g.fillRect(0, GY + N * CS + 50, LW, 200);
+  g.fillStyle = '#f4dcae'; g.font = '15px "Hiragino Mincho ProN","Yu Mincho",Georgia,serif'; g.textAlign = 'right'; g.fillText(phase ? '灯す  ' + step + ' / ' + seq.length : '乱す', LW - 40, 60); g.fillText('灯 ' + on.reduce((a, b) => a + b, 0) + ' / 25', LW - 40, 84);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

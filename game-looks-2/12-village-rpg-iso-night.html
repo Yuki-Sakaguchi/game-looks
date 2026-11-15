@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-12 夜の村 RPG 斜め見下ろしのドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#0e1226;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe2b0;opacity:.85}
+</style>
+<canvas id="c" width="320" height="200"></canvas>
+<div id="cap">2-12 ─ 夜の村 RPG / 斜め見下ろしのドット絵、雪の夜と窓あかり　｜　見るだけ</div>
+<script>
+// 320×200 のドット絵。まず昼の色で村を描き、全体に紺を掛けあわせて夜にする。
+// そのあと、窓・ランタン・たき火のまわりだけ、段のついた暖かい光の輪を足す（輪は 3 段で、なめらかにしない）。
+// 立体は「上の面・左の面・右の面」の 3 色。雪は屋根と木の上の面だけ白くする。足あとが雪に残る
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const N = 13, OX = 160, OY = 22, pos = (i, j) => [OX + (i - j) * 12, OY + (i + j) * 6];
+function dia(sx, sy, c, hw = 12) { g.fillStyle = c; for (let dx = -hw; dx < hw; dx++) { const h = Math.ceil((hw - Math.abs(dx + .5)) / 2); if (h > 0) g.fillRect(sx + dx, sy - h, 1, h * 2); } }
+function walls(sx, sy, H, cl, cr, hw = 12) { for (let dx = -hw; dx < hw; dx++) { const left = dx < 0, yb = sy + Math.floor((left ? dx + hw : hw - 1 - dx) / 2); g.fillStyle = left ? cl : cr; g.fillRect(sx + dx, yb, 1, H); } }
+const C = { snow: '#eef2ff', snow2: '#d6dcf4', path: '#b8a890', wallL: '#8a5a4a', wallR: '#b07a5a', wallL2: '#6a6a80', wallR2: '#9090a8', roofL: '#7a3440', roofR: '#a04a50', win: '#ffd870', door: '#4a2a22', pineL: '#1f4a3a', pineR: '#2f6a4a', trunk: '#4a3020', ice: '#a8d8f0', ice2: '#c8ecff' };
+const KIND = {}; const set = (i, j, k) => { KIND[i + ',' + j] = k; };
+for (const [i, j] of [[2, 2], [5, 1], [9, 2], [2, 7], [10, 7], [6, 10]]) set(i, j, 'house'); for (const [i, j] of [[0, 0], [1, 4], [4, 4], [7, 0], [11, 0], [12, 4], [0, 9], [3, 11], [9, 11], [12, 10], [11, 5], [0, 6], [8, 4]]) set(i, j, 'pine');
+for (const [i, j] of [[5, 6], [6, 6], [5, 7], [6, 7]]) set(i, j, 'ice'); set(8, 8, 'fire'); set(4, 9, 'snowman'); set(7, 3, 'well'); set(11, 9, 'lamp'); set(3, 5, 'lamp'); set(8, 1, 'lamp');
+const PATH = [[3, 3], [3, 6], [7, 6], [7, 5], [10, 5], [10, 6], [10, 9], [7, 9], [7, 11], [5, 11], [5, 9], [3, 9], [3, 6]];
+const isPath = (i, j) => PATH.some((p, k) => { const q = PATH[(k + 1) % PATH.length]; return (i === p[0] && i === q[0] && j >= Math.min(p[1], q[1]) && j <= Math.max(p[1], q[1])) || (j === p[1] && j === q[1] && i >= Math.min(p[0], q[0]) && i <= Math.max(p[0], q[0])); });
+const cum = [0]; PATH.forEach((p, k) => { const q = PATH[(k + 1) % PATH.length]; cum.push(cum[k] + Math.abs(q[0] - p[0]) + Math.abs(q[1] - p[1])); });
+const at = d => { const L = cum[PATH.length]; d = ((d % L) + L) % L; let k = 0; while (cum[k + 1] <= d) k++; const p = PATH[k], q = PATH[(k + 1) % PATH.length], f = (d - cum[k]) / (cum[k + 1] - cum[k]); return [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]; };
+const lights = []; const light = (x, y, r, c) => lights.push([x, y, r, c]);
+function person(x, y, coat, t, lantern) { const b = Math.floor(Math.abs(Math.sin(t * 8)) * 1.5); g.fillStyle = '#1a1c2c'; g.fillRect(x - 2, y, 5, 1); g.fillStyle = '#34405a'; g.fillRect(x - 1, y - 3, 1, 3 - b); g.fillRect(x + 1, y - 3, 1, 3 - (1 - b)); g.fillStyle = coat; g.fillRect(x - 2, y - 8, 5, 5); g.fillStyle = '#f0cfa8'; g.fillRect(x - 1, y - 11, 3, 3); g.fillStyle = coat; g.fillRect(x - 1, y - 12, 3, 1); if (lantern) { g.fillStyle = '#ffe08a'; g.fillRect(x + 4, y - 6, 2, 2); g.fillStyle = '#4a3020'; g.fillRect(x + 3, y - 7, 1, 1); light(x + 5, y - 5, 26, '255,190,90'); } }
+const foot = [], snowf = [...Array(90)].map((_, i) => ({ x: hash(i, 1) * 320, y: hash(i, 2) * 200, s: .3 + hash(i, 3) * .6 }));
+const start = performance.now(); let lastFoot = 0;
+function frame(now) {
+  const t = (now - start) / 1000; lights.length = 0;
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = '#5a6aa0'; g.fillRect(0, 0, 320, 200);
+  const [hi, hj] = at(t * .9), [hx0, hy0] = pos(hi, hj), hx = Math.round(hx0), hy = Math.round(hy0) + 2;
+  if (t - lastFoot > .35) { lastFoot = t; foot.push([hx, hy, t]); if (foot.length > 60) foot.shift(); }
+  const vill = [0, 1, 2].map(k => { const [a, b] = at(t * (.5 + k * .1) + 9 + k * 13), [x, y] = pos(a, b); return { x: Math.round(x), y: Math.round(y) + 2, s: a + b, k }; });
+  for (let s = 0; s <= 2 * (N - 1); s++) for (let i = Math.max(0, s - N + 1); i <= Math.min(N - 1, s); i++) {
+    const j = s - i, [sx, sy] = pos(i, j), k = KIND[i + ',' + j], p = isPath(i, j);
+    dia(sx, sy, k === 'ice' ? ((i + j) % 2 ? C.ice : C.ice2) : p ? C.path : (hash(i, j) > .5 ? C.snow : C.snow2)); if (i === N - 1 || j === N - 1) walls(sx, sy, 5, '#6a708a', '#8a90a8');
+    if (!p && !k) for (let q = 0; q < 2; q++) { g.fillStyle = '#c4cce8'; g.fillRect(sx - 6 + Math.floor(hash(i, j + q) * 12), sy - 2 + Math.floor(hash(j, i + q) * 4), 2, 1); }
+    for (const f of foot) if (Math.abs(f[0] - sx) < 12 && Math.abs(f[1] - sy) < 6 && Math.abs(f[0] - sx) / 12 + Math.abs(f[1] - sy) / 6 <= 1) { g.fillStyle = '#8a8478'; g.fillRect(f[0] - 1, f[1], 1, 1); g.fillRect(f[0] + 1, f[1] - 1, 1, 1); }
+    if (k === 'house') { const alt = (i + j) % 2, H = 14; walls(sx, sy - H, H, alt ? C.wallL2 : C.wallL, alt ? C.wallR2 : C.wallR);
+      for (let q = 0; q < 6; q++) { dia(sx, sy - H - q * 2, q < 2 ? C.roofR : C.snow, 13 - q * 2); if (q < 5) walls(sx, sy - H - q * 2, 2, q < 1 ? C.roofL : '#c8d0ec', q < 1 ? C.roofR : C.snow, 13 - q * 2); }
+      g.fillStyle = C.door; g.fillRect(sx + 4, sy - 5, 3, 6); const lit = hash(i * 3, j) > .25; g.fillStyle = lit ? C.win : '#2a3050'; g.fillRect(sx - 8, sy - 9, 3, 4); g.fillRect(sx - 4, sy - 7, 3, 4); g.fillRect(sx + 8, sy - 8, 2, 4); if (lit) { light(sx - 5, sy - 5, 17, '255,200,110'); }
+      g.fillStyle = '#5a4a4a'; g.fillRect(sx + 5, sy - H - 12, 3, 6); g.fillStyle = C.snow; g.fillRect(sx + 5, sy - H - 13, 3, 1); for (let q = 0; q < 4; q++) { const u = (t * .5 + q / 4) % 1; g.fillStyle = q % 2 ? '#c8cce0' : '#a8acc4'; const r = 1 + Math.floor(u * 3); g.fillRect(sx + 6 + Math.floor(Math.sin(u * 5 + i) * 3) - (r >> 1), sy - H - 15 - Math.floor(u * 16), r, r); } }
+    if (k === 'pine') { g.fillStyle = C.trunk; g.fillRect(sx - 1, sy - 4, 2, 5); for (let q = 0; q < 4; q++) { const w = 9 - q * 2, y = sy - 5 - q * 5; for (let r = 0; r < 5; r++) { const ww = Math.max(1, w - r * 2 + 2); g.fillStyle = C.pineL; g.fillRect(sx - (ww >> 1), y - r, ww >> 1, 1); g.fillStyle = C.pineR; g.fillRect(sx, y - r, ww >> 1, 1); } g.fillStyle = C.snow; g.fillRect(sx - 1, y - 5, 3, 1); g.fillRect(sx + 1, y - 3, w >> 1, 1); } }
+    if (k === 'fire') { g.fillStyle = '#6a6a74'; for (const [a, b] of [[-4, 0], [3, 0], [-1, 2], [0, -2]]) g.fillRect(sx + a, sy + b, 2, 2); const f = Math.floor(t * 9) % 3; g.fillStyle = '#e8452a'; g.fillRect(sx - 2, sy - 4 - f, 4, 4 + f); g.fillStyle = '#ffa832'; g.fillRect(sx - 1, sy - 3 - f, 2, 3 + f); g.fillStyle = '#fff6b0'; g.fillRect(sx - 1 + f % 2, sy - 2, 1, 2); light(sx, sy - 2, 34 + f * 2, '255,150,60'); }
+    if (k === 'snowman') { g.fillStyle = C.snow2; g.fillRect(sx - 3, sy - 5, 6, 6); g.fillRect(sx - 2, sy - 9, 4, 4); g.fillStyle = C.snow; g.fillRect(sx - 3, sy - 5, 4, 4); g.fillRect(sx - 2, sy - 9, 3, 3); g.fillStyle = '#20222c'; g.fillRect(sx - 1, sy - 8, 1, 1); g.fillRect(sx + 1, sy - 8, 1, 1); g.fillRect(sx - 2, sy - 11, 4, 2); g.fillStyle = '#ff8a2a'; g.fillRect(sx, sy - 7, 2, 1); g.fillStyle = '#d8483c'; g.fillRect(sx - 3, sy - 6, 6, 1); }
+    if (k === 'well') { walls(sx, sy - 5, 5, '#6a6a74', '#8a8a94', 6); dia(sx, sy - 5, '#20283c', 6); g.fillStyle = C.trunk; g.fillRect(sx - 6, sy - 15, 1, 10); g.fillRect(sx + 5, sy - 15, 1, 10); g.fillStyle = C.snow; g.fillRect(sx - 7, sy - 16, 14, 2); }
+    if (k === 'lamp') { g.fillStyle = '#2a2a34'; g.fillRect(sx, sy - 14, 1, 15); g.fillStyle = '#ffe08a'; g.fillRect(sx - 1, sy - 17, 3, 3); g.fillStyle = C.snow; g.fillRect(sx - 1, sy - 18, 3, 1); light(sx, sy - 12, 30, '255,200,110'); }
+    if (k === 'ice' && i === 5 && j === 6) { const a = t * 1.2, ex = Math.round(sx + Math.cos(a) * 10), ey = Math.round(sy + 6 + Math.sin(a) * 5); g.fillStyle = '#eaffff'; for (let q = 1; q < 7; q++) g.fillRect(Math.round(sx + Math.cos(a - q * .2) * 10), Math.round(sy + 6 + Math.sin(a - q * .2) * 5), 1, 1); person(ex, ey, '#ff6a9a', t, false); }
+    if (Math.abs(hi + hj - s) < .5 && Math.round(hi) === i) person(hx, hy, '#3f8ad0', t, true);
+    for (const v of vill) if (Math.abs(v.s - s) < .5 && Math.abs(v.x - sx) <= 12) { person(v.x, v.y, ['#d8483c', '#e0b84a', '#7ac87a'][v.k], t + v.k, false); v.s = -9; }
+  }
+  // 夜にする → 光の輪を足す
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = '#2c3470'; g.fillRect(0, 0, 320, 200);
+  g.globalCompositeOperation = 'lighter'; for (const [x, y, r, c] of lights) for (const [k, a] of [[1, .07], [.62, .1], [.32, .14]]) { g.fillStyle = `rgba(${c},${a})`; const rr = r * k, ry = Math.round(rr * .62); for (let py = -ry; py <= ry; py++) { const w = Math.round(Math.sqrt(1 - (py / (ry + .5)) ** 2) * rr * 1.25); g.fillRect(x - w, y + py, w * 2, 1); } }
+  g.globalCompositeOperation = 'source-over';
+  // 月、星、雪
+  g.fillStyle = '#fff6d0'; g.fillRect(278, 12, 12, 12); g.fillRect(280, 10, 8, 16); g.fillRect(276, 14, 16, 8); g.fillStyle = '#0e1226'; g.fillRect(283, 10, 9, 9);
+  for (let i = 0; i < 40; i++) { const x = Math.floor(hash(i, 7) * 320), y = Math.floor(hash(i, 8) * 200), [a, b] = [Math.abs(x - 160) / 156, Math.abs(y - 100) / 78]; if (a + b > 1.12 && hash(i, Math.floor(t * 2)) > .2) { g.fillStyle = '#c8d0ff'; g.fillRect(x, y, 1, 1); } }
+  g.fillStyle = '#ffffff'; for (const f of snowf) { f.y += f.s; f.x += Math.sin(t + f.y * .05) * .3; if (f.y > 200) { f.y = 0; f.x = Math.random() * 320; } g.fillRect(Math.round(f.x), Math.round(f.y), 1, 1); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 11 ホラー探索 初期3Dの粗さ</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0d14;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#c8d0e0;text-shadow:0 1px 0 #000}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 11 ─ ホラー探索 / 初期3Dゲーム機の粗さ　｜　見るだけ（自動で歩く）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 90 年代の家庭用 3D の粗さをわざと作る: 縦 240 画素、頂点を粗い格子に吸着（形がカクカク震える）、
+// 16〜32 画素の荒いテクスチャ、近い霧、色を各 32 段に減らしてディザ、ざらつき
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+const RH = 240; let RW = 320;
+const FOG = 0x0a0d14;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(FOG); scene.fog = new THREE.Fog(FOG, 3, 24);
+const cam = new THREE.PerspectiveCamera(60, 4 / 3, .1, 60);
+scene.add(new THREE.HemisphereLight(0x4a5a86, 0x0a0c14, 2.2));
+const moon = new THREE.DirectionalLight(0x5a6a9a, .6); moon.position.set(3, 8, 2); scene.add(moon);
+
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+function tex(n, fn) {
+  const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d');
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const [r, gg, b] = fn(x, y); g.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`; g.fillRect(x, y, 1, 1); }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const grassT = tex(32, (x, y) => { const h = hash(x, y), v = h > .8 ? 96 : h < .2 ? 44 : 66; return [v * .5, v, v * .45]; });
+const dirtT = tex(32, (x, y) => { const v = 70 + hash(x, y) * 50 - (hash(x >> 2, y >> 2) > .7 ? 25 : 0); return [v, v * .8, v * .6]; });
+const barkT = tex(16, (x, y) => { const v = 60 + hash(x >> 1, y) * 50 - (x % 4 === 0 ? 25 : 0); return [v, v * .8, v * .62]; });
+const leafT = tex(16, (x, y) => { const v = 40 + hash(x, y) * 60; return [v * .4, v, v * .6]; });
+const woodT = tex(16, (x, y) => { const v = 90 + hash(x, y >> 2) * 40; return [v, v * .8, v * .6]; });
+
+// 頂点の吸着（どの材質にも同じ細工を入れる）
+function ps1(m) {
+  m.onBeforeCompile = s => {
+    s.vertexShader = s.vertexShader.replace('#include <project_vertex>',
+      '#include <project_vertex>\n gl_Position.xy=floor(gl_Position.xy/gl_Position.w*vec2(160.,120.)+.5)/vec2(160.,120.)*gl_Position.w;');
+  };
+  return m;
+}
+const lam = (o) => ps1(new THREE.MeshLambertMaterial({ flatShading: true, ...o }));
+const basic = c => ps1(new THREE.MeshBasicMaterial({ color: c }));
+const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); return o; };
+const boxG = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+
+// 地面と小道（細かく割っておくと吸着の震えが見える）
+const ground = mesh(new THREE.PlaneGeometry(80, 80, 40, 40), lam({ map: grassT })); ground.rotation.x = -Math.PI / 2; grassT.repeat.set(40, 40);
+const path = mesh(new THREE.PlaneGeometry(2.6, 80, 2, 40), lam({ map: dirtT }), 0, .02, 0); path.rotation.x = -Math.PI / 2; dirtT.repeat.set(1.3, 40);
+scene.add(ground, path);
+
+const WRAP = 48, scroll = [];
+const trunkG = new THREE.CylinderGeometry(.2, .28, 5, 5), c1 = new THREE.ConeGeometry(1.6, 3, 6), c2 = new THREE.ConeGeometry(1.2, 2.4, 6);
+const barkM = lam({ map: barkT }), leafM = lam({ map: leafT });
+for (let i = 0; i < 46; i++) {
+  const g = new THREE.Group();
+  g.add(mesh(trunkG, barkM, 0, 2.5, 0), mesh(c1, leafM, 0, 4.4, 0), mesh(c2, leafM, 0, 6, 0));
+  g.position.set((i % 2 ? 1 : -1) * (2.8 + hash(i, 1) * 12), 0, -WRAP + hash(i, 2) * WRAP + 6); g.rotation.y = i; g.scale.setScalar(.8 + hash(i, 3) * .6);
+  scene.add(g); scroll.push(g);
+}
+const woodM = lam({ map: woodT });
+for (let i = 0; i < 20; i++) for (const s of [-1, 1]) {
+  const g = new THREE.Group(); g.position.set(s * 1.75, 0, -WRAP + i * 2.4 + 6);
+  g.add(mesh(boxG(.13, 1, .13), woodM, 0, .5, 0));
+  if (hash(i, s) > .2) g.add(mesh(boxG(.06, .1, 2.4), woodM, 0, .75, 1.2), mesh(boxG(.06, .1, 2.4), woodM, 0, .42, 1.2));
+  else g.rotation.z = s * .25;
+  scene.add(g); scroll.push(g);
+}
+// 街灯（ちらつく）
+const lamps = [[-2.2, -10], [2.2, -34]].map(([x, z], i) => {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  g.add(mesh(boxG(.1, 3.4, .1), lam({ color: 0x30343c }), 0, 1.7, 0), mesh(boxG(.6, .08, .1), lam({ color: 0x30343c }), -Math.sign(x) * .3, 3.4, 0));
+  const bulb = mesh(boxG(.28, .2, .28), basic(0xffe6b0), -Math.sign(x) * .55, 3.3, 0); g.add(bulb);
+  const l = new THREE.PointLight(0xffc070, 16, 11, 1.8); l.position.set(-Math.sign(x) * .55, 3.1, 0); g.add(l);
+  scene.add(g); scroll.push(g); return { l, bulb, i };
+});
+// 木立の奥に立つ何か（近づくと消える）
+const watcher = new THREE.Group(); watcher.position.set(5, 0, -20);
+watcher.add(mesh(boxG(.4, 1.9, .25), lam({ color: 0x050608 }), 0, .95, 0), mesh(boxG(.06, .06, .02), basic(0xff2020), -.08, 1.72, .14), mesh(boxG(.06, .06, .02), basic(0xff2020), .08, 1.72, .14));
+scene.add(watcher); scroll.push(watcher);
+
+// 主人公
+const hero = new THREE.Group(); scene.add(hero);
+const coat = lam({ color: 0x6a7a4a }), pants = lam({ color: 0x2a3040 }), skin = lam({ color: 0xd8b090 });
+hero.add(mesh(boxG(.5, .7, .3), coat, 0, 1.15, 0), mesh(boxG(.32, .32, .32), skin, 0, 1.7, 0), mesh(boxG(.34, .12, .34), lam({ color: 0x2a2018 }), 0, 1.9, 0));
+const limb = (m, w, h, x, y) => { const g = new THREE.Group(); g.position.set(x, y, 0); g.add(mesh(boxG(w, h, w), m, 0, -h / 2, 0)); hero.add(g); return g; };
+const legL = limb(pants, .2, .78, -.13, .8), legR = limb(pants, .2, .78, .13, .8), armL = limb(coat, .15, .65, -.33, 1.48), armR = limb(coat, .15, .65, .33, 1.48);
+armR.rotation.x = 1.25;
+const torch = new THREE.SpotLight(0xfff0d0, 260, 26, .5, .5, 1.5); torch.position.set(.33, 1.4, -.6);
+torch.target.position.set(.33, .7, -9); hero.add(torch, torch.target);
+
+// 仕上げ: 色を 32 段に減らしてディザ、ざらつき、四隅を暗く
+const rt = new THREE.WebGLRenderTarget(RW, RH); rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+const post = new THREE.ShaderMaterial({
+  uniforms: { t: { value: rt.texture }, time: { value: 0 } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+  fragmentShader: `
+    uniform sampler2D t;uniform float time;varying vec2 vUv;
+    float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
+    float b4(vec2 a){return b2(.5*a)*.25+b2(a);}
+    void main(){
+      vec3 c=pow(texture2D(t,vUv).rgb,vec3(.4545));
+      c+=(fract(sin(dot(gl_FragCoord.xy+time*61.,vec2(12.9898,78.233)))*43758.5453)-.5)*.06;
+      c=floor(c*31.+b4(gl_FragCoord.xy))/31.;
+      vec2 q=vUv-.5;c*=1.-dot(q,q)*.9;
+      gl_FragColor=vec4(c,1.);
+    }`
+});
+const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
+const pc = new THREE.Camera();
+function resize() { RW = Math.round(RH * innerWidth / innerHeight); renderer.setSize(RW, RH, false); rt.setSize(RW, RH); cam.aspect = RW / RH; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+const V = 2.2;
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+  grassT.offset.y += V * dt / 2; dirtT.offset.y += V * dt / 2;
+  for (const o of scroll) {
+    o.position.z += V * dt;
+    if (o.position.z > 6) { o.position.z -= WRAP; if (o === watcher) o.position.x = (Math.random() < .5 ? -1 : 1) * (3.5 + Math.random() * 4); }
+  }
+  watcher.visible = watcher.position.z < -7;
+  for (const L of lamps) { const on = hash(Math.floor(t * 12), L.i) > .14; L.l.intensity = on ? 16 : 2; L.bulb.visible = on; }
+  const sw = Math.sin(t * 6) * .6;
+  legL.rotation.x = sw; legR.rotation.x = -sw; armL.rotation.x = -sw * .7;
+  hero.position.y = Math.abs(Math.sin(t * 6)) * .04; hero.rotation.y = Math.sin(t * .4) * .12;
+  cam.position.set(1.9 + Math.sin(t * .2) * .4, 2.7, 4.6); cam.lookAt(0, 1.3, -4);
+
+  post.uniforms.time.value = t % 10;
+  renderer.setRenderTarget(rt); renderer.render(scene, cam);
+  renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

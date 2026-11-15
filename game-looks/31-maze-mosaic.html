@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 31 迷路探索 モザイクタイル</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2622;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,147vh);aspect-ratio:900/612;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8dcc0;background:#2a2622;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 31 ─ 迷路探索 / モザイクタイル　｜　見るだけ（糸をのばしながら中心へ）</div>
+<script>
+// 古代の床モザイク。絵は小さな石のかけら 1 つ 1 つで、形と向きが少しずつ不ぞろい、色も 1 枚ごとにむらがある。
+// すきまは暗い目地、ところどころ石が欠けている。主人公が通った道には金色の石が 1 枚ずつ置かれていく
+const TW = 100, TH = 68, T = 9, LW = TW * T, LH = TH * T, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const shade = (hex, f) => 'rgb(' + [1, 3, 5].map(i => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * f)))).join(',') + ')';
+const FLOOR = ['#e8dcc0', '#dfd0ae', '#e4d6b4', '#d6c8a4'], WALL = ['#2f4f6f', '#3a5f7f', '#27425c'], TERRA = '#b5533a', BLACK = '#2a2622', GOLD = '#e0b030', RED = '#c8382e', SKIN = '#e8b890';
+
+function tile(x, tx, ty, color, seed = 0) {
+  if (hash(tx, ty, 5) < .012 && !seed) return;                       // 欠けた石
+  const j = k => (hash(tx * 4 + k, ty, 9) - .5) * 1.7, px = tx * T, py = ty * T, i = .7;
+  x.fillStyle = shade(color, .86 + hash(tx, ty, seed + 2) * .26);
+  x.beginPath(); x.moveTo(px + i + j(0), py + i + j(1)); x.lineTo(px + T - i + j(2), py + i + j(3)); x.lineTo(px + T - i + j(4), py + T - i + j(5)); x.lineTo(px + i + j(6), py + T - i + j(7)); x.closePath(); x.fill();
+  x.strokeStyle = 'rgba(255,255,255,.2)'; x.lineWidth = .8; x.beginPath(); x.moveTo(px + i + j(6), py + T - i + j(7)); x.lineTo(px + i + j(0), py + i + j(1)); x.lineTo(px + T - i + j(2), py + i + j(3)); x.stroke();
+}
+
+// 迷路（奇数マスが通路。1 マス = 4×4 枚）
+const MW = 23, MH = 15, OX = 4, OY = 4;
+let maze, path, floorC = document.createElement('canvas'); floorC.width = LW * S; floorC.height = LH * S;
+function build(seed) {
+  maze = [...Array(MH)].map(() => Array(MW).fill(1));
+  const st = [[1, 1]]; maze[1][1] = 0;
+  while (st.length) {
+    const [x, y] = st[st.length - 1];
+    const nb = [[2, 0], [-2, 0], [0, 2], [0, -2]].filter(([dx, dy]) => x + dx > 0 && y + dy > 0 && x + dx < MW - 1 && y + dy < MH - 1 && maze[y + dy][x + dx]);
+    if (!nb.length) { st.pop(); continue; }
+    const [dx, dy] = nb[Math.floor(hash(seed, st.length, x * 31 + y) * nb.length)]; maze[y + dy / 2][x + dx / 2] = 0; maze[y + dy][x + dx] = 0; st.push([x + dx, y + dy]);
+  }
+  // 入口から中心までの道すじ（幅優先）
+  const goal = [11, 7], prev = new Map([['1,1', null]]), q = [[1, 1]];
+  while (q.length) { const c = q.shift(); if (c[0] === goal[0] && c[1] === goal[1]) break; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = [c[0] + dx, c[1] + dy]; if (!maze[n[1]][n[0]] && !prev.has(n.join())) { prev.set(n.join(), c); q.push(n); } } }
+  path = []; for (let c = goal; c; c = prev.get(c.join())) path.unshift(c);
+  // 床・壁・縁かざりを一度だけ敷く
+  const x = floorC.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); x.fillStyle = '#51483f'; x.fillRect(0, 0, LW, LH);
+  for (let ty = 0; ty < TH; ty++) for (let tx = 0; tx < TW; tx++) {
+    const b = Math.min(tx, ty, TW - 1 - tx, TH - 1 - ty); let col;
+    if (b === 0 || b === 3) col = TERRA;
+    else if (b < 3) col = (((tx + ty) >> 1) + b) % 2 ? BLACK : FLOOR[0];
+    else { const mx = Math.floor((tx - OX) / 4), my = Math.floor((ty - OY) / 4), w = maze[my]?.[mx] ?? 1; col = w ? WALL[Math.floor(hash(tx, ty, 1) * 3)] : FLOOR[Math.floor(hash(tx, ty, 1) * 4)]; }
+    tile(x, tx, ty, col);
+  }
+  // 中心の飾り
+  const cx = OX + goal[0] * 4 + 2, cy = OY + goal[1] * 4 + 2;
+  for (let dy = -2; dy < 2; dy++) for (let dx = -2; dx < 2; dx++) tile(x, cx + dx, cy + dy, (Math.abs(dx + .5) + Math.abs(dy + .5)) < 2 ? TERRA : GOLD, 3);
+}
+let seed = 1, pos = 0, hold = 0; build(seed);
+const center = c => [OX + c[0] * 4 + 1.5, OY + c[1] * 4 + 1.5];
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if (pos < path.length - 1) pos = Math.min(path.length - 1, pos + dt * 3.2);
+  else if ((hold += dt) > 2.5) { hold = 0; pos = 0; build(++seed); }
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(floorC, 0, 0, LW, LH);
+  // 糸（通った所に金の石）
+  const i = Math.floor(pos), f = pos - i;
+  for (let k = 0; k <= i; k++) {
+    const a = center(path[k]), b = center(path[Math.min(k + 1, path.length - 1)]), n = k < i ? 4 : Math.floor(f * 4);
+    for (let s = 0; s <= n; s++) tile(g, Math.round(a[0] + (b[0] - a[0]) * s / 4), Math.round(a[1] + (b[1] - a[1]) * s / 4), GOLD, 7);
+  }
+  // 主人公（石 6 枚ぶん）
+  const a = center(path[i]), b = center(path[Math.min(i + 1, path.length - 1)]), hx = Math.round(a[0] + (b[0] - a[0]) * f), hy = Math.round(a[1] + (b[1] - a[1]) * f);
+  tile(g, hx, hy - 1, SKIN, 8); tile(g, hx, hy, RED, 8); tile(g, hx - 1, hy, RED, 8); tile(g, hx + 1, hy, RED, 8); tile(g, hx - (Math.floor(t * 6) % 2), hy + 1, BLACK, 8); tile(g, hx + 1 - (Math.floor(t * 6) % 2), hy + 1, BLACK, 8);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

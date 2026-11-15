@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 09 格闘 墨絵</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1614;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,177.78vh);aspect-ratio:16/9;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#efe6d2;background:#1a1614;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 09 ─ 格闘 / 墨絵　｜　見るだけ（自動で闘う）</div>
+<script>
+// 体は関節をつないだ「筆の線」。丸をたくさん並べて太さの変わる線にし、あとから横すじを抜いてかすれにする。
+// 墨は別の層に描いて、和紙の上に乗算で重ねる。色は朱を 1 色だけ
+const LW = 960, LH = 540, S = Math.min(devicePixelRatio || 1, 2), GY = 440;
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const m = cv.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = LW * S; c.height = LH * S; const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); return x; };
+const ink = mk(), stain = mk(), bg = mk();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const INK = '#1a1614', RED = '#c8321e';
+
+// かすれ用の横すじ
+const streak = document.createElement('canvas'); streak.width = LW * S; streak.height = LH * S;
+{
+  const x = streak.getContext('2d'), im = x.createImageData(streak.width, streak.height), d = im.data;
+  for (let y = 0; y < streak.height; y++) {
+    const row = hash(y, 3), shift = hash(y, 7) * 40;
+    for (let px = 0; px < streak.width; px++) d[(y * streak.width + px) * 4 + 3] = hash(Math.floor((px + shift) / 34), y) > .8 ? 210 * row * row : 0;
+  }
+  x.putImageData(im, 0, 0);
+}
+function dry(x) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(streak, 0, 0); x.restore(); }
+
+function brush(x, pts, w0, w1, color, alpha = 1) {
+  const L = []; let len = 0;
+  for (let i = 0; i < pts.length - 1; i++) { const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); L.push(d); len += d; }
+  x.fillStyle = color; x.globalAlpha = alpha; x.beginPath();
+  let acc = 0;
+  for (let i = 0; i < L.length; i++) {
+    const a = pts[i], b = pts[i + 1], n = Math.max(1, Math.ceil(L[i] / 1.5));
+    for (let k = 0; k <= n; k++) {
+      const f = k / n, s = (acc + L[i] * f) / (len || 1);
+      const r = Math.max(.4, (w0 + (w1 - w0) * s) / 2 * (1 + .1 * Math.sin(s * 9 + a[0] * .1)));
+      const px = a[0] + (b[0] - a[0]) * f, py = a[1] + (b[1] - a[1]) * f;
+      x.moveTo(px + r, py); x.arc(px, py, r, 0, 7);
+    }
+    acc += L[i];
+  }
+  x.fill(); x.globalAlpha = 1;
+}
+
+// 背景（一度だけ描く）: 和紙、にじんだ山、朱の日輪、地面の一筆、落款
+{
+  bg.fillStyle = '#efe6d2'; bg.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 2600; i++) { bg.fillStyle = `rgba(120,100,70,${.03 + Math.random() * .05})`; bg.fillRect(Math.random() * LW, Math.random() * LH, 1 + Math.random() * 14, 1); }
+  const sm = document.createElement('canvas'); sm.width = 96; sm.height = 54; const s = sm.getContext('2d');
+  [[20, 9, .05, .35], [27, 7, .09, .45], [33, 5, .16, .6]].forEach(([base, amp, f, a], k) => {
+    s.beginPath(); s.moveTo(0, 54);
+    for (let x = 0; x <= 96; x++) s.lineTo(x, base - amp * (Math.sin(x * f + k * 2) + .5 * Math.sin(x * f * 2.7 + k)));
+    s.lineTo(96, 54); s.closePath();
+    const gr = s.createLinearGradient(0, base - amp * 1.5, 0, base + 12); gr.addColorStop(0, `rgba(40,38,44,${a})`); gr.addColorStop(1, 'rgba(40,38,44,0)');
+    s.fillStyle = gr; s.fill();
+  });
+  bg.imageSmoothingEnabled = true; bg.globalCompositeOperation = 'multiply'; bg.drawImage(sm, 0, 0, LW, LH);
+  bg.fillStyle = RED; bg.globalAlpha = .85; bg.beginPath(); bg.arc(720, 130, 46, 0, 7); bg.fill(); bg.globalAlpha = 1;
+  brush(ink, [[50, GY + 8], [480, GY + 3], [910, GY + 7]], 8, 3, INK); dry(ink);
+  bg.drawImage(ink.canvas, 0, 0, LW, LH);
+  bg.globalCompositeOperation = 'source-over';
+  bg.fillStyle = RED; bg.fillRect(872, 462, 44, 44);
+  bg.fillStyle = '#efe6d2'; bg.font = '700 30px "Hiragino Mincho ProN","Yu Mincho",serif'; bg.textAlign = 'center'; bg.textBaseline = 'middle'; bg.fillText('闘', 894, 485);
+}
+
+// 構え（腰を原点に、右向き。y は上がマイナス）
+const POSE = {
+  idle: { hip: [0, -70], chest: [4, -112], head: [8, -136], le: [20, -104], lh: [34, -118], re: [-4, -98], rh: [14, -108], lk: [16, -36], lf: [20, 0], rk: [-12, -38], rf: [-22, 0] },
+  idle2: { hip: [0, -65], chest: [5, -106], head: [10, -130], le: [22, -98], lh: [38, -110], re: [-2, -92], rh: [16, -100], lk: [18, -34], lf: [20, 0], rk: [-13, -35], rf: [-22, 0] },
+  punch: { hip: [8, -68], chest: [20, -108], head: [26, -132], le: [44, -110], lh: [80, -112], re: [4, -96], rh: [20, -104], lk: [26, -34], lf: [34, 0], rk: [-10, -36], rf: [-26, 0] },
+  kick: { hip: [-4, -72], chest: [-14, -112], head: [-18, -136], le: [2, -104], lh: [14, -116], re: [-22, -100], rh: [-8, -108], lk: [30, -76], lf: [78, -86], rk: [-6, -36], rf: [-8, 0] },
+  hit: { hip: [-10, -66], chest: [-24, -104], head: [-36, -124], le: [-10, -96], lh: [4, -88], re: [-34, -92], rh: [-30, -76], lk: [8, -34], lf: [14, 0], rk: [-20, -34], rf: [-30, 0] },
+  block: { hip: [-2, -66], chest: [0, -106], head: [0, -128], le: [16, -112], lh: [20, -136], re: [10, -106], rh: [14, -128], lk: [14, -34], lf: [18, 0], rk: [-12, -36], rf: [-22, 0] },
+  down: { hip: [-30, -12], chest: [-62, -14], head: [-84, -12], le: [-56, -6], lh: [-40, -2], re: [-70, -4], rh: [-90, -2], lk: [-6, -16], lf: [14, -2], rk: [-12, -8], rf: [8, 0] }
+};
+const JOINTS = Object.keys(POSE.idle);
+const fighter = (x, face, col, ph) => ({ x, face, col, ph, x0: x, state: 'idle', st: 0, cool: .6 + ph, hp: 8, vx: 0, hit: false, trail: [], ribbon: [], cur: JSON.parse(JSON.stringify(POSE.idle)) });
+const A = fighter(380, 1, INK, 0), B = fighter(580, -1, '#2b3346', .5);
+const at = (f, j) => [f.x + f.face * f.cur[j][0], GY + f.cur[j][1]];
+const drops = [];
+let shake = 0, t = 0, last = performance.now();
+
+function splash(p, n, dir) {
+  for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + (Math.random() - .5) * 2.4 + dir * .5, v = 120 + Math.random() * 320; drops.push({ x: p[0], y: p[1], vx: Math.cos(a) * v + dir * 120, vy: Math.sin(a) * v, r: 1.5 + Math.random() * 5 }); }
+}
+function strike(f, o) {
+  const p = at(f, f.state === 'punch' ? 'lh' : 'lf');
+  if (o.state === 'down') return;
+  if (o.state === 'idle' && Math.random() < .3) { o.state = 'block'; o.st = 0; o.vx = f.face * 80; splash(p, 4, f.face); return; }
+  o.state = 'hit'; o.st = 0; o.hp--; o.vx = f.face * 230; shake = 9; splash(p, 16, f.face);
+}
+function update(f, o, dt) {
+  f.st += dt; f.x += f.vx * dt; f.vx *= Math.pow(.01, dt);
+  const dist = Math.abs(o.x - f.x);
+  if (f.state === 'idle') {
+    if (dist > 130) f.x += f.face * 70 * dt; else if (dist < 95) f.x -= f.face * 50 * dt;
+    f.cool -= dt;
+    if (f.cool <= 0 && dist < 140 && o.state !== 'down') { f.state = Math.random() < .5 ? 'punch' : 'kick'; f.st = 0; f.hit = false; f.trail.length = 0; }
+  } else if (f.state === 'punch' || f.state === 'kick') {
+    if (!f.hit && f.st > .12) { f.hit = true; if (dist < 150) strike(f, o); }
+    if (f.st > .36) { f.state = 'idle'; f.cool = .4 + Math.random() * .9; }
+  } else if (f.state === 'hit') { if (f.st > .38) { f.state = f.hp <= 0 ? 'down' : 'idle'; f.st = 0; } }
+  else if (f.state === 'block') { if (f.st > .3) f.state = 'idle'; }
+  else if (f.state === 'down' && f.st > 2.6) for (const g of [A, B]) { g.hp = 8; g.state = 'idle'; g.x = g.x0; g.cool = .8 + g.ph; }
+  f.x = Math.max(120, Math.min(840, f.x));
+
+  const k = .5 + .5 * Math.sin(t * 4 + f.ph * 6), rate = Math.min(1, dt * (f.state === 'idle' ? 10 : 20));
+  for (const j of JOINTS) for (let i = 0; i < 2; i++) {
+    const target = f.state === 'idle' ? POSE.idle[j][i] * k + POSE.idle2[j][i] * (1 - k) : POSE[f.state][j][i];
+    f.cur[j][i] += (target - f.cur[j][i]) * rate;
+  }
+  if (f.state === 'punch' || f.state === 'kick') { f.trail.push(at(f, f.state === 'punch' ? 'lh' : 'lf')); if (f.trail.length > 7) f.trail.shift(); }
+  f.ribbon.unshift(at(f, 'head')); if (f.ribbon.length > 14) f.ribbon.pop();
+}
+function draw(f) {
+  const P = j => at(f, j), c = f.col;
+  if ((f.state === 'punch' || f.state === 'kick') && f.trail.length > 2) brush(ink, f.trail, 2, 20, c, .3);
+  brush(ink, [P('chest'), P('re'), P('rh')], 10, 5, c); brush(ink, [P('hip'), P('rk'), P('rf')], 12, 6, c);
+  brush(ink, [P('hip'), P('chest')], 18, 23, c);
+  brush(ink, [P('head'), P('head')], 25, 25, c);
+  brush(ink, [P('hip'), P('lk'), P('lf')], 12, 6, c); brush(ink, [P('chest'), P('le'), P('lh')], 10, 5, c);
+  for (const j of ['lh', 'rh']) brush(ink, [P(j), P(j)], 10, 10, c);
+  for (const j of ['lf', 'rf']) { const p = P(j); brush(ink, [p, [p[0] + f.face * 11, p[1] + 1]], 7, 4, c); }
+  if (f === B) { const h = P('head'); ink.fillStyle = c; ink.beginPath(); ink.moveTo(h[0] - 26, h[1] - 4); ink.lineTo(h[0] + 26, h[1] - 4); ink.lineTo(h[0], h[1] - 24); ink.closePath(); ink.fill(); }
+}
+
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+  update(A, B, dt); update(B, A, dt);
+  if (B.x - A.x < 70) { const mid = (A.x + B.x) / 2; A.x = mid - 35; B.x = mid + 35; }
+  shake = Math.max(0, shake - dt * 40);
+
+  // 墨の層
+  ink.clearRect(0, 0, LW, LH);
+  draw(B); draw(A);
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const d = drops[i]; d.vy += 900 * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+    if (d.y >= GY + 6) {
+      stain.fillStyle = INK; stain.globalAlpha = .45; stain.beginPath(); stain.ellipse(d.x, GY + 6 + Math.random() * 8, d.r * 1.8, d.r * .5, 0, 0, 7); stain.fill(); stain.globalAlpha = 1;
+      drops.splice(i, 1); continue;
+    }
+    brush(ink, [[d.x - d.vx * .012, d.y - d.vy * .012], [d.x, d.y]], d.r * .6, d.r * 2, INK);
+  }
+  brush(ink, [[60, 50], [60 + A.hp / 8 * 320 + .1, 52]], 13, 6, INK);
+  brush(ink, [[900, 50], [900 - B.hp / 8 * 320 - .1, 52]], 13, 6, INK);
+  const down = A.state === 'down' ? A : B.state === 'down' ? B : null;
+  if (down) {
+    ink.fillStyle = INK; ink.globalAlpha = Math.min(1, down.st * 3); ink.font = '900 150px "Hiragino Mincho ProN","Yu Mincho",serif';
+    ink.textAlign = 'center'; ink.textBaseline = 'middle'; ink.fillText('一本', 480, 230); ink.globalAlpha = 1;
+  }
+  dry(ink);
+  stain.globalCompositeOperation = 'destination-out'; stain.fillStyle = 'rgba(0,0,0,.012)'; stain.fillRect(0, 0, LW, LH); stain.globalCompositeOperation = 'source-over';
+
+  // 和紙の上に重ねる
+  m.setTransform(S, 0, 0, S, (Math.random() - .5) * shake * S, (Math.random() - .5) * shake * S);
+  m.globalCompositeOperation = 'source-over'; m.drawImage(bg.canvas, 0, 0, LW, LH);
+  m.globalCompositeOperation = 'multiply';
+  m.drawImage(stain.canvas, 0, 0, LW, LH); m.drawImage(ink.canvas, 0, 0, LW, LH);
+  // 朱の鉢巻き
+  const rb = A.ribbon.map((p, i) => [p[0] - A.face * (10 + i * 5), p[1] - 4 + Math.sin(t * 9 + i * .7) * i * .7 + i * 1.2]);
+  brush(m, rb, 6, 1.5, RED, .9);
+  const h = at(A, 'head'); brush(m, [[h[0] - 11, h[1] - 5], [h[0] + 11, h[1] - 6]], 5, 5, RED, .9);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 97 謎解きの家 ドールハウスの断面</title>
+<style>
+html,body{margin:0;height:100%;background:#10142a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe2b0;opacity:.85}
+</style>
+<div id="cap">LOOK 97 ─ 謎解きの家 / ドールハウスの断面　｜　見るだけ（人が部屋を回ると明かりがつく）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 手前の壁を外した家を、遠近のつかないカメラで斜めから見る（箱庭・ドールハウスの見え方）。
+// 外は青い夜で、月の弱い光だけ。部屋の中は 1 部屋に 1 つの暖かい電球で、人がいる部屋だけ明るくなる。
+// だから「いまどこにいるか」は光で分かる。家具はローポリで、面をぼかさない
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#10142a');
+const cam = new THREE.OrthographicCamera(-10, 10, 10, -10, .1, 200);
+const resize = () => { const a = innerWidth / innerHeight, h = a > 1.5 ? 8.2 : 8.2 * 1.5 / a; renderer.setSize(innerWidth, innerHeight); cam.left = -h * a; cam.right = h * a; cam.top = h; cam.bottom = -h; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const M = c => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: .9 });
+const box = (w, h, d, c, x, y, z, p = scene) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof c === 'string' ? M(c) : c); m.position.set(x, y, z); p.add(m); return m; };
+scene.add(new THREE.HemisphereLight(0x7a8ad8, 0x20244a, 1.1)); const moonL = new THREE.DirectionalLight(0x8aa0ff, 1.1); moonL.position.set(-6, 12, 8); scene.add(moonL);
+// 家：3 列 × 2 階。部屋の幅 5、高さ 4、奥行き 5
+const RW = 5, RH = 4, RD = 5, WALL = ['#d98a7a', '#8ab0c8', '#d9c07a', '#9ac09a', '#c8a0c8', '#e0b090'], FLOOR = ['#8a6248', '#6a7a8a', '#9a7a58', '#7a6a58', '#8a6a7a', '#a08060'];
+const lamps = []; const rc = (col, fl) => [(col - 1) * RW, fl * RH];
+for (let fl = 0; fl < 2; fl++) for (let col = 0; col < 3; col++) { const i = fl * 3 + col, [x, y] = rc(col, fl);
+  box(RW, .2, RD, FLOOR[i], x, y, 0); box(RW, RH, .2, WALL[i], x, y + RH / 2, -RD / 2); box(.2, RH, RD, WALL[i], x - RW / 2, y + RH / 2, 0); if (col === 2) box(.2, RH, RD, WALL[i], x + RW / 2, y + RH / 2, 0);
+  const win = box(1.3, 1.4, .1, new THREE.MeshBasicMaterial({ color: 0x2a3a7a }), x + (i % 2 ? 1 : -1), y + 2.4, -RD / 2 + .12); box(1.5, .1, .14, '#f4ead8', x + (i % 2 ? 1 : -1), y + 1.65, -RD / 2 + .14);
+  const l = new THREE.PointLight(0xffc880, 0, 9, 1.4); l.position.set(x, y + 3.1, .6); scene.add(l); const bulb = box(.3, .3, .3, new THREE.MeshBasicMaterial({ color: 0x554433 }), x, y + 3.4, .6); box(.04, .5, .04, '#222', x, y + 3.75, .6); lamps.push({ l, bulb, v: 0 }); }
+box(RW * 3 + .4, .3, RD + .4, '#f4ead8', 0, RH * 2 + .05, 0);
+const roof = new THREE.Mesh(new THREE.CylinderGeometry(.01, 5.2, 3.2, 4, 1), M('#7a3a4a')); roof.rotation.y = Math.PI / 4; roof.scale.set(1.62, 1, .78); roof.position.set(0, RH * 2 + 1.8, 0); scene.add(roof); box(.8, 1.8, .8, '#8a5a4a', 4.4, RH * 2 + 1.6, -.6);
+// 家具
+const [ax, ay] = rc(0, 0); box(2.4, .5, 1.2, '#b0584a', ax - .6, ay + .45, -1.6); box(2.4, .9, .3, '#9a4a40', ax - .6, ay + .9, -2.1); box(1, .5, 1, '#6a4a3a', ax + 1.4, ay + .35, .2);                         // 居間
+const [bx, by] = rc(1, 0); box(2.2, .15, 1.2, '#c9a070', bx, by + 1, -.8); for (const s of [-1, 1]) for (const z of [-1.3, -.3]) box(.12, 1, .12, '#8a6a48', bx + s * 1, by + .5, z); box(.5, .6, .5, '#5a8a6a', bx - 1.7, by + .4, -1.9); box(.9, 1.3, .1, '#f4ead8', bx + 1.6, by + 2.3, -2.35); // 食堂
+const [cx, cy] = rc(2, 0); box(3.6, 1, .8, '#e8e2d4', cx - .2, cy + .6, -2); box(.7, 1.9, .7, '#c8ccd2', cx + 1.7, cy + 1, -2); box(1.2, .1, .5, '#5a4a3a', cx - .8, cy + 1.15, -2);                              // 台所
+const [dx, dy] = rc(0, 1); box(1.5, .5, 2.6, '#f0e8e0', dx - 1.3, dy + .45, -.9); box(1.5, .3, .7, '#e07a8a', dx - 1.3, dy + .8, -1.9); box(1.5, .2, 1.8, '#7a9ad0', dx - 1.3, dy + .75, -.4); box(.6, .6, .6, '#8a6a48', dx + .2, dy + .4, -2); // 寝室
+const [ex, ey] = rc(1, 1); box(2.6, 2.6, .5, '#6a4a34', ex, ey + 1.4, -2.1); for (let s = 0; s < 3; s++) for (let k = 0; k < 7; k++) box(.26, .6 + (k * 7 % 3) * .08, .3, ['#c8483c', '#3f7a9a', '#e0b84a', '#5a8a5a'][(k + s) % 4], ex - 1 + k * .34, ey + .65 + s * .8, -1.95); box(1.4, .1, .8, '#8a6a48', ex + .4, ey + .9, 0); // 書斎
+const [fx, fy] = rc(2, 1); box(2.4, .8, 1.1, '#f6f6f2', fx - .6, fy + .5, -1.7); box(2.1, .1, .8, '#9ad0e0', fx - .6, fy + .86, -1.7); box(.6, 1, .5, '#f6f6f2', fx + 1.6, fy + .6, -2); box(.8, 1, .06, '#bfe0ea', fx + 1.6, fy + 2.4, -2.36); // 浴室
+// 階段（食堂の右）、外の地面と木、月と星
+for (let k = 0; k < 8; k++) box(.9, .2, .5, '#a08060', 2.05, .2 + k * .5, 1.8 - k * .28);
+const gnd = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, .6, 28), M('#2a4a3a')); gnd.position.y = -.4; scene.add(gnd);
+for (const [x, z, s] of [[-10.5, -1, 1.2], [10.6, 1, 1], [-11.5, 4, .8]]) { box(.4 * s, 2 * s, .4 * s, '#5a4030', x, s, z); const lf = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6 * s, 0), M('#2f6a4a')); lf.position.set(x, 2.8 * s, z); scene.add(lf); }
+const moon = new THREE.Mesh(new THREE.SphereGeometry(1.2, 12, 10), new THREE.MeshBasicMaterial({ color: 0xfff4c8 })); moon.position.set(-11, 15, -14); scene.add(moon);
+const sg = new THREE.BufferGeometry(), sa = new Float32Array(300); for (let i = 0; i < 100; i++) { sa[i * 3] = (Math.random() - .5) * 60; sa[i * 3 + 1] = 6 + Math.random() * 16; sa[i * 3 + 2] = -18; } sg.setAttribute('position', new THREE.BufferAttribute(sa, 3)); scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false })));
+// 人
+const man = new THREE.Group(); box(.5, .8, .35, '#e04a5a', 0, .9, 0, man); const hd = new THREE.Mesh(new THREE.IcosahedronGeometry(.28, 0), M('#f0d0a8')); hd.position.y = 1.6; man.add(hd); const lg1 = box(.18, .55, .18, '#34405a', -.13, .28, 0, man), lg2 = box(.18, .55, .18, '#34405a', .13, .28, 0, man); scene.add(man);
+const PATH = [[-6, .1, 1.2], [-4, .1, 1.2], [0, .1, 1.2], [1.6, .1, 1.8], [2.4, 4.1, -.4], [5.6, 4.1, 1], [2.4, 4.1, 1], [0, 4.1, 1.2], [-5.6, 4.1, 1.2], [0, 4.1, 1.2], [2.4, 4.1, -.4], [1.6, .1, 1.8], [5.8, .1, 1.2], [1.6, .1, 1.4], [-4, .1, 1.2]];
+const seg = PATH.map((p, i) => { const q = PATH[(i + 1) % PATH.length]; return Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]); }), tot = seg.reduce((a, b) => a + b, 0);
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  let d = (t * 2.1) % tot, i = 0; while (d > seg[i]) { d -= seg[i]; i++; } const p = PATH[i], q = PATH[(i + 1) % PATH.length], f = d / seg[i];
+  man.position.set(p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f + Math.abs(Math.sin(t * 10)) * .06, p[2] + (q[2] - p[2]) * f); man.rotation.y = q[0] > p[0] ? Math.PI / 2 : -Math.PI / 2; lg1.rotation.x = Math.sin(t * 10) * .7; lg2.rotation.x = -Math.sin(t * 10) * .7;
+  const col = Math.max(0, Math.min(2, Math.floor((man.position.x + RW * 1.5) / RW))), fl = man.position.y > 2.6 ? 1 : 0, here = fl * 3 + col;
+  lamps.forEach((L, k) => { L.v += ((k === here ? 1 : 0) - L.v) * Math.min(1, dt * 5); L.l.intensity = (.12 + L.v) * 60 * (1 + Math.sin(t * 30 + k) * .02); L.bulb.material.color.setRGB(.33 + L.v * .67, .27 + L.v * .65, .2 + L.v * .5); });
+  const a = Math.sin(t * .15) * .32 + .5; cam.position.set(Math.sin(a) * 40, 22, Math.cos(a) * 40); cam.lookAt(0, 4.4, 0);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

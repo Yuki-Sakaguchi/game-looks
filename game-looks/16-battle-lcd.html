@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 16 コマンドバトル 液晶ドットマトリクス</title>
+<style>
+html,body{margin:0;height:100%;background:#55594c;overflow:hidden;display:grid;place-items:center}
+canvas{height:min(92vh,82vw);aspect-ratio:10/9;display:block;image-rendering:pixelated;border:14px solid #3c4036;border-radius:10px 10px 36px 10px}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6c8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 16 ─ コマンドバトルRPG / 液晶ドットマトリクス　｜　見るだけ（自動で戦う）</div>
+<script>
+// 160×144・4 階調の反射型液晶。1 画素を 3×3 に拡大して間に 1 画素のすきまを空け（格子）、
+// 前のコマの濃さを半分引きずる（残像）。色は黄緑の地に黒っぽい画素
+const LW = 160, LH = 144, K = 4;
+const cv = document.getElementById('c'); cv.width = LW * K; cv.height = LH * K;
+const out = cv.getContext('2d');
+const lo = document.createElement('canvas'); lo.width = LW; lo.height = LH;
+const g = lo.getContext('2d', { willReadFrequently: true });
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const TONE = ['#fff', '#aaa', '#555', '#000'];
+const R = (x, y, w, h, k) => { g.fillStyle = TONE[k]; g.fillRect(Math.round(x), Math.round(y), w, h); };
+const text = (s, x, y, k = 3) => { g.fillStyle = TONE[k]; g.font = 'bold 8px Menlo,Consolas,monospace'; g.textBaseline = 'top'; g.fillText(s, x, y); };
+
+// 敵は左右対称の乱数で作る
+let seed = 3, mon, NAMES = ['SLIMOX', 'BATTON', 'GOLEMA', 'MUSHRO', 'KRABBY'];
+function makeMon() {
+  mon = { px: [], hp: 30, max: 30, name: NAMES[seed % 5], lv: 3 + seed % 9 };
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 8; x++) {
+    const d = Math.hypot(x - 7.5, (y - 8) * .9);
+    if (hash(seed, x, y) < .95 - d * .1) { const k = d > 6 ? 3 : hash(seed + 1, x, y) > .6 ? 1 : 2; mon.px.push([x, y, k], [15 - x, y, k]); }
+  }
+  mon.px.push([5, 6, 3], [10, 6, 3], [5, 5, 0], [10, 5, 0]);
+}
+makeMon();
+const hero = { hp: 40, max: 40 };
+const disp = new Float32Array(LW * LH);
+const img = out.createImageData(LW * K, LH * K);
+for (let i = 0; i < img.data.length; i += 4) { img.data[i] = 195; img.data[i + 1] = 205; img.data[i + 2] = 166; img.data[i + 3] = 255; }
+
+let T = 0, last = performance.now(), dmg = 0, hitDone = false, hurtDone = false;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; T += dt;
+  const dead = mon.hp <= 0;
+  if (T > (dead ? 4.2 : 5.4)) { T = 0; hitDone = hurtDone = false; if (dead) { seed++; makeMon(); hero.hp = hero.max; } }
+  if (T > 1.9 && !hitDone) { hitDone = true; dmg = 8 + Math.floor(hash(seed, T) * 9); mon.hp = Math.max(0, mon.hp - dmg); }
+  if (T > 3.9 && !hurtDone && !dead) { hurtDone = true; hero.hp = Math.max(1, hero.hp - 5); }
+
+  const shake = T > 3.9 && T < 4.3 && !dead ? Math.round(Math.sin(T * 80) * 2) : 0;
+  g.setTransform(1, 0, 0, 1, shake, 0);
+  R(-4, 0, LW + 8, LH, 0);
+  // 敵
+  const flash = T > 1.9 && T < 2.4 && Math.floor(T * 16) % 2, melt = dead ? Math.max(0, (T - 2.6) / 1.2) : 0;
+  if (!flash) for (const [x, y, k] of mon.px) for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++)
+    if (hash(x * 3 + i, y * 3 + j, seed) > melt) R(100 + x * 3 + i, 12 + y * 3 + j + Math.sin(T * 3) * 1.5, 1, 1, k);
+  for (let i = 0; i < 14; i++) R(96 + i * 4, 64 + (i % 2), 3, 1, 1);
+  if (T > 1.6 && T < 2.1) for (let i = 0; i < 26; i++) { R(138 - i * 2, 14 + i * 2, 3, 1, 3); R(140 - i * 2, 14 + i * 2, 1, 1, 0); }
+  if (T > 1.9 && T < 2.9) text('-' + dmg, 116, 10 - (T - 1.9) * 10);
+  // 敵の名前と体力
+  text(mon.name, 6, 6); text('Lv' + mon.lv, 54, 6, 2);
+  R(6, 18, 72, 6, 3); R(7, 19, 70, 4, 0); R(7, 19, Math.round(70 * mon.hp / mon.max), 4, 2);
+  // 主人公（うしろ姿）
+  const hop = T > 1.5 && T < 1.9 ? -Math.sin((T - 1.5) / .4 * Math.PI) * 8 : 0, hx = 20 + (T > 1.5 && T < 1.9 ? 10 : 0), hy = 62 + hop;
+  R(hx + 8, hy, 14, 12, 3); R(hx + 9, hy + 1, 12, 9, 2); R(hx + 4, hy + 12, 22, 16, 3); R(hx + 6, hy + 13, 18, 14, 1); R(hx + 6, hy + 20, 18, 2, 3);
+  R(hx + 26, hy + 2, 3, 20, 3); R(hx + 27, hy + 3, 1, 14, 0); R(hx + 23, hy + 20, 9, 2, 3);
+  for (let i = 0; i < 12; i++) R(10 + i * 4, 92 + (i % 2), 3, 1, 1);
+  text('HERO', 92, 72); text('HP', 92, 84, 2);
+  R(106, 84, 48, 6, 3); R(107, 85, 46, 4, 0); R(107, 85, Math.round(46 * hero.hp / hero.max), 4, 2);
+  text(String(hero.hp).padStart(2, ' ') + '/' + hero.max, 118, 91);
+  // 下の窓
+  R(0, 102, LW, 42, 3); R(2, 104, LW - 4, 38, 0); R(4, 106, LW - 8, 34, 3); R(5, 107, LW - 10, 32, 0);
+  if (T < 1.5) {
+    ['FIGHT', 'MAGIC', 'ITEM', 'RUN'].forEach((s, i) => text(s, 22 + (i % 2) * 70, 112 + Math.floor(i / 2) * 13));
+    const cur = T < .5 ? 3 : T < .9 ? 1 : 0;
+    if (Math.floor(T * 6) % 2 || T > 1.2) text('>', 12 + (cur % 2) * 70, 112 + Math.floor(cur / 2) * 13);
+  } else if (T < 3.6 || dead) text(dead && T > 2.6 ? mon.name + ' FELL!' : T < 1.9 ? 'HERO ATTACKS!' : 'HIT! ' + dmg + ' DAMAGE', 12, 112);
+  else text(mon.name + ' BITES!', 12, 112);
+  if (dead && T > 3.2) text('GOT ' + mon.lv * 7 + ' EXP', 12, 125, 2);
+
+  // 液晶に映す
+  const src = g.getImageData(0, 0, LW, LH).data, d = img.data, W4 = LW * K * 4;
+  for (let y = 0; y < LH; y++) for (let x = 0; x < LW; x++) {
+    const i = y * LW + x, target = Math.round((1 - src[i * 4] / 255) * 3) / 3;
+    const v = disp[i] += (target - disp[i]) * .45;
+    const r = 185 - v * 151, gg = 196 - v * 156, b = 154 - v * 126;
+    for (let j = 0; j < 3; j++) { let o = (y * K + j) * W4 + x * K * 4; for (let k = 0; k < 3; k++, o += 4) { d[o] = r; d[o + 1] = gg; d[o + 2] = b; } }
+  }
+  out.putImageData(img, 0, 0);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

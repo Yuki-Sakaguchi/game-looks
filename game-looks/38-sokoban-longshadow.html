@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 38 箱押しパズル パステルと長い影</title>
+<style>
+html,body{margin:0;height:100%;background:#f6c9b8;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6a4a7a}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 38 ─ 箱押しパズル / パステルと長い影　｜　見るだけ（自動で解く）</div>
+<script>
+// フラットデザインの立体: 輪郭線なし、面は 3 段の平らなパステル色だけ。
+// そのかわり全部の物から右下へ長い影をのばす（影は 1 枚に描いてから薄く重ねるので、重なっても濃くならない）
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const sh = document.createElement('canvas'); sh.width = LW * S; sh.height = LH * S; const sg = sh.getContext('2d');
+const TW = 84, TH = 42, ZH = 46, OX = 480, OY = 150;
+const iso = (x, y, z = 0) => [OX + (x - y) * TW / 2, OY + (x + y) * TH / 2 - z * ZH];
+const MAP = ['########', '#......#', '#......#', '#......#', '#......#', '########'];
+const TARGETS = [[3, 1], [2, 4]], SCRIPT = 'UULDDRRRURULL', DIR = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
+const PAL = { wall: ['#c9b6ec', '#a892d8', '#8b74c4'], box: ['#ffe08a', '#f6c35a', '#e0a23a'], done: ['#b4ecc8', '#86d8a8', '#5cc08a'], floor: ['#fff4e6', '#fde8d4'] };
+
+let boxes, player, step, mt, wait;
+function reset() { boxes = [{ x: 2, y: 2, fx: 2, fy: 2 }, { x: 5, y: 2, fx: 5, fy: 2 }]; player = { x: 3, y: 3, fx: 3, fy: 3 }; step = 0; mt = 0; wait = 1; }
+reset();
+function advance() {
+  const [dx, dy] = DIR[SCRIPT[step++]], nx = player.x + dx, ny = player.y + dy, b = boxes.find(b => b.x === nx && b.y === ny);
+  for (const o of [player, ...boxes]) { o.fx = o.x; o.fy = o.y; }
+  if (b) { b.x += dx; b.y += dy; } player.x = nx; player.y = ny; mt = 0;
+}
+const poly = (x, pts, color) => { x.fillStyle = color; x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); x.fill(); };
+// 立方体の 6 角形の外形（影用）と 3 面
+const corners = (x, y, h, s = 1) => { const m = (1 - s) / 2; return { t: [iso(x + m, y + m, h), iso(x + 1 - m, y + m, h), iso(x + 1 - m, y + 1 - m, h), iso(x + m, y + 1 - m, h)], b: [iso(x + m, y + m), iso(x + 1 - m, y + m), iso(x + 1 - m, y + 1 - m), iso(x + m, y + 1 - m)] }; };
+function cube(x, y, h, pal, s = 1) { const c = corners(x, y, h, s); poly(g, [c.t[3], c.t[2], c.b[2], c.b[3]], pal[1]); poly(g, [c.t[2], c.t[1], c.b[1], c.b[2]], pal[2]); poly(g, c.t, pal[0]); }
+function shadow(x, y, h, s = 1) {
+  const c = corners(x, y, h, s), hex = [c.t[0], c.t[1], c.b[1], c.b[2], c.b[3], c.t[3]], D = [420, 250];
+  for (let i = 0; i < 6; i++) { const a = hex[i], b = hex[(i + 1) % 6]; poly(sg, [a, b, [b[0] + D[0], b[1] + D[1]], [a[0] + D[0], a[1] + D[1]]], '#5a3a7a'); }
+  poly(sg, hex, '#5a3a7a');
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if (wait > 0) { wait -= dt; if (wait <= 0 && step >= SCRIPT.length) reset(); }
+  else { mt += dt / .3; if (mt >= 1) { mt = 1; if (step < SCRIPT.length) advance(); else wait = 2.2; } }
+  const k = mt * mt * (3 - 2 * mt), pos = o => [o.fx + (o.x - o.fx) * k, o.fy + (o.y - o.fy) * k];
+
+  g.setTransform(S, 0, 0, S, 0, 0);
+  const bg = g.createLinearGradient(0, 0, LW, LH); bg.addColorStop(0, '#fbd3bf'); bg.addColorStop(1, '#d9c2ee'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+  // 床と目標
+  for (let y = 0; y < 6; y++) for (let x = 0; x < 8; x++) poly(g, [iso(x, y), iso(x + 1, y), iso(x + 1, y + 1), iso(x, y + 1)], PAL.floor[(x + y) % 2]);
+  for (const [x, y] of TARGETS) { const c = iso(x + .5, y + .5); g.fillStyle = '#f79ab4'; g.beginPath(); g.ellipse(c[0], c[1], 24, 12, 0, 0, 7); g.fill(); g.fillStyle = PAL.floor[(x + y) % 2]; g.beginPath(); g.ellipse(c[0], c[1], 13, 6.5, 0, 0, 7); g.fill(); }
+  // 長い影（まとめて 1 枚）
+  sg.setTransform(S, 0, 0, S, 0, 0); sg.clearRect(0, 0, LW, LH);
+  for (let y = 0; y < 6; y++) for (let x = 0; x < 8; x++) if (MAP[y][x] === '#') shadow(x, y, .7);
+  for (const b of boxes) { const [x, y] = pos(b); shadow(x, y, .8, .8); }
+  { const [x, y] = pos(player); shadow(x, y, 1.1, .5); }
+  g.globalAlpha = .17; g.drawImage(sh, 0, 0, LW, LH); g.globalAlpha = 1;
+  // 立体（奥から手前へ）
+  const items = [];
+  for (let y = 0; y < 6; y++) for (let x = 0; x < 8; x++) if (MAP[y][x] === '#') items.push({ d: x + y, draw: () => cube(x, y, .7, PAL.wall) });
+  for (const b of boxes) { const [x, y] = pos(b), on = TARGETS.some(tg => tg[0] === b.x && tg[1] === b.y) && mt >= 1; items.push({ d: x + y, draw: () => cube(x, y, .8, on ? PAL.done : PAL.box, .8) }); }
+  {
+    const [x, y] = pos(player), hop = Math.sin(mt * Math.PI) * .12 * (step > 0 && wait <= 0 ? 1 : 0), win = step >= SCRIPT.length && wait > 0 ? Math.abs(Math.sin(t * 8)) * .3 : 0;
+    items.push({ d: x + y + .1, draw: () => {
+      const b = iso(x + .5, y + .5, hop + win), top = iso(x + .5, y + .5, .75 + hop + win);
+      g.fillStyle = '#f2766a'; g.beginPath(); g.ellipse(b[0], b[1], 19, 9.5, 0, 0, Math.PI); g.lineTo(top[0] - 19, top[1]); g.ellipse(top[0], top[1], 19, 9.5, 0, Math.PI, 0); g.closePath(); g.fill();
+      g.fillStyle = '#ff9a8a'; g.beginPath(); g.ellipse(top[0], top[1], 19, 9.5, 0, 0, 7); g.fill();
+      g.fillStyle = '#ffe2cf'; g.beginPath(); g.arc(top[0], top[1] - 20, 17, 0, 7); g.fill();
+      g.fillStyle = '#6a4a7a'; g.beginPath(); g.arc(top[0] - 5, top[1] - 20, 2.2, 0, 7); g.arc(top[0] + 8, top[1] - 18, 2.2, 0, 7); g.fill();
+    } });
+  }
+  items.sort((a, b) => a.d - b.d).forEach(i => i.draw());
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

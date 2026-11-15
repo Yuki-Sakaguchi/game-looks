@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 71 陣取り 藍染と刺し子</title>
+<style>
+html,body{margin:0;height:100%;background:#101b33;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e9ecf4;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 71 ─ 陣取り / 藍染の布と刺し子　｜　見るだけ（白糸と赤糸がますを刺して取り合う）</div>
+<script>
+// 盤は藍染の布。取ったますは塗らず、糸の「並縫い」（短い線の点線）で模様を刺して示す。
+// 白糸は米刺し（十字と斜め十字）、赤糸は角刺し（二重の四角）。針が進むのに合わせて縫い目が 1 目ずつのびる。
+// 布は細かい織り目と染めむらを重ねて作る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const GW = 12, GH = 7, CS = 68, GX = (LW - GW * CS) / 2, GY = 78, WHITE = '#f1ede0', RED = '#e0523f';
+const cloth = document.createElement('canvas'); cloth.width = LW; cloth.height = LH; {
+  const c = cloth.getContext('2d'); c.fillStyle = '#1d2f58'; c.fillRect(0, 0, LW, LH);
+  for (let i = 0; i < 70; i++) { const x = Math.random() * LW, y = Math.random() * LH, r = 60 + Math.random() * 160, d = Math.random() < .5 ? '10,18,40' : '50,80,140', gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${d},.2)`); gr.addColorStop(1, `rgba(${d},0)`); c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2); }
+  for (let y = 0; y < LH; y += 2) { c.fillStyle = `rgba(255,255,255,${.015 + Math.random() * .03})`; c.fillRect(0, y, LW, 1); } for (let x = 0; x < LW; x += 2) { c.fillStyle = `rgba(0,0,20,${.03 + Math.random() * .06})`; c.fillRect(x, 0, 1, LH); }
+  // 下縫いの格子（うすい白の並縫い）
+  c.strokeStyle = 'rgba(241,237,224,.28)'; c.lineWidth = 2; c.lineCap = 'round'; c.setLineDash([6, 5]); c.beginPath(); for (let i = 0; i <= GW; i++) { c.moveTo(GX + i * CS, GY); c.lineTo(GX + i * CS, GY + GH * CS); } for (let j = 0; j <= GH; j++) { c.moveTo(GX, GY + j * CS); c.lineTo(GX + GW * CS, GY + j * CS); } c.stroke();
+}
+const MOTIF = [null, [[.12, .5, .88, .5], [.5, .12, .5, .88], [.24, .24, .76, .76], [.76, .24, .24, .76]], [[.14, .14, .86, .14], [.86, .14, .86, .86], [.86, .86, .14, .86], [.14, .86, .14, .14], [.33, .33, .67, .33], [.67, .33, .67, .67], [.67, .67, .33, .67], [.33, .67, .33, .33]]];
+const own = new Uint8Array(GW * GH), prog = new Float32Array(GW * GH);
+const pl = [{ id: 1, x: 0, y: 3, col: WHITE }, { id: 2, x: GW - 1, y: 3, col: RED }].map(p => ({ ...p, px: p.x, py: p.y, mode: 0, k: 0, tip: [0, 0] }));
+for (const p of pl) { own[p.y * GW + p.x] = p.id; prog[p.y * GW + p.x] = 0; }
+function stitch(i, col) {
+  const x = GX + (i % GW) * CS, y = GY + Math.floor(i / GW) * CS, segs = MOTIF[own[i]]; let left = prog[i] * segs.length, tip = null;
+  g.strokeStyle = col; g.lineWidth = 3; g.lineCap = 'round'; g.setLineDash([7, 5.5]);
+  for (const s of segs) { if (left <= 0) break; const f = Math.min(1, left), x1 = x + s[0] * CS, y1 = y + s[1] * CS, x2 = x1 + (s[2] - s[0]) * CS * f, y2 = y1 + (s[3] - s[1]) * CS * f; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); tip = [x2, y2]; left -= 1; }
+  g.setLineDash([]); return tip;
+}
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  for (const p of pl) {
+    const i = p.y * GW + p.x;
+    if (p.mode === 0) { if (own[i] !== p.id) { own[i] = p.id; prog[i] = 0; } prog[i] = Math.min(1, prog[i] + dt * 1.5); if (prog[i] >= 1) { const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([a, b]) => [p.x + a, p.y + b]).filter(([a, b]) => a >= 0 && b >= 0 && a < GW && b < GH), want = nb.filter(([a, b]) => own[b * GW + a] !== p.id), pick = (want.length ? want : nb)[Math.floor(Math.random() * (want.length ? want : nb).length)]; p.px = p.x; p.py = p.y; p.x = pick[0]; p.y = pick[1]; p.mode = 1; p.k = 0; } }
+    else { p.k += dt * 3.2; if (p.k >= 1) p.mode = 0; }
+  }
+  if (own.every(v => v === own[0]) || t > 70) { own.fill(0); prog.fill(0); t = 0; pl[0].x = 0; pl[0].y = 3; pl[1].x = GW - 1; pl[1].y = 3; pl.forEach(p => { p.mode = 0; }); }
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(cloth, 0, 0);
+  const cnt = [0, 0, 0]; for (let i = 0; i < own.length; i++) { cnt[own[i]]++; if (own[i]) { const tip = stitch(i, own[i] === 1 ? WHITE : RED); for (const p of pl) if (p.mode === 0 && p.y * GW + p.x === i && tip) p.tip = tip; } }
+  // 針と、針につながる糸
+  for (const p of pl) { let [x, y] = p.tip; if (p.mode === 1) { const a = [GX + (p.px + .5) * CS, GY + (p.py + .5) * CS], b = [GX + (p.x + .12 + (p.id === 2 ? .02 : 0)) * CS, GY + (p.y + (p.id === 2 ? .14 : .5)) * CS]; x = p.tip[0] + (b[0] - p.tip[0]) * p.k; y = p.tip[1] + (b[1] - p.tip[1]) * p.k - Math.sin(p.k * Math.PI) * 16; }
+    const an = -.9 + Math.sin(t * 5 + p.id) * .08, nx = x + Math.cos(an) * 46, ny = y + Math.sin(an) * 46;
+    g.strokeStyle = p.col; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(nx + 40, ny + 30, nx, ny); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x + 3, y + 5); g.lineTo(nx + 3, ny + 5); g.stroke();
+    const sg = g.createLinearGradient(x, y, nx, ny); sg.addColorStop(0, '#f4f6fa'); sg.addColorStop(1, '#9aa3b4'); g.strokeStyle = sg; g.lineWidth = 2.6; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, y); g.lineTo(nx, ny); g.stroke(); }
+  // 点数：縫い目の列
+  g.lineWidth = 3; g.lineCap = 'round'; for (const [k, col, x0, dir] of [[1, WHITE, GX, 1], [2, RED, GX + GW * CS, -1]]) { g.strokeStyle = col; g.beginPath(); for (let i = 0; i < cnt[k]; i++) { const x = x0 + dir * i * 9; g.moveTo(x, 40); g.lineTo(x + dir * 5, 40); g.moveTo(x, 50); g.lineTo(x + dir * 5, 50); } g.stroke(); }
+  g.fillStyle = WHITE; g.font = '600 15px "Hiragino Mincho ProN","Yu Mincho",Georgia,serif'; g.textAlign = 'left'; g.fillText('白 ' + cnt[1], GX, 28); g.fillStyle = RED; g.textAlign = 'right'; g.fillText(cnt[2] + ' 赤', GX + GW * CS, 28);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

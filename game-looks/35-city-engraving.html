@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 35 都市建設 銅版画</title>
+<style>
+html,body{margin:0;height:100%;background:#efe8d4;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#title{position:fixed;left:50%;top:18px;transform:translateX(-50%);font:700 15px/1 "Didot","Bodoni 72","Times New Roman",serif;letter-spacing:.4em;color:#16382c;border:2px solid #16382c;outline:1px solid #16382c;outline-offset:3px;padding:8px 18px;background:#efe8d4;white-space:nowrap}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#16382c;background:#efe8d4;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="title">CITY OF LOOK · No. 35</div>
+<div id="cap">LOOK 35 ─ 都市建設 / 銅版画（紙幣の彫り）　｜　見るだけ（街が育つ）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 紙幣や切手の彫りの絵にする。インクは 1 色。濃淡は「波打つ平行線の太さ」で表し（暗いほど太い）、
+// もっと暗い所には交差する線を足す。形の境目には輪郭線。面の塗りは使わない
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene(); scene.background = new THREE.Color(.82, .82, .82);
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100); cam.position.set(14, 13, 14); cam.lookAt(0, 1, 0);
+scene.add(new THREE.AmbientLight(0xffffff, .5));
+const sun = new THREE.DirectionalLight(0xffffff, 2.6); sun.position.set(3, 10, -6); scene.add(sun);
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const gray = v => new THREE.MeshLambertMaterial({ color: new THREE.Color(v, v, v) });
+const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); scene.add(o); return o; };
+
+mesh(new THREE.BoxGeometry(19, .4, 19), gray(.5), 0, -.2, 0);
+const river = mesh(new THREE.BoxGeometry(26, .05, 2), gray(.18), 0, .03, 0); river.rotation.y = .5;
+const N = 8, C = 2.2, unit = new THREE.BoxGeometry(1, 1, 1), treeG = new THREE.SphereGeometry(.34, 8, 6);
+let seed = 1; const lots = [];
+for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+  const x = (i - N / 2 + .5) * C, z = (j - N / 2 + .5) * C;
+  if (Math.abs(z * Math.cos(.5) + x * Math.sin(.5)) < 1.7) continue;        // 川の上は建てない
+  mesh(new THREE.BoxGeometry(C - .5, .08, C - .5), gray(.75), x, .04, z);
+  const park = hash(i, j, 9) > .82;
+  if (park) { for (let k = 0; k < 4; k++) { mesh(treeG, gray(.3), x + (k % 2 - .5) * .7, .5, z + (Math.floor(k / 2) - .5) * .7); } continue; }
+  const b = mesh(unit, gray(.85), x, 0, z), top = mesh(unit, gray(.7), x, 0, z); lots.push({ b, top, i, j, h: 0 });
+}
+function plan() { for (const l of lots) { l.target = .6 + Math.pow(hash(l.i, l.j, seed), 2.2) * 6 * (1 - Math.hypot(l.i - 3.5, l.j - 3.5) / 8); l.start = hash(l.j, l.i, seed) * 9; l.w = 1 + hash(l.i, l.j, seed + 5) * .55; } }
+plan();
+
+const rt = new THREE.WebGLRenderTarget(4, 4, { samples: 4 });
+const post = new THREE.ShaderMaterial({
+  uniforms: { t: { value: rt.texture }, res: { value: new THREE.Vector2() }, dpr: { value: 1 } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+  fragmentShader: `
+    uniform sampler2D t;uniform vec2 res;uniform float dpr;varying vec2 vUv;
+    float L(vec2 o){return pow(dot(texture2D(t,vUv+o*dpr/res).rgb,vec3(.3,.59,.11)),.4545);}
+    void main(){
+      vec2 p=gl_FragCoord.xy/dpr;float l=L(vec2(0.)),d=clamp(1.-l,0.,1.);
+      float e=abs(l-L(vec2(1.2,0.)))+abs(l-L(vec2(0.,1.2)));
+      float w1=abs(fract((p.y+sin(p.x*.045)*4.+p.x*.18)/4.6)-.5)*2.;
+      float w2=abs(fract((p.x*.9-p.y*.6+sin(p.y*.05)*3.)/4.6)-.5)*2.;
+      float ink=smoothstep(d*1.25,d*1.25-.22,w1);
+      ink=max(ink,smoothstep((d-.5)*1.6,(d-.5)*1.6-.22,w2));
+      ink=max(ink,smoothstep(.06,.14,e));
+      vec3 paper=vec3(.937,.91,.83)*(1.-.03*fract(sin(dot(floor(p*.7),vec2(12.9,78.2)))*43758.5));
+      gl_FragColor=vec4(mix(paper,vec3(.085,.22,.17),ink*.95),1.);
+    }`
+});
+const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
+const pc = new THREE.Camera();
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  const s = renderer.getDrawingBufferSize(new THREE.Vector2()); rt.setSize(s.x, s.y); post.uniforms.res.value.copy(s); post.uniforms.dpr.value = renderer.getPixelRatio();
+  const a = innerWidth / innerHeight, h = Math.max(9.5, 13.5 / a); cam.left = -h * a; cam.right = h * a; cam.top = h; cam.bottom = -h; cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  if (t > 15) { t = 0; seed++; plan(); for (const l of lots) l.h = 0; }
+  for (const l of lots) {
+    l.h += ((t > l.start ? l.target : 0) - l.h) * Math.min(1, dt * 2.5);
+    const h = Math.max(.01, l.h); l.b.scale.set(l.w, h, l.w); l.b.position.y = h / 2 + .08;
+    l.top.scale.set(l.w * .5, .3, l.w * .5); l.top.position.y = h + .2; l.top.visible = l.b.visible = l.h > .05;
+  }
+  renderer.setRenderTarget(rt); renderer.render(scene, cam);
+  renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 64 積み木タワー 木目の積み木</title>
+<style>
+html,body{margin:0;height:100%;background:#efe2cc;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a4028;opacity:.85}
+</style>
+<div id="cap">LOOK 64 ─ 積み木タワー / 木目の積み木　｜　見るだけ（積んで、くずれて、また積む）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 子ども部屋の積み木。木目は、色を塗った上に細い波線を何十本も引いたテクスチャで出す（色は 5 つの染め色）。
+// 光は窓からの暖かい光 1 つで、やわらかい影を床に落とす。置かれた瞬間に少しつぶれて戻る
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#efe2cc'); scene.fog = new THREE.Fog('#efe2cc', 22, 48);
+const cam = new THREE.PerspectiveCamera(34, 1, .1, 100);
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+function wood(base, planks) {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 46; i++) { const y0 = Math.random() * 256, a = 2 + Math.random() * 6, f = .01 + Math.random() * .02, p = Math.random() * 6; x.strokeStyle = `rgba(60,30,10,${.05 + Math.random() * .13})`; x.lineWidth = .6 + Math.random() * 1.6; x.beginPath(); for (let u = 0; u <= 256; u += 8) x.lineTo(u, y0 + Math.sin(u * f + p) * a); x.stroke(); }
+  for (let i = 0; i < 2; i++) { const kx = Math.random() * 256, ky = Math.random() * 256; for (let r = 3; r < 16; r += 3) { x.strokeStyle = 'rgba(60,30,10,.16)'; x.beginPath(); x.ellipse(kx, ky, r * 1.8, r, 0, 0, 7); x.stroke(); } }
+  if (planks) { x.fillStyle = 'rgba(50,25,8,.5)'; for (let i = 0; i < 4; i++) { x.fillRect(0, i * 64, 256, 2); x.fillRect((i * 97) % 256, i * 64, 2, 64); } }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+const mats = ['#e3c08a', '#cc5a42', '#4a86b8', '#e4b944', '#62a062'].map(c => new THREE.MeshStandardMaterial({ map: wood(c), roughness: .55 }));
+const ft = wood('#d9bd92', true); ft.repeat.set(8, 8); const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: ft, roughness: .7 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+scene.add(new THREE.HemisphereLight(0xfff4e2, 0xb89a78, .9));
+const sun = new THREE.DirectionalLight(0xffe0b0, 2.4); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 6; sun.shadow.bias = -.0005; Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 14, bottom: -6, near: 1, far: 60 }); scene.add(sun, sun.target);
+const SHAPES = [() => [new THREE.BoxGeometry(2.2, .6, 1.1), .6], () => [new THREE.BoxGeometry(1.2, .9, 1.2), .9], () => [new THREE.BoxGeometry(1.7, .5, .9), .5], () => [new THREE.CylinderGeometry(.55, .55, .8, 24), .8], () => [new THREE.BoxGeometry(1, 1.3, 1), 1.3]];
+const tower = new THREE.Group(); scene.add(tower);
+// 散らばった積み木
+for (let i = 0; i < 7; i++) { const [geo, h] = SHAPES[i % 5](), m = new THREE.Mesh(geo, mats[(i * 2) % 5]); const a = i * 1.1 + .4, r = 3.4 + (i % 3) * 1.1; m.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r); m.rotation.y = i * 1.7; m.castShadow = m.receiveShadow = true; scene.add(m); }
+let blocks = [], top = 0, last = performance.now(), t = 0, spawn = 0, mode = 0, modeT = 0, camY = 3;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; modeT += dt;
+  if (mode === 0) { spawn -= dt; if (spawn <= 0 && blocks.length < 15) { spawn = .85; const [geo, h] = SHAPES[Math.floor(Math.random() * 5)](), m = new THREE.Mesh(geo, mats[Math.floor(Math.random() * 5)]);
+      m.castShadow = m.receiveShadow = true; m.rotation.y = (Math.random() - .5) * .7 + (Math.random() < .5 ? Math.PI / 2 : 0); const b = { m, h, x: (Math.random() - .5) * .5, z: (Math.random() - .5) * .4, y: top + h / 2, age: 0 }; top += h; tower.add(m); blocks.push(b); }
+    if (blocks.length >= 15 && spawn < -1.4) { mode = 1; modeT = 0; for (const b of blocks) { b.v = new THREE.Vector3((Math.random() - .5) * 5 + b.y * .5, 1 + Math.random() * 2, (Math.random() - .5) * 5); b.w = new THREE.Vector3(Math.random() * 6 - 3, Math.random() * 6 - 3, Math.random() * 6 - 3); b.p = b.m.position.clone(); } } }
+  for (const b of blocks) {
+    if (mode === 0) { b.age += dt; const f = Math.min(1, b.age / .42), sq = b.age > .42 && b.age < .7 ? Math.sin((b.age - .42) / .28 * Math.PI) * .08 : 0; b.m.position.set(b.x, b.y + (1 - f * f) * 7, b.z); b.m.scale.set(1 + sq, 1 - sq, 1 + sq); }
+    else { b.v.y -= 14 * dt; b.p.addScaledVector(b.v, dt); if (b.p.y < b.h / 2) { b.p.y = b.h / 2; b.v.y *= -.3; b.v.x *= .7; b.v.z *= .7; b.w.multiplyScalar(.6); } b.m.position.copy(b.p); b.m.rotation.x += b.w.x * dt; b.m.rotation.z += b.w.z * dt; }
+  }
+  tower.rotation.z = mode === 0 ? Math.sin(t * 1.3) * .004 * blocks.length : 0;
+  if (mode === 1 && modeT > 3) { for (const b of blocks) tower.remove(b.m); blocks = []; top = 0; mode = 0; spawn = .5; }
+  const ty = mode === 0 ? Math.max(2.4, top * .62) : 2.4; camY += (ty - camY) * Math.min(1, dt * 1.5);
+  const a = t * .12; cam.position.set(Math.sin(a) * 15, camY + 4.5, Math.cos(a) * 15); cam.lookAt(0, camY, 0);
+  sun.position.set(8, camY + 12, 6); sun.target.position.set(0, camY, 0);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

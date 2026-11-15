@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 81 森の探索 重ね切り紙のライトボックス</title>
+<style>
+html,body{margin:0;height:100%;background:#1a120c;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f6e6c0;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 81 ─ 森の探索 / 重ねた切り紙を後ろから照らす箱　｜　見るだけ（鹿が森を歩く）</div>
+<script>
+// 白い紙を切りぬいた板を 7 枚、すき間をあけて重ね、いちばん奥から電球で照らしている箱。
+// 奥の紙ほど光が透けて明るい黄色、手前の紙ほど光が届かず暗い青になる（色はこの 1 本のグラデーションだけ）。
+// 紙と紙のすき間があるので、手前の紙は 1 枚奥の紙にぼけた影を落とす。紙の切り口には細い明るい線が出る
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const COL = ['#ffe9a8', '#f8c878', '#e69a5c', '#b5685a', '#6f4a66', '#3a3558', '#1c2040'], RIM = ['#fff6d0', '#ffe2a0', '#ffc888', '#e09a80', '#a07a90', '#6a6890', '#444a78'];
+const X0 = 40, Y0 = 34, X1 = 920, Y1 = 566;
+function layer(k, wx, extra) {
+  const sp = .12 + k * .16, off = wx * sp, base = 300 + k * 38, per = 150 + k * 26;
+  g.save(); g.shadowColor = 'rgba(30,10,20,.55)'; g.shadowBlur = (16 - k) * S; g.shadowOffsetY = 5 * S; g.fillStyle = COL[k];
+  const shape = () => { g.beginPath(); g.moveTo(X0 - 20, Y1 + 20);
+    for (let x = X0 - 20; x <= X1 + 20; x += 10) g.lineTo(x, base + Math.sin((x + off) * .008 + k * 1.7) * 22 + Math.sin((x + off) * .021 + k) * 8); g.lineTo(X1 + 20, Y1 + 20); g.closePath();
+    for (let i = -1; i < 9; i++) { const n = Math.floor(off / per) + i, x = n * per - off + hash(n, k) * per * .5, gy = base + 10, h = (150 + hash(n, k + 5) * 150) * (.6 + k * .09), w = 5 + k * 2.4;
+      if (hash(n, k + 9) > .45) { g.moveTo(x - w, gy + 30); g.lineTo(x - w * .5, gy - h * .45); g.lineTo(x + w * .5, gy - h * .45); g.lineTo(x + w, gy + 30); for (let q = 0; q < 4; q++) { const ty = gy - h * (.25 + q * .2), tw = h * (.3 - q * .06); g.moveTo(x, ty - h * .3); g.lineTo(x + tw, ty); g.lineTo(x - tw, ty); g.closePath(); } }
+      else { g.moveTo(x - w, gy + 30); g.quadraticCurveTo(x - w * .3, gy - h * .4, x - w * .6, gy - h * .7); g.lineTo(x + w * .6, gy - h * .7); g.quadraticCurveTo(x + w * .3, gy - h * .4, x + w, gy + 30); for (let q = 0; q < 5; q++) { const a = q * 1.26 + n; g.moveTo(x + Math.cos(a) * h * .16 + h * .2, gy - h * .78 + Math.sin(a) * h * .12); g.arc(x + Math.cos(a) * h * .16, gy - h * .78 + Math.sin(a) * h * .12, h * .2, 0, 6.3); } } }
+    if (extra) extra(base, off); };
+  shape(); g.fill(); g.restore();
+  g.strokeStyle = RIM[k]; g.lineWidth = 1.1; g.globalAlpha = .55; shape(); g.stroke(); g.globalAlpha = 1;
+}
+function deer(x, y, ph) {
+  const l = a => Math.sin(ph + a) * 9;
+  g.moveTo(x - 30, y - 40); g.lineTo(x + 22, y - 44); g.lineTo(x + 34, y - 78); g.lineTo(x + 50, y - 80); g.lineTo(x + 52, y - 68); g.lineTo(x + 40, y - 62); g.lineTo(x + 34, y - 30); g.lineTo(x + 26, y - 18); g.lineTo(x - 28, y - 18); g.closePath();
+  for (const [lx, a] of [[-24, 0], [-14, 3.1], [18, 3.1], [27, 0]]) { g.moveTo(x + lx - 3, y - 22); g.lineTo(x + lx + 3, y - 22); g.lineTo(x + lx + 2 + l(a), y + 14); g.lineTo(x + lx - 2 + l(a), y + 14); g.closePath(); }
+  for (const s of [0, 8]) { g.moveTo(x + 38 + s, y - 78); g.lineTo(x + 34 + s, y - 106); g.lineTo(x + 26 + s, y - 112); g.lineTo(x + 36 + s, y - 108); g.lineTo(x + 40 + s, y - 122); g.lineTo(x + 42 + s, y - 106); g.lineTo(x + 52 + s, y - 110); g.lineTo(x + 43 + s, y - 100); g.lineTo(x + 43 + s, y - 78); g.closePath(); }
+}
+const start = performance.now();
+function frame(now) {
+  const t = (now - start) / 1000, wx = t * 36;
+  g.setTransform(S, 0, 0, S, 0, 0); g.fillStyle = '#2a1c12'; g.fillRect(0, 0, LW, LH);
+  g.save(); g.beginPath(); g.rect(X0, Y0, X1 - X0, Y1 - Y0); g.clip();
+  // いちばん奥：電球に照らされた紙
+  const fl = 1 + Math.sin(t * 2.1) * .015, bg = g.createRadialGradient(480, 250, 20, 480, 300, 620 * fl); bg.addColorStop(0, '#fffdf0'); bg.addColorStop(.3, '#fff0c0'); bg.addColorStop(1, '#f0b060'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+  g.fillStyle = '#fffefa'; g.shadowColor = '#fff8d8'; g.shadowBlur = 50 * S; g.beginPath(); g.arc(640 - wx * .02 % 200, 150, 54, 0, 7); g.fill(); g.shadowBlur = 0;
+  for (let k = 0; k < 7; k++) layer(k, wx, k === 5 ? (base) => deer(430, base - 6 + Math.sin((430 + wx * .92) * .008 + 8.5) * 22, t * 5) : null);
+  // 手前のわく（木の枝と草）
+  g.save(); g.shadowColor = 'rgba(10,5,20,.6)'; g.shadowBlur = 18 * S; g.fillStyle = '#12142c'; g.beginPath(); g.moveTo(X0 - 10, Y0 - 10); g.lineTo(X0 + 150, Y0 - 10); g.quadraticCurveTo(X0 + 70, Y0 + 60, X0 + 56, Y0 + 300); g.quadraticCurveTo(X0 + 60, Y1 - 60, X0 + 130, Y1 + 10); g.lineTo(X0 - 10, Y1 + 10); g.closePath();
+  g.moveTo(X1 + 10, Y0 - 10); g.lineTo(X1 - 170, Y0 - 10); g.quadraticCurveTo(X1 - 60, Y0 + 70, X1 - 50, Y0 + 280); g.quadraticCurveTo(X1 - 56, Y1 - 50, X1 - 140, Y1 + 10); g.lineTo(X1 + 10, Y1 + 10); g.closePath();
+  for (let i = 0; i < 40; i++) { const x = X0 + i * 23, h = 26 + hash(i, 3) * 40 + Math.sin(t * 1.5 + i) * 3; g.moveTo(x - 6, Y1 + 10); g.quadraticCurveTo(x - 2, Y1 - h * .5, x + Math.sin(t + i) * 5, Y1 - h); g.quadraticCurveTo(x + 3, Y1 - h * .5, x + 6, Y1 + 10); } g.fill(); g.restore();
+  // 蛍
+  for (let i = 0; i < 16; i++) { const x = X0 + (hash(i, 1) * 880 + Math.sin(t * .5 + i) * 40), y = 260 + hash(i, 2) * 260 + Math.cos(t * .7 + i * 2) * 20, a = .5 + .5 * Math.sin(t * 2.4 + i * 1.7); g.fillStyle = `rgba(255,250,200,${a})`; g.shadowColor = '#fff2a0'; g.shadowBlur = 14 * S; g.beginPath(); g.arc(x, y, 2.2, 0, 7); g.fill(); } g.shadowBlur = 0;
+  g.restore();
+  // 木の箱
+  g.strokeStyle = '#6a4a30'; g.lineWidth = 28; g.strokeRect(X0 - 14, Y0 - 14, X1 - X0 + 28, Y1 - Y0 + 28); g.strokeStyle = '#3a2618'; g.lineWidth = 3; g.strokeRect(X0, Y0, X1 - X0, Y1 - Y0); g.strokeStyle = '#8a6444'; g.lineWidth = 2; g.strokeRect(X0 - 27, Y0 - 27, X1 - X0 + 54, Y1 - Y0 + 54);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

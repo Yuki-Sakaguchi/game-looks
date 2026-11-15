@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 17 アドベンチャー 白黒2値</title>
+<style>
+html,body{margin:0;height:100%;background:#fff;overflow:hidden;font:12px/1 "Chicago","Geneva",ui-monospace,Menlo,monospace;color:#000}
+canvas{width:100vw;height:100vh;display:block;image-rendering:pixelated}
+#bar{position:fixed;inset:0 0 auto 0;height:22px;background:#fff;border-bottom:2px solid #000;display:flex;gap:18px;align-items:center;padding:0 12px;font-weight:700}
+#label{position:fixed;background:#fff;border:2px solid #000;box-shadow:3px 3px 0 #000;padding:6px 10px;white-space:nowrap}
+#cur{position:fixed;filter:drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff)}
+#cur i{display:block;width:14px;height:20px;background:#000;clip-path:polygon(0 0,0 100%,30% 75%,50% 100%,65% 92%,48% 68%,100% 68%)}
+#cap{position:fixed;left:8px;bottom:8px;background:#fff;border:2px solid #000;padding:5px 8px}
+</style>
+<canvas id="c"></canvas>
+<div id="bar"><span>ファイル</span><span>編集</span><span>しらべる</span><span>もちもの</span></div>
+<div id="label"></div><div id="cur"><i></i></div>
+<div id="cap">LOOK 17 ─ ポイント＆クリックADV / 白黒2値　｜　見るだけ（自動で調べる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 白と黒の 2 色だけ。明るさを 5 段に分け、段ごとに決まった模様（白・まばらな点・市松・密な点・黒）で塗る。
+// 明るさが急に変わる所は黒い線にする。ランプを点けたり消したりすると模様が入れ替わる
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+const RH = 342; let RW = 512;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(.03, .03, .03);
+const cam = new THREE.PerspectiveCamera(48, 1.5, .1, 50); cam.position.set(0, 2.3, 7.2); cam.lookAt(0, 1.5, 0);
+const gray = v => new THREE.MeshLambertMaterial({ color: new THREE.Color(v, v, v) });
+const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); scene.add(o); return o; };
+const box = (w, h, d, v, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), gray(v), x, y, z);
+
+scene.add(new THREE.AmbientLight(0xffffff, .35));
+const day = new THREE.DirectionalLight(0xffffff, 1.6); day.position.set(-6, 5, 3); scene.add(day);
+const lamp = new THREE.PointLight(0xffffff, 0, 9, 1.6); lamp.position.set(1.6, 2.5, -.6); scene.add(lamp);
+
+box(12, .1, 8, .55, 0, -.05, 0); box(12, 5, .1, .7, 0, 2.5, -3); box(.1, 5, 8, .5, -4.5, 2.5, 0); box(.1, 5, 8, .6, 4.5, 2.5, 0);
+box(3.4, .04, 2.2, .25, -.4, .01, .8);                                              // 敷物
+mesh(new THREE.PlaneGeometry(1.8, 1.6), new THREE.MeshBasicMaterial({ color: 0xffffff }), -2.6, 2.6, -2.94); // 窓
+box(.08, 1.6, .06, .1, -2.6, 2.6, -2.9); box(1.8, .08, .06, .1, -2.6, 2.6, -2.9);
+box(2.4, .12, 1.1, .45, 1.3, 1.4, -.8); for (const [x, z] of [[.2, -1.25], [2.4, -1.25], [.2, -.35], [2.4, -.35]]) box(.1, 1.4, .1, .3, x, .7, z); // 机
+mesh(new THREE.CylinderGeometry(.16, .2, .08, 8), gray(.2), 1.6, 1.5, -.9); mesh(new THREE.CylinderGeometry(.03, .03, .7, 6), gray(.2), 1.6, 1.85, -.9);
+const shade = mesh(new THREE.ConeGeometry(.36, .4, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide }), 1.6, 2.3, -.9);
+box(1.6, 3.4, .5, .35, -1, 1.7, -2.7); for (let s = 0; s < 3; s++) for (let i = 0; i < 6; i++) box(.16, .5 + (i * 7 + s) % 3 * .12, .3, [.15, .8, .5][(i + s) % 3], -1.6 + i * .22, .75 + s * 1 + .25, -2.5); // 本棚
+box(1.3, 2.8, .12, .3, 3.2, 1.4, -2.92); mesh(new THREE.SphereGeometry(.07, 8, 6), gray(.9), 2.75, 1.4, -2.82); // 扉
+mesh(new THREE.CylinderGeometry(.28, .2, .5, 8), gray(.4), -3.5, .25, 1); for (let i = 0; i < 5; i++) { const l = mesh(new THREE.ConeGeometry(.14, 1.2, 4), gray(.3), -3.5 + Math.cos(i * 1.26) * .2, 1, 1 + Math.sin(i * 1.26) * .2); l.rotation.set(Math.sin(i * 1.26) * .4, 0, -Math.cos(i * 1.26) * .4); } // 鉢植え
+box(1, .7, .05, .15, 1.2, 3.1, -2.92); box(.8, .5, .05, .8, 1.2, 3.1, -2.9); // 絵
+
+const rt = new THREE.WebGLRenderTarget(RW, RH); rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+const post = new THREE.ShaderMaterial({
+  uniforms: { t: { value: rt.texture }, px: { value: new THREE.Vector2() } },
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+  fragmentShader: `
+    uniform sampler2D t;uniform vec2 px;varying vec2 vUv;
+    float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
+    float b4(vec2 a){return b2(.5*a)*.25+b2(a);}
+    float L(vec2 o){return pow(dot(texture2D(t,vUv+o*px).rgb,vec3(.3,.59,.11)),.5);}
+    void main(){
+      float l=L(vec2(0.));
+      float e=abs(l-L(vec2(1.,0.)))+abs(l-L(vec2(0.,1.)));
+      float level=floor(clamp(l,0.,1.)*4.+.5)/4.;
+      float w=step(b4(gl_FragCoord.xy)+.03,level);
+      if(e>.14)w=0.;
+      gl_FragColor=vec4(vec3(w),1.);
+    }`
+});
+const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
+const pc = new THREE.Camera();
+function resize() { RW = Math.round(RH * innerWidth / innerHeight); renderer.setSize(RW, RH, false); rt.setSize(RW, RH); post.uniforms.px.value.set(1 / RW, 1 / RH); cam.aspect = RW / RH; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+// 自動で動くカーソルと、調べたときのふきだし
+const SPOTS = [
+  { p: [1.6, 2.2, -.9], on: 'ランプをつけた。', off: 'ランプを消した。', lamp: true }, { p: [-1, 2.2, -2.4], on: '古い本がならんでいる。' },
+  { p: [3.2, 1.6, -2.8], on: 'かぎがかかっている。' }, { p: [1.6, 2.2, -.9], lamp: true, on: 'ランプをつけた。', off: 'ランプを消した。' },
+  { p: [-2.6, 2.6, -2.9], on: '外はまぶしい。' }, { p: [-3.5, 1, 1], on: 'よく育った鉢植えだ。' }
+];
+const label = document.getElementById('label'), cur = document.getElementById('cur'), v = new THREE.Vector3();
+let t = 0, last = performance.now(), si = 0, st = 0, cx = 200, cy = 200, lit = false, done = false;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt; st += dt;
+  const s = SPOTS[si]; v.set(...s.p).project(cam);
+  const tx = (v.x * .5 + .5) * innerWidth, ty = (-v.y * .5 + .5) * innerHeight;
+  cx += (tx - cx) * Math.min(1, dt * 3.5); cy += (ty - cy) * Math.min(1, dt * 3.5);
+  if (st > 1.1 && !done) { done = true; if (s.lamp) lit = !lit; label.textContent = s.lamp && !lit ? s.off : s.on; }
+  if (st > 2.8) { si = (si + 1) % SPOTS.length; st = 0; done = false; }
+  label.style.display = done ? 'block' : 'none'; label.style.left = cx + 22 + 'px'; label.style.top = cy + 18 + 'px';
+  cur.style.left = cx + 'px'; cur.style.top = cy + (st > 1.05 && st < 1.2 ? 2 : 0) + 'px';
+  lamp.intensity += ((lit ? 22 : 0) - lamp.intensity) * Math.min(1, dt * 12);
+  day.intensity = lit ? .5 : 1.6; shade.material.color.setScalar(lit ? 1 : .1);
+  renderer.setRenderTarget(rt); renderer.render(scene, cam);
+  renderer.setRenderTarget(null); renderer.render(ps, pc);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

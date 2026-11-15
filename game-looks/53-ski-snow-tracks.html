@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 53 スキー 雪面のシュプールと青い影</title>
+<style>
+html,body{margin:0;height:100%;background:#eef3fa;overflow:hidden;display:grid;place-items:center}
+canvas{width:min(100vw,160vh);aspect-ratio:8/5;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3b5a8c;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 53 ─ スキー滑降 / 雪面のシュプールと青い影　｜　見るだけ</div>
+<script>
+// 画面のほとんどを白のまま残す。形を伝えるのは「低い朝日でのびた青い影」と「2 本のすべり跡」だけ。
+// 色は白・影の青・木の深緑・旗とウェアの赤の 4 つ。雪のこぶは、うすい青のだ円で片側だけに影を置く
+const LW = 960, LH = 600, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S; const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const V = 250, SY = 200, SHX = 1.5, SHY = .62, BLUE = '#b9cdec';
+const px = t => 480 + Math.sin(t * .8) * 230 + Math.sin(t * 2.3) * 50;
+const start = performance.now();
+function shadowPoly(pts) { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); }
+function tree(x, y, h) {
+  for (let k = 0; k < 3; k++) { const w = h * (.42 - k * .09), top = y - h * (.5 + k * .25), bot = y - h * (.12 + k * .22);
+    g.fillStyle = '#2f5d50'; g.beginPath(); g.moveTo(x, top); g.lineTo(x + w, bot); g.lineTo(x - w, bot); g.closePath(); g.fill();
+    g.fillStyle = '#4c8a72'; g.beginPath(); g.moveTo(x, top); g.lineTo(x - w, bot); g.lineTo(x - w * .1, bot); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x, top - 1); g.lineTo(x - w * .55, top + (bot - top) * .6); g.lineTo(x - w * .1, top + (bot - top) * .42); g.closePath(); g.fill(); }
+  g.fillStyle = '#5a4030'; g.fillRect(x - 2.5, y - h * .13, 5, h * .13);
+}
+function frame(now) {
+  const t = (now - start) / 1000, wy = t * V;
+  g.setTransform(S, 0, 0, S, 0, 0); const bgG = g.createLinearGradient(0, 0, LW, LH); bgG.addColorStop(0, '#ffffff'); bgG.addColorStop(1, '#e6eefa'); g.fillStyle = bgG; g.fillRect(0, 0, LW, LH);
+  const rows = []; for (let n = Math.floor(wy / 110) - 2; n < Math.floor(wy / 110) + 9; n++) rows.push(n);
+  // こぶの影
+  for (const n of rows) for (let k = 0; k < 3; k++) { const x = hash(n, k + 20) * LW, y = n * 110 + hash(n, k + 30) * 110 - wy, r = 40 + hash(n, k + 40) * 60; const gr = g.createRadialGradient(x + r * .3, y + r * .2, 0, x + r * .3, y + r * .2, r); gr.addColorStop(0, 'rgba(160,185,225,.32)'); gr.addColorStop(1, 'rgba(160,185,225,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x + r * .3, y + r * .2, r, r * .5, .4, 0, 7); g.fill(); }
+  // 木と旗の位置を決める
+  const objs = [];
+  for (const n of rows) for (let k = 0; k < 2; k++) { let x = hash(n, k + 1) * LW; const yw = n * 110 + hash(n, k + 5) * 80, p = px(yw / V - SY / V + 0); if (Math.abs(x - px((yw - SY) / V)) < 80) x += x > LW / 2 ? -190 : 190; objs.push({ x, y: yw - wy, h: 70 + hash(n, k + 9) * 50, tree: 1 }); }
+  for (let m = Math.floor(wy / 440) - 1; m < Math.floor(wy / 440) + 3; m++) { const yw = m * 440 + 200, c = px((yw - SY) / V); for (const sgn of [-1, 1]) objs.push({ x: c + sgn * 58, y: yw - wy, flag: m % 2 ? '#d8382c' : '#2c5fd8' }); }
+  objs.push({ x: px(t), y: SY, skier: 1 }); objs.sort((a, b) => a.y - b.y);
+  // のびた影（先に全部）
+  g.fillStyle = BLUE;
+  for (const o of objs) {
+    if (o.tree) shadowPoly([[o.x - o.h * .3, o.y], [o.x + o.h * .3, o.y], [o.x + o.h * SHX, o.y + o.h * SHY]]);
+    else if (o.flag) shadowPoly([[o.x - 1.5, o.y], [o.x + 1.5, o.y], [o.x + 60, o.y + 26], [o.x + 46, o.y + 14]]);
+    else { g.beginPath(); g.ellipse(o.x + 26, o.y + 12, 26, 6, .38, 0, 7); g.fill(); }
+  }
+  // すべり跡：2 本の細い線
+  g.strokeStyle = '#a3badf'; g.lineWidth = 2.2; g.lineJoin = 'round';
+  for (const off of [-5, 5]) { g.beginPath(); for (let k = 0; k <= 70; k++) { const tk = t - k * .02, a = Math.atan2(px(tk + .01) - px(tk - .01), .02 * V); g.lineTo(px(tk) + off * Math.cos(a), SY - k * .02 * V - off * Math.sin(a)); } g.stroke(); }
+  for (const o of objs) {
+    if (o.tree) tree(o.x, o.y, o.h);
+    else if (o.flag) { g.fillStyle = '#3a3a44'; g.fillRect(o.x - 1.5, o.y - 44, 3, 44); g.fillStyle = o.flag; g.beginPath(); g.moveTo(o.x + 1.5, o.y - 44); g.lineTo(o.x + 24, o.y - 37); g.lineTo(o.x + 1.5, o.y - 28); g.closePath(); g.fill(); }
+    else { const a = Math.atan2(px(t + .01) - px(t - .01), .02 * V);
+      g.save(); g.translate(o.x, o.y); g.rotate(-a); g.fillStyle = '#26303f'; g.fillRect(-7, -18, 3, 40); g.fillRect(4, -18, 3, 40); g.restore();
+      g.fillStyle = '#26303f'; g.fillRect(o.x - 6, o.y - 18, 12, 14); g.fillStyle = '#d8382c'; g.beginPath(); g.roundRect(o.x - 8, o.y - 34, 16, 20, 5); g.fill(); g.fillStyle = '#f2c9a0'; g.beginPath(); g.arc(o.x, o.y - 39, 6, 0, 7); g.fill(); g.fillStyle = '#26303f'; g.beginPath(); g.arc(o.x, o.y - 41, 6, Math.PI, 0); g.fill();
+      for (let k = 0; k < 6; k++) { const q = (t * 3 + k / 6) % 1; g.fillStyle = `rgba(255,255,255,${1 - q})`; g.beginPath(); g.arc(o.x - Math.sin(a) * 14 + (hash(k, 3) - .5) * 30 * q, o.y - 4 - q * 46, 5 + q * 9, 0, 7); g.fill(); } }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

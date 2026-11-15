@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 50 弾幕シューティング 金屏風</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1410;overflow:hidden;display:grid;place-items:center}
+canvas{height:100vh;max-width:100vw;aspect-ratio:3/4;display:block;cursor:none}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0d890;background:#1a1410;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 50 ─ 弾幕シューティング / 金屏風　｜　マウスで動かす（放っておくと自動でよける）</div>
+<script>
+// 金箔を貼った屏風絵として描く。地は 1 枚ずつ色の違う金箔の四角と継ぎ目、屏風の折れの明暗。
+// 絵は岩絵具の平らな色と細い輪郭線: 緑青の松、群青の流水、胡粉の白。弾は桜の花びらで、扇から渦を巻いて散る
+const LW = 600, LH = 800, S = Math.min(devicePixelRatio || 1, 2);
+const cv = document.getElementById('c'); cv.width = LW * S; cv.height = LH * S;
+const g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const SUMI = '#2a1c10', SHU = '#c8382e', GUNJO = '#2f5a8a', ROKU = '#3f7a5a', GOFUN = '#fbf6ea';
+
+const screen = document.createElement('canvas'); screen.width = LW * S; screen.height = LH * S;
+{
+  const x = screen.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  for (let j = 0; j < 14; j++) for (let i = 0; i < 10; i++) {                       // 金箔
+    const px = i * 62 - 10 + (j % 2) * 8, py = j * 62 - 20, v = hash(i, j);
+    const gr = x.createLinearGradient(px, py, px + 62, py + 62); gr.addColorStop(0, `hsl(${43 + v * 6},${62 + v * 14}%,${52 + v * 12}%)`); gr.addColorStop(1, `hsl(${40 + v * 6},${60 + v * 10}%,${44 + v * 10}%)`);
+    x.fillStyle = gr; x.fillRect(px, py, 62, 62); x.strokeStyle = 'rgba(90,55,10,.35)'; x.lineWidth = 1; x.strokeRect(px + .5, py + .5, 62, 62);
+  }
+  for (let i = 0; i < 500; i++) { x.fillStyle = `rgba(${Math.random() < .5 ? '255,240,180' : '110,70,10'},.09)`; x.fillRect(Math.random() * LW, Math.random() * LH, 2 + Math.random() * 16, 1.5); }
+  // 流水（群青の帯に胡粉の線）
+  x.fillStyle = GUNJO; x.beginPath(); x.moveTo(-10, 560); x.bezierCurveTo(160, 470, 300, 690, 610, 560); x.lineTo(610, 690); x.bezierCurveTo(330, 800, 170, 600, -10, 700); x.closePath(); x.fill();
+  x.strokeStyle = GOFUN; x.lineWidth = 1.6; for (let k = 0; k < 7; k++) { x.beginPath(); x.moveTo(-10, 575 + k * 17); x.bezierCurveTo(160, 485 + k * 17, 300, 705 + k * 15, 610, 575 + k * 16); x.stroke(); }
+  for (const [cx, cy] of [[150, 590], [380, 660], [500, 610]]) for (let r = 6; r < 26; r += 6) { x.beginPath(); x.arc(cx, cy, r, Math.PI * .1, Math.PI * 1.5); x.stroke(); }
+  // 松
+  x.strokeStyle = '#5a3a20'; x.lineWidth = 16; x.lineCap = 'round'; x.beginPath(); x.moveTo(620, 40); x.bezierCurveTo(520, 60, 500, 150, 400, 130); x.stroke(); x.lineWidth = 8; x.beginPath(); x.moveTo(500, 110); x.quadraticCurveTo(470, 190, 420, 220); x.stroke();
+  for (const [cx, cy, r] of [[400, 118, 46], [470, 70, 40], [420, 220, 40], [540, 150, 36], [340, 150, 30]]) { x.fillStyle = ROKU; x.beginPath(); x.ellipse(cx, cy, r, r * .5, 0, Math.PI, 0); x.fill(); x.strokeStyle = SUMI; x.lineWidth = .8; x.stroke(); x.strokeStyle = 'rgba(20,50,30,.6)'; for (let k = -4; k <= 4; k++) { x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + k * r * .22, cy - r * .46 * Math.cos(k * .3)); x.stroke(); } }
+  // 梅
+  x.strokeStyle = '#3a2416'; x.lineWidth = 9; x.beginPath(); x.moveTo(-10, 790); x.bezierCurveTo(60, 700, 60, 640, 150, 610); x.stroke(); x.lineWidth = 4; x.beginPath(); x.moveTo(70, 690); x.quadraticCurveTo(140, 700, 190, 670); x.stroke();
+  for (let i = 0; i < 11; i++) { const cx = 40 + hash(i, 5) * 170, cy = 610 + hash(i, 6) * 120; for (let k = 0; k < 5; k++) { x.fillStyle = i % 3 ? SHU : GOFUN; x.beginPath(); x.arc(cx + Math.cos(k * 1.257) * 6, cy + Math.sin(k * 1.257) * 6, 5, 0, 7); x.fill(); } x.fillStyle = '#f0c030'; x.beginPath(); x.arc(cx, cy, 2.5, 0, 7); x.fill(); }
+  // 屏風の折れ（6 曲）
+  for (let i = 0; i < 6; i++) { const gr = x.createLinearGradient(i * 100, 0, i * 100 + 100, 0); gr.addColorStop(0, i % 2 ? 'rgba(60,30,0,.28)' : 'rgba(255,245,200,.16)'); gr.addColorStop(1, i % 2 ? 'rgba(255,245,200,.12)' : 'rgba(60,30,0,.26)'); x.fillStyle = gr; x.fillRect(i * 100, 0, 100, LH); x.fillStyle = 'rgba(40,20,0,.5)'; x.fillRect(i * 100 - .5, 0, 1, LH); }
+  x.strokeStyle = '#1a1410'; x.lineWidth = 16; x.strokeRect(0, 0, LW, LH); x.strokeStyle = '#8a2a20'; x.lineWidth = 4; x.strokeRect(11, 11, LW - 22, LH - 22);
+}
+function petal(x, y, a, s, col) {
+  g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = col; g.strokeStyle = '#8a3a4a'; g.lineWidth = .7;
+  g.beginPath(); g.moveTo(-s, 0); g.bezierCurveTo(-s * .4, -s * .75, s * .8, -s * .7, s, -s * .14); g.lineTo(s * .7, 0); g.lineTo(s, s * .14); g.bezierCurveTo(s * .8, s * .7, -s * .4, s * .75, -s, 0); g.fill(); g.stroke(); g.restore();
+}
+const bullets = [], player = { x: 300, y: 680 }, fan = { x: 300, y: 150 };
+let mx = null, my = null, mouseT = -9, t = 0, last = performance.now(), fireA = 0, fireB = 0, spin = 0, graze = 0;
+addEventListener('pointermove', e => { const r = cv.getBoundingClientRect(); mx = (e.clientX - r.left) / r.width * LW; my = (e.clientY - r.top) / r.height * LH; mouseT = t; });
+
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  fan.x = 300 + Math.sin(t * .6) * 150; fan.y = 150 + Math.sin(t * 1.1) * 30;
+  // 渦を巻く花びらと、ねらって広がる花びら
+  if ((fireA -= dt) <= 0) { fireA = .09; spin += .31; for (let k = 0; k < 5; k++) { const a = spin + k * 1.2566; bullets.push({ x: fan.x, y: fan.y + 20, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, c: 0, r: Math.random() * 6 }); } }
+  if ((fireB -= dt) <= 0) { fireB = 1.6; const a0 = Math.atan2(player.y - fan.y, player.x - fan.x); for (let k = -4; k <= 4; k++) bullets.push({ x: fan.x, y: fan.y + 20, vx: Math.cos(a0 + k * .13) * 190, vy: Math.sin(a0 + k * .13) * 190, c: 1, r: 0 }); }
+  for (let i = bullets.length - 1; i >= 0; i--) { const b = bullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.r += dt * 3; if (b.x < -20 || b.x > LW + 20 || b.y < -20 || b.y > LH + 20) bullets.splice(i, 1); }
+  // 自機: 近い花びらから逃げつつ、下の中央へ戻ろうとする
+  if (t - mouseT < 2.5) { player.x += (mx - player.x) * Math.min(1, dt * 10); player.y += (my - player.y) * Math.min(1, dt * 10); }
+  else {
+    let fx = (300 + Math.sin(t * .4) * 120 - player.x) * 1.2, fy = (680 - player.y) * 1.2;
+    for (const b of bullets) { const dx = player.x - (b.x + b.vx * .12), dy = player.y - (b.y + b.vy * .12), d2 = dx * dx + dy * dy; if (d2 < 9000) { const k = 5200 / (d2 + 60); fx += dx * k; fy += dy * k * .6; if (d2 < 500) graze++; } }
+    player.x += Math.max(-260, Math.min(260, fx)) * dt; player.y += Math.max(-200, Math.min(200, fy)) * dt;
+  }
+  player.x = Math.max(30, Math.min(LW - 30, player.x)); player.y = Math.max(420, Math.min(LH - 40, player.y));
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(screen, 0, 0, LW, LH);
+  // 扇（弾を出す側）
+  g.save(); g.translate(fan.x, fan.y + 34); g.rotate(Math.sin(t * 2) * .12);
+  g.fillStyle = SHU; g.strokeStyle = SUMI; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, 76, Math.PI * 1.14, Math.PI * 1.86); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#f0c030'; g.beginPath(); g.arc(0, -46, 15, 0, 7); g.fill();
+  g.strokeStyle = '#f0c030'; g.lineWidth = 1.2; for (let k = 0; k <= 8; k++) { const a = Math.PI * (1.14 + .72 * k / 8); g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * 76, Math.sin(a) * 76); g.stroke(); }
+  g.fillStyle = SUMI; g.beginPath(); g.arc(0, 0, 5, 0, 7); g.fill(); g.restore();
+  for (const b of bullets) petal(b.x, b.y, Math.atan2(b.vy, b.vx) + Math.sin(b.r) * .5, b.c ? 9 : 7, b.c ? GOFUN : '#f6c0cc');
+  // 自機（白い鳥）
+  g.save(); g.translate(player.x, player.y); const flap = Math.sin(t * 12) * .5;
+  g.fillStyle = GOFUN; g.strokeStyle = SUMI; g.lineWidth = 1;
+  for (const s of [-1, 1]) { g.beginPath(); g.moveTo(0, -2); g.quadraticCurveTo(s * 16, -14 - flap * 10, s * 30, -4 + flap * 12); g.quadraticCurveTo(s * 14, 2, 0, 6); g.closePath(); g.fill(); g.stroke(); }
+  g.beginPath(); g.ellipse(0, 0, 6, 13, 0, 0, 7); g.fill(); g.stroke(); g.fillStyle = SHU; g.beginPath(); g.arc(0, -11, 3.4, 0, 7); g.fill();
+  g.fillStyle = SUMI; g.beginPath(); g.arc(0, 0, 2.2, 0, 7); g.fill(); g.restore();
+  // 短冊（かすった数）
+  g.fillStyle = GOFUN; g.strokeStyle = SUMI; g.lineWidth = 1.2; g.fillRect(34, 34, 40, 150); g.strokeRect(34, 34, 40, 150);
+  g.fillStyle = SUMI; g.font = '700 20px "Hiragino Mincho ProN","Yu Mincho",serif'; g.textAlign = 'center'; ['花', '弾'].forEach((ch, i) => g.fillText(ch, 54, 62 + i * 26));
+  g.fillStyle = SHU; g.font = '700 17px "Hiragino Mincho ProN","Yu Mincho",serif'; String(bullets.length).split('').forEach((ch, i) => g.fillText(ch, 54, 122 + i * 20));
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

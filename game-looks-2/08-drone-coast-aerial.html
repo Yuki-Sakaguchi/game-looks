@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2-08 空撮探索 ドローンの映像</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#osd{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100vw,177.78vh);height:min(100vh,56.25vw);pointer-events:none;font:600 13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#fff;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+#osd div{position:absolute} #a{left:3%;top:5%} #b{right:3%;top:5%;text-align:right} #c{left:3%;bottom:6%} #d{right:3%;bottom:6%;text-align:right}
+#x{left:50%;top:50%;width:46px;height:46px;margin:-23px;border:1.5px solid rgba(255,255,255,.8);border-radius:50%} #x:after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff;border-radius:50%}
+#hz{left:32%;right:32%;top:50%;height:0;border-top:1.5px solid rgba(255,255,255,.6)}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;opacity:.7}
+</style>
+<div id="osd"><div id="a"></div><div id="b"></div><div id="c"></div><div id="d"></div><div id="x"></div><div id="hz"></div></div>
+<div id="cap">2-08 ─ 空撮探索 / ドローンの映像　｜　見るだけ</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 晴れた昼の海辺を、ドローンのカメラで斜め上から見る。色はあざやかで、影はくっきり短い。
+// 広角でふちが少し曲がり、すみでは色が赤と青にずれ、輪郭は少しとがって見える（小さなカメラの映像らしさ）。
+// 画面は 16:9 で、高度・速さ・電池などの表示がのる。浅瀬は、水を半透明にして下の砂を透かすだけで出す
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 62, far: 700 }), { add, box, flat, glow, hash } = K;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+scene.background = new THREE.Color('#9ad0e8'); scene.fog = new THREE.Fog('#b8dcec', 120, 420);
+scene.add(new THREE.HemisphereLight(0xdff2ff, 0x8aa070, 1.5)); const sun = new THREE.DirectionalLight(0xfff4dc, 2.8); sun.position.set(50, 90, 30); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, near: 10, far: 250 }); sun.shadow.bias = -.001; scene.add(sun);
+const C = K.colors('#f0deb0', '#8cc070', '#7ab466', '#e0c86a', '#9a9488', '#6fa860');
+const H = (x, z) => { const coast = z + Math.sin(x * .05) * 14 + Math.sin(x * .13) * 4; return Math.max(-5, Math.min(1, -coast * .09) * 6 + (coast < -18 ? Math.sin(x * .07) * Math.cos(z * .06) * 3 + (-coast - 18) * .08 : 0)) + (Math.hypot(x - 46, z - 26) < 12 ? (12 - Math.hypot(x - 46, z - 26)) * .7 : 0); };
+const field = (x, z) => Math.sin(x * .09 + 1) > .2 && Math.cos(z * .08) > .3;
+const land = K.terrain(H, 100, 100, 2.4, (y, x, z) => y < 1.2 ? C[0] : y > 9.5 ? C[4] : field(x, z) ? (Math.floor(x / 3) % 2 ? C[3] : C[5]) : C[1 + Math.floor(hash(Math.round(x * .3), Math.round(z * .3)) * 2)]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+const sea = add(scene, new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: '#1fa0b8', transparent: true, opacity: .78, roughness: .3 }), 0, 0, 0); sea.rotation.x = -Math.PI / 2;
+// 村：家、教会、風車、道、木、桟橋と舟
+const shadow = m => { m.castShadow = true; m.receiveShadow = true; return m; };
+const ROOF = ['#c8603c', '#b85434', '#d8744a'];
+for (let i = 0; i < 16; i++) { const x = -34 + (i % 6) * 9 + hash(i, 1) * 4, z = -32 - Math.floor(i / 6) * 10 + hash(i, 2) * 4, y = H(x, z), w = 3.4 + hash(i, 3) * 1.6; shadow(box(scene, w, 2.4, 3, '#f4ecdc', x, y + 1.2, z)); const r = shadow(add(scene, new THREE.ConeGeometry(w * .82, 1.7, 4), ROOF[i % 3], x, y + 3.2, z)); r.rotation.y = Math.PI / 4; r.scale.z = .8; box(scene, .5, 1, .1, '#6a4a34', x, y + .5, z + 1.52); }
+{ const x = -8, z = -44, y = H(x, z); shadow(box(scene, 4, 5, 7, '#f4ecdc', x, y + 2.5, z)); shadow(box(scene, 2.4, 9, 2.4, '#f4ecdc', x, y + 4.5, z + 4.4)); shadow(add(scene, new THREE.ConeGeometry(2, 3, 4), '#5a6a8a', x, y + 10.5, z + 4.4)).rotation.y = Math.PI / 4; }
+const mill = new THREE.Group(); { const x = 30, z = -40, y = H(x, z); shadow(add(scene, new THREE.CylinderGeometry(1.4, 2.2, 7, 8), '#f4ecdc', x, y + 3.5, z)); shadow(add(scene, new THREE.ConeGeometry(1.8, 1.8, 8), '#8a5a44', x, y + 7.9, z)); mill.position.set(x, y + 6.6, z + 1.9); for (let k = 0; k < 4; k++) { const b = shadow(box(mill, .5, 5, .1, '#e8dcc0', 0, 0, 0)); b.geometry.translate(0, 2.6, 0); b.rotation.z = k * Math.PI / 2; } scene.add(mill); }
+for (let i = 0; i < 26; i++) box(scene, 2.6, .06, 2.6, '#e6d8b8', -40 + i * 3, H(-40 + i * 3, -27 + Math.sin(i * .5) * 2) + .12, -27 + Math.sin(i * .5) * 2);
+for (let i = 0; i < 120; i++) { const x = (hash(i, 4) - .5) * 200, z = -22 - hash(i, 5) * 90, y = H(x, z); if (y < 1.6 || field(x, z)) continue; add(scene, new THREE.CylinderGeometry(.2, .26, 1.4, 5), '#6a4a34', x, y + .7, z); shadow(add(scene, new THREE.IcosahedronGeometry(1.4 + hash(i, 6) * 1.2, 0), i % 2 ? '#4f9a58' : '#3f8a50', x, y + 2.6, z)); }
+for (let k = 0; k < 12; k++) shadow(box(scene, 2, .2, 1.3, '#a88660', 4, .7, -6 + k * 1.3));
+const boats = [...Array(5)].map((_, i) => { const g = new THREE.Group(); shadow(box(g, 1.6, .7, 4, ['#f4f4f4', '#e0483c', '#3f8ad0', '#f2c230', '#f4f4f4'][i], 0, .3, 0)); box(g, 1.1, .7, 1.4, '#e8e8e8', 0, .95, -.5); scene.add(g); return g; });
+for (let i = 0; i < 9; i++) { const x = 20 + hash(i, 7) * 60, z = -4 + hash(i, 8) * 12; if (H(x, z) > .6 && H(x, z) < 2) { add(scene, new THREE.ConeGeometry(1.2, .3, 8), ['#ff5a6a', '#ffd84a', '#5ac8ff'][i % 3], x, H(x, z) + 1.5, z); add(scene, new THREE.CylinderGeometry(.03, .03, 1.5, 3), '#eee', x, H(x, z) + .75, z); } }
+const dshadow = new THREE.Group(); for (const r of [0, 1.571]) { const b = box(dshadow, 1.6, .02, .22, new THREE.MeshBasicMaterial({ color: '#000', transparent: true, opacity: .4 }), 0, 0, 0); b.rotation.y = r + .785; } scene.add(dshadow);
+const fx = K.fx(scene, 100); let wT = 0;
+const post = K.post(renderer, `void main(){float asp=res.x/res.y,hh=min(1.,asp/(16./9.)),ww=min(1.,(16./9.)/asp);vec2 p=(vUv-.5)/vec2(ww,hh);
+if(abs(p.x)>.5||abs(p.y)>.5){gl_FragColor=vec4(0.,0.,0.,1.);return;}
+vec2 c=p*vec2(16./9.,1.);float r2=dot(c,c);vec2 u=p*(1.+.09*r2)*.94;vec2 e=u*r2*.006;
+vec2 q=u*vec2(ww,hh)+.5,eq=e*vec2(ww,hh);vec3 col=vec3(src(q+eq).r,src(q).g,src(q-eq).b);
+vec2 d=1.5/size;vec3 bl=(src(q+vec2(d.x,0.))+src(q-vec2(d.x,0.))+src(q+vec2(0.,d.y))+src(q-vec2(0.,d.y)))*.25;col+=(col-bl)*.9;
+float l=dot(col,vec3(.3,.59,.11));col=mix(vec3(l),col,1.25);col=(col-.5)*1.08+.52;col*=1.-r2*.22;gl_FragColor=vec4(col,1.);}`); onResize(post.resize);
+const O = id => document.getElementById(id), hz = O('hz');
+K.loop((dt, t) => {
+  const a = t * .07 + 1.2, R = 52 + Math.sin(t * .11) * 14, alt = 36 + Math.sin(t * .17) * 8, cx = Math.cos(a) * R + 4, cz = Math.sin(a) * R * .7 - 16;
+  cam.position.set(cx, alt, cz); cam.lookAt(Math.cos(a + 1.1) * 14 + 2, 2, Math.sin(a + 1.1) * 10 - 18); const tilt = Math.sin(t * 1.3) * .012 + Math.sin(t * .4) * .03; cam.rotation.z += tilt; hz.style.transform = `rotate(${-tilt * 57}deg)`;
+  dshadow.position.set(cx - 18, Math.max(.1, H(cx - 18, cz - 11)) + .15, cz - 11);
+  mill.rotation.z = t * .9;
+  boats.forEach((b, i) => { const ba = t * (.06 + i * .01) + i * 1.3, bx = Math.cos(ba) * (40 + i * 9) + 10, bz = 34 + Math.sin(ba) * (12 + i * 3) + i * 5; b.position.set(bx, Math.sin(t * 2 + i) * .08, bz); b.rotation.y = -ba + (i % 2 ? 0 : Math.PI); });
+  if ((wT -= dt) < 0) { wT = .12; for (const b of boats) fx.emit('puff', b.position.x, .25, b.position.z, { life: 1.6, size: 1.2, grow: 1.6, spread: .6, tint: '#eaffff', fog: false }); const sx = (Math.random() - .5) * 180, sz = -Math.sin(sx * .05) * 14 - Math.sin(sx * .13) * 4 + 1; fx.emit('puff', sx, .3, sz, { life: 1.2, size: 1.6, grow: 1, tint: '#ffffff', fog: false }); }
+  fx.update(dt);
+  post.render(scene, cam, t);
+  const s = 754 + Math.floor(t); O('a').innerHTML = '<span style="color:#ff4a3a">●</span> REC ' + [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(v => String(v).padStart(2, '0')).join(':') + '<br>4K 30 &nbsp; ISO 100 &nbsp; 1/800'; O('b').innerHTML = 'BAT ' + Math.max(11, 78 - Math.floor(t / 20)) + '% ▮▮▮▯<br>GPS 14 &nbsp; RC ▂▄▆█';
+  O('c').innerHTML = 'ALT ' + alt.toFixed(1) + ' m &nbsp; SPD ' + (3.6 + Math.sin(t * .3)).toFixed(1) + ' m/s<br>DIST ' + Math.hypot(cx - 4, cz + 16).toFixed(0) + ' m &nbsp; HOME ↙'; O('d').innerHTML = 'HDG ' + String(Math.round((a * 57 + 90) % 360)).padStart(3, '0') + '°<br>N 43°12′08″ &nbsp; E 5°21′44″';
+});
+</script>
+</html>
