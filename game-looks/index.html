@@ -19,11 +19,13 @@ a.card.fav{border-color:#e8b44a;box-shadow:0 0 0 1px #e8b44a}
 .star{position:absolute;left:8px;top:8px;z-index:2;font-size:18px;line-height:1;color:#ffd24a;background:rgba(20,20,24,.82);border:1px solid #e8b44a;border-radius:50%;width:28px;height:28px;display:grid;place-items:center}
 .genre{color:#9a988f;font-size:11px}
 .look{font-weight:600}
+a.card.play{border-color:#7fd8a8}
+.tag.play{color:#7fd8a8;border-color:#3a6050}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
   <h1>ゲームのルック 100 案</h1>
-  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
+  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。先頭の「遊べる」だけは、実際に操作できるゲームです。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -133,6 +135,12 @@ const LOOKS = [
 // お気に入り（2026-11-15 に選んだ 20 案）。ここに番号を足し引きすれば印が変わる
 const FAV = new Set(['01', '03', '04', '06', '11', '14', '22', '28', '40', '49', '54', '62', '64', '72', '73', '74', '79', '80', '82', '100']);
 const grid = document.getElementById('grid');
+// 遊べる版（LOOK 11 のルックで操作できる TPS 探索）を先頭に置く
+{
+  const a = document.createElement('a'); a.className = 'card play'; a.href = '../play/akari-no-mori.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="../play/akari-no-mori.gif" alt="灯りの森"></div><div class="meta"><span class="no">▶</span><span><span class="look">灯りの森（11 の遊べる版）</span><br><span class="genre">TPS 探索</span></span><span class="tag play">遊べる</span></div>`;
+  grid.appendChild(a);
+}
 for (const [file, genre, look, is3d] of LOOKS) {
   const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank'; 
   const fav = FAV.has(file.split('-')[0]); if (fav) a.classList.add('fav');
