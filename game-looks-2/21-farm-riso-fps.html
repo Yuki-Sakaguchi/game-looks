@@ -182,7 +182,7 @@ add(gun, new THREE.CylinderGeometry(.075, .055, .13, 8), TEAL, 0, .14, .08); box
 const shots = [...Array(24)].map(() => { const m = add(scene, new THREE.IcosahedronGeometry(.13, 0), new THREE.MeshBasicMaterial({ color: RED })); m.visible = false; return { m, v: new THREE.Vector3(), life: 0 }; }); let shotI = 0;
 
 // カラス：遠くから来て、作物におりて、ついばんで、持っていく
-const birdMat = flat('#2f5f70'), beakMat = flat(RED);
+const birdMat = flat('#3a2228'), beakMat = flat(RED);
 function makeBird() {
   const g = new THREE.Group(), b = new THREE.Group(); g.add(b); S(add(b, new THREE.ConeGeometry(.42, 1.5, 5), birdMat, 0, 0, -.1)).rotation.x = Math.PI / 2; S(add(b, new THREE.IcosahedronGeometry(.34, 0), birdMat, 0, .16, .62)); add(b, new THREE.ConeGeometry(.12, .4, 4), beakMat, 0, .12, 1).rotation.x = Math.PI / 2;
   const wings = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * .2, .1, 0); const w = S(box(p, 1.5, .06, .7, birdMat, s * .75, 0, 0)); w.geometry.translate(0, 0, -.05); b.add(p); return p; });
@@ -208,7 +208,7 @@ const PALS = [
 const rgb = h => new THREE.Vector3(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 const post = K.post(renderer, `uniform vec3 paper,inkA,inkB;uniform float dark;
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
-float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/5.2;vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
+float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/clamp(min(res.x,res.y)/130.,3.,5.2);vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
 void main(){vec3 a=src(vUv),b=src(vUv+vec2(3.,-2.)/res);
 float lum=dot(a,vec3(.3,.59,.11));float tealAmt=clamp(pow(clamp(1.-a.r,0.,1.),1.5)*1.35+(1.-lum)*.12-.04,0.,1.);float redAmt=clamp(1.-min(b.g,b.b)*1.08,0.,1.);redAmt*=smoothstep(.02,.3,b.r-min(b.g,b.b)+.25*(1.-dot(b,vec3(.33))));
 float k1=dotp(vUv,.26,tealAmt),k2=dotp(vUv+vec2(3.,-2.)/res,1.31,redAmt);
