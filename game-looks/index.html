@@ -20,11 +20,26 @@ a.card.fav{border-color:#e8b44a;box-shadow:0 0 0 1px #e8b44a}
 .genre{color:#9a988f;font-size:11px}
 .look{font-weight:600}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+h2{margin:0;padding:14px 20px 0;font-size:14px;font-weight:700}
+#play{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:10px 20px 4px}
+.tag.play{color:#7dffc0;border-color:#2f6a56}
 </style>
 <header>
   <h1>ゲームのルック 100 案</h1>
-  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
+  <p>サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。★ はお気に入りの印です。先頭の「遊べるゲーム」の欄は、実際に操作できるゲームです。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
 </header>
+<h2>遊べるゲーム</h2>
+<div id="play">
+  <a class="card fav" href="04-drive-snow-night-game.html" target="_blank">
+    <div class="view"><img loading="lazy" src="thumbs/04-game.gif" alt="雪夜ラリー"></div>
+    <div class="meta"><span class="no">04</span><span><span class="look">雪夜ラリー</span><br><span class="genre">レースゲーム</span></span><span class="tag play">遊べる</span></div>
+  </a>
+  <a class="card fav" href="../play/akari-no-mori.html" target="_blank">
+    <div class="view"><img loading="lazy" src="../play/akari-no-mori.gif" alt="灯りの森"></div>
+    <div class="meta"><span class="no">11</span><span><span class="look">灯りの森</span><br><span class="genre">TPS 探索</span></span><span class="tag play">遊べる</span></div>
+  </a>
+</div>
+<h2>ルック 100 案</h2>
 <div id="grid"></div>
 <script>
 // [ファイル名, ジャンル, ルック, 3D なら 1]

@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>雪夜ラリー ─ LOOK 04 で遊ぶレースゲーム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#070a22;--snow:#dfe8ff;--aur:#7dffc0;--warm:#ffb347;--red:#ff2848}
+html,body{margin:0;height:100%;background:var(--ink);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+body{font:14px/1.5 "DotGothic16",ui-monospace,Menlo,monospace;color:var(--snow)}
+canvas#c{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+canvas#fx{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;image-rendering:pixelated}
+.hud{position:fixed;pointer-events:none;text-shadow:2px 2px 0 var(--ink);font-variant-numeric:tabular-nums}
+#hud{opacity:0;transition:opacity .3s}
+#hud.on{opacity:1}
+#tl{left:16px;top:12px}
+#pos{font-size:54px;line-height:1}
+#pos small{font-size:20px;color:#aebcf0}
+#lap{font-size:18px;margin-top:4px}
+#tc{left:50%;top:12px;transform:translateX(-50%);text-align:center}
+#time{font-size:26px}
+#laps{font-size:13px;color:#aebcf0}
+#map{right:14px;top:12px;width:132px;height:132px;image-rendering:pixelated}
+#br{right:18px;bottom:16px;text-align:right}
+#spd{font-size:60px;line-height:1}
+#spd.boost{color:var(--aur)}
+#kmh{font-size:14px;color:#aebcf0}
+.bar{display:flex;gap:3px;justify-content:flex-end;margin-top:6px}
+.bar i{width:11px;height:14px;background:#1d2760;box-shadow:2px 2px 0 var(--ink)}
+#nitro i.on{background:var(--aur)}
+#drift i{width:26px;height:8px}
+#drift i.l1{background:#aebcf0}#drift i.l2{background:var(--warm)}#drift i.l3{background:#ff6ad0}
+.lbl{font-size:12px;color:#aebcf0;margin-top:6px}
+#msg{left:50%;top:30%;transform:translate(-50%,-50%);font-size:44px;text-align:center;white-space:nowrap;opacity:0}
+#msg.show{opacity:1}
+#msg.big{font-size:120px}
+#msg.aur{color:var(--aur)}#msg.warm{color:var(--warm)}#msg.red{color:var(--red)}
+#help{left:14px;bottom:12px;font-size:12px;color:#aebcf0}
+.ov{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(#070a22dd,#070a2277 45%,#070a22dd);padding:16px;box-sizing:border-box}
+.ov.on{display:flex}
+h1{margin:0;font-size:clamp(40px,9vw,92px);line-height:1.05;font-weight:400;letter-spacing:.06em;text-shadow:4px 4px 0 #5a4fd0,8px 8px 0 var(--ink)}
+.sub{margin:10px 0 22px;color:var(--aur);font-size:clamp(13px,2.2vw,18px);text-shadow:2px 2px 0 var(--ink)}
+.keys{display:grid;grid-template-columns:auto auto;gap:3px 16px;text-align:left;font-size:13px;margin:0 auto 20px;text-shadow:2px 2px 0 var(--ink)}
+.keys b{color:var(--warm);font-weight:400;text-align:right}
+button.go{font:inherit;font-size:22px;color:var(--ink);background:var(--aur);border:0;padding:10px 30px;cursor:pointer;box-shadow:4px 4px 0 var(--ink);animation:blink 1s steps(2) infinite}
+button.go:hover{background:#fff}
+@keyframes blink{50%{opacity:.72}}
+.tips{margin-top:18px;font-size:12px;color:#aebcf0;max-width:34em;text-shadow:2px 2px 0 var(--ink)}
+#rank{font-size:clamp(46px,10vw,96px);line-height:1;text-shadow:4px 4px 0 #5a4fd0,8px 8px 0 var(--ink)}
+#rtable{margin:14px auto 20px;border-collapse:collapse;font-size:15px;text-shadow:2px 2px 0 var(--ink)}
+#rtable td{padding:1px 12px;text-align:left}
+#rtable tr.me td{color:var(--warm)}
+#rnote{color:var(--aur);min-height:1.5em;margin-bottom:10px;text-shadow:2px 2px 0 var(--ink)}
+#touch{display:none}
+body.touch #touch{display:block}
+body.touch #help{display:none}
+.tb{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));width:76px;height:76px;border:3px solid #aebcf0;background:#10184488;color:var(--snow);font:inherit;font-size:15px;display:grid;place-items:center;touch-action:none;box-sizing:border-box}
+.tb.dn{background:#7dffc0aa;color:var(--ink)}
+#bL{left:14px}#bR{left:100px}
+#bD{right:14px;width:92px;height:92px}#bN{right:116px}#bB{right:116px;bottom:calc(104px + env(safe-area-inset-bottom));height:48px;font-size:12px;white-space:nowrap}
+body.touch #br{bottom:calc(176px + env(safe-area-inset-bottom))}
+@media(max-width:640px){#pos{font-size:38px}#spd{font-size:40px}#map{width:92px;height:92px}#time{font-size:20px}#msg{font-size:26px}#msg.big{font-size:84px}}
+</style>
+<canvas id="c"></canvas>
+<canvas id="fx" width="192" height="108"></canvas>
+
+<div id="hud">
+  <div id="tl" class="hud"><div id="pos">6<small>/6</small></div><div id="lap">LAP 1/3</div></div>
+  <div id="tc" class="hud"><div id="time">0:00.00</div><div id="laps"></div></div>
+  <canvas id="map" class="hud" width="66" height="66"></canvas>
+  <div id="br" class="hud">
+    <div id="spd">0</div><div id="kmh">km/h</div>
+    <div class="lbl">ドリフト</div><div id="drift" class="bar"><i></i><i></i><i></i></div>
+    <div class="lbl">ニトロ</div><div id="nitro" class="bar"></div>
+  </div>
+  <div id="help" class="hud">←→ ハンドル　↑ アクセル　↓ ブレーキ　Space ドリフト　Shift ニトロ　R 復帰　P ポーズ　M 音</div>
+</div>
+<div id="msg" class="hud"></div>
+
+<div id="title" class="ov on">
+  <h1>雪夜ラリー</h1>
+  <div class="sub">SNOW NIGHT RALLY ─ オーロラの峠を 3 周</div>
+  <div class="keys">
+    <b>← → / A D</b><span>ハンドル</span>
+    <b>↑ / W</b><span>アクセル</span>
+    <b>↓ / S</b><span>ブレーキ・バック</span>
+    <b>Space</b><span>ドリフト（曲がりながら押し続け、離すとダッシュ）</span>
+    <b>Shift / X</b><span>ニトロ（ゲージを使って加速）</span>
+  </div>
+  <button class="go" id="start">スタート</button>
+  <div class="tips">ドリフトを長くためるほど、離したときのダッシュが強くなります（白 → 橙 → 桃）。<br>道のきらめきを拾う・ドリフトする・前の車のうしろにつく、でニトロがたまります。<br>カウントの「1」が出てからアクセルを踏むとロケットスタート。</div>
+  <div class="tips" id="best"></div>
+</div>
+<div id="result" class="ov">
+  <div id="rank"></div>
+  <div id="rnote"></div>
+  <table id="rtable"></table>
+  <button class="go" id="retry">もう一度走る</button>
+</div>
+<div id="pause" class="ov"><h1 style="font-size:56px">ポーズ</h1><div class="sub">P か Esc でつづける</div></div>
+
+<div id="touch">
+  <button class="tb" id="bL">◀</button><button class="tb" id="bR">▶</button>
+  <button class="tb" id="bB">ブレーキ</button><button class="tb" id="bN">ニトロ</button><button class="tb" id="bD">ドリフト</button>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// LOOK 04「雪の夜道」と同じ描き方: 立体はなめらかなローポリ、空・雪・雪けむり・きらめき・火花はドット絵
+const $ = id => document.getElementById(id);
+const QS = new URLSearchParams(location.search);
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x070a22);
+const scene = new THREE.Scene();
+const FOG = 0x232c66;
+scene.fog = new THREE.Fog(FOG, 26, 185);
+const cam = new THREE.PerspectiveCamera(58, 1, .1, 430);
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + .5) / 16);
+const TAU = Math.PI * 2;
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const sm = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+const rgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
+// ───────── 空: 384×64 のドット絵を筒に貼り、毎秒 10 回描き直す（帯のグラデーション、星、三日月、オーロラ）
+const SW = 384, SH = 64, HORIZ = 40;
+const sky = document.createElement('canvas'); sky.width = SW; sky.height = SH;
+const sx = sky.getContext('2d');
+const skyImg = sx.createImageData(SW, SH), skyBase = new Uint8ClampedArray(SW * SH * 4);
+const skyTex = new THREE.CanvasTexture(sky);
+skyTex.magFilter = skyTex.minFilter = THREE.NearestFilter; skyTex.generateMipmaps = false; skyTex.colorSpace = THREE.SRGBColorSpace;
+skyTex.wrapS = THREE.RepeatWrapping;
+const BANDS = ['#070a22', '#0b1030', '#101844', '#172054', '#1d2760', '#232c66'].map(rgb);
+const AUR = ['#7dffc0', '#34c9a0', '#3a7fc0', '#5a4fd0'].map(rgb);
+const put = (buf, x, y, c) => { const k = (y * SW + x) * 4; buf[k] = c[0]; buf[k + 1] = c[1]; buf[k + 2] = c[2]; buf[k + 3] = 255; };
+for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+  const f = Math.min(4.999, y / HORIZ * 5), i = Math.floor(f);
+  put(skyBase, x, y, BANDS[Math.min(5, i + (f - i > BAY[(y & 3) * 4 + (x & 3)] ? 1 : 0))]);
+}
+for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++)
+  if (Math.hypot(x, y) < 5.5 && Math.hypot(x - 2.5, y + 1.5) > 5) put(skyBase, 300 + x, 10 + y, [255, 246, 216]);
+function drawSky(t) {
+  const d = skyImg.data; d.set(skyBase);
+  for (let i = 0; i < 170; i++) if (Math.sin(t * 3 + i * 2.1) > -.4)
+    put(d, Math.floor(hash(i, 1) * SW), Math.floor(hash(i, 2) * 34), i % 5 ? [174, 188, 240] : [255, 255, 255]);
+  for (let x = 0; x < SW; x++) {
+    const a = x / SW * TAU;
+    const base = 15 + 5 * Math.sin(a * 8 + t * .3) + 3 * Math.sin(a * 19 - t * .5);
+    const len = 11 + 6 * Math.sin(a * 12 + t * .4 + 2), power = .5 + .5 * Math.sin(a * 5 + t * .25);
+    for (let k = 0; k < len; k++) {
+      const y = Math.round(base + len - k), f = k / len;
+      if (y < 0 || y >= SH || BAY[(y & 3) * 4 + (x & 3)] > power * (1 - f * .8)) continue;
+      put(d, x, y, AUR[f < .25 ? 0 : f < .55 ? 1 : f < .8 ? 2 : 3]);
+    }
+  }
+  sx.putImageData(skyImg, 0, 0); skyTex.needsUpdate = true;
+}
+const DOME_TOP = 235, DOME_H = DOME_TOP / (HORIZ / SH);
+const dome = new THREE.Mesh(new THREE.CylinderGeometry(300, 300, DOME_H, 48, 1, true),
+  new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false, depthTest: false }));
+dome.renderOrder = -10; dome.frustumCulled = false; scene.add(dome);
+
+// 光: 青い月明かり、暖色のヘッドライト、赤いテールランプ
+scene.add(new THREE.HemisphereLight(0x3a4a9a, 0x10142e, 1.5));
+const moon = new THREE.DirectionalLight(0x8fa8ff, 2.4); moon.position.set(-30, 40, -20); scene.add(moon);
+
+// ───────── コース: 閉じたスプラインを 2m おきに刻む
+const CP = [[-230, 0], [-60, 0], [120, 0], [262, 12], [352, 72], [376, 172], [322, 252], [226, 262], [160, 196], [92, 140], [8, 158], [-28, 240], [40, 318], [52, 398], [-6, 452], [-78, 424], [-112, 344], [-186, 280], [-262, 226], [-352, 252], [-428, 204], [-442, 104], [-384, 32], [-306, 4]];
+const curve = new THREE.CatmullRomCurve3(CP.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+curve.arcLengthDivisions = 6000;
+const LEN = curve.getLength(), N = Math.round(LEN / 2), DS = LEN / N;
+const PX = new Float32Array(N), PZ = new Float32Array(N), PY = new Float32Array(N), TX = new Float32Array(N), TZ = new Float32Array(N),
+  NX = new Float32Array(N), NZ = new Float32Array(N), KR = new Float32Array(N), KS = new Float32Array(N), LINE = new Float32Array(N), VT = new Float32Array(N);
+const wrap = i => ((i % N) + N) % N;
+{
+  const sp = curve.getSpacedPoints(N);
+  for (let i = 0; i < N; i++) {
+    PX[i] = sp[i].x; PZ[i] = sp[i].z; const u = i / N * TAU;
+    PY[i] = 6 * Math.sin(u * 2 + .6) + 2.5 * Math.sin(u * 5 + 2) + Math.sin(u * 9);
+  }
+  for (let i = 0; i < N; i++) {
+    const a = wrap(i - 1), b = wrap(i + 1), dx = PX[b] - PX[a], dz = PZ[b] - PZ[a], l = Math.hypot(dx, dz);
+    TX[i] = dx / l; TZ[i] = dz / l; NX[i] = TZ[i]; NZ[i] = -TX[i];   // N は進行方向の左
+  }
+  for (let i = 0; i < N; i++) { const a = wrap(i - 1), b = wrap(i + 1); KR[i] = ((TX[b] - TX[a]) * NX[i] + (TZ[b] - TZ[a]) * NZ[i]) / (2 * DS); }
+  const blur = (src, dst, w) => { for (let i = 0; i < N; i++) { let s = 0; for (let k = -w; k <= w; k++) s += src[wrap(i + k)]; dst[i] = s / (2 * w + 1); } };
+  blur(KR, KS, 4);                       // KS > 0 は左カーブ
+  const wide = new Float32Array(N); blur(KS, wide, 14);
+  for (let i = 0; i < N; i++) LINE[i] = clamp(wide[i] * 300, -4.2, 4.2);   // ライバルが狙うライン（内側へ寄る）
+  for (let i = 0; i < N; i++) VT[i] = Math.min(56, Math.sqrt(58 / Math.max(1e-4, Math.abs(KS[i]))));
+  for (let r = 0; r < 2; r++) for (let i = N - 1; i >= 0; i--) VT[i] = Math.min(VT[i], Math.sqrt(VT[wrap(i + 1)] ** 2 + 2 * 20 * DS));
+}
+const thAt = i => Math.atan2(-TX[i], -TZ[i]);
+const ROAD = 6.4, WALL = 9.3;
+
+// 地形: コースからの距離で高さを決める。道の両脇は除雪の土手、遠くは山
+function nearest(x, z) {
+  let bi = 0, bd = 1e12;
+  for (let i = 0; i < N; i += 4) { const dx = x - PX[i], dz = z - PZ[i], d = dx * dx + dz * dz; if (d < bd) { bd = d; bi = i; } }
+  if (bd < 1600) for (let k = -4; k <= 4; k++) { const i = wrap(bi + k), dx = x - PX[i], dz = z - PZ[i], d = dx * dx + dz * dz; if (d < bd) { bd = d; bi = i; } }
+  return [Math.sqrt(bd), bi];
+}
+const bank = d => sm(7.6, 10.5, d) * 1.5 * (1 - .5 * sm(11, 17, d));
+function flank(d, x, z) {
+  return bank(d)
+    + sm(9, 20, d) * Math.max(0, 1.1 + Math.sin(x * .31 + z * .12) + .7 * Math.sin(z * .33 + x * .73 + 1.3) + .5 * Math.sin(x * .9 - z * .2))
+    + sm(40, 120, d) * 17 * (.6 + .4 * Math.sin(x * .021 + 1) * Math.cos(z * .017))
+    - .4 * (1 - sm(6.2, 7.4, d));
+}
+const yref = (d, i) => PY[i] * (1 - sm(40, 130, d));
+function ground(x, z) { const [d, i] = nearest(x, z); return yref(d, i) + flank(d, x, z); }
+
+{
+  const G = 3.5, M = 175;
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (let i = 0; i < N; i++) { x0 = Math.min(x0, PX[i]); x1 = Math.max(x1, PX[i]); z0 = Math.min(z0, PZ[i]); z1 = Math.max(z1, PZ[i]); }
+  x0 -= M; z0 -= M; const nx = Math.ceil((x1 + M - x0) / G) + 1, nz = Math.ceil((z1 + M - z0) / G) + 1;
+  const H = new Float32Array(nx * nz), D = new Float32Array(nx * nz), R = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const x = x0 + i * G, z = z0 + j * G, [d, k] = nearest(x, z), q = j * nx + i;
+    D[q] = d; R[q] = yref(d, k); H[q] = R[q] + flank(d, x, z);
+  }
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const lo = new THREE.Color(0xc8d6ff), hi = new THREE.Color(0xffffff), c = new THREE.Color(), TS = 20;
+  for (let tj = 0; tj < nz - 1; tj += TS) for (let ti = 0; ti < nx - 1; ti += TS) {
+    const pos = [], col = [];
+    for (let j = tj; j < Math.min(tj + TS, nz - 1); j++) for (let i = ti; i < Math.min(ti + TS, nx - 1); i++) {
+      const q = [j * nx + i, (j + 1) * nx + i, j * nx + i + 1, (j + 1) * nx + i + 1];
+      if (Math.min(D[q[0]], D[q[1]], D[q[2]], D[q[3]]) > M) continue;
+      const P = [[i, j], [i, j + 1], [i + 1, j], [i + 1, j + 1]];
+      for (const tri of [[0, 1, 2], [2, 1, 3]]) {
+        let cy = 0;
+        for (const v of tri) { pos.push(x0 + P[v][0] * G, H[q[v]], z0 + P[v][1] * G); cy += (H[q[v]] - R[q[v]]) / 3; }
+        c.copy(lo).lerp(hi, clamp(cy / 8, 0, 1)).multiplyScalar(.94 + hash(q[tri[0]], tri[2], 4) * .1);
+        for (let k = 0; k < 3; k++) col.push(c.r, c.g, c.b);
+      }
+    }
+    if (!pos.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals(); scene.add(new THREE.Mesh(g, mat));
+  }
+  // 路面のリボン（端は雪が残って明るい）
+  const LAT = [-7.3, -6.4, -4.6, -1.6, 1.6, 4.6, 6.4, 7.3], DROP = [.7, 0, 0, 0, 0, 0, 0, .7];
+  const SC = [0x9aa9dc, 0x7888c4, 0x6272b2, 0x596aaa, 0x6272b2, 0x7888c4, 0x9aa9dc].map(h => new THREE.Color(h));
+  const pos = [], col = [];
+  const v = (i, k) => { const a = i % N; pos.push(PX[a] + NX[a] * LAT[k], PY[a] + .03 - DROP[k], PZ[a] + NZ[a] * LAT[k]); };
+  for (let i = 0; i < N; i++) for (let k = 0; k < 7; k++) {
+    v(i, k); v(i + 1, k); v(i, k + 1); v(i + 1, k); v(i + 1, k + 1); v(i, k + 1);
+    c.copy(SC[k]).multiplyScalar(.95 + hash(i, k, 9) * .09);
+    for (let q = 0; q < 6; q++) col.push(c.r, c.g, c.b);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals(); scene.add(new THREE.Mesh(g, mat));
+}
+
+const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+const basic = (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o });
+const box = (w, h, d, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); return o; };
+const dummy = new THREE.Object3D();
+function atTrack(o, i, lat, y = 0) { i = wrap(i); o.position.set(PX[i] + NX[i] * lat, PY[i] + y, PZ[i] + NZ[i] * lat); o.rotation.set(0, thAt(i), 0); return o; }
+
+// ドット絵のテクスチャ
+function pixTex(w, h, fn, frames = 1) {
+  const c = document.createElement('canvas'); c.width = w * frames; c.height = h; const g = c.getContext('2d');
+  for (let f = 0; f < frames; f++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const col = fn(f, x, y); if (col) { g.fillStyle = col; g.fillRect(f * w + x, y, 1, 1); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(1 / frames, 1);
+  return t;
+}
+const pix = (n, fn) => pixTex(8, 8, fn, n);
+const flakeTex = pix(1, (f, x, y) => {
+  const a = Math.abs(x - 3.5), b = Math.abs(y - 3.5);
+  return ((a < 1 || b < 1) && a + b < 4.2) || (a === b && a < 3) ? '#ffffff' : null;
+});
+const puffTex = pix(5, (f, x, y) => {
+  const d = Math.hypot(x - 3.5, y - 3.5), r = 1.4 + f * .7;
+  if (d > r || (f > 2 && hash(x, y, f) < (f - 2) * .3)) return null;
+  return x + y * .6 < 5 - f * .2 ? '#ffffff' : '#aebcf0';
+});
+const starTex = pix(4, (f, x, y) => {
+  const a = Math.abs(x - 3.5), b = Math.abs(y - 3.5), s = [1, 2.6, 4.2, 2.6][f];
+  return ((a < 1 || b < 1) && a + b < s) || (f === 2 && a === b && a < 2) ? (a + b < 1.5 ? '#ffffff' : '#fff2b0') : null;
+});
+const chevTex = pixTex(16, 8, (f, x, y) => {
+  for (const cx of [4, 11]) { const xs = cx - 2 + Math.round(Math.abs(y - 3.5) - .5); if (x === xs || x === xs + 1) return '#ffb347'; }
+  return '#20264a';
+});
+const padTex = pixTex(8, 8, (f, x, y) => {
+  const r = Math.floor(Math.abs(x - 3.5)) + 1;
+  return y === r || y === r + 1 ? '#7dffc0' : y === (r + 4) % 8 || y === (r + 5) % 8 ? '#34c9a0' : null;
+});
+padTex.wrapT = THREE.RepeatWrapping; padTex.repeat.set(1, 2);
+const checkTex = pixTex(16, 2, (f, x, y) => (x + y) & 1 ? '#f2f6ff' : '#20264a');
+
+// 道ばた: 反射板つきの標識柱、カーブの矢印板、木
+{
+  const posts = [], boards = [];
+  for (let i = 0; i < N; i++) {
+    const k = Math.abs(KS[i]), tight = k > 1 / 95, out = KS[i] > 0 ? -1 : 1;
+    if (i % 6 === 0) { posts.push([i, 7]); posts.push([i, -7]); }
+    else if (tight && i % 3 === 0) posts.push([i, out * 7]);
+    if (k > 1 / 75 && i % 5 === 0) boards.push([i, out]);
+  }
+  const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(.14, 1.1, .14), lam(0x20264a), posts.length);
+  const rm = new THREE.InstancedMesh(new THREE.BoxGeometry(.24, .24, .24), basic(0xffb347, { fog: false }), posts.length);
+  posts.forEach(([i, lat], q) => {
+    atTrack(dummy, i, lat, .45).updateMatrix(); pm.setMatrixAt(q, dummy.matrix);
+    dummy.position.y += .5; dummy.updateMatrix(); rm.setMatrixAt(q, dummy.matrix);
+  });
+  const bm = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.4, 1.2), basic(0xffffff, { map: chevTex, side: THREE.DoubleSide, fog: false }), boards.length);
+  const lm = new THREE.InstancedMesh(new THREE.BoxGeometry(.14, 2.2, .14), lam(0x20264a), boards.length);
+  boards.forEach(([i, out], q) => {
+    atTrack(dummy, i, out * 8.9, .9).updateMatrix(); lm.setMatrixAt(q, dummy.matrix);
+    dummy.position.y += 1.3; dummy.scale.x = out; dummy.updateMatrix(); bm.setMatrixAt(q, dummy.matrix); dummy.scale.x = 1;
+  });
+  for (const m of [pm, rm, bm, lm]) { m.frustumCulled = false; scene.add(m); }
+
+  const T = [];
+  for (let i = 0; T.length < 900 && i < 6000; i++) {
+    const k = Math.floor(hash(i, 1) * N), lat = (hash(i, 5) < .5 ? -1 : 1) * (12 + Math.pow(hash(i, 2), 1.6) * 60);
+    const x = PX[k] + NX[k] * lat, z = PZ[k] + NZ[k] * lat, [d, q] = nearest(x, z);
+    if (d < 11.5) continue;
+    T.push([x, yref(d, q) + flank(d, x, z) - .15, z, .8 + hash(i, 3) * .9, i]);
+  }
+  const parts = [[new THREE.CylinderGeometry(.18, .22, 1, 5), lam(0x3a2a30), .5], [new THREE.ConeGeometry(1.3, 2.4, 6), lam(0x1c4a52), 1.9], [new THREE.ConeGeometry(1, 2, 6), lam(0xeaf2ff), 3.1]];
+  for (const [g, m, py] of parts) {
+    const im = new THREE.InstancedMesh(g, m, T.length);
+    T.forEach(([x, y, z, s, r], q) => { dummy.position.set(x, y + py * s, z); dummy.rotation.set(0, r, 0); dummy.scale.setScalar(s); dummy.updateMatrix(); im.setMatrixAt(q, dummy.matrix); });
+    im.frustumCulled = false; scene.add(im);
+  }
+  dummy.scale.setScalar(1);
+  // スタートゲート
+  const gate = atTrack(new THREE.Group(), 0, 0);
+  const line = new THREE.Mesh(new THREE.PlaneGeometry(12.8, 1.6), basic(0xffffff, { map: checkTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  line.rotation.x = -Math.PI / 2; line.position.y = .05;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(17, 1.3, .4), basic(0xffffff, { map: checkTex }));
+  beam.position.y = 6.6;
+  gate.add(line, beam, box(.5, 7.4, .5, lam(0x20264a), -8.2, 3.3, 0), box(.5, 7.4, .5, lam(0x20264a), 8.2, 3.3, 0));
+  for (let k = -3; k <= 3; k++) gate.add(box(.5, .3, .5, basic(0xffb347, { fog: false }), k * 2.3, 5.75, 0));
+  scene.add(gate);
+}
+
+// ダッシュ板ときらめき（ニトロの素）
+const padMat = basic(0xffffff, { map: padTex, transparent: true, alphaTest: .5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const pads = [.04, .22, .40, .585, .76, .90].map((f, q) => {
+  let i = Math.floor(f * N); for (let k = 0; k < 120 && Math.abs(KS[wrap(i)]) > 1 / 160; k++) i++;
+  i = wrap(i); const lat = [0, -3, 3][q % 3];
+  const g = new THREE.PlaneGeometry(3.6, 7); g.rotateX(-Math.PI / 2);
+  const m = atTrack(new THREE.Mesh(g, padMat), i, lat, .06);
+  m.rotation.x = Math.atan2(PY[wrap(i + 2)] - PY[wrap(i - 2)], 4 * DS); m.rotation.order = 'YXZ';
+  scene.add(m); return { i, lat };
+});
+const sprite = (tex, opt = {}) => {
+  const t = tex.clone(); t.needsUpdate = true;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: .5, depthWrite: false, ...opt }));
+  s.visible = false; s.userData.a = 9; return s;
+};
+const pool = (tex, n, opt) => [...Array(n)].map(() => { const s = sprite(tex, opt); scene.add(s); return s; });
+const gems = [];
+[.09, .16, .30, .35, .47, .54, .66, .71, .83, .96].forEach((f, q) => {
+  for (let k = 0; k < 4; k++) {
+    const i = wrap(Math.floor(f * N) + k * 4), s = sprite(starTex, { fog: false });
+    const lat = clamp(LINE[i] * .8 + (q % 2 ? 1.5 : -1.5), -5, 5);
+    s.position.set(PX[i] + NX[i] * lat, PY[i] + 1.1, PZ[i] + NZ[i] * lat); s.scale.setScalar(1.7); s.visible = true;
+    scene.add(s); gems.push({ s, i, lat, off: 0, ph: q + k * .7 });
+  }
+});
+
+// ───────── 車
+function makeCar(color, isPlayer) {
+  const car = new THREE.Group(), body = new THREE.Group(); car.add(body); car.rotation.order = 'YXZ';
+  body.add(box(1.8, .55, 3.8, lam(color), 0, .6, 0), box(1.5, .5, 1.9, lam(0x1a2148), 0, 1.1, .25), box(1.45, .1, 1.8, lam(0xf2f6ff), 0, 1.4, .25),
+    box(1.7, .08, .4, lam(color), 0, 1.12, 1.75), box(.1, .22, .1, lam(0x1a2148), -.6, .98, 1.75), box(.1, .22, .1, lam(0x1a2148), .6, .98, 1.75));
+  const wheelG = new THREE.CylinderGeometry(.4, .4, .3, 8); wheelG.rotateZ(Math.PI / 2);
+  for (const x of [-.9, .9]) for (const z of [-1.2, 1.2]) { const w = new THREE.Mesh(wheelG, lam(0x15182e)); w.position.set(x, .4, z); body.add(w); }
+  for (const x of [-.6, .6]) body.add(box(.4, .14, .04, basic(0xff2848, { fog: false }), x, .7, 1.91), box(.4, .16, .04, basic(0xfff2c8, { fog: false }), x, .65, -1.91));
+  const flames = [-.45, .45].map(x => { const f = sprite(puffTex, { color: 0x7dffc0, fog: false }); f.position.set(x, .5, 2.3); body.add(f); return f; });
+  if (isPlayer) {
+    const spot = new THREE.SpotLight(0xffd39a, 1700, 70, .62, .7, 1.5); spot.position.set(0, 1.2, -1.8);
+    spot.target.position.set(0, -1, -24); car.add(spot, spot.target);
+    const tail = new THREE.PointLight(0xff2040, 5, 7, 2); tail.position.set(0, .7, 2.6); car.add(tail);
+    car.userData.tail = tail;
+  }
+  scene.add(car); return { car, body, flames };
+}
+const RIVALS = [['ミドリ', 0x34c9a0, 1.0], ['ダイダイ', 0xffb347, .985], ['スミレ', 0x7a6ff0, .97], ['シロ', 0xf2f6ff, .955], ['アオ', 0x3a7fc0, .94]];
+const P = { name: 'あなた', color: 0xe8563a, me: true, ...makeCar(0xe8563a, true) };
+const ais = RIVALS.map(([name, color, skill], k) => ({ name, color, skill, k, ...makeCar(color, false) }));
+const cars = [P, ...ais];
+const LAPS = 3, prog = c => c.fin ? 1e9 - c.fin : c.lap * LEN + c.s;
+
+// 粒: 雪けむり、火花、雪面のきらめき、降る雪
+const puffs = pool(puffTex, 56, { color: 0xdfe6ff });
+const sparks = pool(starTex, 44, { fog: false });
+const twinkles = pool(starTex, 12);
+function puff(x, y, z, vx, vy, vz, life = .6, size = 1) {
+  const p = puffs.find(p => !p.visible); if (!p) return;
+  p.visible = true; p.position.set(x, y, z); Object.assign(p.userData, { a: 0, vx, vy, vz, life, size });
+}
+function spark(x, y, z, vx, vy, vz, color, life = .4, size = .7) {
+  const p = sparks.find(p => !p.visible); if (!p) return;
+  p.visible = true; p.position.set(x, y, z); p.material.color.set(color); Object.assign(p.userData, { a: 0, vx, vy, vz, life, size });
+}
+const NF = 900, fp = new Float32Array(NF * 3);
+for (let i = 0; i < NF; i++) { fp[i * 3] = hash(i, 1) * 60; fp[i * 3 + 1] = hash(i, 2) * 16; fp[i * 3 + 2] = hash(i, 3) * 70; }
+const flakeG = new THREE.BufferGeometry(); flakeG.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+const flakes = new THREE.Points(flakeG, new THREE.PointsMaterial({ map: flakeTex, size: .42, transparent: true, alphaTest: .5, color: 0xdfe8ff, depthWrite: false }));
+flakes.frustumCulled = false; scene.add(flakes);
+const mod = (a, n) => ((a % n) + n) % n;
+
+// ───────── 入力
+const keys = {}, touch = { l: 0, r: 0, d: 0, n: 0, b: 0 };
+let isTouch = matchMedia('(pointer:coarse)').matches;
+document.body.classList.toggle('touch', isTouch);
+for (const [id, k] of [['bL', 'l'], ['bR', 'r'], ['bD', 'd'], ['bN', 'n'], ['bB', 'b']]) {
+  const el = $(id), set = v => e => { e.preventDefault(); touch[k] = v; el.classList.toggle('dn', !!v); };
+  el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); set(1)(e); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, set(0));
+}
+addEventListener('touchstart', () => { if (!isTouch) { isTouch = true; document.body.classList.add('touch'); } }, { passive: true });
+addEventListener('keydown', e => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  if (e.repeat) return;
+  keys[e.code] = true; initAudio();
+  if (e.code === 'Enter' || e.code === 'Space') { if (mode === 'title' || (mode === 'finish' && $('result').classList.contains('on'))) startRace(); }
+  if (e.code === 'KeyR' && mode === 'race') respawn();
+  if (e.code === 'KeyM') { muted = !muted; if (master) master.gain.value = muted ? 0 : .5; flash(muted ? '音 オフ' : '音 オン', .8); }
+  if ((e.code === 'KeyP' || e.code === 'Escape') && (mode === 'race' || mode === 'count')) setPause(!paused);
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'race' || mode === 'count')) setPause(true); });
+$('start').onclick = $('retry').onclick = () => { initAudio(); startRace(); };
+$('pause').onclick = () => setPause(false);
+function readInput() {
+  const k = keys, inp = {
+    steer: (k.ArrowRight || k.KeyD || touch.r ? 1 : 0) - (k.ArrowLeft || k.KeyA || touch.l ? 1 : 0),
+    accel: k.ArrowUp || k.KeyW ? 1 : 0, brake: k.ArrowDown || k.KeyS || touch.b ? 1 : 0,
+    drift: !!(k.Space || touch.d), nitro: !!(k.ShiftLeft || k.ShiftRight || k.KeyX || touch.n), rev: 0
+  };
+  const gp = navigator.getGamepads ? [...navigator.getGamepads()].find(g => g) : null;
+  if (gp) {
+    const ax = gp.axes[0] || 0, b = i => gp.buttons[i] ? gp.buttons[i].value : 0;
+    if (Math.abs(ax) > .15) inp.steer = clamp(ax * 1.2, -1, 1);
+    if (b(14)) inp.steer = -1; if (b(15)) inp.steer = 1;
+    inp.accel = Math.max(inp.accel, b(7), b(0)); inp.brake = Math.max(inp.brake, b(6), b(1));
+    inp.drift = inp.drift || b(5) > .5 || b(2) > .5; inp.nitro = inp.nitro || b(4) > .5 || b(3) > .5;
+  }
+  inp.rev = inp.accel || (isTouch && (inp.drift || inp.nitro)) ? 1 : 0;
+  if (isTouch && !gp && !inp.brake) inp.accel = 1;
+  return inp;
+}
+
+// ───────── 音（Web Audio でその場で合成）
+let AC = null, master, engO1, engO2, engF, engG, slideG, slideF, whoG, whoF, musG, muted = false, musStep = 0, musNext = 0;
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+  AC = new C(); master = AC.createGain(); master.gain.value = muted ? 0 : .5; master.connect(AC.destination);
+  engG = AC.createGain(); engG.gain.value = 0; engF = AC.createBiquadFilter(); engF.type = 'lowpass'; engF.frequency.value = 600; engF.connect(engG); engG.connect(master);
+  engO1 = AC.createOscillator(); engO1.type = 'sawtooth'; engO2 = AC.createOscillator(); engO2.type = 'square';
+  const g2 = AC.createGain(); g2.gain.value = .5; engO1.connect(engF); engO2.connect(g2); g2.connect(engF); engO1.start(); engO2.start();
+  const buf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const noise = () => { const s = AC.createBufferSource(); s.buffer = buf; s.loop = true; s.start(); return s; };
+  slideF = AC.createBiquadFilter(); slideF.type = 'bandpass'; slideF.frequency.value = 1400; slideF.Q.value = .7;
+  slideG = AC.createGain(); slideG.gain.value = 0; noise().connect(slideF); slideF.connect(slideG); slideG.connect(master);
+  whoF = AC.createBiquadFilter(); whoF.type = 'bandpass'; whoF.frequency.value = 500; whoF.Q.value = 1.2;
+  whoG = AC.createGain(); whoG.gain.value = 0; noise().connect(whoF); whoF.connect(whoG); whoG.connect(master);
+  musG = AC.createGain(); musG.gain.value = 0; musG.connect(master);
+}
+function tone(f, dur, type = 'square', vol = .2, to = 0, when = 0, dest = master) {
+  if (!AC) return;
+  const t = AC.currentTime + when, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .02);
+}
+const sfx = {
+  beep: () => tone(440, .18, 'square', .22), go: () => tone(880, .5, 'square', .25),
+  boost: l => { tone(180, .5, 'sawtooth', .22, 720); tone(360 * l, .25, 'square', .12, 1080 * l, .05); },
+  pad: () => { tone(300, .35, 'sawtooth', .2, 1200); tone(1200, .2, 'square', .1, 1800, .1); },
+  gem: () => { tone(1320, .08, 'square', .12); tone(1760, .14, 'square', .12, 0, .06); },
+  hit: () => tone(110, .18, 'triangle', .5, 40), lap: () => [660, 880, 1100].forEach((f, i) => tone(f, .14, 'square', .16, 0, i * .09)),
+  fin: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .3, 'square', .18, 0, i * .12)),
+  charge: l => tone(500 + l * 220, .1, 'triangle', .25)
+};
+// 音楽: 16 分のステップで鳴らす短いループ（Am F C G）
+const CH = [[45, 57, 60, 64], [41, 53, 57, 60], [48, 55, 60, 64], [43, 55, 59, 62]], mf = n => 440 * Math.pow(2, (n - 69) / 12);
+function music() {
+  if (!AC) return;
+  const on = mode === 'race' && !paused;
+  musG.gain.setTargetAtTime(on ? .5 : 0, AC.currentTime, .3);
+  if (!on) { musNext = 0; return; }
+  const step = 60 / 138 / 4;
+  if (musNext < AC.currentTime) musNext = AC.currentTime + .05;
+  while (musNext < AC.currentTime + .25) {
+    const s = musStep++ % 64, c = CH[s >> 4], q = s & 15, w = musNext - AC.currentTime;
+    if (q % 4 === 0 || q === 6 || q === 14) tone(mf(c[0] - 12), step * 1.8, 'triangle', .3, 0, w, musG);
+    tone(mf(c[1 + (q * 5 + (s >> 4)) % 3] + (q % 8 > 5 ? 12 : 0)), step * .9, 'square', .05, 0, w, musG);
+    if (q % 4 === 2) tone(6000, .03, 'square', .02, 0, w, musG);
+    musNext += step;
+  }
+}
+
+// ───────── 進行
+let mode = 'title', paused = false, countT = 0, raceT = 0, lapStart = 0, lapTimes = [], finishShown = false, finT = 0, revAt = -1, placeAtFinish = 0;
+let best = {}; try { best = JSON.parse(localStorage.getItem('snowNightRally') || '{}'); } catch (e) { }
+const fmt = t => { if (!(t > 0) || !isFinite(t)) return '-:--.--'; const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2); };
+function showBest() { $('best').textContent = best.total ? `ベスト  ${fmt(best.total)}　／　最速ラップ  ${fmt(best.lap)}` : ''; }
+showBest();
+let msgT = 0;
+function flash(text, dur = 1.2, cls = '') { const m = $('msg'); m.textContent = text; m.className = 'hud show ' + cls; msgT = dur; }
+function setPause(v) { paused = v; $('pause').classList.toggle('on', v); if (AC) v ? AC.suspend() : AC.resume(); last = performance.now(); }
+
+function gridSlot(c, k) {
+  const s = LEN - 9 - k * 7.5, i = Math.floor(s / DS) % N;
+  c.s = s; c.lap = -1; c.lat = k % 2 ? -2.7 : 2.7; c.fin = 0; c.v = 0; c.idx = i;
+  c.x = PX[i] + NX[i] * c.lat; c.z = PZ[i] + NZ[i] * c.lat; c.y = PY[i]; c.th = thAt(i);
+}
+function resetCars(rolling) {
+  ais.forEach((a, k) => { gridSlot(a, k); Object.assign(a, { latV: 0, boostT: 0, boostCd: 4 + k * 2.3, react: .08 + hash(k, raceT, 7) * .35, off: (k % 2 ? -1 : 1) * (.6 + k * .25), yaw: 0 }); });
+  gridSlot(P, 5);
+  Object.assign(P, { vx: 0, vz: 0, steer: 0, drift: 0, charge: 0, lvl: 0, boostT: 0, padT: 0, nitro: .5, nitroOn: false, stall: 0, slipT: 0, wrongT: 0, wallT: 0, hop: 0, autoDrift: false });
+  if (rolling) {       // タイトルの裏では走りつづける
+    for (const c of cars) { c.v = 40; c.lap = 0; }
+    P.vx = -Math.sin(P.th) * 40; P.vz = -Math.cos(P.th) * 40;
+  }
+  camTh = P.th; camDist = 9; camFov = 58;
+  for (const g of gems) { g.off = 0; g.s.visible = true; }
+}
+function startRace() {
+  $('title').classList.remove('on'); $('result').classList.remove('on'); $('hud').classList.add('on');
+  resetCars(false); mode = 'count'; countT = 4.2; raceT = 0; lapStart = 0; lapTimes = []; finishShown = false; revAt = -1; lastCount = 4;
+  setPause(false);
+}
+function respawn() {
+  const i = P.idx; P.x = PX[i]; P.z = PZ[i]; P.th = thAt(i); P.vx = P.vz = 0; P.drift = 0; P.charge = 0; P.boostT = P.padT = 0; camTh = P.th;
+  flash('コースに復帰', .8);
+}
+function finish() {
+  mode = 'finish'; P.fin = raceT; finT = 0; placeAtFinish = rankOf(P);
+  flash('ゴール！', 2, 'big warm'); sfx.fin();
+  const bl = Math.min(...lapTimes); let note = '';
+  if (!best.total || raceT < best.total) { best.total = raceT; note = '新記録！'; }
+  if (!best.lap || bl < best.lap) { best.lap = bl; note = note || '最速ラップ更新！'; }
+  try { localStorage.setItem('snowNightRally', JSON.stringify(best)); } catch (e) { }
+  $('rnote').textContent = note; showBest();
+}
+function showResult() {
+  finishShown = true; $('hud').classList.remove('on');
+  $('rank').innerHTML = placeAtFinish + ' <small style="font-size:.4em">位</small>';
+  const rows = [...cars].sort((a, b) => prog(b) - prog(a));
+  $('rtable').innerHTML = rows.map((c, i) => `<tr class="${c.me ? 'me' : ''}"><td>${i + 1}</td><td>${c.name}</td><td>${c.fin ? fmt(c.fin) : '走行中'}</td></tr>`).join('')
+    + `<tr><td colspan="3" style="padding-top:8px;color:#aebcf0">ラップ　${lapTimes.map(fmt).join('　')}</td></tr>`;
+  $('result').classList.add('on');
+}
+const rankOf = c => 1 + cars.filter(o => o !== c && prog(o) > prog(c)).length;
+const sDiff = (a, b) => { let d = (a - b) % LEN; if (d > LEN / 2) d -= LEN; if (d < -LEN / 2) d += LEN; return d; };   // a が b より前なら正
+
+// ───────── 自車の物理
+let shake = 0, camTh = 0, camDist = 9, camFov = 58, boostFx = 0, slipFx = 0;
+function autoInput() {     // タイトル・ゴール後の自動運転
+  const sp = Math.hypot(P.vx, P.vz), la = wrap(P.idx + Math.round((9 + sp * .42) / DS));
+  const tx = PX[la] + NX[la] * LINE[la] * .8, tz = PZ[la] + NZ[la] * LINE[la] * .8;
+  const e = angDiff(Math.atan2(-(tx - P.x), -(tz - P.z)), P.th), steer = clamp(-e * 2.6, -1, 1);
+  const kA = Math.abs(KS[wrap(P.idx + 8)]), kN = Math.abs(KS[wrap(P.idx + 2)]);
+  if (!P.autoDrift && sp > 30 && kA > 1 / 58 && Math.abs(steer) > .35) P.autoDrift = true;
+  if (P.autoDrift && kN < 1 / 100 && kA < 1 / 100) P.autoDrift = false;
+  const vt = VT[wrap(P.idx + Math.round(sp * .3 / DS))];
+  return { steer, accel: 1, brake: sp > vt * 1.22 ? 1 : 0, drift: P.autoDrift, nitro: kA < 1 / 300 && Math.abs(e) < .1 && P.nitro > .25, rev: 0 };
+}
+function boostNow(lvl) {
+  P.boostT = Math.max(P.boostT, [0, .7, 1.2, 1.9][lvl]); shake = Math.max(shake, .25 + lvl * .1);
+  if (mode === 'race') { sfx.boost(lvl); flash(['', 'ダッシュ！', 'スーパーダッシュ！', 'ウルトラダッシュ！'][lvl], .7, lvl > 2 ? 'aur' : lvl > 1 ? 'warm' : ''); }
+  const fx = -Math.sin(P.th), fz = -Math.cos(P.th);
+  for (let i = 0; i < 6 + lvl * 3; i++) spark(P.x - fx * 2, P.y + .5, P.z - fz * 2, P.vx * .6 + (Math.random() - .5) * 8, 2 + Math.random() * 4, P.vz * .6 + (Math.random() - .5) * 8, LVC[lvl], .5, .9);
+}
+const LVC = [0xffffff, 0xdfe8ff, 0xffb347, 0xff6ad0];
+function stepPlayer(dt, inp, free) {
+  let fx = -Math.sin(P.th), fz = -Math.cos(P.th), rx = Math.cos(P.th), rz = -Math.sin(P.th);
+  let vf = P.vx * fx + P.vz * fz, vl = P.vx * rx + P.vz * rz;
+  P.steer += (inp.steer - P.steer) * Math.min(1, dt * 10);
+  if (P.stall > 0) { P.stall -= dt; inp.accel = 0; }
+  if (!free) { inp.accel = 0; inp.brake = 0; inp.drift = false; inp.nitro = false; }
+
+  // ドリフト: 曲がりながら押すと始まり、ためて離すとダッシュ
+  if (!P.drift && inp.drift && Math.abs(inp.steer) > .3 && vf > 18) { P.drift = Math.sign(inp.steer); P.charge = 0; P.lvl = 0; P.hop = .18; }
+  if (P.drift) {
+    P.charge += dt * (.7 + .5 * Math.max(0, P.steer * P.drift));
+    const l = P.charge > 2 ? 3 : P.charge > 1.15 ? 2 : P.charge > .5 ? 1 : 0;
+    if (l > P.lvl) { P.lvl = l; if (mode === 'race') sfx.charge(l); }
+    P.nitro = Math.min(1, P.nitro + dt * .06);
+    if (!inp.drift || vf < 12) { if (P.lvl && vf >= 12) boostNow(P.lvl); P.drift = 0; P.charge = 0; P.lvl = 0; }
+  }
+  const stEff = P.drift ? P.drift * .5 + P.steer * .65 : P.steer;
+  const rate = 2.05 * Math.min(1, Math.abs(vf) / 9) * (1 - .42 * Math.min(1, Math.abs(vf) / 60)) * (P.drift ? 1.28 : 1);
+  P.th -= stEff * rate * dt * (vf < -.5 ? -1 : 1);
+
+  // 加速
+  P.nitroOn = inp.nitro && P.nitro > 0 && (P.nitroOn || P.nitro > .06);
+  if (P.nitroOn) P.nitro = Math.max(0, P.nitro - dt / 2.8);
+  const dash = P.boostT > 0 || P.padT > 0, boosting = dash || P.nitroOn, off = Math.abs(P.lat) > ROAD + .3;
+  let vmax = 55 + (P.slipT > .5 ? 5 : 0);
+  if (P.boostT > 0) vmax = 67; if (P.padT > 0) vmax = 71; if (P.nitroOn) vmax = dash ? 77 : Math.max(vmax, 70);
+  if (off) vmax *= boosting ? .82 : .56;
+  P.boostT -= dt; P.padT -= dt;
+  if (inp.brake) { vf = vf > 1 ? Math.max(0, vf - 42 * dt) : Math.max(-12, vf - 14 * dt); }
+  else if (inp.accel) { if (vf < vmax) vf += ((boosting ? 34 : 23) * (1 - vf / vmax) + (boosting ? 9 : 1.5)) * dt; }
+  else vf -= (vf * .3 + Math.sign(vf) * 3) * dt;
+  if (vf > vmax) vf -= (vf - vmax) * Math.min(1, dt * (off ? 3.5 : 1.5));
+
+  // 横すべり: 雪道なのでグリップは低め。ドリフト中はさらに流れる
+  const s0 = Math.hypot(vf, vl); vl *= Math.exp(-(P.drift ? 2.9 : 6.5) * dt);
+  const s1 = Math.hypot(vf, vl); if (s1 > .01) { const k = (s1 + (s0 - s1) * (P.drift ? .93 : .88)) / s1; vf *= k; vl *= k; }
+  fx = -Math.sin(P.th); fz = -Math.cos(P.th); rx = Math.cos(P.th); rz = -Math.sin(P.th);
+  P.vx = fx * vf + rx * vl; P.vz = fz * vf + rz * vl;
+  P.x += P.vx * dt; P.z += P.vz * dt;
+
+  // コース上の位置
+  let bd = 1e9, bi = P.idx;
+  for (let k = -8; k <= 12; k++) { const i = wrap(P.idx + k), dx = P.x - PX[i], dz = P.z - PZ[i], d = dx * dx + dz * dz; if (d < bd) { bd = d; bi = i; } }
+  P.idx = bi; let dx = P.x - PX[bi], dz = P.z - PZ[bi];
+  P.lat = dx * NX[bi] + dz * NZ[bi];
+  const along = dx * TX[bi] + dz * TZ[bi], sNew = mod(bi * DS + along, LEN), d = sNew - P.s;
+  if (d < -LEN / 2) P.lap++; else if (d > LEN / 2) P.lap--;
+  if (d < -LEN / 2 && mode === 'race' && P.lap >= 1) {
+    lapTimes.push(raceT - lapStart); lapStart = raceT;
+    if (P.lap >= LAPS) finish(); else { sfx.lap(); flash(P.lap === LAPS - 1 ? 'ファイナルラップ！' : `LAP ${P.lap + 1}/${LAPS}`, 1.6, P.lap === LAPS - 1 ? 'warm' : ''); }
+  }
+  P.s = sNew;
+
+  // 雪の土手
+  if (Math.abs(P.lat) > WALL) {
+    const sg = Math.sign(P.lat), over = Math.abs(P.lat) - WALL, vn = (P.vx * NX[bi] + P.vz * NZ[bi]) * sg;
+    P.x -= NX[bi] * over * sg; P.z -= NZ[bi] * over * sg; P.lat = WALL * sg;
+    if (vn > 0) {
+      const sp = Math.hypot(P.vx, P.vz), hit = vn / Math.max(sp, 1);
+      P.vx -= NX[bi] * vn * sg * 1.25; P.vz -= NZ[bi] * vn * sg * 1.25;
+      const k = 1 - Math.min(.3, hit * .7); P.vx *= k; P.vz *= k;
+      if (vn > 5) {
+        shake = Math.max(shake, Math.min(.6, vn * .04)); if (mode === 'race' && P.wallT <= 0) sfx.hit(); P.wallT = .3;
+        for (let i = 0; i < 6; i++) puff(P.x + NX[bi] * sg, P.y + .4, P.z + NZ[bi] * sg, P.vx * .5 + (Math.random() - .5) * 5, 2 + Math.random() * 3, P.vz * .5 + (Math.random() - .5) * 5, .7, 1.6);
+      }
+      const tt = thAt(bi), e = angDiff(tt, P.th); if (Math.abs(e) < 1.6) P.th += e * Math.min(1, hit * 1.2 + dt * 3);
+      if (P.drift) { P.drift = 0; P.charge = 0; P.lvl = 0; }
+    }
+    const k = Math.exp(-.9 * dt); P.vx *= k; P.vz *= k;
+  }
+  P.wallT -= dt;
+  const f = clamp(along / DS, -1, 1), j = wrap(bi + (f >= 0 ? 1 : -1));
+  P.y = PY[bi] + (PY[j] - PY[bi]) * Math.abs(f) + sm(7.4, 10.5, Math.abs(P.lat)) * 1.3;
+  P.pitch = Math.atan2(PY[wrap(bi + 1)] - PY[wrap(bi - 1)], 2 * DS) * (TX[bi] * fx + TZ[bi] * fz);
+  P.v = Math.hypot(P.vx, P.vz); P.vf = vf; P.vl = vl; P.off = off; P.boosting = boosting;
+
+  if (mode !== 'race') return;
+  // ダッシュ板・きらめき
+  for (const p of pads) if (Math.abs(sDiff(P.s, p.i * DS)) < 4 && Math.abs(P.lat - p.lat) < 2.4 && P.padT < .9) {
+    P.padT = 1.3; shake = Math.max(shake, .35); sfx.pad(); flash('ダッシュ板！', .6, 'aur');
+  }
+  for (const g of gems) if (!g.off && Math.abs(sDiff(P.s, g.i * DS)) < 2.6 && Math.abs(P.lat - g.lat) < 2) {
+    g.off = 9; g.s.visible = false; P.nitro = Math.min(1, P.nitro + .1); sfx.gem();
+    for (let i = 0; i < 5; i++) spark(g.s.position.x, g.s.position.y, g.s.position.z, P.vx * .8 + (Math.random() - .5) * 9, 1 + Math.random() * 5, P.vz * .8 + (Math.random() - .5) * 9, 0xfff2b0, .45, .8);
+  }
+  // 逆走
+  const fwd = P.vx * TX[bi] + P.vz * TZ[bi];
+  P.wrongT = fwd < -4 ? P.wrongT + dt : 0;
+  if (P.wrongT > 1 && msgT <= 0) flash('逆走！', .6, 'red');
+}
+
+// ───────── ライバル（コースに沿った座標で走る）
+function stepAI(a, dt, go) {
+  const i = Math.floor(a.s / DS) % N;
+  if (!go) { a.v = 0; }
+  else if (a.react > 0) a.react -= dt;
+  else {
+    const gap = prog(P) - prog(a);          // 離されたら速く、離したら少しゆるめる
+    const band = mode === 'race' ? 1 + clamp(gap / 380, -.08, .06) : 1;
+    let vt = Math.min(VT[wrap(i + 2)] * (.9 + a.skill * .1), 52 * a.skill) * band;
+    a.boostCd -= dt;
+    if (a.boostCd <= 0 && Math.abs(KS[wrap(i + 25)]) < 1 / 300 && Math.abs(KS[i]) < 1 / 200) { a.boostT = 1.4; a.boostCd = 9 + hash(a.k, raceT) * 9; }
+    for (const p of pads) if (Math.abs(sDiff(a.s, p.i * DS)) < 3 && Math.abs(a.lat - p.lat) < 2.4) a.boostT = Math.max(a.boostT, 1.1);
+    if (a.boostT > 0) { a.boostT -= dt; vt += 9; }
+    if (a.fin) vt *= .8;
+    if (a.v < vt) a.v = Math.min(vt, a.v + (17 * (1 - a.v / (vt + 14)) + (a.boostT > 0 ? 10 : 2)) * dt); else a.v = Math.max(vt, a.v - 24 * dt);
+  }
+  // 車線: 狙うラインを基本に、前がつまったら空いているほうへ
+  let tl = clamp(LINE[wrap(i + 6)] + a.off, -5.2, 5.2);
+  for (const o of cars) {
+    if (o === a) continue;
+    const ds = sDiff(o.s, a.s), dl = o.lat - a.lat;
+    if (ds > 0 && ds < 16 && Math.abs(dl) < 2.5 && o.v < a.v + 2) tl = clamp(o.lat + (o.lat > 0 || (dl > 0 && o.lat > -3) ? -3 : 3), -5.4, 5.4);
+    if (Math.abs(ds) < 4.4 && Math.abs(dl) < 2.1) {
+      if (!o.me) { a.lat -= Math.sign(dl || 1) * dt * 3; if (ds > 0 && Math.abs(dl) < 1.6) a.v = Math.min(a.v, o.v); }
+    }
+  }
+  a.latV += (clamp((tl - a.lat) * 2.2, -5, 5) - a.latV) * Math.min(1, dt * 4);
+  a.lat = clamp(a.lat + a.latV * dt, -5.8, 5.8);
+  a.s += a.v * dt / (1 - a.lat * KS[i]);     // 内側は距離が短い
+  if (a.s >= LEN) { a.s -= LEN; a.lap++; if (a.lap >= LAPS && !a.fin && (mode === 'race' || mode === 'finish')) a.fin = raceT; }
+  const j = Math.floor(a.s / DS) % N, f = a.s / DS - Math.floor(a.s / DS), k = wrap(j + 1);
+  a.idx = j;
+  a.x = PX[j] + (PX[k] - PX[j]) * f + (NX[j] + (NX[k] - NX[j]) * f) * a.lat;
+  a.z = PZ[j] + (PZ[k] - PZ[j]) * f + (NZ[j] + (NZ[k] - NZ[j]) * f) * a.lat;
+  a.y = PY[j] + (PY[k] - PY[j]) * f;
+  const slide = clamp(KS[j] * a.v * 1.1, -.5, .5);                     // カーブでは尻を流して見せる
+  a.yaw += (slide - a.yaw) * Math.min(1, dt * 5);
+  a.th = thAt(j) + angDiff(thAt(k), thAt(j)) * f + a.yaw + Math.atan2(a.latV, Math.max(a.v, 8));
+  a.pitch = Math.atan2(PY[k] - PY[j], DS);
+}
+function collide(dt) {
+  P.slipT = Math.max(0, P.slipT - dt * 2);
+  for (const a of ais) {
+    const ds = sDiff(a.s, P.s), dl = a.lat - P.lat, i = P.idx;
+    if (ds > 4 && ds < 24 && Math.abs(dl) < 1.7 && P.v > 34) { P.slipT = Math.min(1.2, P.slipT + dt * 3); P.nitro = Math.min(1, P.nitro + dt * .05); }
+    if (Math.abs(ds) < 4 && Math.abs(dl) < 1.95) {
+      if (Math.abs(ds) / 4 > Math.abs(dl) / 1.95) {        // 追突
+        if (ds > 0 && P.v > a.v) { const k = Math.max(a.v - .5, P.v * .93) / P.v; P.vx *= k; P.vz *= k; a.v += 3; }
+        else if (ds < 0 && a.v > P.v) { a.v = Math.max(P.v - 1, a.v * .93); }
+        const push = (4 - Math.abs(ds)) * Math.sign(ds || 1); a.s = mod(a.s + push * .5, LEN);
+      } else {                                              // 横からの接触
+        const sg = Math.sign(dl || 1), pen = 1.95 - Math.abs(dl);
+        P.x -= NX[i] * sg * pen * .5; P.z -= NZ[i] * sg * pen * .5; a.lat = clamp(a.lat + sg * pen * .5, -6, 6);
+        P.vx -= NX[i] * sg * 2.5; P.vz -= NZ[i] * sg * 2.5; a.latV = sg * 4;
+      }
+      if (P.wallT <= 0) { P.wallT = .35; shake = Math.max(shake, .3); if (mode === 'race') sfx.hit();
+        for (let q = 0; q < 5; q++) spark((P.x + a.x) / 2, P.y + .7, (P.z + a.z) / 2, P.vx * .7 + (Math.random() - .5) * 8, 2 + Math.random() * 4, P.vz * .7 + (Math.random() - .5) * 8, 0xffb347, .35, .7); }
+    }
+  }
+}
+
+// ───────── 画面まわり
+const nitroEl = $('nitro'); for (let i = 0; i < 10; i++) nitroEl.appendChild(document.createElement('i'));
+const driftEl = [...$('drift').children];
+const cache = {}; const setText = (id, v) => { if (cache[id] !== v) { cache[id] = v; $(id).textContent = v; } };
+const mapC = $('map'), mg = mapC.getContext('2d'), mapBase = document.createElement('canvas'); mapBase.width = mapBase.height = 66;
+let mapX, mapZ;
+{
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (let i = 0; i < N; i++) { x0 = Math.min(x0, PX[i]); x1 = Math.max(x1, PX[i]); z0 = Math.min(z0, PZ[i]); z1 = Math.max(z1, PZ[i]); }
+  const sc = 58 / Math.max(x1 - x0, z1 - z0), ox = 33 - (x0 + x1) / 2 * sc, oz = 33 - (z0 + z1) / 2 * sc;
+  mapX = x => Math.round(x * sc + ox); mapZ = z => Math.round(z * sc + oz);
+  const g = mapBase.getContext('2d');
+  g.fillStyle = '#070a22'; for (let i = 0; i < N; i++) g.fillRect(mapX(PX[i]) - 2, mapZ(PZ[i]) - 2, 4, 4);
+  g.fillStyle = '#7f8fc8'; for (let i = 0; i < N; i++) g.fillRect(mapX(PX[i]) - 1, mapZ(PZ[i]) - 1, 2, 2);
+  g.fillStyle = '#7dffc0'; for (const p of pads) g.fillRect(mapX(PX[p.i]) - 1, mapZ(PZ[p.i]) - 1, 2, 2);
+  g.fillStyle = '#ffffff'; g.fillRect(mapX(PX[0]) - 1, mapZ(PZ[0]) - 2, 2, 4);
+}
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+function drawHud(t) {
+  setText('spd', String(Math.round(P.v * 3.6)));
+  $('spd').classList.toggle('boost', !!P.boosting);
+  const r = rankOf(P); if (cache.pos !== r) { cache.pos = r; $('pos').innerHTML = r + '<small>/6</small>'; }
+  setText('lap', `LAP ${clamp(P.lap + 1, 1, LAPS)}/${LAPS}`);
+  setText('time', fmt(mode === 'finish' ? P.fin : raceT) === '-:--.--' ? '0:00.00' : fmt(mode === 'finish' ? P.fin : raceT));
+  setText('laps', lapTimes.length ? 'ラップ ' + fmt(lapTimes[lapTimes.length - 1]) + (best.lap ? '　最速 ' + fmt(best.lap) : '') : best.total ? 'ベスト ' + fmt(best.total) : '');
+  const n = Math.round(P.nitro * 10); if (cache.n !== n) { cache.n = n; [...nitroEl.children].forEach((e, i) => e.classList.toggle('on', i < n)); }
+  const dl = P.drift ? P.lvl + 10 * Math.floor(t * 12 % 2) : -1;
+  if (cache.d !== dl) { cache.d = dl; driftEl.forEach((e, i) => e.className = P.drift && i < P.lvl ? 'l' + P.lvl : ''); }
+  mg.clearRect(0, 0, 66, 66); mg.drawImage(mapBase, 0, 0);
+  for (const a of ais) { mg.fillStyle = hex(a.color); mg.fillRect(mapX(a.x) - 1, mapZ(a.z) - 1, 3, 3); }
+  mg.fillStyle = '#ffffff'; mg.fillRect(mapX(P.x) - 2, mapZ(P.z) - 2, 5, 5);
+  mg.fillStyle = t * 4 % 1 < .5 ? '#ff2848' : '#e8563a'; mg.fillRect(mapX(P.x) - 1, mapZ(P.z) - 1, 3, 3);
+}
+// 集中線（192×108 のドット絵を画面いっぱいに引きのばす）
+const fxC = $('fx'), fg = fxC.getContext('2d'); let fxDirty = false;
+function drawFx(amt, nitro, slip) {
+  if (amt < .04 && slip < .04) { if (fxDirty) { fg.clearRect(0, 0, 192, 108); fxDirty = false; } return; }
+  fg.clearRect(0, 0, 192, 108); fxDirty = true;
+  const n = Math.round(amt * 30 + slip * 12);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, r0 = .62 + Math.random() * .4, len = 5 + Math.random() * 16 * (amt + slip * .5);
+    const cx = Math.cos(a), cy = Math.sin(a);
+    fg.fillStyle = Math.random() < .25 ? '#ffffff' : nitro ? '#7dffc0' : slip > amt ? '#aebcf0' : '#dfe8ff';
+    for (let k = 0; k < len; k++) fg.fillRect(Math.round(96 + cx * (r0 * 112 + k)), Math.round(54 + cy * (r0 * 64 + k * .6)), 1, 1);
+  }
+}
+
+let aspect = 1;
+function resize() { renderer.setSize(innerWidth, innerHeight, false); aspect = innerWidth / innerHeight; cam.aspect = aspect; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+// ───────── 毎フレーム
+let t = 0, last = performance.now(), skyT = 0, puffT = 0, twT = 0, lastCount = 4, sparkT = 0, aiPuffT = 0;
+resetCars(true);
+function update(dt) {
+  t += dt;
+  if ((skyT -= dt) <= 0) { skyT = .1; drawSky(t); }
+  if (msgT > 0 && (msgT -= dt) <= 0) $('msg').classList.remove('show');
+
+  let inp = readInput(), free = true, go = true;
+  if (mode === 'count') {
+    countT -= dt; free = false; go = false;
+    const n = Math.ceil(countT);
+    if (n !== lastCount && n >= 1 && n <= 3) { flash(String(n), .9, 'big'); sfx.beep(); }
+    lastCount = n;
+    if (inp.rev) { if (revAt < 0) revAt = countT; } else revAt = -1;
+    if (countT <= 0) {
+      mode = 'race'; flash('GO!', .9, 'big aur'); sfx.go(); free = go = true;
+      if (revAt > 0 && revAt < .95) { P.boostT = 1.5; P.vx = -Math.sin(P.th) * 14; P.vz = -Math.cos(P.th) * 14; shake = .4; sfx.boost(2); flash('ロケットスタート！', 1, 'big aur'); $('msg').classList.remove('big'); }
+      else if (revAt > 2.2) { P.stall = .8; flash('空ぶかし…', .9, 'red'); }
+    }
+  } else if (mode === 'race') raceT += dt;
+  else if (mode === 'finish') { raceT += dt; finT += dt; inp = autoInput(); if (finT > 2.2 && !finishShown) showResult(); }
+  else inp = autoInput();
+  if (QS.has('auto') && mode === 'race') inp = autoInput();
+
+  stepPlayer(dt, inp, free);
+  for (const a of ais) stepAI(a, dt, go);
+  collide(dt);
+  for (const g of gems) {
+    if (g.off > 0 && (g.off -= dt) <= 0) { g.off = 0; g.s.visible = true; }
+    g.s.material.map.offset.x = Math.floor((t * 6 + g.ph) % 4) / 4; g.s.position.y = PY[g.i] + 1.1 + Math.sin(t * 3 + g.ph) * .15;
+  }
+  padTex.offset.y = -t * 2.5;
+
+  // 車の見た目
+  const sp = P.v, fx = -Math.sin(P.th), fz = -Math.cos(P.th), rx = Math.cos(P.th), rz = -Math.sin(P.th);
+  P.hop = Math.max(0, P.hop - dt);
+  P.car.position.set(P.x, P.y + Math.sin(t * 17) * .012 * Math.min(1, sp / 20) + Math.sin(P.hop / .18 * Math.PI) * .22, P.z);
+  P.car.rotation.set(P.pitch || 0, P.th, 0);
+  P.body.rotation.z += (clamp(P.vl * .012 + P.steer * .04, -.16, .16) - P.body.rotation.z) * Math.min(1, dt * 8);
+  P.body.rotation.x = -clamp((P.boosting ? .035 : 0) + (inp.brake && sp > 5 ? -.03 : 0), -.05, .05);
+  for (const a of ais) {
+    a.car.position.set(a.x, a.y + Math.sin(t * 17 + a.k) * .012, a.z); a.car.rotation.set(a.pitch || 0, a.th, 0);
+    a.body.rotation.z = clamp(-a.yaw * .2 + a.latV * .02, -.12, .12);
+    for (const f of a.flames) { f.visible = a.boostT > 0; if (f.visible) { f.material.map.offset.x = Math.floor(Math.random() * 3) / 5; f.scale.setScalar(.9 + Math.random() * .5); } }
+  }
+  const dashAmt = P.boostT > 0 || P.padT > 0 ? 1 : 0, bt = P.boosting ? 1 : 0;
+  boostFx += (bt - boostFx) * Math.min(1, dt * (bt ? 10 : 3));
+  slipFx += ((P.slipT > .5 ? 1 : 0) - slipFx) * Math.min(1, dt * 5);
+  for (const f of P.flames) {
+    f.visible = !!P.boosting;
+    if (f.visible) { f.material.map.offset.x = Math.floor(Math.random() * 3) / 5; f.scale.setScalar((P.nitroOn && dashAmt ? 1.5 : 1.1) + Math.random() * .6); f.material.color.set(P.nitroOn ? 0x7dffc0 : 0xfff2b0); }
+  }
+  P.car.userData.tail.intensity = inp.brake ? 16 : P.boosting ? 12 : 5;
+  P.car.userData.tail.color.set(P.boosting && !inp.brake ? 0x7dffc0 : 0xff2040);
+
+  // 雪けむり（後輪から。ドリフト・道の外では大きく）
+  const slide = Math.abs(P.vl) / Math.max(sp, 1);
+  if (sp > 4 && (puffT -= dt) <= 0) {
+    const heavy = P.drift || P.off || slide > .2;
+    puffT = heavy ? .022 : .05;
+    const side = Math.random() < .5 ? -1 : 1, wx = P.x + rx * .85 * side - fx * 1.5, wz = P.z + rz * .85 * side - fz * 1.5;
+    puff(wx, P.y + .3, wz, P.vx * .45 + rx * side * (.5 + Math.random()) - (heavy ? rx * Math.sign(P.vl) * 3 : 0), 1.1 + (heavy ? 1.2 : 0), P.vz * .45 + rz * side * (.5 + Math.random()) - (heavy ? rz * Math.sign(P.vl) * 3 : 0), heavy ? .75 : .55, heavy ? 1.7 : 1);
+  }
+  if (P.drift && (sparkT -= dt) <= 0) {     // ためた段階の色で火花
+    sparkT = .03;
+    const side = -P.drift, wx = P.x + rx * .9 * side - fx * 1.3, wz = P.z + rz * .9 * side - fz * 1.3;
+    if (P.lvl) spark(wx, P.y + .25, wz, P.vx * .8 + (Math.random() - .5) * 5, 1.5 + Math.random() * 3.5, P.vz * .8 + (Math.random() - .5) * 5, LVC[P.lvl], .3, .55 + P.lvl * .12);
+  }
+  if ((aiPuffT -= dt) <= 0) {
+    aiPuffT = .04; const a = ais[Math.floor(Math.random() * ais.length)];
+    if (a.v > 5 && (a.x - P.x) ** 2 + (a.z - P.z) ** 2 < 8000) {
+      const ax = -Math.sin(a.th), az = -Math.cos(a.th), side = Math.random() < .5 ? -1 : 1;
+      puff(a.x - ax * 1.5 + az * .8 * side, a.y + .3, a.z - az * 1.5 - ax * .8 * side, ax * a.v * .45, 1.1 + Math.abs(a.yaw) * 3, az * a.v * .45, .6, 1 + Math.abs(a.yaw) * 2);
+    }
+  }
+  for (const p of puffs) if (p.visible) {
+    const u = p.userData, a = (u.a += dt / u.life);
+    if (a >= 1) { p.visible = false; continue; }
+    const k = Math.exp(-3 * dt); u.vx *= k; u.vz *= k;
+    p.position.x += u.vx * dt; p.position.y += u.vy * dt; p.position.z += u.vz * dt;
+    p.scale.setScalar((.5 + a * 1.2) * u.size); p.material.map.offset.x = Math.floor(a * 5) / 5;
+  }
+  for (const p of sparks) if (p.visible) {
+    const u = p.userData, a = (u.a += dt / u.life);
+    if (a >= 1) { p.visible = false; continue; }
+    u.vy -= 9 * dt; p.position.x += u.vx * dt; p.position.y = Math.max(.1 + P.y - 1, p.position.y + u.vy * dt); p.position.z += u.vz * dt;
+    p.scale.setScalar(u.size); p.material.map.offset.x = Math.floor(a * 4) / 4;
+  }
+  // 雪面のきらめき
+  if ((twT -= dt) <= 0) {
+    twT = .09; const st = twinkles.find(o => !o.visible);
+    if (st) {
+      const i = wrap(P.idx + 6 + Math.floor(Math.random() * 40)), lat = (Math.random() < .5 ? -1 : 1) * (8 + Math.random() * 10);
+      const x = PX[i] + NX[i] * lat, z = PZ[i] + NZ[i] * lat;
+      st.position.set(x, PY[i] + flank(Math.abs(lat), x, z) + .4, z); st.visible = true; st.userData.a = 0; st.scale.setScalar(.7 + Math.random() * .5);
+    }
+  }
+  for (const st of twinkles) if (st.visible) {
+    const a = (st.userData.a += dt / .45);
+    if (a >= 1) { st.visible = false; continue; }
+    st.material.map.offset.x = Math.floor(a * 4) / 4;
+  }
+
+  // カメラ: 速いほど引いて広角に。ドリフトでは進む向きと車の向きの間を追う
+  const velTh = sp > 6 ? Math.atan2(-P.vx, -P.vz) : P.th;
+  let tgt = P.th + angDiff(velTh, P.th) * .55, orbit = 0;
+  if (mode === 'count') orbit = sm(0, 1, clamp((countT - .8) / 3.2, 0, 1)) * 2.6;
+  if (mode === 'finish') orbit = Math.min(2.4, finT * .5);
+  if (mode === 'title') orbit = Math.sin(t * .15) * .5;
+  camTh += angDiff(tgt, camTh) * Math.min(1, dt * (mode === 'count' ? 20 : 5.5));
+  const sr = clamp(sp / 55, 0, 1.4);
+  camDist += (8.2 + sr * 1.6 - boostFx * 1.3 - camDist) * Math.min(1, dt * 4);     // ダッシュの瞬間は車が前へ飛び出して見える
+  camFov += (54 + sr * 13 + boostFx * 11 - camFov) * Math.min(1, dt * 5);
+  const ct = camTh + orbit, cx = -Math.sin(ct), cz = -Math.cos(ct);
+  shake = Math.max(0, shake - dt * 1.4);
+  const sh = shake + boostFx * .05 + (P.off && sp > 15 ? .06 : 0), sxo = (Math.random() - .5) * sh, syo = (Math.random() - .5) * sh;
+  const camH = 3.25 + (mode === 'count' ? orbit * .5 : 0);
+  cam.position.set(P.x - cx * camDist + sxo, P.y + camH + syo, P.z - cz * camDist);
+  const gy = PY[P.idx] + bank(Math.abs(P.lat) + 4) + 1.2; if (cam.position.y < gy) cam.position.y = gy;
+  cam.lookAt(P.x + cx * 7 + sxo * .5, P.y + 1.1, P.z + cz * 7);
+  cam.fov = camFov * (aspect < 1 ? 1.25 : 1); cam.updateProjectionMatrix();
+  dome.position.set(cam.position.x, cam.position.y + DOME_TOP - DOME_H / 2, cam.position.z);
+
+  // 降る雪: カメラの前の箱の中で折り返す。走ると手前へ流れてくる
+  const bx = cam.position.x + cx * 26 - 30, bz = cam.position.z + cz * 26 - 35, by = cam.position.y - 5;
+  for (let i = 0; i < NF; i++) {
+    const k = i * 3;
+    fp[k] = bx + mod(fp[k] + Math.sin(t + i) * .4 * dt - bx, 60);
+    fp[k + 1] = by + mod(fp[k + 1] - (1.3 + (i % 5) * .2) * dt - by, 16);
+    fp[k + 2] = bz + mod(fp[k + 2] - bz, 70);
+  }
+  flakeG.attributes.position.needsUpdate = true;
+
+  if (mode !== 'title') drawHud(t);
+  drawFx(mode === 'title' ? 0 : Math.max(boostFx, clamp((sp - 58) / 14, 0, 1)), P.nitroOn, slipFx);
+
+  // 音
+  if (AC) {
+    const now = AC.currentTime, gear = Math.min(4, Math.floor(sp / 15)), rpm = (sp - gear * 15) / (gear === 4 ? 22 : 15);
+    const f = 52 + rpm * 62 + gear * 9 + boostFx * 22, on = mode === 'title' ? .25 : 1;
+    engO1.frequency.setTargetAtTime(f, now, .04); engO2.frequency.setTargetAtTime(f * .501, now, .04);
+    engF.frequency.setTargetAtTime(380 + rpm * 700 + (inp.accel ? 500 : 0) + boostFx * 900, now, .05);
+    engG.gain.setTargetAtTime((.1 + (inp.accel ? .06 : 0)) * on, now, .05);
+    slideG.gain.setTargetAtTime(clamp(slide * 1.3 + (P.off ? .3 : 0) + (P.drift ? .25 : 0), 0, .6) * Math.min(1, sp / 20) * .3 * on + sr * .03 * on, now, .05);
+    whoG.gain.setTargetAtTime(boostFx * .3 * on, now, .08); whoF.frequency.setTargetAtTime(400 + boostFx * 1400 + sr * 300, now, .1);
+    music();
+  }
+}
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (!paused) { update(dt); renderer.render(scene, cam); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__g = { P, ais, get mode() { return mode; }, get raceT() { return raceT; }, get laps() { return lapTimes; }, LEN, N, KS, PX, PZ, rankOf, startRace, update };
+</script>
+</html>
