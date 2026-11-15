@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-12 TPS 森の遺跡 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-12 ─ TPS（背後視点）森の遺跡 / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xd0ecf0, fov: 58, sun: [-4, 10, 4] });
+const { box, cyl, cone, ball, prism, grp, hash, rod, cam } = P;
+
+// 地面と遠くの森
+box(null, 120, .2, 260, 0x8cc152, 0, -.1, -100); box(null, 4.4, .02, 260, 0xd8c8a0, 0, .005, -100);
+for (let i = 0; i < 14; i++) cone(null, 9 + hash(i, 1) * 6, 16 + hash(i, 2) * 12, i % 2 ? 0x5a9a5a : 0x4a8a58, -78 + i * 12, 8, -120 - hash(i, 3) * 14, 6);
+
+// 流れてくるもの
+const L = 88, items = [];
+const put = (g, z0) => { items.push({ g, z0 }); return g; };
+for (let i = 0; i < 22; i++) put(box(null, 4.4, .02, .5, 0xc8b68a, 0, .012, 0), i * 4);
+for (let i = 0; i < 40; i++) {
+  const side = i % 2 ? 1 : -1, x = side * (3.4 + hash(i, 4) * 10), k = i % 5;
+  const g = put(grp(null, x, 0, 0), hash(i, 5) * L);
+  if (k < 2) { const s = 2.6 + hash(i, 6) * 2.4; g.scale.setScalar(1); const tr = P.tree(g, 0, 0, s, [0x3f8f4a, 0x4fa04a, 0x358a5a][i % 3]); cone(tr, .24, .6, [0x3f8f4a, 0x4fa04a, 0x358a5a][i % 3], 0, .95, 0); }
+  else if (k === 2) P.round(g, 0, 0, 2.2 + hash(i, 6) * 1.6, 0x5aa84e);
+  else if (k === 3) { for (let j = 0; j < 3; j++) ball(g, .4 + hash(i, j) * .5, 0xbdb6cc, j * .7 - .6, .25, hash(i, j + 3) * .6); for (let j = 0; j < 4; j++) cone(g, .12, .5, 0x6ac85a, -1 + j * .5, .25, .8, 4); }
+  else { const h = 1.5 + hash(i, 7) * 2.5; cyl(g, .4, .45, h, 0xd0cadc, 0, h / 2, 0, 8); box(g, 1, .2, 1, 0xbdb6cc, 0, .1, 0); if (h > 3) box(g, 1, .24, 1, 0xbdb6cc, 0, h, 0); else ball(g, .3, 0xbdb6cc, .6, .2, .3); ball(g, .34, 0x6aa84a, .2, h * .6, .3, 1); }
+}
+for (let i = 0; i < 3; i++) {                                         // 道をまたぐ石の門
+  const g = put(grp(), i * 29 + 12); for (const s of [-1, 1]) { box(g, .9, 4.2, .9, 0xd0cadc, s * 2.9, 2.1, 0); box(g, 1.1, .3, 1.1, 0xbdb6cc, s * 2.9, .15, 0); }
+  box(g, 7.2, .7, 1, 0xd0cadc, 0, 4.5, 0); box(g, 7.6, .2, 1.2, 0xbdb6cc, 0, 4.95, 0); ball(g, .5, 0x6aa84a, -2.2, 5.1, 0, 1); for (let k = 0; k < 5; k++) box(g, .04, .5 + hash(i, k) * .8, .04, 0x4fa04a, -1.6 + k * .8, 3.9 - hash(i, k) * .4, .3);
+}
+
+// 主人公（背中が手前）
+const hero = grp(); const body = grp(hero, 0, 0, 0);
+box(body, .46, .56, .28, 0x4fa07a, 0, 1.2, 0); box(body, .48, .1, .3, 0x4a4058, 0, .9, 0); box(body, .34, .44, .2, 0xb08a5a, 0, 1.22, .22); box(body, .3, .1, .22, 0x8a6a4a, 0, 1.46, .22); cyl(body, .07, .07, .34, 0xd8d2e0, .17, 1.2, .36, 6);
+ball(body, .19, 0xf0c8a0, 0, 1.68, 0, 1); ball(body, .2, 0x6a4a3a, 0, 1.72, .04, 1); box(body, .5, .06, .1, 0xe2574c, 0, 1.6, -.02); box(body, .06, .3, .04, 0xe2574c, .12, 1.5, .2);
+const legs = [-.12, .12].map(x => { const l = grp(body, x, .88, 0); box(l, .17, .5, .19, 0x4a4058, 0, -.25, 0); const k = grp(l, 0, -.5, 0); box(k, .15, .44, .17, 0x4a4058, 0, -.2, 0); box(k, .17, .12, .3, 0x8a5a3a, 0, -.42, -.06); return { l, k }; });
+const armL = grp(body, -.3, 1.42, 0); box(armL, .13, .46, .14, 0x4fa07a, 0, -.2, 0); box(armL, .11, .12, .12, 0xf0c8a0, 0, -.46, 0);
+const armR = grp(body, .3, 1.42, 0); armR.rotation.x = 1.25; box(armR, .13, .46, .14, 0x4fa07a, 0, -.2, 0); box(armR, .11, .12, .12, 0xf0c8a0, 0, -.46, 0);
+const rifle = grp(body, .22, 1.32, -.5); box(rifle, .07, .1, .8, 0x6a6478, 0, 0, 0); box(rifle, .05, .05, .3, 0x4a4058, 0, .02, -.5); box(rifle, .06, .18, .08, 0x4a4058, 0, -.12, .1); box(rifle, .05, .06, .14, 0xf0b03a, 0, .09, -.05);
+const mflash = P.add(rifle, new THREE.ConeGeometry(.1, .34, 5), P.glow(0xffd860), 0, .02, -.8); mflash.rotation.x = -Math.PI / 2;
+
+// 敵（歩く機械）
+const bots = [...Array(4)].map((_, i) => {
+  const g = grp(); box(g, .8, .6, .7, 0xd0cadc, 0, 1.3, 0); box(g, .84, .14, .74, 0xe2574c, 0, 1.5, 0); const eye = P.add(g, new THREE.SphereGeometry(.14, 6, 5), P.glow(0xff5040), 0, 1.3, .36); cyl(g, .03, .03, .5, 0x4a4058, .25, 1.85, 0, 4); ball(g, .06, 0xe2574c, .25, 2.1, 0);
+  const ls = [-.3, .3].map(x => { const l = grp(g, x, 1, 0); box(l, .16, .6, .16, 0x8a8698, 0, -.3, .1); box(l, .14, .5, .14, 0x8a8698, 0, -.75, 0); box(l, .3, .1, .4, 0x6a6478, 0, -.98, .06); return l; });
+  for (const s of [-1, 1]) box(g, .14, .14, .5, 0x6a6478, s * .5, 1.25, .2);
+  return { g, ls, x: (i % 2 ? 1 : -1) * (.6 + i * .3), z: -24 - i * 17, hp: 3, pop: 0, ph: i };
+});
+const bolts = [...Array(6)].map(() => ({ m: P.add(null, new THREE.BoxGeometry(.07, .07, .9), P.glow(0xffe060)), a: 1, from: new THREE.Vector3(), e: null })); let bi = 0;
+const puffs = [...Array(10)].map(() => ({ m: ball(null, .3, 0xeeeaf4, 0, -9, 0), a: 1 })); let pi = 0;
+const dust = [...Array(6)].map((_, i) => ({ m: ball(null, .1, 0xe8dcc0, 0, -9, 0), ph: i / 6 }));
+let dist = 0, cd = .5, hx = 0, fl = 0; const mz = new THREE.Vector3(), tv = new THREE.Vector3();
+
+P.run((dt, t) => {
+  dist += dt * 5.2;
+  for (const it of items) { const z = ((it.z0 + dist) % L + L) % L - L + 8; it.g.position.z = z; it.g.scale.setScalar(Math.min(1, (z + L - 8) / 6 + .001)); }
+  let target = null;
+  for (const b of bots) {
+    if (b.pop > 0) { b.pop -= dt * 2.5; b.g.scale.setScalar(Math.max(.01, b.pop)); if (b.pop <= 0) { b.z = -60 - Math.random() * 25; b.x = (Math.random() - .5) * 3.4; b.hp = 3; b.g.scale.setScalar(1); } }
+    else { b.z += dt * 3.4; if (b.z > 2) b.z = -70; if (b.z < -6 && (!target || b.z > target.z)) target = b; }
+    b.g.position.set(b.x, Math.abs(Math.sin(t * 5 + b.ph)) * .06, b.z); b.ls[0].rotation.x = Math.sin(t * 5 + b.ph) * .5; b.ls[1].rotation.x = -Math.sin(t * 5 + b.ph) * .5;
+  }
+  const want = target && target.z > -40 ? target.x * .55 + Math.sin(t * .9) * .5 : Math.sin(t * .6) * 1.1;
+  const pv = hx; hx += (want - hx) * Math.min(1, dt * 2.2); hero.position.x = hx; hero.rotation.z = -(hx - pv) / Math.max(dt, .001) * .06;
+  const run = t * 11; body.position.y = Math.abs(Math.sin(run)) * .08; body.rotation.x = -.16;
+  legs[0].l.rotation.x = Math.sin(run) * .9; legs[1].l.rotation.x = -Math.sin(run) * .9; legs[0].k.rotation.x = -Math.max(0, Math.cos(run)) * 1.1; legs[1].k.rotation.x = -Math.max(0, -Math.cos(run)) * 1.1; armL.rotation.x = -Math.sin(run) * .8;
+  cd -= dt; fl -= dt;
+  if (cd <= 0 && target && target.z > -30) {
+    cd = .3; fl = .06; const b = bolts[bi++ % 6]; b.a = 0; b.e = target; rifle.updateWorldMatrix(true, false); b.from.set(0, .02, -.7).applyMatrix4(rifle.matrixWorld);
+  }
+  mflash.visible = fl > 0; rifle.position.z = -.5 + Math.max(0, fl) * 1.2;
+  for (const b of bolts) {
+    if (b.a >= 1) { b.m.visible = false; continue; } b.m.visible = true; b.a += dt * 5; tv.copy(b.e.g.position).setY(1.3); b.m.position.copy(b.from).lerp(tv, Math.min(1, b.a)); b.m.lookAt(tv);
+    if (b.a >= 1 && b.e.pop <= 0) { const p = puffs[pi++ % 10]; p.a = 0; p.m.position.copy(tv); if (--b.e.hp <= 0) { b.e.pop = 1; for (let k = 0; k < 3; k++) { const q = puffs[pi++ % 10]; q.a = 0; q.m.position.copy(tv).add(new THREE.Vector3((Math.random() - .5), Math.random(), (Math.random() - .5))); } } }
+  }
+  for (const p of puffs) { if (p.a >= 1) { p.m.position.y = -9; continue; } p.a += dt * 2.2; p.m.position.z += dt * 5.2; p.m.position.y += dt * .6; p.m.scale.setScalar(.5 + p.a * 1.8 - p.a * p.a * 1.9); }
+  dust.forEach(d => { const a = (t * 2 + d.ph) % 1; d.m.position.set(hx + Math.sin(d.ph * 40) * .2, .1 + a * .3, .3 + a * 2.4); d.m.scale.setScalar(.6 + a * 1.2 - a * a * 1.6); });
+  cam.position.set(hx * .55 + 1.15, 2.35 + Math.sin(t * 5.5) * .03, 4.3); cam.lookAt(hx * .7 + .3, 1.5, -8);
+});
+</script>
+</html>

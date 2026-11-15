@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-15 横スクロールアクション 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-15 ─ 横スクロールアクション / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+// 真横より少し上から見る（ブロックの上面が見える）
+const P = PENCIL(THREE, { sky: 0xcfeaf6, from: [0, 5, 20], look: [0, 2.4, 0], size: 4.9, wide: 6.6, sun: [3, 10, 6] });
+const { box, cyl, cone, ball, prism, grp, hash, rod, cam } = P;
+
+// ステージ：1 列ごとの地面の高さ（-9 は穴）。48 列でくり返す
+const W = 48, HT = [0, 0, 0, 0, 0, 0, 0, 0, -9, -9, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, -9, -9, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, -9, -9, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0];
+const ground = x => HT[((Math.floor(x) % W) + W) % W];
+const FOES = [4.5, 12.5, 25.5, 31.5, 43.5], COINS = [[8.5, 2.2], [9.5, 2.2], [16, 2.6], [19.5, 3.8], [21.5, 3.9], [22.5, 3.3], [26, 1.4], [34.5, 2.6], [35.5, 2.9], [41, 3.4], [42, 3.4], [43, 3.4]];
+function level() {
+  const g = grp(), coins = [], foes = [];
+  for (let i = 0; i < W; i++) {
+    const h = HT[i]; if (h < 0) { box(g, 1, .3, 2.6, 0x8fd0f0, i + .5, -1.6, 0); continue; }
+    box(g, 1, h + 3, 2.6, i % 2 ? 0xc89a68 : 0xc09060, i + .5, (h - 3) / 2, 0); box(g, 1.02, .28, 2.7, i % 2 ? 0x8cc152 : 0x7ab648, i + .5, h - .12, 0);
+    if (hash(i, 1) > .6) { cyl(g, .015, .015, .14, 0x3f8f4a, i + .5, h + .08, 1.1, 4); ball(g, .07, [0xf0a0c0, 0xf6e050, 0xfaf6ec][i % 3], i + .5, h + .18, 1.1); }
+    if (hash(i, 2) > .78) (i % 2 ? P.tree : P.round)(g, i + .5, -1, 1.6 + hash(i, 3), 0x3f8f4a, h);
+    else if (hash(i, 4) > .8) ball(g, .3, 0x5aa84e, i + .5, h + .15, -1, 1);
+  }
+  // 浮いている足場（石と木箱）
+  for (const [x, y, n] of [[4, 2.6, 3], [11.5, 2.8, 2], [24, 2.6, 4], [30.5, 3, 2], [40, 2.6, 3]]) for (let k = 0; k < n; k++) { const q = k === 1; box(g, .96, .96, .96, q ? 0xc8a070 : 0xd0cadc, x + k, y, -.3); if (q) { box(g, .98, .12, .98, 0x8a6a4a, x + k, y + .3, -.3); box(g, .98, .12, .98, 0x8a6a4a, x + k, y - .3, -.3); box(g, .12, .98, .98, 0x8a6a4a, x + k, y, -.3); } else { box(g, .98, .06, .98, 0xa8a2b8, x + k, y + .16, -.3); ball(g, .12, 0x6aa84a, x + k - .3, y + .5, .1); } }
+  // 切り株ときのこ、さく、道しるべ
+  for (const [x, h] of [[2.5, 1.2], [29.5, 1.6]]) { cyl(g, .4, .46, h * .6, 0xa87a50, x, HT[Math.floor(x)] + h * .3, -.9, 9); cyl(g, .38, .38, .04, 0xe8d0a0, x, HT[Math.floor(x)] + h * .6, -.9, 9); ball(g, .12, 0xe2574c, x + .3, HT[Math.floor(x)] + .12, -.4); cyl(g, .04, .04, .2, 0xf6efdc, x + .3, HT[Math.floor(x)] + .05, -.4, 5); }
+  for (let k = 0; k < 5; k++) { box(g, .06, .4, .06, 0xf6efdc, 44 + k * .6, .2, 1.15); } box(g, 2.6, .05, .04, 0xf6efdc, 45.2, .3, 1.15);
+  box(g, .08, 1.2, .08, 0x8a6a4a, 46.5, .6, -.8); box(g, .9, .4, .06, 0xd8b078, 46.5, 1.2, -.8);
+  box(g, 1.6, 1.4, 1.2, 0xf2d8b0, 13, .7, -.6); prism(g, 1.8, .7, 1.4, 0xe2574c, 13, 1.4, -.6); box(g, .34, .6, .04, 0x8a5a3a, 13, .3, .02);
+  for (const [x, y] of COINS) { const c = P.add(g, new THREE.OctahedronGeometry(.2), 0x5ab8d8, x, y, 0); c.scale.set(.8, 1.2, .5); coins.push({ m: c, x, y, off: 0 }); }
+  for (const x of FOES) { const f = grp(g, x, HT[Math.floor(x)], .2); ball(f, .3, 0xb05cc8, 0, .3, 0, 1); ball(f, .06, 0xffffff, -.12, .38, .26); ball(f, .06, 0xffffff, .12, .38, .26); ball(f, .03, 0x2a2438, -.12, .38, .31); ball(f, .03, 0x2a2438, .12, .38, .31); box(f, .16, .1, .24, 0x4a4058, -.14, .05, 0); box(f, .16, .1, .24, 0x4a4058, .14, .05, 0); foes.push({ g: f, x, flat: 0 }); }
+  return { g, coins, foes };
+}
+const copies = [level(), level(), level()];
+// 遠くの丘と雲（ゆっくり流れる）
+const hills = [...Array(7)].map((_, i) => ({ m: ball(null, 3 + hash(i, 5) * 2.4, i % 2 ? 0xa8d8a0 : 0xb8e0b0, 0, -1.2, -7 - (i % 2), 2), o: i * 9 }));
+const clouds = [...Array(6)].map((_, i) => { const g = grp(null, 0, 5.4 + hash(i, 6) * 2, -5); for (let k = 0; k < 4; k++) ball(g, .5 + hash(i, k) * .4, 0xffffff, k * .7 - 1, hash(k, i) * .3, 0, 1); return { g, o: i * 8 }; });
+
+// 主人公（きつねの旅人）
+const hero = grp(); const hb = grp(hero);
+box(hb, .44, .46, .34, 0x4fa07a, 0, .52, 0); box(hb, .46, .1, .36, 0x8a5a3a, 0, .36, 0); ball(hb, .24, 0xf0a04a, 0, .98, 0, 1); cone(hb, .09, .22, 0xf0a04a, -.04, 1.24, -.14, 4); cone(hb, .09, .22, 0xf0a04a, -.04, 1.24, .14, 4); cone(hb, .1, .2, 0xfaf6ec, .24, .94, 0, 4).rotation.z = -Math.PI / 2; ball(hb, .04, 0x2a2438, .32, .95, 0); ball(hb, .035, 0x2a2438, .16, 1.04, .15); box(hb, .46, .1, .36, 0xf0c83a, 0, .78, 0); const tail = grp(hb, -.2, .4, 0); cone(tail, .12, .5, 0xf0a04a, -.2, .1, 0, 5).rotation.z = 1.1; ball(tail, .08, 0xfaf6ec, -.42, .22, 0);
+const hl = [-.1, .1].map(z => { const l = grp(hb, 0, .3, z); box(l, .16, .3, .14, 0x8a5a3a, 0, -.15, 0); box(l, .26, .1, .16, 0x8a5a3a, .05, -.3, 0); return l; });
+const ha = [-.2, .2].map(z => { const a = grp(hb, 0, .7, z); box(a, .12, .3, .1, 0x4fa07a, 0, -.15, 0); ball(a, .07, 0xfaf6ec, 0, -.33, 0); return a; });
+const dust = [...Array(6)].map(() => ({ m: ball(null, .12, 0xeee6d0, 0, -9, 0), a: 1 })); let di = 0;
+const pops = [...Array(6)].map(() => ({ m: P.add(null, new THREE.OctahedronGeometry(.1), P.glow(0xffe060)), a: 1 })); let pi = 0;
+let x = 1, y = 0, vy = 0, on = true, air = 0;
+
+P.run((dt, t) => {
+  x += dt * 3.3; const gh = ground(x); vy -= 18 * dt; y += vy * dt; const was = on; on = false;
+  if (gh > -5 && y <= gh) { y = gh; vy = 0; on = true; if (!was) { const d = dust[di++ % 6]; d.a = 0; d.m.position.set(x, y + .1, .4); } }
+  if (y < -4) { y = Math.max(0, ground(x + 1.5)); vy = 0; }
+  const lx = ((x % W) + W) % W, ahead = ground(x + .45), foeNear = FOES.some(fx => fx - lx > .5 && fx - lx < 1.15);
+  if (on && (ahead < -5 || ahead > y + .01 || foeNear)) { vy = 8; on = false; }
+  hero.position.set(x, y, .3); const run = t * 14;
+  hl[0].rotation.z = on ? Math.sin(run) * .9 : .6; hl[1].rotation.z = on ? -Math.sin(run) * .9 : -.5; ha[0].rotation.z = on ? -Math.sin(run) * .8 : 2.4; ha[1].rotation.z = on ? Math.sin(run) * .8 : -.6;
+  hb.rotation.z = on ? -.08 : vy * .03; tail.rotation.z = Math.sin(t * 9) * .3; hb.position.y = on ? Math.abs(Math.sin(run)) * .05 : 0;
+  const base = Math.floor(x / W) * W;
+  copies.forEach((c, i) => {
+    c.g.position.x = base + (i - 1) * W;
+    for (const k of c.coins) { k.m.rotation.y = t * 3; const wxk = c.g.position.x + k.x; if (k.off <= 0 && Math.abs(wxk - x) < .5 && Math.abs(k.y - (y + .7)) < 1.1) { k.off = 8; const p = pops[pi++ % 6]; p.a = 0; p.m.position.set(wxk, k.y, 0); } k.off -= dt; k.m.visible = k.off <= 0; }
+    for (const f of c.foes) { const wxf = c.g.position.x + f.x; if (f.flat <= 0 && Math.abs(wxf - x) < .45 && vy < 0 && y - (HT[Math.floor(f.x)]) < .7) { f.flat = 6; vy = 6; } f.flat -= dt; f.g.scale.y = f.flat > 0 ? .25 : 1 + Math.sin(t * 6 + f.x) * .06; f.g.position.x = f.x + (f.flat > 0 ? 0 : Math.sin(t * 1.5 + f.x) * .25); }
+  });
+  for (const d of dust) { if (d.a >= 1) { d.m.position.y = -9; continue; } d.a += dt * 3; d.m.scale.setScalar(.6 + d.a * 1.2 - d.a * d.a * 1.6); d.m.position.x -= dt; }
+  for (const p of pops) { if (p.a >= 1) { p.m.visible = false; continue; } p.m.visible = true; p.a += dt * 2.5; p.m.position.y += dt * 2; p.m.rotation.y = t * 8; p.m.scale.setScalar(1.6 - p.a); }
+  const cx = x + 2.6; cam.position.x = cx;
+  hills.forEach(h => { h.m.position.x = cx + ((h.o - cx * .25) % 60 + 60) % 60 - 30; });
+  clouds.forEach(c => { c.g.position.x = cx + ((c.o - cx * .45 - t * .3) % 48 + 48) % 48 - 24; });
+});
+</script>
+</html>

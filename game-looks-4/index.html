@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>色鉛筆のハッチング 10 案 一覧</title>
+<title>色鉛筆のハッチング 16 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>色鉛筆のハッチング 10 案</h1>
-  <p>第 4 集。第 1 集の「06 タワーディフェンス / 色鉛筆のハッチング」と同じ描き方のまま、場面とジャンルを変えたもの。ローポリの箱庭を、紙の上の薄い下塗りと、暗い面ほど重なる斜線、鉛筆の輪郭線に描き直しています。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
+  <h1>色鉛筆のハッチング 16 案</h1>
+  <p>第 4 集。第 1 集の「06 タワーディフェンス / 色鉛筆のハッチング」と同じ描き方のまま、場面とジャンルを変えたもの。01〜10 は斜め上から見た箱庭、11〜16 は FPS・TPS・見下ろし・レース・横スクロール・フライトと、画角も変えています。ローポリの箱庭を、紙の上の薄い下塗りと、暗い面ほど重なる斜線、鉛筆の輪郭線に描き直しています。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -37,6 +37,12 @@ const LOOKS = [
   ['08-moonbase', '基地づくり・SF', '月面基地', 1],
   ['09-naval', 'ストラテジー', 'とりでの島の海戦', 1],
   ['10-kitchen', '料理・アクション', 'いそがしい厨房', 1],
+  ['11-fps', 'FPS（一人称）', '砂の町を進む', 1],
+  ['12-tps', 'TPS（背後視点）', '森の遺跡を走る', 1],
+  ['13-topdown-rpg', '見下ろし RPG（神視点）', '村と森をめぐる旅', 1],
+  ['14-race', 'レース（うしろから追う視点）', '山あいのサーキット', 1],
+  ['15-side-scroller', '横スクロールアクション', 'きつねの旅人', 1],
+  ['16-flight', 'フライト', '複葉機で輪くぐり', 1],
 ];
 const grid = document.getElementById('grid');
 for (const [file, genre, look, is3d] of LOOKS) {

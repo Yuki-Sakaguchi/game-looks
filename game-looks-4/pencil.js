@@ -1,12 +1,12 @@
 // 第 4 集の共通部品。ふつうに塗ったローポリの箱庭を、最後に「紙＋色鉛筆のハッチング」に描き直す
 // （描き方は第 1 集 06 と同じ：薄い下塗り、暗い面ほど斜線を重ねる、色の境目が鉛筆の輪郭、1 秒に 6 回の揺れ）
-// 使い方: const P = PENCIL(THREE, { sky, from, look, size, wide, sun });  P.run((dt, t) => { ... });
+// 使い方: const P = PENCIL(THREE, { sky, from, look, size, wide, sun });  fov を渡すと遠近カメラ（FPS などの画角）になる  P.run((dt, t) => { ... });
 function PENCIL(THREE, o = {}) {
   const canvas = document.getElementById('c');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene(); scene.background = new THREE.Color(o.sky ?? 0x8fcdf0);
-  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 200);
+  const cam = o.fov ? new THREE.PerspectiveCamera(o.fov, 1, .1, o.far ?? 400) : new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 200);
   const from = o.from ?? [12, 12, 12], look = o.look ?? [0, 0, 0];
   cam.position.set(from[0] + look[0], from[1] + look[1], from[2] + look[2]); cam.lookAt(look[0], look[1], look[2]);
   scene.add(new THREE.AmbientLight(0xffffff, o.amb ?? 1.3));
@@ -116,7 +116,8 @@ function PENCIL(THREE, o = {}) {
     const s = renderer.getDrawingBufferSize(new THREE.Vector2());
     rt.setSize(s.x, s.y); post.uniforms.res.value.copy(s); post.uniforms.dpr.value = renderer.getPixelRatio();
     const a = innerWidth / innerHeight, h = Math.max(o.size ?? 6.6, (o.wide ?? 8.2) / a);
-    cam.left = -h * a; cam.right = h * a; cam.top = h; cam.bottom = -h; cam.updateProjectionMatrix();
+    if (o.fov) cam.aspect = a; else { cam.left = -h * a; cam.right = h * a; cam.top = h; cam.bottom = -h; }
+    cam.updateProjectionMatrix();
   }
   addEventListener('resize', resize); resize();
   function run(fn) {
