@@ -148,7 +148,10 @@ function updateCamera(dt, t) {
   cam.position.set(tgt.x + dir.x * cs.dist, tgt.y + dir.y * cs.dist, tgt.z + dir.z * cs.dist); const wy = waterY(cam.position.x, cam.position.z) + .35; if (cam.position.y < wy) cam.position.y = wy;
   if (shake > .001) { cam.position.y += Math.sin(t * 60) * shake; shake = damp(shake, 0, 10, dt); }
   cam.lookAt(tgt.x, tgt.y + .1, tgt.z); hero.g.visible = cs.dist > .9;
-  const hs = Math.hypot(P.vx, P.vz), want = 62 + (P.dashT > 0 ? 16 : hs > 7 ? 6 : 0) + (P.glide ? 5 : 0); fov = damp(fov, want, P.dashT > 0 ? 14 : 4, dt); if (Math.abs(cam.fov - fov) > .05) { cam.fov = fov; cam.updateProjectionMatrix(); }
+  const hs = Math.hypot(P.vx, P.vz), want = 62 + (P.dashT > 0 ? 16 : hs > 7 ? 6 : 0) + (P.glide ? 5 : 0); fov = damp(fov, want, P.dashT > 0 ? 14 : 4, dt);
+  // スマホは 1 割ほど広くし、たて長の画面では横の画角が 45 度を下回らないように広げる
+  const vf = Math.min(104, fov * Math.min(86, Math.max(62 * (Math.min(innerWidth, innerHeight) < 520 ? 1.12 : 1), Math.atan(Math.tan(45 * Math.PI / 360) * innerHeight / innerWidth) * 360 / Math.PI)) / 62);
+  if (Math.abs(cam.fov - vf) > .05) { cam.fov = vf; cam.updateProjectionMatrix(); }
   post.u.boost.value = damp(post.u.boost.value, P.dashT > 0 ? 1 : P.glide ? .15 : 0, 9, dt);
   const sx = Math.round(P.x / 4) * 4, sz = Math.round(P.z / 4) * 4, sy = Math.round(P.y / 4) * 4; sun.target.position.set(sx, sy, sz); sun.position.set(sx + SUN.x, sy + SUN.y, sz + SUN.z);
 }

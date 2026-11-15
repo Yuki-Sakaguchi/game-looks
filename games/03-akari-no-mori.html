@@ -452,9 +452,11 @@ const post = new THREE.ShaderMaterial({
 });
 const ps = new THREE.Scene(); const pq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); pq.frustumCulled = false; ps.add(pq);
 const pc = new THREE.Camera();
+// たての画角を決める。スマホ（短い辺が 520px 未満）は 1 割ほど広くし、たて長の画面では横の画角が hMin 度を下回らないように広げる（上限 vMax 度）
+const vfov = (base, hMin, vMax) => Math.min(vMax, Math.max(base * (Math.min(innerWidth, innerHeight) < 520 ? 1.12 : 1), Math.atan(Math.tan(hMin * Math.PI / 360) * innerHeight / innerWidth) * 360 / Math.PI));
 function resize() {
   const a = innerWidth / innerHeight, RH = a >= 1 ? 240 : Math.round(240 / a), RW = a >= 1 ? Math.round(240 * a) : 240; // 短辺を 240 画素に
-  renderer.setSize(RW, RH, false); rt.setSize(RW, RH); cam.aspect = a; cam.fov = a >= 1 ? 60 : 74; cam.updateProjectionMatrix();
+  renderer.setSize(RW, RH, false); rt.setSize(RW, RH); cam.aspect = a; cam.fov = vfov(60, 48, 90); cam.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 

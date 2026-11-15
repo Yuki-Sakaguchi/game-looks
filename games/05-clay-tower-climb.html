@@ -392,7 +392,9 @@ function tick(dt) {
 }
 const FLOOR = { on: true, dx: 0, dy: 0, dz: 0, top: -.6 };
 
-function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = innerWidth < innerHeight ? 56 : 40; cam.updateProjectionMatrix(); }
+// たての画角を決める。スマホ（短い辺が 520px 未満）は 1 割ほど広くし、たて長の画面では横の画角が hMin 度を下回らないように広げる（上限 vMax 度）
+const vfov = (base, hMin, vMax) => Math.min(vMax, Math.max(base * (Math.min(innerWidth, innerHeight) < 520 ? 1.12 : 1), Math.atan(Math.tan(hMin * Math.PI / 360) * innerHeight / innerWidth) * 360 / Math.PI));
+function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = vfov(40, 35, 72); cam.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
 // 1 秒 12 コマでだけ変えるもの
@@ -431,7 +433,7 @@ function frame(now) {
   if ((hudT -= dt) <= 0) { hudT = .1; hud(); }
 
   // カメラ: 塔の外がわから主人公ごしに塔を見る向きへ、自動で回りこむ（ドラッグでずらせる）
-  let dist = camDist * (innerWidth < innerHeight ? 1.25 : 1), pitch = camPitch;
+  let dist = camDist * (innerWidth < innerHeight ? 1.3 : 1), pitch = camPitch;
   if (state === 'title') { camYaw = T * .15; wantT.set(0, 10.5, 0); dist = 36; pitch = .2; }
   else {
     if (Math.hypot(p.x, p.z) > 1.8) autoYaw = angLerp(autoYaw, Math.atan2(p.x, p.z), 1 - Math.exp(-4 * dt));

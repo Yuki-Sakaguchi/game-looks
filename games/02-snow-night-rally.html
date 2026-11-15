@@ -787,6 +787,8 @@ function drawFx(amt, nitro, slip) {
 }
 
 let aspect = 1;
+// たての画角を決める。スマホ（短い辺が 520px 未満）は 1 割ほど広くし、たて長の画面では横の画角が hMin 度を下回らないように広げる（上限 vMax 度）
+const vfov = (base, hMin, vMax) => Math.min(vMax, Math.max(base * (Math.min(innerWidth, innerHeight) < 520 ? 1.12 : 1), Math.atan(Math.tan(hMin * Math.PI / 360) * innerHeight / innerWidth) * 360 / Math.PI));
 function resize() { renderer.setSize(innerWidth, innerHeight, false); aspect = innerWidth / innerHeight; cam.aspect = aspect; cam.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
@@ -911,7 +913,7 @@ function update(dt) {
   cam.position.set(P.x - cx * camDist + sxo, P.y + camH + syo, P.z - cz * camDist);
   const gy = PY[P.idx] + bank(Math.abs(P.lat) + 4) + 1.2; if (cam.position.y < gy) cam.position.y = gy;
   cam.lookAt(P.x + cx * 7 + sxo * .5, P.y + 1.1, P.z + cz * 7);
-  cam.fov = camFov * (aspect < 1 ? 1.25 : 1); cam.updateProjectionMatrix();
+  cam.fov = Math.min(106, camFov * vfov(58, 47, 90) / 58); cam.updateProjectionMatrix();
   dome.position.set(cam.position.x, cam.position.y + DOME_TOP - DOME_H / 2, cam.position.z);
 
   // 降る雪: カメラの前の箱の中で折り返す。走ると手前へ流れてくる
