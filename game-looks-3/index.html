@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ドット絵のジオラマ 6 案 一覧</title>
+<title>ドット絵のジオラマ 10 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ドット絵のジオラマ 6 案</h1>
-  <p>第 3 集。黒い空間に浮かぶ小さなジオラマを、立体のままドット絵として描いたもの。1 場面は 1 つの色相の 6 段と、差し色 1 つだけで塗り、ゆっくり回ります。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
+  <h1>ドット絵のジオラマ 10 案</h1>
+  <p>第 3 集。黒い空間に浮かぶ小さなジオラマを、立体のままドット絵として描いたもの。1 場面は 1 つの色相の 6 段と、差し色 1 つだけで塗り、ゆっくり回ります。07〜10 は大きなボスが主役です。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -33,6 +33,10 @@ const LOOKS = [
   ['04-observatory', '星見の塔', '紫 1 色 ＋ 黄色い星の光', 1],
   ['05-volcano-forge', '火山の鍛冶場', '赤 1 色 ＋ 黄色い火花と溶岩', 1],
   ['06-frozen-ship', '氷にとざされた船', '氷の青緑 1 色 ＋ 赤い旗と灯り', 1],
+  ['07-boss-kraken-lighthouse', 'ボス：灯台をしめつける大だこ', 'ばら色 1 色 ＋ 黄色い灯りと目', 1],
+  ['08-boss-stone-golem', 'ボス：遺跡の石の巨人', '苔色 1 色 ＋ だいだいの核と目', 1],
+  ['09-boss-moth-queen', 'ボス：灯りにとまる蛾の女王', '銀ねず 1 色 ＋ だいだいの灯り', 1],
+  ['10-boss-clockwork-spider', 'ボス：機械じかけの大ぐも', '青緑 1 色 ＋ 赤い目と探す光', 1],
 ];
 const grid = document.getElementById('grid');
 for (const [file, genre, look, is3d] of LOOKS) {
