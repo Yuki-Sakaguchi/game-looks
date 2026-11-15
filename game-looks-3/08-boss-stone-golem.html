@@ -12,43 +12,67 @@ canvas{display:block;image-rendering:pixelated}
 <script src="kit.js"></script><script src="diorama.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
-// 遺跡にひざをつく石の巨人。色は苔色の 6 段だけで、差し色はだいだい（胸の核、目、うでの文字、冒険者のたいまつ）。
-// 胸の核がゆっくり脈を打ち、そのたびに胸の内側とあごの下が明るくなる。体のまわりには岩のかけらが浮いて回る。
-// 足もとに小さな冒険者を置いて、大きさを伝える
+// 遺跡にひざをつく石の巨人。色は苔色の 6 段だけで、差し色はだいだい（胸の核、目、うでの文字、ひびの奥、冒険者のたいまつ）。
+// 体は 1 つの箱ではなく、大きさの違う石の板を何枚も積んで作り、板のすき間は黒い目地にする。
+// 胸は左右の板のあいだが開いていて、石のあばらの奥で核が脈を打つ。顔には、まゆ・鼻すじ・動くあごと歯。
+// 手は手のひらと 4 本の指と親指。肩には苔と木、背中には結晶、肩口には折れた大剣がささっている
 import * as THREE from 'three';
-const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#14180c', '#343e1c', '#6a7a34', '#b0c060', '#f0ffc0'], acc: ['#6a1400', '#d8401a', '#ff8a3a', '#ffe0b0'], dist: 38, height: 12, look: 5.4, amb: .45, key: 2 });
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#14180c', '#343e1c', '#6a7a34', '#b0c060', '#f0ffc0'], acc: ['#6a1400', '#d8401a', '#ff8a3a', '#ffe0b0'], dist: 35, height: 11, look: 5.6, amb: .45, key: 2, width: 460 });
 const { world: w, g, a } = D, { add, box, hash } = K;
 D.base(8, .5);
-// 遺跡：柱、こわれた門、石だたみ
-for (const [x, z, h] of [[-5.6, -2.4, 5], [5.6, -2.8, 3.4], [-5, 3.6, 2.2], [5.4, 3.2, 4.2]]) { add(w, new THREE.CylinderGeometry(.55, .62, h, 8), g(.66), x, h / 2, z); box(w, 1.5, .34, 1.5, g(.8), x, h + .17, z); box(w, 1.6, .3, 1.6, g(.6), x, .15, z); }
-box(w, 12, .5, 1, g(.6), 0, 5.4, -3).visible = false; const lint = box(w, 5, .6, 1.2, g(.62), -3, .5, -4.6); lint.rotation.set(0, .3, .12);
-for (let i = 0; i < 14; i++) { const x = (hash(i, 1) - .5) * 9, z = 1 + hash(i, 2) * 5; box(w, 1 + hash(i, 3), .1, 1 + hash(i, 4), g(.5 + hash(i, 5) * .2), x, .05, z).rotation.y = hash(i, 6); }
-// 巨人
-const gol = new THREE.Group(); gol.position.set(0, 0, -1); w.add(gol);
-const R = (p, r, v, x, y, z, sy = 1) => { const m = add(p, new THREE.IcosahedronGeometry(r, 0), g(v), x, y, z); m.scale.y = sy; m.rotation.set(x, y, z); return m; };
-const torso = new THREE.Group(); torso.position.y = 4.4; gol.add(torso);
-box(torso, 5.2, 3.2, 3, g(.56), 0, 1.2, 0); box(torso, 4, 1.6, 2.6, g(.48), 0, -1, 0); box(torso, 5.6, .5, 3.3, g(.72), 0, 2.9, 0);
-box(torso, 1.6, 1.8, .3, g(.06), 0, 1.2, 1.4); const core = add(torso, new THREE.IcosahedronGeometry(.62, 0), a('#ff8a3a'), 0, 1.2, 1.36); const coreL = new THREE.PointLight(0xffffff, 14, 9, 1.5); coreL.position.set(0, 1.2, 2.6); torso.add(coreL);
-for (const s of [-1, 1]) { box(torso, .14, 1.9, .34, g(.7), s * .86, 1.2, 1.5); R(torso, 1.7, .64, s * 3.4, 2.6, 0, .9); R(torso, .9, .8, s * 3.9, 3.7, .3, .7); }
-for (let i = 0; i < 10; i++) R(torso, .3 + hash(i, 7) * .4, .9, (hash(i, 8) - .5) * 5, 3.2, (hash(i, 9) - .5) * 2.6, .5);
-const head = new THREE.Group(); head.position.set(0, 3.9, .4); box(head, 1.8, 1.5, 1.7, g(.62), 0, 0, 0); box(head, 2, .4, 1.9, g(.78), 0, .86, 0); box(head, 1.5, .4, .5, g(.5), 0, -.7, .7);
-for (const s of [-1, 1]) box(head, .46, .16, .1, a('#ffe0b0'), s * .42, .12, .86); torso.add(head);
-const arms = [-1, 1].map(s => { const sh = new THREE.Group(); sh.position.set(s * 3.5, 2.2, 0); box(sh, 1.3, 3.2, 1.4, g(.56), 0, -1.6, 0); const el = new THREE.Group(); el.position.y = -3.2; box(el, 1.6, 3.2, 1.7, g(.5), 0, -1.6, .2); box(el, 2.1, 1.5, 2.2, g(.66), 0, -3.6, .3); for (let k = 0; k < 3; k++) box(el, .14, .5, .1, a('#ff8a3a'), s * -.2 + (k - 1) * .4, -1 - k * .5, 1.08); sh.add(el); torso.add(sh); return { sh, el, s }; });
-for (const s of [-1, 1]) { box(gol, 1.9, 2.4, 2, g(.5), s * 1.5, 2.2, s > 0 ? 1.2 : -.2); box(gol, 2.1, 1.6, 2.6, g(.6), s * 1.5, .8, s > 0 ? 2 : -1.4); }
-// 浮かぶ岩、こけ、木
-const floats = [...Array(9)].map((_, i) => { const m = R(w, .3 + hash(i, 10) * .5, .7, 0, 0, 0); m.userData = { an: i * .7, r: 4.6 + hash(i, 11) * 1.6, y: 5 + hash(i, 12) * 6, v: .3 + hash(i, 13) * .3 }; return m; });
-for (const [x, z, h] of [[6.4, .4, 3], [-6.6, 1, 2.4], [2.6, -5.6, 3.4]]) { const t = K.pine(h, '#b8b8b8', '#505050'); t.position.set(x, 0, z); w.add(t); }
-// 冒険者
-const hero = new THREE.Group(); hero.position.set(1.2, 0, 5.2); box(hero, .34, .5, .26, g(.9), 0, .5, 0); add(hero, new THREE.IcosahedronGeometry(.17, 0), g(1), 0, .92, 0); box(hero, .06, .7, .06, g(.5), .26, .7, 0); box(hero, .4, .3, .06, g(.6), 0, .55, -.16); w.add(hero); const torch = new THREE.PointLight(0xffffff, 4, 4, 1.6); torch.position.set(.26, 1.2, 0); hero.add(torch);
-const fx = K.fx(w, 100), motes = D.motes(120, 10, 14); let fT = 0, dT = 0;
+const rock = (p, r, v, x, y, z, sy = 1) => { const m = add(p, new THREE.IcosahedronGeometry(r, 0), g(v), x, y, z); m.scale.y = sy; m.rotation.set(x * 1.3, y * .7, z); return m; };
+const seam = (p, w_, h, d, x, y, z) => box(p, w_, h, d, g(.1), x, y, z);
+// 遺跡：柱、倒れた柱、石だたみ、階段
+for (const [x, z, h] of [[-6, -2.4, 5.4], [6, -2.8, 3.4], [-5.6, 3.8, 2.2], [5.8, 3.4, 4.4]]) { add(w, new THREE.CylinderGeometry(.55, .62, h, 8), g(.66), x, h / 2, z); for (let k = 0; k < h - 1; k += 1.1) add(w, new THREE.CylinderGeometry(.64, .64, .12, 8), g(.5), x, .9 + k, z); box(w, 1.5, .34, 1.5, g(.82), x, h + .17, z); box(w, 1.7, .3, 1.7, g(.6), x, .15, z); }
+const fallen = add(w, new THREE.CylinderGeometry(.5, .5, 4, 8), g(.6), -3, .5, 5.4); fallen.rotation.set(0, .5, Math.PI / 2);
+for (let i = 0; i < 16; i++) { const x = (hash(i, 1) - .5) * 9, z = 1.4 + hash(i, 2) * 4.6; box(w, 1 + hash(i, 3), .1, 1 + hash(i, 4), g(.5 + hash(i, 5) * .22), x, .05, z).rotation.y = hash(i, 6); }
+// ── 巨人 ──
+const gol = new THREE.Group(); gol.position.set(0, 0, -1.2); w.add(gol);
+const torso = new THREE.Group(); torso.position.y = 4.6; gol.add(torso);
+// 腰と腹（石の板を 3 段）
+box(torso, 3.6, .9, 2.5, g(.5), 0, -1.6, 0); box(torso, 4.2, .9, 2.8, g(.56), 0, -.75, 0); seam(torso, 4.3, .1, 2.9, 0, -1.2, 0); box(torso, 1.2, 1.5, .3, g(.7), 0, -1.3, 1.4); for (const s of [-1, 1]) box(torso, 1, 1.1, .3, g(.62), s * 1.5, -1.2, 1.36);
+// 胸：左右の板、まん中のすき間、石のあばら、上の縁
+box(torso, 5.4, 3, 2.6, g(.5), 0, 1.3, -.2); for (const s of [-1, 1]) { box(torso, 1.9, 2.9, .7, g(.62), s * 1.75, 1.35, 1.2); box(torso, 1.7, .9, .74, g(.74), s * 1.75, 2.5, 1.26); seam(torso, 1.94, .08, .76, s * 1.75, 1.96, 1.2); seam(torso, 1.94, .08, .76, s * 1.75, .8, 1.2); box(torso, .5, .5, .2, g(.8), s * 2.3, .3, 1.6); }
+box(torso, 1.7, 2.9, .2, g(.05), 0, 1.35, .9);
+for (let k = 0; k < 3; k++) for (const s of [-1, 1]) { const rib = add(torso, new THREE.TorusGeometry(.95, .13, 5, 8, 1.5), g(.84), s * .12, .5 + k * .78, 1.3); rib.rotation.set(0, s > 0 ? -1.2 : 1.2 + Math.PI, s > 0 ? -.75 : .75); }
+box(torso, 5.8, .5, 3.2, g(.74), 0, 3, -.1); for (let k = 0; k < 5; k++) box(torso, .7, .34, .5, g(.86), -2.2 + k * 1.1, 3.3, 1.2);
+const core = add(torso, new THREE.IcosahedronGeometry(.6, 0), a('#ff8a3a'), 0, 1.35, 1.1), ring = add(torso, new THREE.TorusGeometry(.92, .06, 4, 14), a('#d8401a'), 0, 1.35, 1.1), ring2 = add(torso, new THREE.TorusGeometry(.76, .05, 4, 12), a('#ffe0b0'), 0, 1.35, 1.1);
+const coreL = new THREE.PointLight(0xffffff, 14, 9, 1.5); coreL.position.set(0, 1.35, 2.6); torso.add(coreL);
+for (let k = 0; k < 8; k++) { const an = k * .785 + .39; box(torso, .16, .16, .06, a('#ff8a3a'), Math.cos(an) * 1.45, 1.35 + Math.sin(an) * 1.75, 1.6); }
+// 肩：大岩、苔、木、折れた大剣
+for (const s of [-1, 1]) { rock(torso, 1.8, .64, s * 3.5, 2.7, -.1, .9); rock(torso, 1, .78, s * 4.2, 3.6, .5, .7); rock(torso, .8, .56, s * 2.6, 3.7, -.9, .7); for (let i = 0; i < 7; i++) rock(torso, .28 + hash(i, 7 + s) * .3, .95, s * (2.6 + hash(i, 8) * 1.8), 4 + hash(i, 9) * .3, (hash(i, 10 + s) - .5) * 2, .5); }
+{ const t = K.pine(2.6, '#d0d0d0', '#5a5a5a'); t.position.set(-3.6, 4.1, -.4); torso.add(t); const t2 = K.pine(1.6, '#c0c0c0', '#5a5a5a'); t2.position.set(-2.8, 4, .5); torso.add(t2); }
+{ const sw = new THREE.Group(); sw.position.set(3.4, 4, -.3); sw.rotation.set(.3, 0, -.5); box(sw, .5, 3, .12, g(.95), 0, 1.5, 0); box(sw, .12, 3, .16, g(.7), 0, 1.5, 0); box(sw, 1.5, .24, .3, g(.6), 0, 3.1, 0); box(sw, .22, .9, .22, g(.4), 0, 3.6, 0); add(sw, new THREE.SphereGeometry(.2, 6, 5), a('#ff8a3a'), 0, 4.14, 0); torso.add(sw); }
+// 背中の結晶
+for (let i = 0; i < 6; i++) { const c = add(torso, new THREE.ConeGeometry(.3 + hash(i, 11) * .3, 1.6 + hash(i, 12) * 1.6, 5), g(.9), -1.6 + i * .64, 2.6 + hash(i, 13), -1.7); c.rotation.x = -.7 - hash(i, 14) * .4; c.rotation.z = (hash(i, 15) - .5) * .6; }
+// 頭：まゆ、目のくぼみと光る目、鼻すじ、ほおのひび、動くあごと歯、折れた角
+const head = new THREE.Group(); head.position.set(0, 4.1, .5); torso.add(head);
+box(head, 1.9, 1.3, 1.8, g(.6), 0, .2, 0); box(head, 2.2, .44, 2, g(.8), 0, .98, .06); box(head, 2.3, .3, .5, g(.86), 0, .62, .86).rotation.x = .2;
+for (const s of [-1, 1]) { box(head, .62, .34, .1, g(.04), s * .48, .3, .91); box(head, .34, .14, .1, a('#ffe0b0'), s * .48, .3, .96); box(head, .06, .5, .06, a('#d8401a'), s * .78, -.1, .92).rotation.z = s * .3; const horn = add(head, new THREE.ConeGeometry(.3, s > 0 ? 1.5 : .8, 5), g(.78), s * .9, 1.6, -.2); horn.rotation.z = -s * .5; }
+box(head, .3, .7, .26, g(.74), 0, .08, .96); const jaw = new THREE.Group(); jaw.position.set(0, -.5, -.3); box(jaw, 1.7, .5, 1.5, g(.52), 0, -.2, .5); for (let k = 0; k < 5; k++) box(jaw, .22, .3, .16, g(.95), -.6 + k * .3, .14, 1.22); box(jaw, 1.9, .2, .3, g(.7), 0, -.36, 1.2); head.add(jaw);
+for (let k = 0; k < 4; k++) box(head, .2, .26, .14, g(.95), -.45 + k * .3, -.36, .9);
+// うで：上うでの輪、ひじの岩、文字の光る前うで、手首の輪、手のひらと指
+const arms = [-1, 1].map(s => { const sh = new THREE.Group(); sh.position.set(s * 3.6, 2.3, 0); torso.add(sh);
+  box(sh, 1.4, 1.5, 1.5, g(.56), 0, -.8, 0); box(sh, 1.2, 1.5, 1.3, g(.5), 0, -2.3, 0); seam(sh, 1.44, .1, 1.54, 0, -1.56, 0); add(sh, new THREE.CylinderGeometry(.92, .92, .3, 8), g(.82), 0, -1.56, 0); for (let k = 0; k < 4; k++) add(sh, new THREE.CylinderGeometry(.03, .03, 1 + hash(k, 16 + s) * 1.6, 3), g(.3), (hash(k, 17) - .5) * 1.2, -3 - hash(k, 18), .7);
+  const el = new THREE.Group(); el.position.y = -3.2; sh.add(el); rock(el, .95, .7, 0, 0, 0, .9);
+  box(el, 1.5, 1.6, 1.6, g(.52), 0, -1, .1); box(el, 1.9, 1.5, 2, g(.58), 0, -2.5, .2); seam(el, 1.94, .1, 2.04, 0, -1.76, .2); add(el, new THREE.CylinderGeometry(1.3, 1.3, .34, 8), g(.84), 0, -3.3, .2);
+  for (const [dx, dy, ww, hh] of [[0, -1.1, .5, .12], [-.2, -1.4, .12, .5], [.2, -1.4, .12, .5], [0, -1.8, .5, .12], [0, -2.3, .12, .6], [-.25, -2.6, .3, .12], [.25, -2.6, .3, .12]]) box(el, ww, hh, .06, a('#ff8a3a'), dx, dy, 1.22);
+  const hand = new THREE.Group(); hand.position.set(0, -3.9, .3); box(hand, 1.9, 1, 1.8, g(.62), 0, -.3, 0); const fingers = []; for (let k = 0; k < 4; k++) { const f = new THREE.Group(); f.position.set(-.7 + k * .47, -.7, .7); box(f, .4, .8, .44, g(.7), 0, -.3, 0); box(f, .36, .6, .4, g(.56), 0, -.95, .1); seam(f, .42, .06, .46, 0, -.68, 0); hand.add(f); fingers.push(f); } const th = box(hand, .46, .9, .5, g(.7), s * -1.1, -.5, .4); th.rotation.z = s * .5; el.add(hand); return { sh, el, hand, fingers, s }; });
+// 脚：ひざをつく。もも、ひざ当て、すね、足の指
+for (const s of [-1, 1]) { const fw = s > 0 ? 1.4 : -.4; box(gol, 1.8, 2.2, 2, g(.52), s * 1.6, 2.4, fw); box(gol, 2.2, .7, 2.3, g(.76), s * 1.6, 1.4, fw + .7); seam(gol, 1.84, .1, 2.04, s * 1.6, 1.9, fw); box(gol, 2, 1.4, 2.8, g(.58), s * 1.6, .7, fw + (s > 0 ? .8 : -1)); for (let k = 0; k < 3; k++) box(gol, .56, .5, .6, g(.72), s * 1.6 - .64 + k * .64, .25, fw + (s > 0 ? 2.4 : -2.6)); }
+// 浮かぶ岩、木、冒険者
+const floats = [...Array(10)].map((_, i) => { const m = rock(w, .26 + hash(i, 20) * .5, .72, 0, 0, 0); m.userData = { an: i * .63, r: 5 + hash(i, 21) * 1.6, y: 5.6 + hash(i, 22) * 6, v: .3 + hash(i, 23) * .3 }; return m; });
+for (const [x, z, h] of [[6.6, .4, 3], [-6.8, 1, 2.4], [2.6, -5.8, 3.4]]) { const t = K.pine(h, '#b8b8b8', '#505050'); t.position.set(x, 0, z); w.add(t); }
+const hero = new THREE.Group(); hero.position.set(1.4, 0, 5.4); box(hero, .34, .5, .26, g(.9), 0, .5, 0); add(hero, new THREE.IcosahedronGeometry(.17, 0), g(1), 0, .92, 0); box(hero, .06, .7, .06, g(.5), .26, .7, 0); box(hero, .4, .34, .06, g(.6), 0, .55, -.16); box(hero, .05, .7, .05, g(.95), -.24, .7, .1).rotation.x = .5; w.add(hero); const torch = new THREE.PointLight(0xffffff, 4, 4, 1.6); torch.position.set(.26, 1.2, 0); hero.add(torch);
+const fx = K.fx(w, 110), motes = D.motes(120, 10, 14); let fT = 0, dT = 0;
 D.run((dt, t) => {
   const pulse = .5 + .5 * Math.sin(t * 1.6), br = Math.sin(t * .8);
-  torso.position.y = 4.4 + br * .12; torso.rotation.z = Math.sin(t * .4) * .03; head.rotation.y = Math.sin(t * .5) * .45; head.rotation.x = .12 + Math.sin(t * .7) * .06;
-  core.scale.setScalar(.9 + pulse * .35); core.rotation.y = t; coreL.intensity = 6 + pulse * 22;
-  arms.forEach(({ sh, el, s }) => { sh.rotation.z = s * (.16 + br * .03); sh.rotation.x = s > 0 ? -.3 + Math.sin(t * .6) * .14 : .1; el.rotation.x = s > 0 ? -.5 + Math.sin(t * .6 + 1) * .2 : -.12; });
-  floats.forEach(f => { const an = f.userData.an + t * f.userData.v; f.position.set(Math.cos(an) * f.userData.r, f.userData.y + Math.sin(t + f.userData.an) * .4, Math.sin(an) * f.userData.r - 1); f.rotation.x = t * .5; });
-  if ((fT -= dt) < 0) { fT = .08; fx.emit('flame', 1.46, 1.25, 5.2, { vy: .6, life: .4, size: .4, grow: -.3, fog: false }); fx.emit('spark', (Math.random() - .5) * 1.2, 5.6, .5, { vy: 1.2, spread: 1.4, life: 1.2, size: .22, fog: false, tint: '#ff8a3a' }); }
-  if ((dT -= dt) < 0) { dT = .3; fx.emit('puff', (Math.random() - .5) * 5, 4 + Math.random() * 3, -1 + (Math.random() - .5) * 2, { vy: -1.2, life: 1.6, size: .3, grow: .8 }); }
+  torso.position.y = 4.6 + br * .12; torso.rotation.z = Math.sin(t * .4) * .03; head.rotation.y = Math.sin(t * .5) * .45; head.rotation.x = .14 + Math.sin(t * .7) * .06; jaw.rotation.x = .08 + Math.max(0, Math.sin(t * .9)) * .22;
+  core.scale.setScalar(.9 + pulse * .35); core.rotation.y = t; ring.rotation.set(t * .7, t * .5, 0); ring2.rotation.set(-t * .9, 0, t * .6); coreL.intensity = 6 + pulse * 22;
+  arms.forEach(({ sh, el, hand, fingers, s }) => { sh.rotation.z = s * (.18 + br * .03); sh.rotation.x = s > 0 ? -.34 + Math.sin(t * .6) * .16 : .12; el.rotation.x = s > 0 ? -.6 + Math.sin(t * .6 + 1) * .22 : -.14; hand.rotation.x = s > 0 ? -.3 : 0; fingers.forEach((f, k) => { f.rotation.x = s > 0 ? .5 + Math.sin(t * 1.2 + k * .5) * .4 : 1.2; }); });
+  floats.forEach(f => { const an = f.userData.an + t * f.userData.v; f.position.set(Math.cos(an) * f.userData.r, f.userData.y + Math.sin(t + f.userData.an) * .4, Math.sin(an) * f.userData.r - 1.2); f.rotation.x = t * .5; });
+  if ((fT -= dt) < 0) { fT = .08; fx.emit('flame', 1.66, 1.25, 5.4, { vy: .6, life: .4, size: .4, grow: -.3, fog: false }); fx.emit('spark', (Math.random() - .5) * 1.2, 6, .2, { vy: 1.2, spread: 1.4, life: 1.2, size: .22, fog: false, tint: '#ff8a3a' }); }
+  if ((dT -= dt) < 0) { dT = .3; fx.emit('puff', (Math.random() - .5) * 5, 4 + Math.random() * 3, -1.2 + (Math.random() - .5) * 2, { vy: -1.2, life: 1.6, size: .3, grow: .8 }); }
   fx.update(dt);
 });
 </script>

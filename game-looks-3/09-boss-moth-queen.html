@@ -8,53 +8,79 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 canvas{display:block;image-rendering:pixelated}
 #cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b8b8cc;opacity:.85}
 </style>
-<div id="cap">3-09 ─ ボス：灯りにとまる蛾の女王 / 銀ねず 1 色 ＋ だいだいの灯り　｜　見るだけ</div>
+<div id="cap">3-09 ─ ボス：灯りにとまる蛾の女王 / 銀ねず 1 色 ＋ だいだいの灯りと冠　｜　見るだけ</div>
 <script src="kit.js"></script><script src="diorama.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
-// 古い大きな街灯にとまった、蛾の女王。色は銀ねずの 6 段だけで、差し色はだいだい（街灯の火、羽の目玉もよう）。
-// 羽は平らな板で、ゆっくり開いたり閉じたりする。羽が開くと街灯の光をさえぎり、閉じると下の墓地が明るくなる。
-// まわりを小さな蛾が、灯りに引かれて飛びまわる
+// 古い大きな街灯の屋根にとまった、蛾の女王。色は銀ねずの 6 段だけで、差し色はだいだい（街灯の火、羽の目玉もよう、冠）。
+// 羽は左右に広げてとまるので、どの向きから見ても 4 枚とも見える。羽は 1 枚の板ではなく、
+// 濃さの違う帯を 3 枚重ね、つけ根から広がる羽脈、ふちの白い点の列、目玉もよう（輪・光る色・ひとみ・白い点）を置く。
+// 体は毛（細いとげ）でおおい、えりまき、しまのある腹、くしの歯のような触角、ぜんまいの口、2 節の足を付ける
 import * as THREE from 'three';
-const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#15151e', '#3a3a50', '#747490', '#b8b8cc', '#ffffff'], acc: ['#6a2a00', '#e0621a', '#ffa83a', '#ffe6a0'], dist: 38, height: 11, look: 6, amb: .4, key: 1.6 });
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#15151e', '#3a3a50', '#747490', '#b8b8cc', '#ffffff'], acc: ['#6a2a00', '#e0621a', '#ffa83a', '#ffe6a0'], dist: 36, height: 12, look: 6.6, amb: .5, key: 1.9, width: 460 });
 const { world: w, g, a } = D, { add, box, hash } = K;
 D.base(7.8, .5);
-const flatM = v => new THREE.MeshStandardMaterial({ color: new THREE.Color(v, v, v), flatShading: true, roughness: 1, side: THREE.DoubleSide });
+const flatM = v => new THREE.MeshStandardMaterial({ color: new THREE.Color(v, v, v), flatShading: true, roughness: 1, side: THREE.DoubleSide }), glowM = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide, fog: false });
 // 大きな街灯
-add(w, new THREE.CylinderGeometry(.9, 1.2, .8, 8), g(.5), 0, .4, 0); add(w, new THREE.CylinderGeometry(.3, .44, 7.4, 8), g(.45), 0, 4.4, 0); for (const y of [1.6, 4.4, 7.4]) add(w, new THREE.CylinderGeometry(.56, .56, .3, 8), g(.66), 0, y, 0);
-const lant = new THREE.Group(); lant.position.y = 8.4; w.add(lant); add(lant, new THREE.CylinderGeometry(1.1, .7, 1.8, 6), a('#ffa83a'), 0, .7, 0); for (let k = 0; k < 6; k++) { const an = k * 1.047; box(lant, .1, 2, .1, g(.3), Math.cos(an) * .96, .7, Math.sin(an) * .96).rotation.z = Math.cos(an) * -.2; }
-add(lant, new THREE.ConeGeometry(1.5, 1.1, 6), g(.4), 0, 2.1, 0); add(lant, new THREE.SphereGeometry(.2, 6, 5), g(.7), 0, 2.8, 0); add(lant, new THREE.CylinderGeometry(.9, .9, .2, 6), g(.4), 0, -.2, 0);
-const lampL = new THREE.PointLight(0xffffff, 60, 18, 1.4); lampL.position.set(0, 8.9, 0); w.add(lampL);
-// 蛾の女王：街灯の柱にしがみつく
-const moth = new THREE.Group(); moth.position.set(0, 6.4, 1.1); moth.rotation.x = -.5; w.add(moth);
-for (let k = 0; k < 6; k++) { const s = add(moth, new THREE.SphereGeometry(.9 - k * .1, 8, 6), g(k % 2 ? .78 : .92), 0, -k * .78, 0); s.scale.set(1, .7, 1); }
-const th = add(moth, new THREE.SphereGeometry(1.15, 8, 6), g(1), 0, .9, 0); for (let i = 0; i < 26; i++) { const an = hash(i, 1) * 6.283, ph = hash(i, 2) * 3.1; add(moth, new THREE.ConeGeometry(.12, .5, 4), g(.95), Math.sin(ph) * Math.cos(an) * 1.1, .9 + Math.cos(ph) * 1.1, Math.sin(ph) * Math.sin(an) * 1.1).lookAt(0, .9, 0); }
-const hd = new THREE.Group(); hd.position.set(0, 2.1, .2); add(hd, new THREE.SphereGeometry(.7, 8, 6), g(.85), 0, 0, 0); for (const s of [-1, 1]) { add(hd, new THREE.SphereGeometry(.34, 7, 5), g(.04), s * .46, .1, .44); add(hd, new THREE.SphereGeometry(.1, 5, 4), g(1), s * .52, .2, .7); }
-const ants = [-1, 1].map(s => { const an = new THREE.Group(); an.position.set(s * .3, .5, .2); an.rotation.z = s * -.5; box(an, .06, 2.4, .06, g(.9), 0, 1.2, 0); for (let k = 0; k < 9; k++) { box(an, .7 - k * .05, .05, .05, g(.8), 0, .4 + k * .22, 0); } hd.add(an); return an; }); moth.add(hd);
-for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const l = box(moth, .1, .1, 1.5, g(.5), s * .5, .6 - k * .7, -.6); l.rotation.y = s * (.5 + k * .1); }
-function wing(pts, v) { const sh = new THREE.Shape(); pts.forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y)); return new THREE.ShapeGeometry(sh); }
-const FORE = [[0, 0], [1.2, 1.6], [3.6, 3.2], [6, 3.4], [6.9, 2.4], [6.4, .6], [4.6, -1], [2, -1.2]], HIND = [[0, 0], [2.2, -.4], [4.6, -1.4], [5, -3], [3.8, -4.4], [2, -4.2], [.6, -2.4]];
-const wings = [-1, 1].map(s => { const piv = new THREE.Group(); piv.position.set(s * .5, .9, -.1);
-  const mk = (pts, v, z, sc = 1) => { const m = new THREE.Mesh(wing(pts), flatM(v)); m.scale.set(s * sc, sc, 1); m.position.z = z; piv.add(m); return m; };
-  mk(HIND, .7, -.04); mk(FORE, .88, 0); mk(FORE.map(([x, y]) => [x * .86 + .5, y * .8 + .2]), .7, .02); mk(FORE.map(([x, y]) => [x * .6 + 1.2, y * .55 + .4]), .92, .04);
-  for (const [x, y, r] of [[4.6, 1.6, .8], [3.2, -2.6, .62]]) { const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 12), flatM(.1)); ring.position.set(s * x, y, .06); piv.add(ring); const eye = new THREE.Mesh(new THREE.CircleGeometry(r * .62, 10), new THREE.MeshBasicMaterial({ color: '#ffa83a', side: THREE.DoubleSide, fog: false })); eye.position.set(s * x, y, .08); piv.add(eye); const pup = new THREE.Mesh(new THREE.CircleGeometry(r * .26, 8), flatM(.04)); pup.position.set(s * x, y, .1); piv.add(pup); }
-  for (let k = 0; k < 5; k++) { const st = new THREE.Mesh(new THREE.PlaneGeometry(.12, 2.4 - k * .2), flatM(.5)); st.position.set(s * (1.6 + k * .9), 1.2 + k * .2, .05); st.rotation.z = s * -(.5 + k * .08); piv.add(st); }
-  moth.add(piv); return { piv, s }; });
-// 墓地：墓石、さく、枯れ木、草
-for (let i = 0; i < 9; i++) { const an = i * .72 + .3, r = 3.8 + hash(i, 3) * 2.4, x = Math.cos(an) * r, z = Math.sin(an) * r, st = box(w, .9, 1.2 + hash(i, 4) * .6, .26, g(.62), x, .6, z); st.rotation.set((hash(i, 5) - .5) * .3, -an + 1.57, (hash(i, 6) - .5) * .3); add(w, new THREE.CylinderGeometry(.45, .45, .26, 8, 1, false, 0, Math.PI), g(.62), x, 1.2 + hash(i, 4) * .3, z).rotation.set(Math.PI / 2, 0, -an + 1.57 + Math.PI / 2, 'YXZ'); }
-for (let i = 0; i < 20; i++) { const an = i / 20 * 6.283, p = box(w, .1, 1.3, .1, g(.4), Math.cos(an) * 7, .65, Math.sin(an) * 7); if (i % 2) box(w, 2.2, .08, .08, g(.4), Math.cos(an) * 7, 1, Math.sin(an) * 7).rotation.y = -an + 1.57; }
-{ const tr = new THREE.Group(); tr.position.set(-5.2, 0, -3); add(tr, new THREE.CylinderGeometry(.2, .44, 4.6, 6), g(.4), 0, 2.3, 0); for (let k = 0; k < 6; k++) { const b = add(tr, new THREE.CylinderGeometry(.03, .12, 2.4, 4), g(.4), 0, 3 + k * .3, 0); b.geometry.translate(0, 1.2, 0); b.rotation.set(.8 + hash(k, 7) * .5, k * 1.9, 0, 'YXZ'); } w.add(tr); }
+add(w, new THREE.CylinderGeometry(1, 1.3, .8, 8), g(.5), 0, .4, 0); add(w, new THREE.CylinderGeometry(.3, .46, 7.4, 8), g(.45), 0, 4.4, 0); for (const y of [1.6, 3, 4.4, 5.8, 7.4]) add(w, new THREE.CylinderGeometry(.54, .54, .26, 8), g(.66), 0, y, 0);
+for (const s of [-1, 1]) { const br = add(w, new THREE.TorusGeometry(.9, .06, 4, 10, 1.6), g(.6), s * .9, 7, 0); br.rotation.y = s > 0 ? 0 : Math.PI; }
+const lant = new THREE.Group(); lant.position.y = 8.2; w.add(lant); add(lant, new THREE.CylinderGeometry(1.15, .72, 1.8, 6), a('#ffa83a'), 0, .7, 0); add(lant, new THREE.CylinderGeometry(.5, .3, 1.2, 6), a('#ffe6a0'), 0, .6, 0);
+for (let k = 0; k < 6; k++) { const an = k * 1.047 + .52; box(lant, .1, 2, .1, g(.3), Math.cos(an) * 1, .7, Math.sin(an) * 1).rotation.set(0, -an, .23, 'YXZ'); } add(lant, new THREE.CylinderGeometry(1.2, 1.2, .14, 6), g(.3), 0, 1.6, 0); add(lant, new THREE.CylinderGeometry(.8, .9, .24, 6), g(.4), 0, -.24, 0);
+add(lant, new THREE.ConeGeometry(1.7, 1, 6), g(.42), 0, 2.2, 0); add(lant, new THREE.CylinderGeometry(1.74, 1.74, .1, 6), g(.62), 0, 1.74, 0);
+const lampL = new THREE.PointLight(0xffffff, 60, 18, 1.4); lampL.position.set(0, 8.8, 0); w.add(lampL);
+// ── 蛾の女王（街灯の屋根の上） ──
+const moth = new THREE.Group(); moth.position.set(0, 11.2, -.2); moth.rotation.x = -.32; w.add(moth);          // 体の軸は z。頭が +z
+const hair = (p, n, R, cx, cy, cz, len, v, seed) => { for (let i = 0; i < n; i++) { const an = hash(i, seed) * 6.283, ph = hash(i, seed + 1) * 3.14, d = new THREE.Vector3(Math.sin(ph) * Math.cos(an), Math.cos(ph), Math.sin(ph) * Math.sin(an)), c = add(p, new THREE.ConeGeometry(.09, len, 4), g(v + hash(i, seed + 2) * .15), cx + d.x * R, cy + d.y * R, cz + d.z * R); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); } };
+// 胸（毛むくじゃら）とえりまき
+add(moth, new THREE.SphereGeometry(1.2, 9, 7), g(.9), 0, 0, 0).scale.set(1, .9, 1.15); hair(moth, 70, 1.2, 0, 0, 0, .6, .85, 3);
+for (let k = 0; k < 14; k++) { const an = k / 14 * 6.283, c = add(moth, new THREE.ConeGeometry(.2, .9, 4), g(1), Math.cos(an) * .95, Math.sin(an) * .85, 1); c.rotation.set(1.2, 0, an - 1.57, 'ZXY'); }
+// 腹：7 節のしま、わきの毛、先のふさ
+for (let k = 0; k < 7; k++) { const r = 1 - k * .1, s = add(moth, new THREE.SphereGeometry(r, 9, 6), g(k % 2 ? .62 : .9), 0, -.1 - k * .08, -1.1 - k * .78); s.scale.set(1, .82, .62); for (const sd of [-1, 1]) add(moth, new THREE.ConeGeometry(.1, .5, 4), g(1), sd * r * .95, -.1 - k * .08, -1.1 - k * .78).rotation.z = -sd * 1.3; }
+hair(moth, 14, .3, 0, -.7, -6.4, .8, .9, 9);
+// 頭：大きな目、ぜんまいの口、冠、触角
+const hd = new THREE.Group(); hd.position.set(0, .1, 1.5); moth.add(hd); add(hd, new THREE.SphereGeometry(.72, 8, 6), g(.82), 0, 0, 0); hair(hd, 20, .7, 0, .1, -.1, .4, .9, 14);
+for (const s of [-1, 1]) { add(hd, new THREE.SphereGeometry(.42, 8, 6), g(.04), s * .5, .08, .36); add(hd, new THREE.SphereGeometry(.12, 5, 4), g(1), s * .62, .24, .68); add(hd, new THREE.SphereGeometry(.07, 4, 3), g(.7), s * .44, -.02, .74); }
+add(hd, new THREE.TorusGeometry(.2, .05, 4, 10, 5), g(.5), 0, -.38, .56).rotation.y = Math.PI / 2;
+for (let k = 0; k < 5; k++) { const an = -1 + k * .5; add(hd, new THREE.ConeGeometry(.1, .5 + (k === 2 ? .3 : 0), 4), a('#ffa83a'), Math.sin(an) * .5, .74 + Math.cos(an) * .12, .1); } add(hd, new THREE.TorusGeometry(.5, .05, 4, 10, 2.4), a('#e0621a'), 0, .5, .1).rotation.set(0, 0, .37);
+const ants = [-1, 1].map(s => { const root = new THREE.Group(); root.position.set(s * .34, .5, .3); root.rotation.set(-.5, 0, s * -.6); let p = root; for (let k = 0; k < 9; k++) { const sg = new THREE.Group(); if (k) sg.position.y = .46; sg.rotation.x = .09; box(sg, .07, .5, .07, g(.92), 0, .25, 0); const bl = 1 - k * .09; for (const sd of [-1, 1]) { const barb = box(sg, bl, .05, .05, g(.78), sd * bl / 2, .25, 0); barb.rotation.z = sd * .35; } p.add(sg); p = sg; } hd.add(root); return root; });
+// 足：2 節で屋根をつかむ
+const legs = []; for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const hip = new THREE.Group(); hip.position.set(s * .7, -.6, .7 - k * .8); hip.rotation.set(0, s * (.5 - k * .5), s * -.9, 'YZX'); box(hip, .12, 1.3, .12, g(.5), 0, -.65, 0); const kn = new THREE.Group(); kn.position.y = -1.3; kn.rotation.z = s * 1.3; box(kn, .09, 1.2, .09, g(.4), 0, -.6, 0); box(kn, .2, .1, .3, g(.6), 0, -1.2, .1); hip.add(kn); moth.add(hip); legs.push(hip); }
+// 羽：形の点を決め、帯を重ねる。前羽 2 枚、後ろ羽 2 枚（体の軸 z、広がる向き x）
+const shapeGeo = pts => { const sh = new THREE.Shape(); pts.forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y)); const geo = new THREE.ShapeGeometry(sh); geo.rotateX(Math.PI / 2); return geo; };    // 形の y → z（前が +）
+const FORE = [[0, .6], [1.6, 1.9], [3.8, 2.7], [6, 2.9], [7.4, 2.5], [7.9, 1.6], [7.5, .9], [7.7, .2], [7, -.4], [7.1, -1], [6.2, -1.5], [6.1, -2], [5, -2.2], [3.6, -2.2], [1.8, -1.6], [0, -.6]];
+const HIND = [[0, -.4], [2.4, -1], [4.6, -1.8], [5.6, -2.9], [5.5, -4], [4.9, -4.6], [4.6, -5.6], [4.1, -6.6], [3.6, -5.4], [2.8, -5.2], [1.4, -4], [.2, -2.2]];
+const scaleP = (pts, k, ox, oy) => pts.map(([x, y]) => [x * k + ox, y * k + oy]);
+const wings = [-1, 1].map(s => { const piv = new THREE.Group(); piv.position.set(s * .7, .3, .2); moth.add(piv);
+  const lay = (pts, v, y) => { const m = new THREE.Mesh(shapeGeo(pts), flatM(v)); m.scale.x = s; m.position.y = y; piv.add(m); return m; };
+  lay(HIND, .66, -.06); lay(scaleP(HIND, .8, .3, -.5), .82, -.04); lay(scaleP(HIND, .5, .7, -1.2), .58, -.02);
+  lay(FORE, .9, 0); lay(scaleP(FORE, .84, .5, .05), .64, .02); lay(scaleP(FORE, .62, 1.1, .1), .86, .04); lay(scaleP(FORE, .34, 1.6, .14), .56, .06);
+  // 羽脈
+  for (let k = 0; k < 9; k++) { const an = -.34 + k * .11, L = 7 - Math.abs(k - 3) * .5, v = new THREE.Mesh(new THREE.BoxGeometry(L, .04, .07), flatM(.46)); v.position.set(s * Math.cos(an) * L / 2, .08, Math.sin(an) * L / 2 + .3); v.rotation.y = -s * an; piv.add(v); }
+  for (let k = 0; k < 6; k++) { const an = -.5 - k * .16, L = 5 - k * .3, v = new THREE.Mesh(new THREE.BoxGeometry(L, .04, .06), flatM(.42)); v.position.set(s * Math.cos(an) * L / 2, -.01, Math.sin(an) * L / 2 - .5); v.rotation.y = -s * an; piv.add(v); }
+  // ふちの白い点の列
+  FORE.slice(3, 13).forEach(([x, y]) => { const d = new THREE.Mesh(new THREE.CircleGeometry(.17, 6), flatM(1)); d.rotation.x = -Math.PI / 2; d.position.set(s * x * .95, .1, y * .93); piv.add(d); });
+  HIND.slice(3, 9).forEach(([x, y]) => { const d = new THREE.Mesh(new THREE.CircleGeometry(.15, 6), flatM(1)); d.rotation.x = -Math.PI / 2; d.position.set(s * x * .94, .01, y * .95); piv.add(d); });
+  // 目玉もよう：輪 → 光る色 → ひとみ → 白い点
+  for (const [x, z, r, y] of [[5.1, .6, 1, .1], [3.6, -3.2, .8, .01]]) for (const [rr, mat, dy] of [[r, flatM(.08), 0], [r * .74, glowM('#ffa83a'), .02], [r * .48, glowM('#ffe6a0'), .04], [r * .3, flatM(.03), .06]]) { const c = new THREE.Mesh(new THREE.CircleGeometry(rr, 14), mat); c.rotation.x = -Math.PI / 2; c.position.set(s * x, y + dy, z); piv.add(c); if (rr === r) { const hl = new THREE.Mesh(new THREE.CircleGeometry(r * .13, 6), flatM(1)); hl.rotation.x = -Math.PI / 2; hl.position.set(s * (x - r * .2), y + .08, z + r * .2); piv.add(hl); } }
+  // 前のふちの毛
+  for (let k = 0; k < 14; k++) { const u = k / 13, x = u * 6.4, z = .7 + u * 2.2 - u * u * .3, c = new THREE.Mesh(new THREE.ConeGeometry(.08, .44, 4), flatM(1)); c.position.set(s * x, .1, z); c.rotation.x = 1.1; piv.add(c); }
+  return { piv, s }; });
+// 墓地：墓石、十字、さく、枯れ木、草
+for (let i = 0; i < 10; i++) { const an = i * .65 + .3, r = 3.6 + hash(i, 3) * 2.6, x = Math.cos(an) * r, z = Math.sin(an) * r, hh = 1.1 + hash(i, 4) * .7, st = new THREE.Group(); st.position.set(x, 0, z); st.rotation.set((hash(i, 5) - .5) * .3, -an + 1.57, (hash(i, 6) - .5) * .3); if (i % 3 === 2) { box(st, .2, hh + .6, .2, g(.66), 0, (hh + .6) / 2, 0); box(st, .9, .2, .2, g(.66), 0, hh, 0); } else { box(st, .9, hh, .26, g(.62), 0, hh / 2, 0); add(st, new THREE.CylinderGeometry(.45, .45, .26, 8, 1, false, 0, Math.PI), g(.62), 0, hh, 0).rotation.set(Math.PI / 2, Math.PI / 2, 0); box(st, .5, .06, .04, g(.3), 0, hh * .6, .14); box(st, .3, .06, .04, g(.3), 0, hh * .44, .14); } box(st, 1.1, .16, .5, g(.48), 0, .08, 0); w.add(st); }
+for (let i = 0; i < 22; i++) { const an = i / 22 * 6.283; box(w, .1, 1.3, .1, g(.4), Math.cos(an) * 7.1, .65, Math.sin(an) * 7.1); add(w, new THREE.ConeGeometry(.1, .3, 4), g(.5), Math.cos(an) * 7.1, 1.44, Math.sin(an) * 7.1); if (i % 2) box(w, 2.1, .07, .07, g(.4), Math.cos(an) * 7.1, 1, Math.sin(an) * 7.1).rotation.y = -an + 1.57; }
+{ const tr = new THREE.Group(); tr.position.set(-5.2, 0, -3); add(tr, new THREE.CylinderGeometry(.2, .44, 4.6, 6), g(.4), 0, 2.3, 0); for (let k = 0; k < 7; k++) { const b = add(tr, new THREE.CylinderGeometry(.03, .12, 2.4, 4), g(.4), 0, 2.8 + k * .28, 0); b.geometry.translate(0, 1.2, 0); b.rotation.set(.8 + hash(k, 7) * .5, k * 1.9, 0, 'YXZ'); } w.add(tr); }
 const grass = new THREE.InstancedMesh(new THREE.ConeGeometry(.07, .8, 3), g(.5), 260), dm = new THREE.Object3D(); for (let i = 0; i < 260; i++) { const an = hash(i, 8) * 6.283, r = 1.6 + Math.sqrt(hash(i, 9)) * 5.6; dm.position.set(Math.cos(an) * r, .35, Math.sin(an) * r); dm.rotation.set((hash(i, 10) - .5) * .5, 0, (hash(i, 11) - .5) * .5); dm.updateMatrix(); grass.setMatrixAt(i, dm.matrix); } w.add(grass);
 // 小さな蛾
-const small = [...Array(16)].map((_, i) => { const m = new THREE.Group(); for (const s of [-1, 1]) { const wg = new THREE.Mesh(new THREE.PlaneGeometry(.34, .26), flatM(.95)); wg.position.x = s * .17; wg.userData.s = s; m.add(wg); } m.userData = { an: hash(i, 12) * 6.283, r: 1.6 + hash(i, 13) * 3, y: 7 + hash(i, 14) * 3.4, v: .8 + hash(i, 15) }; w.add(m); return m; });
+const small = [...Array(18)].map((_, i) => { const m = new THREE.Group(); for (const s of [-1, 1]) { const wg = new THREE.Mesh(new THREE.PlaneGeometry(.36, .28), flatM(.95)); wg.position.x = s * .18; wg.userData.s = s; m.add(wg); } m.userData = { an: hash(i, 12) * 6.283, r: 1.8 + hash(i, 13) * 3.4, y: 6.4 + hash(i, 14) * 3, v: .8 + hash(i, 15) }; w.add(m); return m; });
 const fx = K.fx(w, 100), motes = D.motes(160, 10, 14); let sT = 0;
 D.run((dt, t) => {
-  const open = .5 + .5 * Math.sin(t * .9);
-  wings.forEach(({ piv, s }) => { piv.rotation.y = s * (.15 + open * 1.05); piv.rotation.z = s * -.08; });
-  ants.forEach((an, i) => { an.rotation.x = Math.sin(t * 1.3 + i) * .2; }); hd.rotation.z = Math.sin(t * .6) * .12; moth.position.y = 6.4 + Math.sin(t * .9) * .08;
+  const flap = Math.sin(t * 1.1);
+  wings.forEach(({ piv, s }) => { piv.rotation.z = s * (.3 + flap * .28); piv.rotation.y = s * (.06 + flap * .05); });
+  ants.forEach((an, i) => { an.rotation.x = -.5 + Math.sin(t * 1.3 + i) * .14; an.rotation.z = (i ? 1 : -1) * -.6 + Math.sin(t * .9 + i * 2) * .1; });
+  hd.rotation.z = Math.sin(t * .6) * .14; hd.rotation.y = Math.sin(t * .4) * .2; moth.position.y = 11.2 + flap * .06; legs.forEach((l, i) => { l.rotation.x = Math.sin(t * 2 + i) * .03; });
   lampL.intensity = 54 + Math.sin(t * 9) * 5 + Math.sin(t * 23) * 3;
   small.forEach((m, i) => { const an = m.userData.an + t * m.userData.v; m.position.set(Math.cos(an) * m.userData.r, m.userData.y + Math.sin(t * 3 + i) * .5, Math.sin(an) * m.userData.r); m.rotation.y = -an; m.children.forEach(wg => { wg.rotation.y = wg.userData.s * Math.sin(t * 26 + i) * .9; }); });
-  if ((sT -= dt) < 0) { sT = .14; fx.emit('puff', (Math.random() - .5) * 5, 5 + Math.random() * 3, 1 + (Math.random() - .5) * 2, { vy: -.7, spread: .4, life: 2.4, size: .22, grow: .4 }); fx.emit('spark', (Math.random() - .5) * 1.4, 9 + Math.random() * .6, (Math.random() - .5) * 1.4, { vy: .8, life: 1, size: .2, fog: false, tint: '#ffa83a' }); }
+  if ((sT -= dt) < 0) { sT = .12; fx.emit('puff', (Math.random() - .5) * 12, 10 + Math.random() * 1.5, (Math.random() - .5) * 6, { vy: -.8, spread: .4, life: 2.6, size: .2, grow: .4 }); fx.emit('spark', (Math.random() - .5) * 1.4, 8.6 + Math.random() * .6, (Math.random() - .5) * 1.4, { vy: .6, life: 1, size: .2, fog: false, tint: '#ffa83a' }); }
   fx.update(dt);
 });
 </script>

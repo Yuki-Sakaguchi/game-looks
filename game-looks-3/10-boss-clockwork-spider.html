@@ -12,46 +12,69 @@ canvas{display:block;image-rendering:pixelated}
 <script src="kit.js"></script><script src="diorama.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
-// 廃品置き場を歩きまわる、機械じかけの大ぐも。色は青緑の 6 段だけで、差し色は赤（目、探す光、警告灯）。
-// 8 本の足は「つけ根で持ち上げ、ひざで下ろす」2 節。となりの足と半周ずらして動かすと、その場で足ぶみして見える。
-// 赤い光の筋が左右に首をふって、物かげの人を探す。背中の歯車が回り、えんとつから蒸気が出る
+// 廃品置き場を歩きまわる、機械じかけの大ぐも。色は青緑の 6 段だけで、差し色は赤（目、探す光、丸窓、腹の下の炉）。
+// 足は 3 節＋つめ。節ごとに玉の関節と、平行に走る細い油圧の棒を付け、となりの足と半周ずらして足ぶみさせる。
+// 腹は鉄板を帯でしめた釜で、びょうの列・丸窓・圧力計・えんとつ 3 本・回る歯車。
+// 頭には大小 8 個の目と、2 節で開閉するあご。おしりのクレーンが、ぶら下げた箱をゆらす
 import * as THREE from 'three';
-const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#04201e', '#0a4a44', '#1a8a7a', '#5ad0b8', '#d8fff4'], acc: ['#5a0a0a', '#c0281a', '#ff5a3a', '#ffc0a0'], dist: 38, height: 12, look: 4.6, amb: .5, key: 2.2 });
-const { world: w, g, a } = D, { add, box, hash } = K;
-D.base(8, .46);
-// 廃品：管、箱、歯車、鉄板、くさり
-for (let i = 0; i < 7; i++) { const an = hash(i, 1) * 6.283, r = 4.6 + hash(i, 2) * 2.4, p = add(w, new THREE.CylinderGeometry(.34, .34, 2 + hash(i, 3) * 2.4, 8), g(.5 + hash(i, 4) * .2), Math.cos(an) * r, .36, Math.sin(an) * r); p.rotation.set(0, an, Math.PI / 2); }
-for (let i = 0; i < 9; i++) { const an = i * .7 + .2, r = 5 + hash(i, 5) * 1.8, s = .7 + hash(i, 6) * .7; box(w, s, s, s, g(.45 + hash(i, 7) * .3), Math.cos(an) * r, s / 2, Math.sin(an) * r).rotation.y = an; }
-const gear = (p, r, v, x, y, z, n = 8) => { const gr = new THREE.Group(); gr.position.set(x, y, z); add(gr, new THREE.CylinderGeometry(r, r, .3, 12), g(v), 0, 0, 0); for (let k = 0; k < n; k++) { const an = k / n * 6.283; box(gr, .34, .3, .34, g(v), Math.cos(an) * (r + .1), 0, Math.sin(an) * (r + .1)).rotation.y = -an; } add(gr, new THREE.CylinderGeometry(r * .3, r * .3, .34, 8), g(v * .5), 0, 0, 0); p.add(gr); return gr; };
-gear(w, 1, .5, -5.6, .2, 2.6).rotation.x = .2; gear(w, .7, .6, 5.4, .2, -3.4).rotation.z = .3;
-// 大ぐも
-const sp = new THREE.Group(); sp.position.y = 5; w.add(sp);
-const ab = add(sp, new THREE.SphereGeometry(2.3, 10, 8), g(.6), -2.2, .5, 0); ab.scale.set(1.25, 1, 1); for (let k = 0; k < 4; k++) add(sp, new THREE.TorusGeometry(2.3 - Math.abs(k - 1.5) * .34, .1, 4, 14), g(.82), -3.6 + k * .95, .5, 0).rotation.y = Math.PI / 2;
-for (let i = 0; i < 16; i++) { const an = hash(i, 8) * 6.283, ph = .3 + hash(i, 9) * 1.1; add(sp, new THREE.SphereGeometry(.12, 5, 4), g(1), -2.2 + Math.sin(ph) * Math.cos(an) * 2.9, .5 + Math.cos(ph) * 2.3, Math.sin(ph) * Math.sin(an) * 2.3); }
-box(sp, 2.6, 1.5, 2.4, g(.52), .6, .1, 0); box(sp, 2.8, .2, 2.6, g(.76), .6, .92, 0);
-const g1 = gear(sp, .9, .86, -1.4, 2.9, .5, 9), g2 = gear(sp, .6, .7, -.1, 2.7, -.5, 7), g3 = gear(sp, .5, .9, .7, 1.15, .7, 6); for (const q of [g1, g2]) q.rotation.x = .25;
-add(sp, new THREE.CylinderGeometry(.3, .4, 1.8, 8), g(.5), -3.2, 3.4, -.6); add(sp, new THREE.CylinderGeometry(.44, .34, .3, 8), g(.7), -3.2, 4.4, -.6);
-const headG = new THREE.Group(); headG.position.set(2.3, -.1, 0); box(headG, 1.3, 1.2, 1.7, g(.62), 0, 0, 0); for (const [y, z, r] of [[.2, .5, .26], [.2, -.5, .26], [-.2, .24, .16], [-.2, -.24, .16]]) add(headG, new THREE.SphereGeometry(r, 7, 5), a('#ff5a3a'), .66, y, z);
-const fangs = [-1, 1].map(s => { const f = box(headG, .9, .16, .16, g(.9), .9, -.56, s * .36); f.geometry.translate(.3, 0, 0); return f; });
-const scanG = new THREE.ConeGeometry(1.7, 12, 12, 1, true); scanG.translate(0, -6, 0); const scan = new THREE.Mesh(scanG, new THREE.MeshBasicMaterial({ color: 0xff5a3a, transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); const scanP = new THREE.Group(); scanP.position.set(.7, 0, 0); scanP.add(scan); scan.rotation.z = Math.PI / 2 - .5; headG.add(scanP); sp.add(headG);
-const warn = add(sp, new THREE.SphereGeometry(.26, 7, 5), a('#ff5a3a'), .6, 1.3, -.8), warnL = new THREE.PointLight(0xffffff, 6, 6, 1.5); warnL.position.set(.6, 1.6, -.8); sp.add(warnL);
-// 足 8 本
-const legs = []; for (const s of [-1, 1]) for (let k = 0; k < 4; k++) { const hip = new THREE.Group(); hip.position.set(1.3 - k * .75, 0, s * 1.2); const base = -s * (Math.PI / 2 - (1.5 - k) * .42);
-  const up = box(hip, 4.2, .34, .34, g(.7), 2.1, 0, 0); add(hip, new THREE.SphereGeometry(.34, 7, 5), g(.9), 0, 0, 0);
-  const knee = new THREE.Group(); knee.position.x = 4.2; add(knee, new THREE.SphereGeometry(.36, 7, 5), g(.9), 0, 0, 0); box(knee, 7.5, .26, .26, g(.56), 3.75, 0, 0); box(knee, .5, .5, .5, g(.82), 7.5, 0, 0); box(knee, 1.2, .1, .1, g(.9), 1.4, .26, 0); hip.add(knee); sp.add(hip); legs.push({ hip, knee, base, ph: (k % 2 ? Math.PI : 0) + (s > 0 ? 0 : Math.PI) }); }
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#04201e', '#0a4a44', '#1a8a7a', '#5ad0b8', '#d8fff4'], acc: ['#5a0a0a', '#c0281a', '#ff5a3a', '#ffc0a0'], dist: 36, height: 11, look: 4.8, amb: .5, key: 2.2, width: 460 });
+const { world: w, g, a } = D, { add, box, hash } = K, V2 = (x, y) => new THREE.Vector2(x, y);
+D.base(8.2, .46);
+const cyl = (p, r1, r2, h, v, x, y, z, seg = 8) => add(p, new THREE.CylinderGeometry(r1, r2, h, seg), typeof v === 'number' ? g(v) : v, x, y, z);
+const ball = (p, r, v, x, y, z) => add(p, new THREE.SphereGeometry(r, 7, 5), typeof v === 'number' ? g(v) : v, x, y, z);
+function gear(p, r, v, x, y, z, n = 8) { const gr = new THREE.Group(); gr.position.set(x, y, z); cyl(gr, r, r, .26, v, 0, 0, 0, 14); for (let k = 0; k < n; k++) { const an = k / n * 6.283; box(gr, .3, .26, .3, g(v), Math.cos(an) * (r + .1), 0, Math.sin(an) * (r + .1)).rotation.y = -an; } cyl(gr, r * .32, r * .32, .32, v * .5, 0, 0, 0); for (let k = 0; k < 4; k++) box(gr, r * 1.6, .28, .12, g(v * .7), 0, 0, 0).rotation.y = k * .785; p.add(gr); return gr; }
+// 廃品：管、箱、歯車、鉄板、ドラムかん
+for (let i = 0; i < 8; i++) { const an = hash(i, 1) * 6.283, r = 5 + hash(i, 2) * 2.4, p = cyl(w, .34, .34, 2 + hash(i, 3) * 2.4, .5 + hash(i, 4) * .2, Math.cos(an) * r, .36, Math.sin(an) * r); p.rotation.set(0, an, Math.PI / 2); add(p, new THREE.TorusGeometry(.36, .06, 4, 8), g(.8), 0, .8, 0).rotation.x = Math.PI / 2; }
+for (let i = 0; i < 10; i++) { const an = i * .63 + .2, r = 5.4 + hash(i, 5) * 1.8, s = .7 + hash(i, 6) * .7, b = box(w, s, s, s, g(.45 + hash(i, 7) * .3), Math.cos(an) * r, s / 2, Math.sin(an) * r); b.rotation.y = an; box(b, s * 1.04, .08, s * 1.04, g(.25), 0, 0, 0); }
+for (const [x, z] of [[-5.8, -2.6], [-6.4, -1.4], [5, -4.6]]) { cyl(w, .5, .5, 1.3, .6, x, .65, z, 10); for (const y of [.3, 1]) add(w, new THREE.TorusGeometry(.51, .05, 4, 10), g(.85), x, y, z).rotation.x = Math.PI / 2; }
+gear(w, 1, .5, -5.4, .2, 3).rotation.x = .2; gear(w, .7, .6, 5.6, .2, -3).rotation.z = .3;
+// ── 大ぐも ──
+const sp = new THREE.Group(); sp.position.y = 5.2; w.add(sp);
+// 腹：鉄板の釜（横向き）。帯、びょう、丸窓、圧力計
+const abd = new THREE.Group(); abd.position.set(-2.4, .5, 0); abd.rotation.z = Math.PI / 2; sp.add(abd);                 // 釜の軸が x になる
+const prof = [[0, -3], [1.2, -2.8], [2.1, -2], [2.5, -.8], [2.5, .6], [2.1, 1.6], [1.4, 2.2], [.9, 2.4]];
+add(abd, new THREE.LatheGeometry(prof.map(p => V2(...p)), 12), g(.6), 0, 0, 0);
+const radAt = y => { for (let i = 0; i < prof.length - 1; i++) if (y >= prof[i][1] && y <= prof[i + 1][1]) { const f = (y - prof[i][1]) / (prof[i + 1][1] - prof[i][1]); return prof[i][0] + (prof[i + 1][0] - prof[i][0]) * f; } return 0; };
+for (const y of [-2, -.9, .2, 1.3]) { add(abd, new THREE.TorusGeometry(radAt(y) + .03, .11, 4, 16), g(.84), 0, y, 0).rotation.x = Math.PI / 2; for (let k = 0; k < 14; k++) { const an = k / 14 * 6.283; ball(abd, .09, 1, Math.cos(an) * (radAt(y) + .14), y + .22, Math.sin(an) * (radAt(y) + .14)); } }
+for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const y = -1.5 + k * 1.1, r = radAt(y), an = s * 1.2; cyl(abd, .34, .34, .12, g(.9), Math.cos(an) * r * .98, y, Math.sin(an) * r * .98, 10).rotation.set(0, -an, Math.PI / 2, 'YXZ'); cyl(abd, .24, .24, .16, a('#ff5a3a'), Math.cos(an) * r, y, Math.sin(an) * r, 10).rotation.set(0, -an, Math.PI / 2, 'YXZ'); }
+ball(abd, .5, .5, 0, -3, 0); cyl(abd, .14, .14, .8, .8, 0, -3.5, 0);
+// 背中：歯車、えんとつ 3 本、弁、圧力計
+const g1 = gear(sp, 1, .86, -2.2, 3.1, .5, 10), g2 = gear(sp, .62, .7, -.9, 2.95, -.5, 7), g3 = gear(sp, .5, .9, .8, 1.3, .8, 6), g4 = gear(sp, .7, .76, -3.6, 2.9, -.6, 8); for (const q of [g1, g2, g4]) q.rotation.x = .2;
+const stacks = [[-3.4, .5, 2.4], [-4.2, -.3, 1.8], [-2.8, -.9, 1.5]].map(([x, z, h]) => { cyl(sp, .28, .38, h, .5, x, 2.8 + h / 2, z); cyl(sp, .42, .32, .3, .72, x, 2.9 + h, z); add(sp, new THREE.TorusGeometry(.34, .05, 4, 8), g(.85), x, 2.8 + h * .5, z).rotation.x = Math.PI / 2; return [x, 3.1 + h, z]; });
+{ const gz = new THREE.Group(); gz.position.set(-.6, 2.2, 1.5); gz.rotation.x = -.5; cyl(gz, .44, .44, .14, .95, 0, 0, 0, 12).rotation.x = Math.PI / 2; cyl(gz, .5, .5, .1, .4, 0, 0, -.06, 12).rotation.x = Math.PI / 2; sp.add(gz); gz.userData.needle = box(gz, .06, .36, .04, a('#ff5a3a'), 0, .14, .1); gz.userData.needle.geometry.translate(0, 0, 0); sp.userData.gz = gz; }
+// 胸：鉄板、びょう、わきの管、腹の下の炉
+box(sp, 2.8, 1.5, 2.6, g(.52), .5, .1, 0); box(sp, 3, .2, 2.8, g(.78), .5, .94, 0); box(sp, 3, .2, 2.8, g(.4), .5, -.74, 0); for (const s of [-1, 1]) { for (let k = 0; k < 6; k++) ball(sp, .08, 1, -.7 + k * .5, .6, s * 1.32); const hz = cyl(sp, .14, .14, 2.6, .7, -.3, -.3, s * 1.5); hz.rotation.z = Math.PI / 2; box(sp, .5, .9, .1, g(.34), .9, -.1, s * 1.33); }
+box(sp, 1.6, .3, 1.4, a('#ff5a3a'), -.2, -.9, 0); const furn = new THREE.PointLight(0xffffff, 18, 9, 1.5); furn.position.set(-.2, -1.6, 0); sp.add(furn);
+for (let k = 0; k < 3; k++) { const ch = new THREE.Group(); ch.position.set(-1.6 - k * 1.1, -1.6, (k - 1) * .8); for (let q = 0; q < 4 + k; q++) box(ch, q % 2 ? .08 : .2, .22, q % 2 ? .2 : .08, g(.8), 0, -q * .22, 0); sp.add(ch); ch.userData.sw = k; sp.userData['ch' + k] = ch; }
+// 頭：目 8 個、あご（2 節）、探知のひげ
+const headG = new THREE.Group(); headG.position.set(2.5, -.1, 0); sp.add(headG);
+box(headG, 1.4, 1.3, 1.8, g(.62), 0, 0, 0); box(headG, .5, 1.5, 2, g(.74), .5, 0, 0); box(headG, 1.5, .2, 1.9, g(.8), 0, .72, 0); for (let k = 0; k < 5; k++) ball(headG, .07, 1, .78, .5, -.8 + k * .4);
+for (const [y, z, r] of [[.24, .44, .3], [.24, -.44, .3], [-.2, .2, .18], [-.2, -.2, .18], [.44, .82, .13], [.44, -.82, .13], [-.06, .72, .11], [-.06, -.72, .11]]) { ball(headG, r * 1.25, .3, .72, y, z); ball(headG, r, a('#ff5a3a'), .8, y, z); ball(headG, r * .3, a('#ffc0a0'), .8 + r * .8, y + r * .3, z + r * .2); }
+const jaws = [-1, 1].map(s => { const j = new THREE.Group(); j.position.set(.7, -.56, s * .5); box(j, .9, .22, .22, g(.9), .45, 0, 0); const j2 = new THREE.Group(); j2.position.x = .9; box(j2, .7, .16, .16, g(1), .35, 0, 0); add(j2, new THREE.ConeGeometry(.1, .4, 4), g(1), .8, 0, 0).rotation.z = -Math.PI / 2; j2.rotation.y = s * .9; j.add(j2); headG.add(j); return { j, s }; });
+const feel = [-1, 1].map(s => { const f = new THREE.Group(); f.position.set(.3, .8, s * .6); f.rotation.z = -.7; box(f, .05, 1.8, .05, g(.8), 0, .9, 0); ball(f, .12, a('#ff5a3a'), 0, 1.84, 0); headG.add(f); return f; });
+const scanG = new THREE.ConeGeometry(1.7, 12, 12, 1, true); scanG.translate(0, -6, 0); const scan = new THREE.Mesh(scanG, new THREE.MeshBasicMaterial({ color: 0xff5a3a, transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); const scanP = new THREE.Group(); scanP.position.set(.8, .2, 0); scanP.add(scan); scan.rotation.z = Math.PI / 2 - .5; headG.add(scanP);
+// おしりのクレーンと、ぶら下げた箱
+const crane = new THREE.Group(); crane.position.set(-5.2, 1, 0); crane.rotation.z = .5; box(crane, 3.6, .22, .22, g(.7), -1.8, 0, 0); box(crane, 3.6, .1, .1, g(.5), -1.8, .34, 0); for (let k = 0; k < 6; k++) box(crane, .08, .4, .08, g(.5), -.3 - k * .6, .18, 0).rotation.z = k % 2 ? .6 : -.6; sp.add(crane);
+const load = new THREE.Group(); load.position.set(-8.4, -.6, 0); box(load, .04, 2.6, .04, g(.8), 0, -1.3, 0); box(load, 1.2, 1.2, 1.2, g(.56), 0, -3.1, 0); box(load, 1.26, .12, 1.26, g(.3), 0, -3.1, 0); box(load, .3, .3, .3, g(.9), 0, -2.44, 0); sp.add(load);
+// 足 8 本：つけ根 → もも（上へ）→ すね（下へ）→ 足先＋つめ。各節に玉の関節と油圧の棒
+const legs = []; for (const s of [-1, 1]) for (let k = 0; k < 4; k++) { const hip = new THREE.Group(); hip.position.set(1.4 - k * .78, .1, s * 1.3); hip.rotation.order = 'YXZ'; const base = -s * (Math.PI / 2 - (1.5 - k) * .44);
+  ball(hip, .42, .92, 0, 0, 0); box(hip, 4.2, .34, .34, g(.7), 2.1, 0, 0); box(hip, 2.6, .1, .1, g(.95), 1.9, .34, 0); cyl(hip, .16, .16, .9, .5, .9, .3, 0).rotation.z = Math.PI / 2; box(hip, .5, .5, .44, g(.5), .5, 0, 0);
+  const knee = new THREE.Group(); knee.position.x = 4.2; ball(knee, .44, .92, 0, 0, 0); cyl(knee, .2, .2, .5, .5, 0, 0, 0).rotation.x = Math.PI / 2; box(knee, 6.4, .28, .28, g(.58), 3.2, 0, 0); box(knee, 3.4, .1, .1, g(.95), 2.6, .3, 0); cyl(knee, .15, .15, 1.2, .46, 1.2, .26, 0).rotation.z = Math.PI / 2; for (const q of [1.6, 3.2, 4.8]) box(knee, .14, .4, .4, g(.82), q, 0, 0);
+  const ank = new THREE.Group(); ank.position.x = 6.4; ball(ank, .32, .92, 0, 0, 0); box(ank, 1.3, .22, .22, g(.7), .65, 0, 0); for (const sd of [-1, 1]) { const cl = add(ank, new THREE.ConeGeometry(.12, .7, 4), g(1), 1.5, 0, sd * .16); cl.rotation.set(0, sd * -.3, -Math.PI / 2 - .3); } knee.add(ank); hip.add(knee); sp.add(hip); legs.push({ hip, knee, ank, base, ph: (k % 2 ? Math.PI : 0) + (s > 0 ? 0 : Math.PI) }); }
 // 物かげにかくれる人
-const hero = new THREE.Group(); hero.position.set(5.6, 0, 1.6); box(hero, .34, .44, .26, g(.95), 0, .34, 0); add(hero, new THREE.IcosahedronGeometry(.17, 0), g(1), 0, .72, 0); w.add(hero); box(w, 1.6, 1.3, .6, g(.5), 4.9, .65, 1.8).rotation.y = .5;
-const fx = K.fx(w, 100), motes = D.motes(110, 10, 12); let sT = 0;
+const hero = new THREE.Group(); hero.position.set(5.8, 0, 1.8); box(hero, .34, .44, .26, g(.95), 0, .34, 0); add(hero, new THREE.IcosahedronGeometry(.17, 0), g(1), 0, .72, 0); w.add(hero); box(w, 1.6, 1.3, .6, g(.5), 5.1, .65, 2).rotation.y = .5;
+const fx = K.fx(w, 120), motes = D.motes(110, 10, 12); let sT = 0;
 D.run((dt, t) => {
   const st = t * 1.6;
-  legs.forEach(L => { const sw = Math.sin(st + L.ph), lift = Math.max(0, Math.cos(st + L.ph)); L.hip.rotation.set(0, L.base + sw * .2, 0); L.hip.rotation.order = 'YXZ'; L.hip.rotation.z = .6 + lift * .2; L.knee.rotation.z = -1.85 - lift * .1; });
-  sp.position.y = 5 + Math.sin(st * 2) * .1; sp.rotation.z = Math.sin(st) * .025; sp.rotation.x = Math.cos(st) * .02;
-  g1.rotation.y = t * 1.4; g2.rotation.y = -t * 2.1; g3.rotation.y = t * 2.6;
+  legs.forEach(L => { const sw = Math.sin(st + L.ph), lift = Math.max(0, Math.cos(st + L.ph)); L.hip.rotation.y = L.base + sw * .2; L.hip.rotation.z = .66 + lift * .2; L.knee.rotation.z = -1.66 - lift * .1; L.ank.rotation.z = -.34 + lift * .25; });
+  sp.position.y = 5.2 + Math.sin(st * 2) * .1; sp.rotation.z = Math.sin(st) * .025; sp.rotation.x = Math.cos(st) * .02;
+  g1.rotation.y = t * 1.4; g2.rotation.y = -t * 2.2; g3.rotation.y = t * 2.6; g4.rotation.y = -t * 1.9; sp.userData.gz.userData.needle.rotation.z = Math.sin(t * 3) * .8 + Math.sin(t * 17) * .1;
+  for (let k = 0; k < 3; k++) sp.userData['ch' + k].rotation.z = Math.sin(st + k) * .2;
   headG.rotation.y = Math.sin(t * .5) * .5; scanP.rotation.y = Math.sin(t * .9) * .5; scan.material.opacity = .17 + Math.sin(t * 7) * .03;
-  fangs.forEach((f, i) => { f.rotation.y = (i ? -1 : 1) * (.2 + Math.abs(Math.sin(t * 3)) * .3); });
-  const on = Math.floor(t * 2) % 2; warn.material.color.set(on ? '#ff5a3a' : '#5a0a0a'); warnL.intensity = on ? 8 : 0;
+  jaws.forEach(({ j, s }) => { j.rotation.y = s * -(.25 + Math.abs(Math.sin(t * 2.6)) * .4); }); feel.forEach((f, i) => { f.rotation.x = Math.sin(t * 2 + i * 2) * .3; f.children[1].material.color.set(Math.floor(t * 3 + i) % 2 ? '#ff5a3a' : '#5a0a0a'); });
+  load.rotation.z = Math.sin(st * .9) * .16; load.rotation.x = Math.cos(st * .7) * .1; furn.intensity = 16 + Math.sin(t * 8) * 4;
   hero.position.y = Math.abs(Math.sin(t * 9)) * .03; hero.rotation.z = Math.sin(t * 14) * .04;
-  if ((sT -= dt) < 0) { sT = .14; fx.emit('puff', -3.2, 9.7, -.6, { vy: 1.6, spread: .4, life: 2, size: .7, grow: 2.2 }); if (Math.random() < .4) fx.emit('spark', 1.3 - Math.random() * 2.4, 5, (Math.random() < .5 ? -1 : 1) * 1.2, { vy: -1, spread: 2, grav: -6, life: .6, size: .22, fog: false, tint: '#ff5a3a' }); }
+  if ((sT -= dt) < 0) { sT = .1; const [x, y, z] = stacks[Math.floor(Math.random() * 3)]; fx.emit('puff', x, y + 5.2, z, { vy: 1.6, spread: .4, life: 2, size: .6, grow: 2.2 }); if (Math.random() < .5) fx.emit('spark', -.2 + (Math.random() - .5) * 1.4, 4.2, (Math.random() - .5) * 1.2, { vy: -1.4, spread: 1.4, grav: -5, life: .7, size: .22, fog: false, tint: '#ff5a3a' }); }
   fx.update(dt);
 });
 </script>
