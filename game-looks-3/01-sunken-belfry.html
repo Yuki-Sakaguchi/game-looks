@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3-01 沈んだ鐘楼</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#62a8e0;opacity:.85}
+</style>
+<div id="cap">3-01 ─ 沈んだ鐘楼 / 青 1 色 ＋ 桃色のくらげ　｜　見るだけ</div>
+<script src="kit.js"></script><script src="diorama.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 海の底に沈んだ鐘楼。色は青の 6 段だけで、差し色は桃色（くらげと珊瑚）。
+// 上から差す光の筋は、通った所を 1〜2 段明るくするだけの、うすい円すい
+import * as THREE from 'three';
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#0a1838', '#12346c', '#2862aa', '#62aae4', '#d4f2ff'], acc: ['#5a1040', '#c42a72', '#ff6aa8', '#ffd4e6'], dist: 36, height: 10, look: 6 });
+const { world: w, g, a } = D, { add, box, hash } = K;
+D.base(7.6, .5);
+// 傾いた塔
+const tw = new THREE.Group(); tw.rotation.z = .09; tw.position.set(-.4, -.2, 0); w.add(tw);
+box(tw, 3.2, 6.4, 3.2, g(.6), 0, 3.2, 0); for (let k = 0; k < 4; k++) box(tw, 3.44, .28, 3.44, g(.78), 0, .8 + k * 1.8, 0);
+for (let s = 0; s < 4; s++) { const an = s * Math.PI / 2, x = Math.sin(an) * 1.61, z = Math.cos(an) * 1.61; const wn = box(tw, 1, 1.5, .1, g(.1), x, 4, z); wn.rotation.y = an; const ar = add(tw, new THREE.CylinderGeometry(.5, .5, .1, 8, 1, false, 0, Math.PI), g(.1), x, 4.75, z); ar.rotation.set(Math.PI / 2, 0, -Math.PI / 2 + 0, 'YXZ'); ar.rotation.y = an; }
+box(tw, 3.7, .36, 3.7, g(.8), 0, 6.6, 0); for (const [x, z] of [[-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) box(tw, .5, 2.4, .5, g(.66), x, 8, z);
+box(tw, 3.7, .36, 3.7, g(.8), 0, 9.3, 0); const roof = add(tw, new THREE.ConeGeometry(2.7, 2.8, 4), g(.52), 0, 10.9, 0); roof.rotation.y = Math.PI / 4; box(tw, .12, 1.2, .12, g(.9), 0, 12.8, 0); box(tw, .6, .12, .12, g(.9), 0, 13, 0);
+const bell = new THREE.Group(); bell.position.set(0, 9.1, 0); add(bell, new THREE.CylinderGeometry(.3, .95, 1.3, 8), g(.95), 0, -.9, 0); add(bell, new THREE.SphereGeometry(.2, 6, 5), g(.4), 0, -1.7, 0); tw.add(bell);
+// くずれた壁と柱
+for (const [x, z, h, ry] of [[4.2, 1.6, 2.6, .3], [4.9, -.6, 1.4, .1], [-4.6, 2.4, 1.8, 1.2], [-3.2, -4, 1, 2]]) { const b = box(w, 1.6, h, .7, g(.5), x, h / 2, z); b.rotation.y = ry; }
+const col = add(w, new THREE.CylinderGeometry(.45, .45, 4, 8), g(.7), 2.4, .45, 4.4); col.rotation.set(0, .5, Math.PI / 2); add(w, new THREE.CylinderGeometry(.45, .5, 1.6, 8), g(.7), -1.6, .8, 5);
+// 海草、珊瑚、くらげ、魚
+const kelp = [...Array(18)].map((_, i) => { const an = hash(i, 1) * 6.283, r = 3.6 + hash(i, 2) * 3.4, h = 2.4 + hash(i, 3) * 3.6, geo = new THREE.BoxGeometry(.26, h, .07); geo.translate(0, h / 2, 0); const m = add(w, geo, g(.42), Math.cos(an) * r, 0, Math.sin(an) * r); m.rotation.y = an; return m; });
+for (let i = 0; i < 9; i++) { const an = hash(i, 4) * 6.283, r = 4 + hash(i, 5) * 3; for (let k = 0; k < 3; k++) add(w, new THREE.ConeGeometry(.16, .8 + hash(i, k) * .7, 5), a('#ff6aa8', true), Math.cos(an) * r + k * .28, .4, Math.sin(an) * r + hash(k, i) * .3).rotation.z = (hash(i, k + 4) - .5) * .7; }
+const jelly = [...Array(7)].map((_, i) => { const j = new THREE.Group(); add(j, new THREE.SphereGeometry(.6, 8, 5, 0, 6.3, 0, 1.6), a(i % 2 ? '#ff6aa8' : '#ffd4e6'), 0, 0, 0); for (let q = 0; q < 5; q++) add(j, new THREE.CylinderGeometry(.03, .02, 1.3, 3), a('#c42a72'), Math.cos(q * 1.26) * .3, -.7, Math.sin(q * 1.26) * .3); j.userData = { an: hash(i, 6) * 6.283, r: 3 + hash(i, 7) * 5, y: 3 + hash(i, 8) * 9, p: hash(i, 9) * 6 }; w.add(j); return j; });
+const fish = [...Array(18)].map((_, i) => { const f = add(w, new THREE.ConeGeometry(.12, .5, 4), g(.9)); f.geometry.rotateX(Math.PI / 2); f.userData = { o: i * .35, r: 4 + (i % 3) * .5, y: 6 + (i % 5) * .4 }; return f; });
+const shafts = [[-2.5, 1.5, 2.6, .12], [2.6, -2, 2.2, -.1], [.5, 3.4, 1.8, .05]].map(([x, z, r, tl]) => D.shaft(x, z, r * 1.5, 44, tl * .3, null, .07));
+const motes = D.motes(200, 8.5, 14);
+D.run((dt, t) => {
+  bell.rotation.z = Math.sin(t * .9) * .28; kelp.forEach((k, i) => { k.rotation.z = Math.sin(t * .9 + i) * .2; k.rotation.x = Math.cos(t * .7 + i) * .12; });
+  jelly.forEach((j, i) => { const pu = Math.sin(t * 1.5 + j.userData.p), an = j.userData.an + t * .06; j.position.set(Math.cos(an) * j.userData.r, j.userData.y + Math.sin(t * .4 + i) * 1.2, Math.sin(an) * j.userData.r); j.scale.set(1 + pu * .15, 1 - pu * .18, 1 + pu * .15); });
+  fish.forEach(f => { const an = t * .5 + f.userData.o; f.position.set(Math.cos(an) * f.userData.r, f.userData.y + Math.sin(an * 2) * .5, Math.sin(an) * f.userData.r); f.rotation.y = -an; });
+  shafts.forEach((s, i) => { s.material.opacity = .07 + Math.sin(t * .6 + i * 2) * .03; s.rotation.x = Math.sin(t * .3 + i) * .04; });
+  motes.position.y = (t * .35) % 1.2;
+});
+</script>
+</html>

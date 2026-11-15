@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3-03 砂漠の夜市</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f2b040;opacity:.85}
+</style>
+<div id="cap">3-03 ─ 砂漠の夜市 / こはく色 1 色 ＋ 水色の泉　｜　見るだけ</div>
+<script src="kit.js"></script><script src="diorama.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 砂漠の小さな夜市。色はこはく色の 6 段だけで、差し色は泉の水色。
+// ちょうちんは「光らせるだけの白い箱」で、いちばん明るい段になる。まん中の大きな灯りが、屋台の片側だけを照らす
+import * as THREE from 'three';
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#2a1204', '#6a2e08', '#c0661a', '#f2b040', '#fff2b8'], acc: ['#004a5a', '#10a0b8', '#5ae0f0', '#d8ffff'], dist: 31, height: 12, look: 2.4, amb: .35, key: 1.3 });
+const { world: w, g, a, lightM } = D, { add, box, hash } = K;
+D.base(8, .55);
+// まん中の灯り柱
+add(w, new THREE.CylinderGeometry(.14, .2, 6, 6), g(.4), 0, 3, 0); const big = add(w, new THREE.CylinderGeometry(.7, .5, 1.2, 8), lightM(1), 0, 6.2, 0); add(w, new THREE.ConeGeometry(.9, .6, 8), g(.5), 0, 7.1, 0);
+const L = new THREE.PointLight(0xffffff, 60, 16, 1.4); L.position.set(0, 6, 0); w.add(L);
+// 屋台 5 つ：柱・ひさし・台・品物・ちょうちん
+const lamps = [];
+for (let i = 0; i < 5; i++) { const an = i / 5 * 6.283 + .4, s = new THREE.Group(); s.position.set(Math.cos(an) * 5, 0, Math.sin(an) * 5); s.rotation.y = -an + Math.PI / 2; w.add(s);
+  for (const [x, z] of [[-1.3, -.8], [1.3, -.8], [-1.3, .8], [1.3, .8]]) box(s, .12, 2.4, .12, g(.4), x, 1.2, z);
+  for (let k = 0; k < 6; k++) { const st = box(s, .5, .08, 2.2, g(k % 2 ? .95 : .5), -1.25 + k * .5, 2.5, .1); st.rotation.x = .22; }
+  box(s, 2.6, .9, .9, g(.6), 0, .45, .6); box(s, 2.7, .1, 1, g(.8), 0, .95, .6);
+  for (let k = 0; k < 5; k++) { const kind = (i + k) % 3; if (kind === 0) add(s, new THREE.SphereGeometry(.2, 6, 5), g(.9), -1 + k * .5, 1.2, .6); else if (kind === 1) box(s, .3, .3, .3, g(.7), -1 + k * .5, 1.15, .6); else add(s, new THREE.CylinderGeometry(.12, .18, .4, 6), g(.85), -1 + k * .5, 1.2, .6); }
+  for (let k = 0; k < 3; k++) lamps.push(box(s, .22, .3, .22, lightM(1), -1 + k, 2.05, 1.05));
+  box(s, 2.2, .04, 1.2, g(i % 2 ? .3 : .85), 0, .03, 1.9); }
+// つぼ、じゅうたん、やしの木、休むらくだ
+for (let i = 0; i < 10; i++) { const an = hash(i, 1) * 6.283, r = 2 + hash(i, 2) * 1.2; add(w, new THREE.CylinderGeometry(.2, .3, .6 + hash(i, 3) * .4, 7), g(.5 + hash(i, 4) * .3), Math.cos(an) * r, .3, Math.sin(an) * r); }
+for (const [x, z, s] of [[6.6, 1, 1], [-6.4, -2.6, 1.2], [-2, 6.8, .9]]) { const p = new THREE.Group(); p.position.set(x, 0, z); for (let k = 0; k < 5; k++) add(p, new THREE.CylinderGeometry(.16 * s, .2 * s, 1.1 * s, 5), g(.45), k * k * .06 * s, (.5 + k) * s, 0).rotation.z = -k * .1; for (let k = 0; k < 6; k++) { const pv = new THREE.Group(); pv.position.set(1.4 * s, 5.2 * s, 0); pv.rotation.y = k * 1.05; const lf = add(pv, new THREE.ConeGeometry(.4 * s, 2.4 * s, 3), g(.7), 0, 0, 0); lf.geometry.translate(0, 1.2 * s, 0); lf.rotation.z = -1.9; lf.scale.z = .3; p.add(pv); } w.add(p); }
+const camel = new THREE.Group(); camel.position.set(-5.6, 0, 3.4); camel.rotation.y = 1; box(camel, 2, .9, .9, g(.7), 0, .6, 0); box(camel, .6, .6, .7, g(.75), -.2, 1.2, 0); box(camel, .34, 1.1, .34, g(.7), 1.1, 1.1, 0).rotation.z = -.4; box(camel, .6, .4, .4, g(.75), 1.5, 1.7, 0); w.add(camel);
+// 泉：水色に光る
+const fx0 = 3.2, fz0 = -3; add(w, new THREE.CylinderGeometry(1.3, 1.4, .6, 8), g(.7), fx0, .3, fz0); add(w, new THREE.CylinderGeometry(1.1, 1.1, .1, 8), a('#5ae0f0'), fx0, .62, fz0); add(w, new THREE.CylinderGeometry(.12, .16, 1, 6), g(.8), fx0, 1, fz0); add(w, new THREE.SphereGeometry(.2, 6, 5), a('#d8ffff'), fx0, 1.6, fz0);
+const glow = D.shaft(fx0, fz0, .9, 3.4, 0, 0x5ae0f0, .16); glow.rotation.x = Math.PI; glow.position.y = .6;
+// 歩く人
+const folks = [...Array(7)].map((_, i) => { const f = new THREE.Group(); box(f, .3, .5, .24, g(.5 + (i % 3) * .2), 0, .45, 0); add(f, new THREE.IcosahedronGeometry(.16, 0), g(.9), 0, .86, 0); f.userData = { an: hash(i, 5) * 6.283, v: (hash(i, 6) - .5) * .5, r: 3 + (i % 3) * .5 }; w.add(f); return f; });
+const fx = K.fx(w, 80), motes = D.motes(90, 9, 9); let sT = 0;
+D.run((dt, t) => {
+  lamps.forEach((l, i) => { l.position.y = 2.05 + Math.sin(t * 2 + i) * .03; l.material.color.setScalar(.85 + .15 * Math.sin(t * 5 + i * 1.7)); });
+  L.intensity = 60 * (.9 + .1 * Math.sin(t * 9) * Math.sin(t * 5.3)); big.material.color.setScalar(.9 + .1 * Math.sin(t * 9));
+  folks.forEach((f, i) => { f.userData.an += f.userData.v * dt; f.position.set(Math.cos(f.userData.an) * f.userData.r, Math.abs(Math.sin(t * 6 + i)) * .08, Math.sin(f.userData.an) * f.userData.r); f.rotation.y = -f.userData.an; });
+  if ((sT -= dt) < 0) { sT = .1; fx.emit('spark', fx0 + (Math.random() - .5) * 1.6, .8, fz0 + (Math.random() - .5) * 1.6, { vy: 1.3, life: 1.6, size: .24, fog: false, tint: '#5ae0f0' }); }
+  fx.update(dt); glow.material.opacity = .13 + Math.sin(t * 2) * .04; motes.position.y = Math.sin(t * .4) * .2;
+});
+</script>
+</html>

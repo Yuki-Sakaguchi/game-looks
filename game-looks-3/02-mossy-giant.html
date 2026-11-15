@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3-02 苔むした巨人</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6ad060;opacity:.85}
+</style>
+<div id="cap">3-02 ─ 苔むした巨人 / 緑 1 色 ＋ だいだいの焚き火　｜　見るだけ</div>
+<script src="kit.js"></script><script src="diorama.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 森に倒れたまま苔におおわれた大きな機械。その胸の上で、旅人が小さな焚き火をしている。
+// 色は緑の 6 段だけ。差し色のだいだいは、焚き火・ランタン・蛍にだけ使う。焚き火は近くの面を 1〜2 段明るくする
+import * as THREE from 'three';
+const K = KIT(THREE), D = DIORAMA(THREE, K, { ramp: ['#000000', '#061e0e', '#0e4a22', '#22883a', '#6cd060', '#e2ffb4'], acc: ['#7a2a00', '#e0621a', '#ffa83a', '#ffe6a0'], dist: 31, height: 12, look: 2.6 });
+const { world: w, g, a } = D, { add, box, hash } = K;
+D.base(8, .45);
+// 倒れた巨人：胸、頭、肩、腕、脚
+const bot = new THREE.Group(); bot.rotation.y = .5; w.add(bot);
+const chest = box(bot, 5.4, 2.4, 3.8, g(.55), 0, 1.4, 0); chest.rotation.z = -.06; box(bot, 4.4, .3, 2.8, g(.7), 0, 2.72, 0).rotation.z = -.06; box(bot, 1.6, .2, 1.4, g(.12), 1.2, 2.86, .2);
+const head = new THREE.Group(); head.position.set(-4, 1.1, .3); head.rotation.set(.2, .3, .5); box(head, 2, 1.9, 2.1, g(.6), 0, 0, 0); box(head, .12, .34, .6, g(.08), -1.02, .2, -.5); box(head, .12, .34, .6, g(.08), -1.02, .2, .5); box(head, 2.2, .3, 2.3, g(.75), 0, 1, 0); add(head, new THREE.CylinderGeometry(.05, .05, 1.6, 4), g(.8), .4, 1.8, .6); bot.add(head);
+for (const s of [-1, 1]) { add(bot, new THREE.SphereGeometry(1.1, 7, 5), g(.62), -2.2, 1.9, s * 2.3); const arm = box(bot, 1, 1, 3.4, g(.5), -1.6, .9, s * 4.3); arm.rotation.set(s * .5, s * .3, 0); box(bot, 1.3, .7, 1.3, g(.42), -1, .35, s * 5.9); }
+for (const s of [-1, 1]) { const leg = box(bot, 4, 1.3, 1.4, g(.5), 4.6, .6, s * 1.1); leg.rotation.z = -.16; box(bot, 1.2, 1.6, 1.5, g(.42), 6.6, .5, s * 1.1); }
+for (let k = 0; k < 6; k++) add(bot, new THREE.CylinderGeometry(.16, .16, .2, 6), g(.82), -2 + k * .8, 2.2, 1.92).rotation.x = Math.PI / 2;
+// 苔（明るいかたまり）、機械から生えた木、つる
+for (let i = 0; i < 46; i++) { const x = (hash(i, 1) - .5) * 9, z = (hash(i, 2) - .5) * 5, m = add(bot, new THREE.IcosahedronGeometry(.3 + hash(i, 3) * .5, 0), g(.8 + hash(i, 4) * .2), x, Math.abs(x) < 2.7 && Math.abs(z) < 1.9 ? 2.8 : .9 + hash(i, 5) * .8, z); m.scale.y = .45; }
+for (const [x, z, h] of [[-1.6, -.8, 4.6], [2.2, 1, 3.4], [-4.2, .4, 3]]) { const t = K.pine(h, '#c8c8c8', '#5a5a5a'); t.position.set(x, x < -3 ? 2 : 2.7, z); bot.add(t); }
+for (let i = 0; i < 12; i++) { const an = hash(i, 6) * 6.283, r = 5.6 + hash(i, 7) * 2, t = K.pine(2.4 + hash(i, 8) * 3.4, '#b0b0b0', '#4a4a4a'); t.position.set(Math.cos(an) * r, 0, Math.sin(an) * r); w.add(t); }
+for (let i = 0; i < 14; i++) { const an = i / 14 * 6.283; add(w, new THREE.CylinderGeometry(.04, .04, 2 + hash(i, 9) * 3, 3), g(.4), Math.cos(an) * 7.2, -1.6 - hash(i, 9), Math.sin(an) * 7.2); }
+// 旅人のテントと焚き火（胸の上）
+const camp = new THREE.Group(); camp.position.set(.2, 2.86, -.2); bot.add(camp);
+const tent = add(camp, new THREE.ConeGeometry(.9, 1, 4), g(.95), -1.1, .5, -.6); tent.rotation.y = .6;
+box(camp, .3, .4, .22, g(.9), .9, .32, .3); add(camp, new THREE.IcosahedronGeometry(.15, 0), g(1), .9, .68, .3); for (let k = 0; k < 4; k++) add(camp, new THREE.CylinderGeometry(.05, .05, .5, 4), g(.3), 0, .08, 0).rotation.set(1.2, k * 1.57, 0);
+const fire = new THREE.PointLight(0xffffff, 10, 7, 1.6); fire.position.set(0, .7, 0); camp.add(fire);
+box(head, .3, .36, .3, a('#ffa83a'), .4, 2.7, .6); const lamp = new THREE.PointLight(0xffffff, 5, 5, 1.6); lamp.position.set(.4, 2.7, .6); head.add(lamp);
+const fx = K.fx(bot, 120), motes = D.motes(120, 9, 10); let fT = 0, gT = 0;
+D.run((dt, t) => {
+  if ((fT -= dt) < 0) { fT = .07; fx.emit('flame', .2 + (Math.random() - .5) * .2, 3.1, -.2 + (Math.random() - .5) * .2, { vy: .9, life: .5, size: .7, grow: -.3, fog: false }); if (Math.random() < .3) fx.emit('spark', .2, 3.4, -.2, { vy: 1.6, spread: 1, life: 1, size: .22, fog: false, tint: '#ffa83a' }); }
+  if ((gT -= dt) < 0) { gT = .12; const an = Math.random() * 6.283, r = 2 + Math.random() * 6; fx.emit('spark', Math.cos(an) * r, 1 + Math.random() * 5, Math.sin(an) * r, { life: 1.8, size: .26, spread: .4, fog: false, tint: '#ffa83a' }); }
+  fx.update(dt); fire.intensity = 10 * (.8 + .2 * Math.sin(t * 13) * Math.sin(t * 7)); motes.position.y = Math.sin(t * .3) * .3;
+});
+</script>
+</html>
