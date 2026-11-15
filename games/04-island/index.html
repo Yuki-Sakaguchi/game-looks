@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>島あるき ─ 空撮の島を歩く</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+canvas{display:block}
+#osd{position:fixed;inset:0;pointer-events:none;font:600 13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#fff;letter-spacing:.05em;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+#osd>div{position:absolute}
+#a{left:max(16px,3%);top:max(14px,4%)} #b{right:max(16px,3%);top:max(14px,4%);text-align:right} #c{left:max(16px,3%);bottom:max(14px,5%)} #d{right:max(16px,3%);bottom:max(14px,5%);text-align:right}
+#toast{left:50%;top:17%;transform:translateX(-50%);font:700 22px/1.4 "Hiragino Sans","Yu Gothic",system-ui,sans-serif;letter-spacing:.3em;white-space:nowrap;opacity:0;transition:opacity .6s}
+#toast small{display:block;font:600 12px ui-monospace,Menlo,monospace;letter-spacing:.2em;text-align:center;opacity:.85}
+#prompt{left:50%;bottom:27%;transform:translateX(-50%);padding:6px 14px;border:1.5px solid rgba(255,255,255,.85);border-radius:20px;background:rgba(0,0,0,.28);font:600 13px "Hiragino Sans","Yu Gothic",system-ui,sans-serif;white-space:nowrap;display:none;pointer-events:auto}
+#prompt b{font:700 12px ui-monospace,Menlo,monospace;border:1.5px solid #fff;border-radius:4px;padding:0 5px;margin-right:8px}
+#talk{left:50%;bottom:max(70px,13%);transform:translateX(-50%);width:min(560px,86vw);padding:12px 18px 14px;border:1.5px solid rgba(255,255,255,.85);border-radius:6px;background:rgba(10,30,40,.62);font:500 15px/1.7 "Hiragino Sans","Yu Gothic",system-ui,sans-serif;letter-spacing:.04em;display:none}
+#talk i{display:block;font:700 11px ui-monospace,Menlo,monospace;font-style:normal;color:#ffe9a0;letter-spacing:.14em;margin-bottom:2px}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:rgba(8,40,56,.45);color:#fff;font:500 14px/1.9 "Hiragino Sans","Yu Gothic",system-ui,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.6);cursor:pointer;text-align:center}
+#start h1{font-size:34px;letter-spacing:.4em;margin:0 0 2px;text-indent:.4em} #start p{margin:0 0 14px;opacity:.9}
+#start table{margin:0 auto 18px;border-spacing:14px 1px;text-align:left;font-size:13px} #start td:first-child{font:700 12px ui-monospace,Menlo,monospace;text-align:right;color:#ffe9a0}
+#start .go{display:inline-block;padding:7px 26px;border:1.5px solid #fff;border-radius:22px;letter-spacing:.3em;text-indent:.3em;animation:bl 1.6s infinite} @keyframes bl{50%{opacity:.45}}
+#pad{position:fixed;inset:0;pointer-events:none;display:none}
+#stick{position:absolute;width:108px;height:108px;margin:-54px;border:1.5px solid rgba(255,255,255,.55);border-radius:50%;display:none} #stick i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px;border-radius:50%;background:rgba(255,255,255,.5)}
+.btn{position:absolute;display:grid;place-items:center;border:1.5px solid rgba(255,255,255,.75);border-radius:50%;background:rgba(0,0,0,.2);color:#fff;font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.06em;pointer-events:auto}
+#bj{right:22px;bottom:34px;width:82px;height:82px} #bd{right:116px;bottom:22px;width:62px;height:62px} #be{right:34px;bottom:132px;width:56px;height:56px}
+.touch #c,.touch #d{display:none} .touch #pad{display:block}
+</style>
+<div id="osd"><div id="a"></div><div id="b"></div><div id="c"></div><div id="d"></div><div id="toast"></div><div id="prompt"></div><div id="talk"></div></div>
+<div id="pad"><div id="stick"><i></i></div><div class="btn" id="bj">JUMP</div><div class="btn" id="bd">DASH</div><div class="btn" id="be">話す</div></div>
+<div id="start"><div>
+  <h1>島あるき</h1><p>空撮で見ていたあの島を、自分の足で。</p>
+  <table id="keys">
+    <tr><td>W A S D</td><td>歩く（Shift で走る）</td></tr><tr><td>マウス</td><td>見まわす（ホイールで寄り引き）</td></tr>
+    <tr><td>Space</td><td>ジャンプ ／ 空中でもう一度 ／ 押しっぱなしでパラソル滑空</td></tr><tr><td>クリック・F</td><td>ダッシュ（空中でも 1 回）</td></tr><tr><td>E</td><td>話す・なでる・鳴らす</td></tr><tr><td>M</td><td>音のオン・オフ</td></tr>
+  </table>
+  <div class="go" id="go">読みこみ中…</div>
+</div></div>
+<script src="../../game-looks-2/kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module" src="main.js"></script>
+</html>
