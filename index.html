@@ -17,25 +17,35 @@ a.set:hover,a.set:focus-visible{border-color:#e8b44a;outline:none}
 .count{font:700 13px ui-monospace,Menlo,monospace;color:#e8b44a;letter-spacing:.04em}
 h2{margin:2px 0 6px;font-size:18px}
 .body p{margin:0;color:#b9b7ae}
-a.play{margin-bottom:20px;display:flex;flex-wrap:wrap;align-items:center}
-a.play .pthumb{flex:0 0 240px;width:240px;aspect-ratio:8/5;image-rendering:pixelated;display:block}
-a.play .body{flex:1 1 280px}
 .go{display:inline-block;margin-top:12px;color:#e8b44a;font-weight:600}
 .stars{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;padding:14px 18px 0;font:700 12px ui-monospace,Menlo,monospace}
 .stars span{aspect-ratio:1;display:grid;place-items:center;border-radius:3px;background:#272a33;color:#5d6070}
 .stars span.fav{background:#e8b44a;color:#1e2026}
+a.play{display:flex;flex-wrap:wrap;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:8px;overflow:hidden;margin-bottom:20px}
+a.play:hover,a.play:focus-visible{border-color:#7dffc0;outline:none}
+a.play img{flex:1 1 240px;max-width:340px;aspect-ratio:8/5;object-fit:cover;display:block}
+a.play .body{flex:2 1 300px}
 footer{margin-top:28px;color:#77756d;font-size:12px}
 </style>
 <main>
   <h1>ゲームのルック試作</h1>
-  <p class="lead">いろいろなゲームのジャンルに、新しい見た目（ルック）を当ててみた小さな試作集です。どれもブラウザで動きます。ほとんどは操作がなく、自動で動く場面を見るだけですが、いちばん上の「遊べる版」と、第 2 集の 21 だけは自分で操作できます。</p>
-  <a class="set play" href="play/akari-no-mori.html">
-    <img class="pthumb" src="play/akari-no-mori.gif" alt="灯りの森">
+  <p class="lead">いろいろなゲームのジャンルに、新しい見た目（ルック）を当ててみた小さな試作集です。どれもブラウザで動きます。ほとんどは操作がなく、自動で動く場面を見るだけですが、「雪夜ラリー」「灯りの森」と第 2 集の 21 は自分で操作して遊べます。</p>
+  <a class="play" href="game-looks/04-drive-snow-night-game.html">
+    <img src="game-looks/thumbs/04-game.gif" alt="雪夜ラリー" loading="lazy">
     <div class="body">
-      <div class="count">遊べる版 ・ TPS 探索</div>
+      <div class="count" style="color:#7dffc0">遊べるゲーム</div>
+      <h2>雪夜ラリー</h2>
+      <p>第 1 集の「04 ローポリの雪の夜」の描き方のまま作ったレースゲーム。オーロラの峠を 3 周し、ドリフトでためるダッシュとニトロでライバル 5 台と競います。キーボード・ゲームパッド・タッチで遊べます。</p>
+      <span class="go">遊ぶ →</span>
+    </div>
+  </a>
+  <a class="play" href="play/akari-no-mori.html">
+    <img src="play/akari-no-mori.gif" alt="灯りの森" loading="lazy">
+    <div class="body">
+      <div class="count" style="color:#7dffc0">遊べるゲーム</div>
       <h2>灯りの森</h2>
-      <p>第 1 集「11 初期 3D の粗さ」のルックのまま、実際に操作できるようにしたもの。懐中電灯を手に夜の森をあるいて、消えた七つの灯をともします。こわい要素はありません。キーボードとマウス、スマホのタッチ、ゲームパッドで動かせます。</p>
-      <span class="go">あそぶ →</span>
+      <p>第 1 集の「11 初期 3D ゲーム機の粗さ」の描き方のまま作った TPS 探索ゲーム。懐中電灯を手に夜の森をあるいて、消えた七つの灯をともします。こわい要素はありません。キーボード・ゲームパッド・タッチで遊べます。</p>
+      <span class="go">遊ぶ →</span>
     </div>
   </a>
   <div class="sets">
