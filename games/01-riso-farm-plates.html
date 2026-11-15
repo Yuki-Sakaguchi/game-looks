@@ -260,7 +260,8 @@ let gunX = .2; onResize((w, h) => { cam.fov = vfov(68, 56, 98); cam.updateProjec
 const gun = new THREE.Group(); cam.add(gun); gun.scale.setScalar(.52); box(gun, .13, .16, .5, RED, 0, 0, 0); add(gun, new THREE.CylinderGeometry(.045, .055, .5, 8), CREAM, 0, .03, -.46).rotation.x = Math.PI / 2; add(gun, new THREE.CylinderGeometry(.075, .075, .08, 8), DARK, 0, .03, -.7).rotation.x = Math.PI / 2;
 add(gun, new THREE.CylinderGeometry(.075, .055, .13, 8), TEAL, 0, .14, .08); box(gun, .09, .26, .11, DARK, 0, -.19, .14).rotation.x = .3; box(gun, .15, .13, .3, '#f6dcb8', .03, -.22, .24); box(gun, .03, .05, .03, DARK, 0, .1, -.2);
 const shots = [...Array(48)].map(() => { const m = add(scene, new THREE.IcosahedronGeometry(.13, 0), new THREE.MeshBasicMaterial({ color: '#8a3a44' })); m.visible = false; return { m, v: new THREE.Vector3(), life: 0 }; }); let shotI = 0;
-const birdMat = flat('#2f5f70'), beakMat = flat(RED);
+// カラスは青緑の版に朱の版を重ねた「かさね刷り」の黒っぽい色。青緑だけの作物や木の前でも見わけがつく（版の札は A のまま）
+const birdMat = flat('#3a2228'), beakMat = flat(RED);
 function makeBird() {
   const g = new THREE.Group(), b = new THREE.Group(); g.add(b); S(add(b, new THREE.ConeGeometry(.42, 1.5, 5), birdMat, 0, 0, -.1)).rotation.x = Math.PI / 2; S(add(b, new THREE.IcosahedronGeometry(.34, 0), birdMat, 0, .16, .62)); add(b, new THREE.ConeGeometry(.12, .4, 4), beakMat, 0, .12, 1).rotation.x = Math.PI / 2;
   const wings = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * .2, .1, 0); const w = S(box(p, 1.5, .06, .7, birdMat, s * .75, 0, 0)); w.geometry.translate(0, 0, -.05); b.add(p); return p; });
@@ -276,19 +277,21 @@ let ac = null; const beep = (f0, f1, d, type = 'square', vol = .06, at = 0) => {
 // ── 仕上げ（2 色刷り）。奥行きも受けとり、画面の各点が場面のどこにあたるかを求めて、波の内か外かで刷り色を選ぶ ──
 const rgb = h => new THREE.Vector3(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 const rt = new THREE.WebGLRenderTarget(4, 4, { depthTexture: new THREE.DepthTexture(4, 4) });
-const U = { tD: { value: rt.texture }, tZ: { value: rt.depthTexture }, res: { value: new THREE.Vector2() }, waveR: { value: 1e9 }, waveC: { value: wave.c }, pInv: { value: cam.projectionMatrixInverse }, cW: { value: cam.matrixWorld } };
+// 網点 1 つの大きさ（CSS px）。画面の短い辺におよそ 130 個ならぶようにし、3〜5.2 の間におさめる。小さい画面で点が大きすぎて絵が粗くなるのをふせぐ
+const cellFor = (w, h) => Math.max(3, Math.min(5.2, Math.min(w, h) / 130));
+const U = { cell: { value: 5.2 }, tD: { value: rt.texture }, tZ: { value: rt.depthTexture }, res: { value: new THREE.Vector2() }, waveR: { value: 1e9 }, waveC: { value: wave.c }, pInv: { value: cam.projectionMatrixInverse }, cW: { value: cam.matrixWorld } };
 for (const k of ['paper', 'inkA', 'inkB']) for (const n of [0, 1]) U[k + n] = { value: new THREE.Vector3() }; U.par0 = { value: new THREE.Vector4() }; U.par1 = { value: new THREE.Vector4() };
 const putPal = (n, p) => { U['paper' + n].value.copy(rgb(p.paper)); U['inkA' + n].value.copy(rgb(p.a)); U['inkB' + n].value.copy(rgb(p.b)); U['par' + n].value.set(p.dark ? 1 : 0, p.A === 0 ? .1 : 1, p.B === 0 ? .1 : 1, p.shift ? 5 : 1); };
-const postMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `uniform sampler2D tD,tZ;uniform vec2 res;uniform float waveR;uniform vec3 waveC,paper0,inkA0,inkB0,paper1,inkA1,inkB1;uniform vec4 par0,par1;uniform mat4 pInv,cW;varying vec2 vUv;
+const postMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}', fragmentShader: `uniform sampler2D tD,tZ;uniform vec2 res;uniform float waveR,cell;uniform vec3 waveC,paper0,inkA0,inkB0,paper1,inkA1,inkB1;uniform vec4 par0,par1;uniform mat4 pInv,cW;varying vec2 vUv;
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 vec3 src(vec2 uv){return pow(max(texture2D(tD,uv).rgb,0.),vec3(1./2.2));}
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
-float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/5.2;vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
+float dotp(vec2 uv,float ang,float v){vec2 q=rot(ang)*(uv*res)/cell;vec2 f=fract(q)-.5;return smoothstep(.08,-.08,length(f)-sqrt(clamp(v,0.,1.))*.72);}
 void main(){
-vec4 v=pInv*vec4(vUv*2.-1.,min(texture2D(tZ,vUv).x,.99999)*2.-1.,1.);v/=v.w;float d=distance((cW*v).xyz,waveC)+(h(floor(vUv*res/5.2))-.5)*(1.+waveR*.03);
+vec4 v=pInv*vec4(vUv*2.-1.,min(texture2D(tZ,vUv).x,.99999)*2.-1.,1.);v/=v.w;float d=distance((cW*v).xyz,waveC)+(h(floor(vUv*res/cell))-.5)*(1.+waveR*.03);
 float m=step(d,waveR),rim=m*step(waveR-.7-waveR*.035,d);
 vec3 paper=mix(paper0,paper1,m),inkA=mix(inkA0,inkA1,m),inkB=mix(inkB0,inkB1,m);vec4 par=mix(par0,par1,m);
-vec2 off=vec2(3.,-2.)*par.w/res;vec3 a=src(vUv),b=src(vUv+off);
+vec2 off=vec2(3.,-2.)*par.w*(cell/5.2)/res;vec3 a=src(vUv),b=src(vUv+off);
 float lum=dot(a,vec3(.3,.59,.11));float tealAmt=clamp(pow(clamp(1.-a.r,0.,1.),1.5)*1.35+(1.-lum)*.12-.04,0.,1.);float redAmt=clamp(1.-min(b.g,b.b)*1.08,0.,1.);redAmt*=smoothstep(.02,.3,b.r-min(b.g,b.b)+.25*(1.-dot(b,vec3(.33))));
 float k1=max(dotp(vUv,.26,tealAmt*par.y),rim),k2=max(dotp(vUv+off,1.31,redAmt*par.z),rim);
 vec3 pp=paper*(.97+.03*h(floor(vUv*res*.5)));
@@ -296,7 +299,7 @@ vec3 c=pp*mix(vec3(1.),inkA,k1*.92)*mix(vec3(1.),inkB,k2*.9);
 if(par.x>.5)c=1.-(1.-pp)*(1.-inkA*k1*.9)*(1.-inkB*k2*.92);
 c*=.985+.03*h(vUv*res+7.);gl_FragColor=vec4(c,1.);}` });
 const ps = new THREE.Scene(); ps.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat)); const pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-onResize((w, h) => { const s = renderer.getPixelRatio(); rt.setSize(Math.round(w * s), Math.round(h * s)); U.res.value.set(w, h); });
+onResize((w, h) => { const s = renderer.getPixelRatio(); rt.setSize(Math.round(w * s), Math.round(h * s)); U.res.value.set(w, h); U.cell.value = cellFor(w, h); });
 
 const sw = p => `<span class="sw" style="background:linear-gradient(135deg,${p.A === 0 ? p.paper : p.a} 50%,${p.B === 0 ? p.paper : p.b} 50%)"></span>`;
 let toastT = 0; const toast = (big, small = '') => { $('toast').innerHTML = big + (small ? `<small>${small}</small>` : ''); $('toast').style.opacity = 1; toastT = 2.6; };
