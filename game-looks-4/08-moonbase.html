@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-08 月面基地 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-08 ─ 月面基地 / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xb4acd8, size: 5.8, wide: 7.6, look: [0, .8, 0] });
+const { box, cyl, cone, ball, prism, grp, hash, rod } = P;
+
+// 月の地面とクレーター
+P.tiles(12, 8, (ix, iz) => [(ix + iz) % 2 ? 0xd0cadc : 0xc2bcd0, hash(ix, iz) > .8 ? -.04 : 0]);
+P.dirt(12, 8, 0x9a94aa); P.sea(0xb4acd8, -1.7);
+for (const [x, z, r] of [[-.6, 1.2, .55], [4.9, 3.2, .45], [-5.2, -3.2, .5], [1.9, -.6, .3], [-3.4, 3.3, .35], [5.2, -1.6, .3]]) {
+  const ring = P.add(null, new THREE.TorusGeometry(r, r * .22, 5, 10), 0xdcd6e6, x, .02, z); ring.rotation.x = Math.PI / 2; cyl(null, r * .9, r * .9, .02, 0xa8a2b8, x, .012, z, 10);
+}
+for (let i = 0; i < 12; i++) ball(null, .08 + hash(i, 1) * .12, 0xb8b2c6, -5.7 + hash(i, 2) * 11.4, .04, -3.7 + hash(i, 3) * 7.4);
+// 空に浮かぶ青い星
+const earth = ball(null, 1.3, 0x6aa8e8, 3, 2, -9, 2); earth.scale.setScalar(.75); ball(earth, .5, 0x6ac85a, .5, .6, .9, 1); ball(earth, .4, 0x6ac85a, -.7, -.2, .95, 1); ball(earth, .45, 0xffffff, 0, 1.05, .4, 1);
+
+// ドーム 3 つと、つなぐ通路
+function dome(x, z, r, c) {
+  const g = grp(null, x, 0, z);
+  cyl(g, r * 1.06, r * 1.1, .2, 0xe8e4f0, 0, .1, 0, 12); P.add(g, new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), c, 0, .2, 0);
+  for (const k of [.35, .7]) cyl(g, r * Math.cos(Math.asin(k)) + .02, r * Math.cos(Math.asin(k)) + .02, .04, 0xe8e4f0, 0, .2 + r * k, 0, 12);
+  cyl(g, .08, .08, .1, 0xe8e4f0, 0, .2 + r, 0, 6); box(g, .4, .4, .3, 0xe8e4f0, 0, .2, r + .05); box(g, .2, .28, .04, 0x6a6478, 0, .16, r + .21);
+  return g;
+}
+dome(-2.6, -1.6, 1.3, 0xbfe6f6); dome(.9, -2.5, .9, 0xc8f0d0); dome(-4.5, 1.3, .75, 0xbfe6f6);
+for (const [a, b] of [[[-1.4, .22, -1.9], [.1, .22, -2.3]], [[-3.4, .22, -.6], [-4.2, .22, .6]]]) { const r = rod(null, a, b, .17, 0xe8e4f0); rod(null, a, b, .19, 0xf0b03a).scale.y = .12; }
+// 太陽電池
+const panels = []; for (let i = 0; i < 6; i++) { const x = 3.6 + (i % 3) * .75, z = -.1 + ((i / 3) | 0) * .9; cyl(null, .03, .04, .4, 0x8a8698, x, .2, z, 5); const p = grp(null, x, .42, z); box(p, .6, .03, .5, 0x4f7fd8, 0, 0, 0); box(p, .62, .035, .03, 0xe8e4f0, 0, 0, 0); box(p, .03, .035, .52, 0xe8e4f0, 0, 0, 0); panels.push(p); }
+// アンテナ、タンク、コンテナ、電波塔
+const dish = grp(null, 4.8, 0, -3); cyl(dish, .12, .2, .5, 0xe8e4f0, 0, .25, 0, 6); const dh = grp(dish, 0, .6, 0); const bowl = P.add(dh, new THREE.ConeGeometry(.5, .22, 10, 1, true), 0xf6f6fa, 0, 0, 0); bowl.material = bowl.material.clone(); bowl.material.side = THREE.DoubleSide; bowl.rotation.x = -Math.PI / 2 - .5; rod(dh, [0, 0, 0], [0, .18, .3], .015, 0x4a4058); ball(dh, .04, 0xe2574c, 0, .18, .3);
+for (const z of [-3.4, -2.9]) { const k = cyl(null, .2, .2, .8, 0xf6f6fa, 2.9, .24, z, 8); k.rotation.z = Math.PI / 2; for (const s of [-.3, .3]) cyl(null, .21, .21, .04, 0xf0b03a, 2.9 + s, .24, z, 8).rotation.z = Math.PI / 2; }
+for (const [x, z, c] of [[-1.5, 3.2, 0xf0b03a], [-1.1, 3.25, 0x4f7fd8], [-1.3, 3.2, 0xe2574c]]) box(null, .34, .26, .3, c, x, c === 0xe2574c ? .4 : .13, z);
+const mast = grp(null, -5.3, 0, 3.3); for (let k = 0; k < 4; k++) { box(mast, .04, .5, .04, 0x8a8698, -.1 + k * .03, .25 + k * .5, 0); box(mast, .04, .5, .04, 0x8a8698, .1 - k * .03, .25 + k * .5, 0); box(mast, .24 - k * .05, .03, .03, 0x8a8698, 0, .5 + k * .5, 0); }
+const beacon = P.add(mast, new THREE.SphereGeometry(.07, 6, 4), P.glow(0xff5040), 0, 2.1, 0);
+const flag = grp(null, -.6, 0, 3.4); cyl(flag, .015, .015, .8, 0xe8e4f0, 0, .4, 0, 4); box(flag, .34, .2, .02, 0xf0b03a, .18, .68, 0); box(flag, .34, .06, .025, 0xe2574c, .18, .68, 0);
+
+// 発着場とロケット（上がって、もどってくる）
+cyl(null, 1, 1, .06, 0x9a96a8, 2.6, .03, 2.4, 8); cyl(null, .75, .75, .07, 0xb8b4c4, 2.6, .035, 2.4, 8); box(null, .9, .075, .12, 0xf0c83a, 2.6, .04, 2.4); box(null, .12, .075, .9, 0xf0c83a, 2.6, .04, 2.4);
+const padLights = [...Array(8)].map((_, i) => P.add(null, new THREE.SphereGeometry(.05, 5, 4), P.glow(0xffe060), 2.6 + Math.cos(i * Math.PI / 4 + .39) * .9, .09, 2.4 + Math.sin(i * Math.PI / 4 + .39) * .9));
+const tw = grp(null, 3.5, 0, 1.7); box(tw, .14, 1.5, .14, 0xe2574c, 0, .75, 0); box(tw, .4, .05, .1, 0xe2574c, -.2, 1.2, 0); box(tw, .4, .05, .1, 0xe2574c, -.2, .7, 0);
+const rocket = grp(null, 2.6, 0, 2.4); cyl(rocket, .2, .22, 1.1, 0xf6f6fa, 0, .85, 0, 8); cone(rocket, .2, .45, 0xe2574c, 0, 1.62, 0, 8); cyl(rocket, .22, .22, .08, 0xe2574c, 0, .95, 0, 8); ball(rocket, .07, 0x6aa8e8, 0, 1.2, .18, 1); cone(rocket, .14, .16, 0x6a6478, 0, .26, 0, 6);
+for (let i = 0; i < 3; i++) { const f = grp(rocket); f.rotation.y = i * Math.PI * 2 / 3 + .5; prism(f, .04, .5, .3, 0xe2574c, 0, .1, .28); rod(f, [0, .3, .2], [0, 0, .42], .02, 0x6a6478); }
+const flame = P.add(rocket, new THREE.ConeGeometry(.15, .7, 6), P.glow(0xffb040), 0, -.15, 0); flame.rotation.x = Math.PI;
+const dust = [...Array(8)].map((_, i) => ({ m: ball(null, .14, 0xe8e4f0, 0, -5, 0), ph: i / 8 }));
+
+// 探査車と宇宙飛行士
+const rover = grp(); box(rover, .34, .12, .56, 0xf6f6fa, 0, .2, 0); box(rover, .3, .04, .3, 0x4f7fd8, 0, .34, -.08); cyl(rover, .015, .015, .34, 0x4a4058, .1, .44, .2, 4); ball(rover, .04, 0xe2574c, .1, .62, .2); box(rover, .1, .08, .08, 0x4a4058, -.08, .3, .24);
+const wheels = [-.2, 0, .2].flatMap(z => [-.2, .2].map(x => { const w = cyl(rover, .09, .09, .07, 0x6a6478, x, .09, z, 7); w.rotation.z = Math.PI / 2; return w; }));
+const track = P.path([[-1.8, 1.2], [.2, .3], [1.3, .9], [.9, 3.3], [-2.4, 3.1], [-3.2, 2.2]]);
+const astro = (x, z) => { const g = P.person(null, x, z, 0xf6f6fa); ball(g, .14, 0xf6f6fa, 0, .46, 0, 1); box(g, .14, .08, .03, 0xf0b03a, 0, .47, .12); box(g, .16, .2, .08, 0xd8d2e0, 0, .26, -.1); return g; };
+const crew = [[-3.2, .4, 0], [.5, -.9, 1], [4.6, 1.6, 2]].map(([x, z, i]) => ({ g: astro(x, z), x, z, ph: i * 2 }));
+const tracksM = [...Array(30)].map(() => box(null, .3, .01, .05, 0xa8a2b8, 0, -5, 0)); let ti = 0, td = 0;
+
+P.run((dt, t) => {
+  const c = t % 16; let y = 0, fire = 0;
+  if (c > 4 && c < 9) { y = (c - 4) ** 2 * .55; fire = 1; } else if (c >= 9 && c < 11) y = 14; else if (c >= 11) { const a = (16 - c) / 5; y = a * a * 13.75; fire = a > .02 ? .7 : 0; } else if (c > 3.2) fire = .35;
+  rocket.position.y = y; flame.visible = fire > 0; flame.scale.set(fire + Math.sin(t * 40) * .1, fire * (1 + Math.sin(t * 31) * .2), fire);
+  dust.forEach(d => { const a = (t * 1.3 + d.ph) % 1, on = fire > 0 && y < 1.5; d.m.visible = on; const ang = d.ph * 6.28; d.m.position.set(2.6 + Math.cos(ang) * a * 1.2, .12 + a * .2, 2.4 + Math.sin(ang) * a * 1.2); d.m.scale.setScalar(.4 + a); });
+  padLights.forEach((l, i) => l.visible = ((t * 3 | 0) + i) % 2 === 0);
+  beacon.visible = (t % 1.2) < .6; dh.rotation.y = t * .5; earth.rotation.y = t * .1;
+  panels.forEach((p, i) => p.rotation.z = -.5 + Math.sin(t * .25) * .35);
+  track.at(t * .55, rover); rover.position.y = Math.sin(t * 9) * .012; for (const w of wheels) w.rotation.x = t * 4;
+  td += dt; if (td > .22) { td = 0; const m = tracksM[ti++ % 30]; m.position.set(rover.position.x, .012, rover.position.z); m.rotation.y = rover.rotation.y; }
+  for (const a of crew) { const h = Math.max(0, Math.sin(t * 1.6 + a.ph)); a.g.position.set(a.x + Math.sin(t * .35 + a.ph) * .5, h * .3, a.z + Math.cos(t * .3 + a.ph) * .4); a.g.rotation.y = t * .35 + a.ph + 1.6; }
+});
+</script>
+</html>

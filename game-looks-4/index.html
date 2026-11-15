@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>色鉛筆のハッチング 10 案 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#f6f1e3;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{display:flex;gap:10px;padding:8px 10px 9px;align-items:baseline}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a}
+.genre{color:#9a988f;font-size:11px}
+.look{font-weight:600}
+.tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>色鉛筆のハッチング 10 案</h1>
+  <p>第 4 集。第 1 集の「06 タワーディフェンス / 色鉛筆のハッチング」と同じ描き方のまま、場面とジャンルを変えたもの。ローポリの箱庭を、紙の上の薄い下塗りと、暗い面ほど重なる斜線、鉛筆の輪郭線に描き直しています。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。「3D」は three.js を CDN から読むのでネット接続が要ります。</p>
+</header>
+<div id="grid"></div>
+<script>
+// [ファイル名, ジャンル, 場面, 3D なら 1]
+const LOOKS = [
+  ['01-farm', '牧場シミュレーション', '牧場づくり', 1],
+  ['02-harbor', '配達・おつかい', '港町の配達', 1],
+  ['03-railway', '鉄道・パズル', '箱庭の鉄道', 1],
+  ['04-dungeon', 'ダンジョン RPG', 'ダンジョン探索', 1],
+  ['05-minigolf', 'スポーツ', 'パターゴルフ', 1],
+  ['06-city', '街づくりシミュレーション', '街づくり', 1],
+  ['07-ski', 'スポーツ・経営', '雪山のスキー場', 1],
+  ['08-moonbase', '基地づくり・SF', '月面基地', 1],
+  ['09-naval', 'ストラテジー', 'とりでの島の海戦', 1],
+  ['10-kitchen', '料理・アクション', 'いそがしい厨房', 1],
+];
+const grid = document.getElementById('grid');
+for (const [file, genre, look, is3d] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>

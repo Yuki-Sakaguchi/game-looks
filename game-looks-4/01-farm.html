@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-01 牧場づくり 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-01 ─ 牧場づくり / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0x9fd4f2, size: 5.4, wide: 7.4 });
+const { box, cyl, cone, ball, prism, grp, hash } = P;
+
+// 地面：畑が 2 枚、池、あとは草
+const fieldA = (ix, iz) => ix >= 1 && ix <= 4 && iz >= 1 && iz <= 3;
+const fieldB = (ix, iz) => ix >= 7 && ix <= 10 && iz >= 4 && iz <= 6;
+const pond = (ix, iz) => ix >= 8 && ix <= 9 && iz >= 1 && iz <= 2;
+P.tiles(12, 8, (ix, iz) => pond(ix, iz) ? [0x8fd0f0, -.12] : fieldA(ix, iz) || fieldB(ix, iz) ? [0xb98a5a, -.05] : [(ix + iz) % 2 ? 0x8cc152 : 0x7ab648, 0]);
+P.dirt(12, 8); P.sea();
+
+// 作物：マスごとに 3 うね。育って、刈られて、また芽が出る
+const crops = [];
+for (let ix = 0; ix < 12; ix++) for (let iz = 0; iz < 8; iz++) {
+  const a = fieldA(ix, iz), b = fieldB(ix, iz); if (!a && !b) continue;
+  const x = ix - 5.5, z = iz - 3.5;
+  for (let r = -1; r <= 1; r++) {
+    box(null, .9, .05, .14, 0x9a6b4a, x, -.03, z + r * .3);
+    for (let k = -1; k <= 1; k++) {
+      const m = a ? ball(null, .11, 0x4fa04a, x + k * .28, .05, z + r * .3) : cone(null, .07, .42, 0xe8b83a, x + k * .28, .16, z + r * .3, 4);
+      crops.push({ m, ph: (a ? ix * .13 : iz * .17) + hash(ix * 3 + k, iz * 5 + r) * .1, wheat: b });
+    }
+  }
+}
+
+// 納屋とサイロ
+const barn = P.house(null, -3.6, 2.7, 2, 1.5, 1.2, 0xd8574c, 0x8a8298, Math.PI / 2);
+box(barn, .7, .7, .05, 0xf2ead8, 0, .35, .77); box(barn, 2.04, .08, 1.54, 0xf2ead8, 0, .62, 0);
+cyl(null, .42, .42, 1.8, 0xc8c2d4, -5, .9, 2.9, 8); cone(null, .46, .4, 0xd8574c, -5, 2, 2.9, 8);
+for (let i = 0; i < 4; i++) cyl(null, .44, .44, .06, 0x8a8298, -5, .35 + i * .4, 2.9, 8);
+// 干し草
+for (const [x, z, y] of [[-2.2, 3.3, .2], [-1.75, 3.3, .2], [-2, 3.3, .58], [-2.1, 2.6, .2]]) { const h = cyl(null, .2, .2, .42, 0xe8c860, x, y, z, 8); h.rotation.x = Math.PI / 2; }
+
+// 風車
+cyl(null, .22, .45, 1.9, 0xf2ead8, 0.5, .95, -3, 6); cone(null, .32, .45, 0x4f7fd8, 0.5, 2.1, -3, 6);
+box(null, .2, .34, .04, 0x6a4a3a, 0.5, .17, -2.56);
+const blades = grp(null, 0.5, 1.75, -2.72);
+for (let i = 0; i < 4; i++) { const b = grp(blades); b.rotation.z = i * Math.PI / 2; box(b, .08, 1.1, .03, 0x8a5a3a, 0, .6, 0); box(b, .3, .8, .02, 0xf6efdc, .14, .7, 0); }
+cyl(null, .07, .07, .2, 0x8a5a3a, 0.5, 1.75, -2.8, 6).rotation.x = Math.PI / 2;
+
+// 羊のさく
+const PEN = [-.9, 1.1, 1.2, 3.3];
+for (let x = PEN[0]; x <= PEN[2] + .01; x += .35) for (const z of [PEN[1], PEN[3]]) box(null, .06, .3, .06, 0xb08a5a, x, .15, z);
+for (let z = PEN[1]; z <= PEN[3] + .01; z += .36) for (const x of [PEN[0], PEN[2]]) box(null, .06, .3, .06, 0xb08a5a, x, .15, z);
+box(null, 2.1, .04, .04, 0xb08a5a, .15, .22, PEN[1]); box(null, 2.1, .04, .04, 0xb08a5a, .15, .22, PEN[3]);
+box(null, .04, .04, 2.2, 0xb08a5a, PEN[0], .22, 2.2); box(null, .04, .04, 2.2, 0xb08a5a, PEN[2], .22, 2.2);
+const sheep = [...Array(5)].map((_, i) => {
+  const g = grp(null, -.4 + hash(i, 1) * 1.2, 0, 1.5 + hash(i, 2) * 1.4);
+  ball(g, .17, 0xfaf6ec, 0, .2, 0); ball(g, .08, 0x4a4058, 0, .25, .17); box(g, .04, .1, .04, 0x4a4058, -.07, .04, .06); box(g, .04, .1, .04, 0x4a4058, .07, .04, -.06);
+  return { g, ph: i * 1.7, hx: g.position.x, hz: g.position.z };
+});
+
+// 池とあひる、かかし、木、柵
+const ducks = [...Array(3)].map((_, i) => { const g = grp(null, 0, -.1, 0); ball(g, .08, 0xf6e050, 0, .05, 0); ball(g, .05, 0xf6e050, 0, .13, .06); cone(g, .03, .06, 0xf08a3a, 0, .13, .12, 4).rotation.x = Math.PI / 2; return { g, a: i * 2.1 }; });
+for (let i = 0; i < 7; i++) ball(null, .12 + hash(i, 4) * .08, 0xbdb6cc, 2 + hash(i, 5) * 2.4 + (i % 2 ? 0 : .2), .0, i < 4 ? -3.1 + hash(i, 6) * .15 : -.85);
+const sc = grp(null, 3.5, 0, 1.5); box(sc, .05, .8, .05, 0x8a5a3a, 0, .4, 0); box(sc, .7, .05, .05, 0x8a5a3a, 0, .6, 0); box(sc, .3, .3, .12, 0xd8574c, 0, .52, 0); ball(sc, .12, 0xe8c860, 0, .82, 0); cone(sc, .16, .16, 0x8a5a3a, 0, .97, 0, 6);
+for (const [x, z, s] of [[-5.4, -3.4, 1.2], [-4.6, -3.5, .9], [5.3, -3.3, 1.3], [4.4, -3.5, 1], [5.5, -.4, 1.1], [5.4, 3.4, 1.2], [-5.5, .6, 1], [2.3, -3.4, .9]]) (hash(x, z) > .5 ? P.tree : P.round)(null, x, z, s);
+for (let x = -5.8; x < 5.9; x += .5) { box(null, .05, .22, .05, 0xf2ead8, x, .11, 3.85); }
+box(null, 11.7, .03, .03, 0xf2ead8, 0, .17, 3.85);
+
+// トラクター（畑 A のまわりを回る）と、農家の人
+const road = P.path([[-5.2, -2.95], [-.95, -2.95], [-.95, 0.05], [-5.2, 0.05]]);
+const tr = grp(); box(tr, .36, .22, .6, 0xe2574c, 0, .3, 0); box(tr, .32, .3, .26, 0xe2574c, 0, .52, -.14); box(tr, .34, .04, .3, 0x4a4058, 0, .69, -.14);
+const wheels = [[-.2, .16, -.14, .16], [.2, .16, -.14, .16], [-.19, .1, .2, .1], [.19, .1, .2, .1]].map(([x, y, z, r]) => { const w = cyl(tr, r, r, .08, 0x4a4058, x, y, z, 8); w.rotation.z = Math.PI / 2; return w; });
+cyl(tr, .025, .025, .22, 0x4a4058, .1, .52, .2, 5);
+const cart = grp(tr, 0, 0, -.62); box(cart, .34, .14, .44, 0xb08a5a, 0, .22, 0); ball(cart, .1, 0x4fa04a, -.07, .34, .08); ball(cart, .1, 0x4fa04a, .08, .34, -.06);
+const farmer = P.person(null, 0, 0, 0x4f7fd8, 0xe8c860);
+const walk = P.path([[-2.6, 2.1], [-1.3, .6], [1.6, .55], [2, .9], [1.6, .55], [-1.3, .6]]);
+const puffs = [...Array(4)].map(() => ball(null, .07, 0xd8d2e0, 0, -5, 0));
+
+P.run((dt, t) => {
+  blades.rotation.z = t * 1.1;
+  for (const c of crops) {
+    const g = (t * .09 + c.ph) % 1, s = g < .8 ? .2 + g : Math.max(.05, 1 - (g - .8) * 5);
+    c.m.scale.setScalar(s); if (c.wheat) c.m.rotation.z = Math.sin(t * 2 + c.ph * 20) * .12;
+  }
+  road.at(t * .9, tr); for (const w of wheels) w.rotation.x = t * 5;
+  tr.position.y = Math.abs(Math.sin(t * 13)) * .012;
+  puffs.forEach((p, i) => { const a = (t * .9 + i * .25) % 1; p.position.set(tr.position.x, .75 + a * .6, tr.position.z); p.scale.setScalar(.5 + a * 1.4 - a * a * 1.2); });
+  walk.at(t * .6, farmer); farmer.position.y = Math.abs(Math.sin(t * 9)) * .04;
+  for (const s of sheep) {
+    const a = t * .5 + s.ph; s.g.position.x = s.hx + Math.sin(a) * .25; s.g.position.z = s.hz + Math.cos(a * .8) * .2;
+    s.g.rotation.y = Math.atan2(Math.cos(a), -Math.sin(a * .8) * .8); s.g.position.y = Math.max(0, Math.sin(t * 5 + s.ph)) * .08;
+  }
+  for (const d of ducks) { const a = t * .5 + d.a; d.g.position.set(3 + Math.cos(a) * .55, -.12, -2 + Math.sin(a) * .5); d.g.rotation.y = -a; }
+});
+</script>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-02 港町の配達 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-02 ─ 港町の配達 / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xa8dcf4, size: 5.4, wide: 7.4 });
+const { box, cyl, cone, ball, prism, grp, hash, rod } = P;
+
+// 奥が町、手前が海。左に灯台の岬
+const land = (ix, iz) => iz <= 3 || (ix <= 2 && iz <= 6);
+P.tiles(12, 8, (ix, iz) => !land(ix, iz) ? null : iz === 3 || (ix === 2 && iz > 3) ? [0xd8d0c0, 0] : ix <= 2 && iz > 3 ? [0x8cc152, 0] : iz === 2 ? [0xc8c0b0, 0] : [(ix + iz) % 2 ? 0x8cc152 : 0x7ab648, 0]);
+box(null, 12.3, 1.2, 4.3, 0xa89a8a, 0, -1, -2); box(null, 3.3, 1.2, 3.3, 0xa89a8a, -4.5, -1, 1.5);
+P.sea(0xa4d8f4, -.55);
+
+// 桟橋 2 本
+for (const x of [-.5, 3.5]) {
+  box(null, .9, .12, 3.2, 0xc09a6a, x, -.08, 1.6);
+  for (let k = 0; k < 6; k++) box(null, .92, .02, .04, 0x8a6a4a, x, -.01, .2 + k * .55);
+  for (const z of [.6, 1.8, 3]) for (const s of [-.45, .45]) cyl(null, .07, .07, .9, 0x8a6a4a, x + s, -.3, z, 6);
+}
+// 町：家が奥に 2 列
+const WALL = [0xf6efdc, 0xf2d8b0, 0xe8e0f0, 0xf6e6c8], ROOF = [0xe2574c, 0x4f7fd8, 0xf0a03a, 0x4fa07a];
+[[-4.8, -3.2, 1.2], [-3.2, -3.3, 1.5], [-1.5, -3.2, 1.1], [.3, -3.3, 1.6], [2.2, -3.2, 1.2], [4, -3.3, 1.4], [5.3, -3.1, 1], [-4.2, -2, 1], [-2.4, -2, 1.2], [1.2, -2, 1.1], [3.2, -1.95, 1]].forEach(([x, z, h], i) => {
+  const g = P.house(null, x, z, 1.05, .95, h, WALL[i % 4], ROOF[(i * 3) % 4]);
+  box(g, .2, .2, .03, 0x9fc8e8, -.3, h * .65, .49); box(g, .2, .2, .03, 0x9fc8e8, .3, h * .65, .49);
+  if (i % 3 === 0) box(g, .16, .4, .16, 0xc8a090, .3, h + .45, -.15);
+});
+// 市場の屋台
+[[-.6, -.95, 0xe2574c], [.4, -.95, 0xf0b03a]].forEach(([x, z, c]) => {
+  box(null, .8, .3, .5, 0xc09a6a, x, .15, z); for (const s of [-.36, .36]) box(null, .04, .8, .04, 0x8a6a4a, x + s, .4, z + .22);
+  for (let k = 0; k < 4; k++) box(null, .2, .04, .6, k % 2 ? 0xf6efdc : c, x - .3 + k * .2, .82, z + .05).rotation.x = .25;
+  for (let k = 0; k < 3; k++) ball(null, .07, [0xe2574c, 0xf0b03a, 0x4fa04a][k], x - .2 + k * .2, .36, z + .1);
+});
+// 木箱とたる、街灯
+for (let i = 0; i < 9; i++) { const x = -1.8 + hash(i, 1) * 7.4, z = -.75 + hash(i, 2) * .45; i % 3 ? box(null, .26, .26, .26, 0xc8a070, x, .13, z).rotation.y = hash(i, 3) : cyl(null, .13, .13, .3, 0xa87a50, x, .15, z, 8); }
+for (const x of [-1.6, 1.4, 5.2]) { cyl(null, .03, .04, 1, 0x4a4058, x, .5, -.2, 5); P.add(null, new THREE.SphereGeometry(.09, 6, 4), P.glow(0xffe880), x, 1.04, -.2); }
+for (const [x, z, s] of [[-5.5, -2.1, 1], [5.5, -2, 1.1], [-.6, -2.1, .9], [-5.4, .2, .9]]) P.round(null, x, z, s);
+
+// 灯台
+const lh = grp(null, -4.7, 0, 2.6);
+cyl(lh, .55, .65, .25, 0xbdb6cc, 0, .12, 0, 8);
+for (let i = 0; i < 5; i++) cyl(lh, .4 - i * .035, .435 - i * .035, .42, i % 2 ? 0xe2574c : 0xf6efdc, 0, .46 + i * .42, 0, 8);
+cyl(lh, .42, .42, .06, 0x4a4058, 0, 2.38, 0, 8); const lamp = P.add(lh, new THREE.CylinderGeometry(.2, .2, .3, 8), P.glow(0xffe880), 0, 2.56, 0); cone(lh, .32, .3, 0xe2574c, 0, 2.86, 0, 8);
+for (let i = 0; i < 6; i++) ball(null, .16 + hash(i, 7) * .12, 0xbdb6cc, -5.6 + hash(i, 8) * 2.4, -.5, 3.2 + hash(i, 9) * .3);
+
+// クレーン（荷を船に下ろす）
+const crane = grp(null, 5.1, 0, -.1); box(crane, .5, .3, .5, 0xf0b03a, 0, .15, 0); box(crane, .16, 1.7, .16, 0xf0b03a, 0, 1.1, 0);
+const jib = grp(crane, 0, 1.9, 0); box(jib, .12, .12, 1.9, 0xf0b03a, 0, 0, .7); box(jib, .3, .26, .3, 0x4a4058, 0, 0, -.3);
+const hook = grp(jib, 0, 0, 1.5); const rope = box(hook, .025, 1, .025, 0x4a4058, 0, -.5, 0); const load = box(hook, .3, .26, .3, 0xc8a070, 0, -1, 0);
+
+// 船
+function boat(hull, deck, sail) {
+  const g = grp();
+  box(g, .42, .22, .9, hull, 0, .02, 0); const bow = cone(g, .3, .42, hull, 0, .02, .6, 4); bow.rotation.x = Math.PI / 2; bow.rotation.z = Math.PI / 4; bow.scale.set(1, 1, .55);
+  box(g, .44, .04, .92, deck, 0, .14, 0);
+  if (sail) { cyl(g, .025, .025, 1.1, 0x8a6a4a, 0, .7, .05, 5); const s = prism(g, .02, .8, .6, 0xfaf6ec, 0, .3, -.22); box(g, .16, .1, .02, sail, 0, 1.2, .05); }
+  else { box(g, .3, .26, .32, 0xf6efdc, 0, .3, -.18); box(g, .34, .04, .36, sail === 0 ? 0xe2574c : deck, 0, .45, -.18); cyl(g, .05, .05, .22, 0x4a4058, 0, .56, -.24, 6); box(g, .2, .16, .2, 0xc8a070, 0, .24, .22); }
+  return g;
+}
+const boats = [
+  { g: boat(0x4f7fd8, 0xe8d8b0, 0), p: P.path([[-2.3, 1.3], [-2.3, 3.4], [1.5, 3.6], [1.5, 1.2], [1.5, 3.6], [-2.3, 3.4]]), v: .7, o: 0 },
+  { g: boat(0xe2574c, 0xe8d8b0, 0xf0b03a), p: P.path([[5.4, 3.7], [2.2, 3.9], [-1, 3.8], [2.2, 3.5]]), v: .45, o: 2 },
+  { g: boat(0x4fa07a, 0xe8d8b0, 0), p: P.path([[5, .8], [5, 2.6], [4.5, 2.6], [4.5, .8]]), v: .25, o: 0 },
+];
+const buoys = [[1.6, 2.4], [-2, 3.9], [5.6, 3]].map(([x, z]) => { const g = grp(null, x, -.5, z); cone(g, .13, .3, 0xe2574c, 0, .12, 0, 6); cyl(g, .02, .02, .3, 0x4a4058, 0, .35, 0, 4); return g; });
+const gulls = [...Array(4)].map((_, i) => { const g = grp(); box(g, .26, .02, .08, 0xfaf6ec, 0, 0, 0); box(g, .06, .05, .16, 0xfaf6ec, 0, 0, 0); return { g, a: i * 1.6, r: 1.6 + i * .5 }; });
+const porter = P.person(null, 0, 0, 0xe2574c, 0x4f7fd8); box(porter, .2, .16, .16, 0xc8a070, 0, .3, .16);
+const walk = P.path([[-.5, 2.6], [-.5, -.4], [3.5, -.4], [3.5, 2.6], [3.5, -.4], [-.5, -.4]]);
+const ripples = [...Array(14)].map((_, i) => box(null, .5, .01, .03, 0xffffff, -1.5 + hash(i, 11) * 7.5, -.54, .4 + hash(i, 12) * 3.5));
+
+P.run((dt, t) => {
+  for (const b of boats) { b.p.at(t * b.v + b.o, b.g); b.g.position.y = -.48 + Math.sin(t * 2 + b.o) * .03; b.g.rotation.z = Math.sin(t * 1.6 + b.o) * .06; }
+  const c = (t * .16) % 1, sw = c < .5 ? c * 2 : 2 - c * 2; jib.rotation.y = -1.2 + sw * 1.9;
+  const drop = .6 + Math.sin(t * 1.0) * .35; rope.scale.y = drop; rope.position.y = -drop / 2; load.position.y = -drop - .12;
+  lamp.scale.setScalar(1 + .2 * Math.sin(t * 4));
+  buoys.forEach((b, i) => { b.position.y = -.52 + Math.sin(t * 2 + i * 2) * .04; b.rotation.z = Math.sin(t * 1.5 + i) * .15; });
+  for (const g of gulls) { const a = t * .7 + g.a; g.g.position.set(-1 + Math.cos(a) * g.r * 1.6, 2.4 + Math.sin(a * 2) * .2, 1.5 + Math.sin(a) * g.r); g.g.rotation.y = -a; g.g.scale.y = 1; g.g.rotation.z = Math.sin(t * 9 + g.a) * .4; }
+  walk.at(t * .7, porter); porter.position.y = Math.abs(Math.sin(t * 9)) * .04;
+  ripples.forEach((r, i) => { r.scale.x = .4 + .6 * Math.abs(Math.sin(t * .8 + i * 1.3)); });
+});
+</script>
+</html>

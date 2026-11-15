@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-10 いそがしい厨房 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-10 ─ いそがしい厨房 / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xf2ead8, size: 5.2, wide: 7, look: [0, .9, 0] });
+const { box, cyl, cone, ball, prism, grp, hash, rod } = P;
+
+// 床（市松のタイル）と、奥の 2 枚の壁
+P.tiles(10, 7, (ix, iz) => [(ix + iz) % 2 ? 0xf4ead6 : 0xe8b49a, 0]);
+box(null, 10.4, .8, 7.4, 0xc8a888, 0, -.8, 0); P.sea(0xf2ead8, -1.6);
+box(null, 10.3, 2.4, .3, 0xf6e6b8, -.15, 1.2, -3.65); box(null, .3, 2.4, 7.3, 0xf2dca8, -5.15, 1.2, 0);
+box(null, 10, .8, .04, 0xbfe0e8, 0, .4, -3.49); box(null, .04, .8, 7, 0xbfe0e8, -4.99, .4, 0); box(null, 10, .06, .06, 0xf6f6fa, 0, .82, -3.48); box(null, .06, .06, 7, 0xf6f6fa, -4.98, .82, 0);
+// 窓、たな、時計、かけた鍋
+box(null, 1.5, 1, .06, 0xf6f6fa, 3, 1.6, -3.48); box(null, 1.3, .8, .08, 0xa8dcf4, 3, 1.6, -3.47); box(null, .05, .8, .1, 0xf6f6fa, 3, 1.6, -3.46); box(null, 1.3, .05, .1, 0xf6f6fa, 3, 1.6, -3.46); box(null, 1.6, .06, .2, 0xf6f6fa, 3, 1.08, -3.4);
+cyl(null, .09, .07, .14, 0xd8804a, 2.6, 1.18, -3.38, 6); ball(null, .12, 0x4fa04a, 2.6, 1.34, -3.38);
+box(null, 1.9, .06, .3, 0xc09a6a, -3, 1.75, -3.36); [0xe2574c, 0xf0c83a, 0x4fa04a, 0xf6f6fa, 0xb05cc8, 0xf08a3a].forEach((c, i) => { cyl(null, .09, .09, .22, c, -3.8 + i * .32, 1.89, -3.36, 7); cyl(null, .07, .07, .04, 0x8a6a4a, -3.8 + i * .32, 2.02, -3.36, 7); });
+const clock = grp(null, 4.4, 1.9, -3.47); cyl(clock, .22, .22, .05, 0xf6f6fa, 0, 0, 0, 12).rotation.x = Math.PI / 2; const hand = box(clock, .025, .17, .02, 0x2a2438, 0, .07, .04); const hp = grp(clock, 0, 0, .04); hp.add(hand);
+for (let i = 0; i < 3; i++) { const g = grp(null, -4.96, 1.7 - i * .05, 1 + i * .55); cyl(g, .17 - i * .02, .17 - i * .02, .04, [0x8a8698, 0xd8804a, 0x4a4058][i], 0, 0, 0, 10).rotation.z = Math.PI / 2; box(g, .03, .3, .04, 0x4a4058, 0, -.28, 0); }
+// 奥の調理台：流し、コンロ、オーブン、換気フード
+box(null, 3.2, .7, .7, 0xbfe0e8, -3, .35, -3.1); box(null, 3.26, .06, .76, 0xf6efdc, -3, .73, -3.1);
+for (let k = 0; k < 4; k++) box(null, .04, .5, .02, 0x8ab8c8, -4.2 + k * .8, .35, -2.74);
+box(null, .7, .04, .46, 0x8a8698, -3.5, .77, -3.1); rod(null, [-3.5, .76, -3.36], [-3.5, 1.05, -3.36], .025, 0x8a8698); rod(null, [-3.5, 1.05, -3.36], [-3.5, 1.02, -3.14], .025, 0x8a8698);
+for (let k = 0; k < 4; k++) cyl(null, .13, .13, .03, 0xf6f6fa, -2.5, .78 + k * .035, -3.1, 9);
+box(null, 2.2, .76, .7, 0x9a96a8, -.3, .38, -3.1); box(null, 2.26, .04, .76, 0x6a6478, -.3, .78, -3.1);
+const oven = P.add(null, new THREE.BoxGeometry(.8, .36, .02), P.glow(0xffb050), -.3, .36, -2.74); box(null, .9, .04, .04, 0xf6f6fa, -.3, .6, -2.72);
+for (let k = 0; k < 5; k++) cyl(null, .04, .04, .03, 0x2a2438, -1.1 + k * .4, .7, -2.73, 6).rotation.x = Math.PI / 2;
+const burners = [-1, -.3, .4].map(x => P.add(null, new THREE.TorusGeometry(.14, .025, 4, 10), P.glow(0x60a8ff), x, .81, -3.1)); burners.forEach(b => b.rotation.x = Math.PI / 2);
+const pot1 = grp(null, -1, .82, -3.1); cyl(pot1, .2, .18, .26, 0xe2574c, 0, .13, 0, 10); cyl(pot1, .2, .2, .03, 0xf6efdc, 0, .27, 0, 10); box(pot1, .5, .04, .05, 0x4a4058, 0, .2, 0);
+const pan = grp(null, -.3, .83, -3.1); cyl(pan, .2, .17, .06, 0x4a4058, 0, .03, 0, 10); box(pan, .05, .03, .34, 0x4a4058, 0, .04, .32); const egg = grp(pan); cyl(egg, .1, .1, .02, 0xffffff, 0, .07, 0, 8); ball(egg, .045, 0xf0c83a, 0, .09, 0, 1);
+const pot2 = grp(null, .4, .82, -3.1); cyl(pot2, .16, .16, .34, 0xd0cadc, 0, .17, 0, 10); const lid = cyl(pot2, .17, .17, .03, 0xd0cadc, 0, .36, 0, 10); ball(pot2, .03, 0x4a4058, 0, .39, 0);
+box(null, 2.3, .1, .8, 0xd0cadc, -.3, 2.05, -3.1); const hood = prism(null, .8, .4, 2.3, 0xd0cadc, -.3, 2.1, -3.1); hood.rotation.y = Math.PI / 2; box(null, .4, .5, .4, 0xd0cadc, -.3, 2.6, -3.3);
+// 冷蔵庫、野菜の箱
+box(null, .8, 1.7, .8, 0xe8f0f4, -4.55, .85, -2.2); box(null, .02, 1.6, .7, 0xd0dce4, -4.14, .85, -2.2); box(null, .04, .04, .7, 0xa8b8c4, -4.13, 1.1, -2.2); box(null, .04, .3, .05, 0x8a8698, -4.12, 1.3, -1.95); box(null, .04, .4, .05, 0x8a8698, -4.12, .7, -1.95);
+[[0, 0xe2574c], [1, 0x4fa04a], [2, 0xf08a3a]].forEach(([i, c]) => { box(null, .6, .3, .5, 0xc09a6a, -4.6, .15 + (i === 2 ? .32 : 0), i === 2 ? .3 : .05 + i * .6); for (let k = 0; k < 4; k++) ball(null, .09, c, -4.75 + (k % 2) * .28, .36 + (i === 2 ? .32 : 0), (i === 2 ? .3 : .05 + i * .6) - .1 + ((k / 2) | 0) * .2); });
+cyl(null, .22, .18, .5, 0xf0dc9a, -4.6, .25, 1.6, 8); cyl(null, .2, .2, .3, 0xf0dc9a, -4.55, .15, 2.3, 8);
+// まん中の作業台
+box(null, 2.6, .7, 1, 0xc09a6a, 0, .35, -.3); box(null, 2.7, .06, 1.1, 0xf6efdc, 0, .73, -.3); box(null, 2.5, .04, .9, 0xa87a50, 0, .16, -.3);
+box(null, .5, .03, .34, 0xd8b078, -.8, .78, -.3); const knife = grp(null, -.62, .82, -.3); box(knife, .04, .14, .01, 0xd0cadc, 0, 0, .04); box(knife, .04, .04, .1, 0x4a4058, 0, .04, -.08);
+for (const [x, z, c] of [[-.95, -.25, 0xf08a3a], [-.85, -.4, 0xf08a3a], [-1.1, -.4, 0x4fa04a]]) ball(null, .06, c, x, .81, z);
+cyl(null, .2, .12, .14, 0xbfe0e8, -.1, .83, -.1, 9); ball(null, .15, 0x8cc152, -.1, .88, -.1, 1);
+const cake = grp(null, .8, .76, -.35); cyl(cake, .26, .26, .03, 0xf6f6fa, 0, .015, 0, 12); cyl(cake, .2, .2, .16, 0xf6d8c0, 0, .11, 0, 12); cyl(cake, .21, .21, .04, 0xffffff, 0, .2, 0, 12); for (let k = 0; k < 6; k++) ball(cake, .035, 0xe2574c, Math.cos(k) * .14, .24, Math.sin(k) * .14);
+for (const x of [-.7, .7]) { rod(null, [x, 3.4, -.3], [x, 2.4, -.3], .012, 0x4a4058); cone(null, .22, .2, 0xe2574c, x, 2.3, -.3, 8); P.add(null, new THREE.SphereGeometry(.07, 6, 4), P.glow(0xffe880), x, 2.2, -.3); }
+// 料理を出すカウンター
+box(null, 3.4, .75, .5, 0xc8e0b8, 2.7, .375, 2.3); box(null, 3.5, .06, .6, 0xf6efdc, 2.7, .78, 2.3);
+const bell = P.add(null, new THREE.SphereGeometry(.07, 7, 4, 0, 6.3, 0, 1.57), P.glow(0xf0c83a), 4.2, .82, 2.3);
+const dishes = [1.5, 2.2, 2.9, 3.6].map((x, i) => { const g = grp(null, x, .81, 2.3); cyl(g, .16, .12, .03, 0xffffff, 0, .015, 0, 10); ball(g, .08, [0xe2574c, 0xf0c83a, 0x8cc152, 0xd8804a][i], 0, .07, 0, 1); return g; });
+// 食卓、ねこ、マット
+const tb = grp(null, 3.4, 0, -1.6); cyl(tb, .6, .6, .05, 0xf6f6fa, 0, .6, 0, 12); cyl(tb, .62, .7, .2, 0xe2574c, 0, .5, 0, 12); cyl(tb, .07, .2, .5, 0x8a6a4a, 0, .25, 0, 6); cyl(tb, .05, .07, .16, 0xbfe0e8, 0, .7, 0, 6); ball(tb, .08, 0xf0a0c0, 0, .86, 0); for (const a of [.5, 3.6]) cyl(tb, .16, .16, .34, 0xc09a6a, Math.cos(a) * .95, .17, Math.sin(a) * .95, 8);
+box(null, 1.2, .02, .7, 0x8ab8d8, 2.2, .01, .6); box(null, 1, .025, .5, 0xf6efdc, 2.2, .012, .6);
+const cat = grp(null, 2.2, .03, .6); ball(cat, .16, 0xf0a04a, 0, .1, 0, 1).scale.set(1.3, .7, 1); ball(cat, .1, 0xf0a04a, .2, .12, .06, 1); cone(cat, .04, .07, 0xf0a04a, .24, .22, .02, 4); cone(cat, .04, .07, 0xf0a04a, .18, .22, .1, 4); const tail = grp(cat, -.2, .08, 0); box(tail, .22, .04, .04, 0xf0a04a, -.1, 0, 0);
+
+// 料理人 3 人と給仕
+const chef = apron => { const g = P.person(null, 0, 0, 0xf6f6fa); cyl(g, .09, .08, .16, 0xffffff, 0, .6, 0, 7); ball(g, .1, 0xffffff, 0, .7, 0, 1); box(g, .16, .2, .02, apron, 0, .2, .08); return g; };
+const c1 = chef(0xe2574c), plate1 = grp(c1, 0, .32, .17); cyl(plate1, .12, .09, .03, 0xffffff, 0, 0, 0, 9); ball(plate1, .06, 0xd8804a, 0, .05, 0);
+const p1 = P.path([[.4, -2.45], [1.9, -2.45], [1.9, 1.75], [3.3, 1.75], [1.9, 1.75], [1.9, -2.45]]);
+const c2 = chef(0x4f7fd8), box2 = box(c2, .2, .16, .16, 0xc09a6a, 0, .3, .17);
+const p2 = P.path([[-3.8, -1.7], [-1.9, -1.7], [-1.9, .65], [-.7, .65], [-1.9, .65], [-1.9, -1.7]]);
+const c3 = chef(0x4fa07a); c3.position.set(-.65, 0, -2.45); c3.rotation.y = Math.PI; const spoon = grp(c3, .13, .34, .1); box(spoon, .025, .3, .025, 0xb08a5a, 0, .1, .1);
+const waiter = P.person(null, 0, 0, 0x2a2438); box(waiter, .1, .12, .02, 0xffffff, 0, .28, .08); const tray = grp(waiter, .16, .44, .06); cyl(tray, .14, .14, .02, 0xd0cadc, 0, 0, 0, 9); ball(tray, .06, 0xe2574c, 0, .06, 0);
+const p4 = P.path([[.6, 3.05], [4.3, 3.05], [4.3, 3.07], [.6, 3.07]]);
+const steam = [...Array(9)].map((_, i) => ({ m: ball(null, .08, 0xf4f0f8, 0, 0, 0), ph: i / 9, x: [-1, .4, -.3][i % 3] }));
+const mouse = grp(); ball(mouse, .06, 0xa8a2b8, 0, .05, 0, 1); box(mouse, .02, .02, .14, 0xf0a0c0, 0, .04, -.1);
+
+P.run((dt, t) => {
+  const d1 = (t * .9) % p1.total; p1.at(d1, c1); c1.position.y = Math.abs(Math.sin(t * 9)) * .04; plate1.visible = d1 < p1.total / 2;
+  const d2 = (t * .8 + 3) % p2.total; p2.at(d2, c2); c2.position.y = Math.abs(Math.sin(t * 9 + 1)) * .04; box2.visible = d2 < p2.total / 2;
+  spoon.rotation.y = t * 5; c3.position.y = Math.abs(Math.sin(t * 4)) * .02;
+  p4.at(t * .7, waiter); waiter.position.y = Math.abs(Math.sin(t * 9 + 2)) * .04;
+  steam.forEach(s => { const a = (t * .5 + s.ph) % 1; s.m.position.set(s.x + Math.sin(a * 6 + s.ph * 9) * .06, 1.2 + a * .8, -3.1); s.m.scale.setScalar(.4 + a * 1.4 - a * a * 1.5); });
+  lid.position.y = .36 + Math.max(0, Math.sin(t * 9)) * .03; egg.rotation.y = t; pan.rotation.z = Math.sin(t * 6) * .05;
+  burners.forEach((b, i) => b.scale.setScalar(1 + Math.sin(t * 12 + i) * .06)); oven.scale.y = 1 + Math.sin(t * 2) * .04;
+  knife.position.y = .82 + Math.abs(Math.sin(t * 7)) * .08; knife.position.x = -.62 + Math.sin(t * .7) * .06;
+  dishes.forEach((g, i) => { g.visible = ((t * .25 + i * .3) % 1.4) < 1; }); bell.scale.setScalar(1 + Math.max(0, Math.sin(t * 1.6)) ** 8 * .5);
+  hp.rotation.z = -t * .8; tail.rotation.y = Math.sin(t * 2) * .6;
+  const m = (t * .12) % 1; mouse.visible = m < .35; mouse.position.set(-4.7, 0, 3.3 - m / .35 * .01); mouse.position.x = -4.7 + m / .35 * 5; mouse.position.z = 3.3; mouse.rotation.y = Math.PI / 2;
+});
+</script>
+</html>

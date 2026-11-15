@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-09 とりでの島の海戦 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-09 ─ とりでの島の海戦 / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xa8dcf2, size: 5.2, wide: 7.2, look: [0, .6, 0] });
+const { box, cyl, cone, ball, prism, grp, hash, rod } = P;
+
+P.sea(0xa8dcf2, 0);
+// 島：砂、草、岩
+cyl(null, 2.1, 2.3, .24, 0xf0dc9a, 0, .1, 0, 9); cyl(null, 1.5, 1.7, .3, 0x8cc152, 0, .35, 0, 8); cyl(null, 1.75, 1.75, .02, 0xdff2fc, 0, .005, 0, 9).scale.set(1.34, 1, 1.34);
+for (let i = 0; i < 9; i++) { const a = hash(i, 1) * 6.28, r = 2 + hash(i, 2) * .6; ball(null, .14 + hash(i, 3) * .2, 0xbdb6cc, Math.cos(a) * r, .08, Math.sin(a) * r); }
+for (const [x, z, r] of [[-5, -3, .5], [5.2, 3.4, .4], [-4.6, 3.6, .35]]) { ball(null, r, 0xbdb6cc, x, .1, z); ball(null, r * .6, 0xa8a2b8, x + r * .8, .05, z + .2); }
+// とりで
+const fort = grp(null, -.2, .5, -.2);
+cyl(fort, .7, .8, 1.1, 0xd0cadc, 0, .55, 0, 8); cyl(fort, .82, .82, .1, 0xbdb6cc, 0, 1.12, 0, 8);
+for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; box(fort, .22, .2, .14, 0xd0cadc, Math.cos(a) * .74, 1.27, Math.sin(a) * .74).rotation.y = -a + Math.PI / 2; }
+cyl(fort, .34, .38, .7, 0xd0cadc, 0, 1.5, 0, 8); cone(fort, .44, .5, 0xe2574c, 0, 2.1, 0, 8); cyl(fort, .015, .015, .6, 0x4a4058, 0, 2.6, 0, 4);
+const fflag = prism(fort, .02, .22, .4, 0xf0c83a, 0, 2.66, .2);
+box(fort, .26, .4, .05, 0x6a4a3a, .25, .2, .72).rotation.y = .33; for (const [a, y] of [[.9, .8], [2.6, .7], [4.4, .8]]) box(fort, .1, .16, .03, 0x4a4058, Math.cos(a) * .76, y, Math.sin(a) * .76).rotation.y = -a + Math.PI / 2;
+const fcannons = [0, 2.1, 4.2].map(a => { const g = grp(fort, Math.cos(a) * .55, 1.3, Math.sin(a) * .55); g.rotation.y = -a + Math.PI / 2; cyl(g, .05, .06, .44, 0x4a4058, 0, 0, .2, 6).rotation.x = Math.PI / 2 - .25; return a; });
+// やしの木、桟橋、宝箱
+for (const [x, z, l] of [[1.2, .5, .3], [-1.3, .7, -.3], [.6, -1.2, .2], [-1, -1, -.2]]) { const g = grp(null, x, .5, z); rod(g, [0, 0, 0], [l, .9, 0], .05, 0xb08a5a); for (let k = 0; k < 5; k++) { const lf = cone(g, .09, .6, 0x4fa04a, l + Math.cos(k * 1.26) * .26, .86, Math.sin(k * 1.26) * .26, 4); lf.rotation.z = Math.PI / 2 + .5; lf.rotation.y = -k * 1.26; lf.rotation.order = 'YXZ'; } ball(g, .06, 0x8a5a3a, l, .84, .06); }
+box(null, .4, .08, 1.3, 0xc09a6a, 1.4, .16, 2.3); for (const z of [2, 2.8]) for (const s of [-.2, .2]) cyl(null, .04, .04, .4, 0x8a6a4a, 1.4 + s, .1, z, 5);
+box(null, .3, .18, .2, 0xb07a3a, -1.5, .32, 1.2); box(null, .32, .04, .22, 0xf0c83a, -1.5, .4, 1.2);
+
+// 船
+function ship(hull, flagC) {
+  const g = grp(), b = grp(g);
+  box(b, .44, .3, 1.1, hull, 0, .1, 0); const bow = cone(b, .31, .5, hull, 0, .1, .78, 4); bow.rotation.x = Math.PI / 2; bow.rotation.z = Math.PI / 4; bow.scale.set(1, 1, .68);
+  box(b, .46, .22, .34, hull, 0, .34, -.4); box(b, .48, .04, 1.12, 0xe8d8b0, 0, .26, 0); box(b, .5, .05, .36, 0xf0c83a, 0, .46, -.4); box(b, .3, .1, .03, 0xbfe0f4, 0, .34, -.58);
+  rod(b, [0, .2, .9], [0, .42, 1.4], .02, 0x8a6a4a);
+  for (const [z, h] of [[.28, 1.5], [-.2, 1.25]]) { cyl(b, .025, .03, h, 0x8a6a4a, 0, .26 + h / 2, z, 5); box(b, .62, .5, .03, 0xfaf6ec, 0, .26 + h * .42, z + .05).rotation.x = -.08; box(b, .46, .32, .03, 0xfaf6ec, 0, .26 + h * .82, z + .05).rotation.x = -.08; box(b, .66, .025, .025, 0x8a6a4a, 0, .26 + h * .6, z); }
+  prism(b, .02, .14, .3, flagC, 0, 1.78, .13);
+  for (const s of [-1, 1]) for (const z of [-.1, .2]) cyl(b, .035, .04, .16, 0x4a4058, s * .26, .2, z, 5).rotation.z = Math.PI / 2;
+  return { g, b };
+}
+const ships = [ship(0x9a6a4a, 0x2a2438), ship(0x8a5a3a, 0x2a2438), ship(0xb07a4a, 0x4f7fd8)].map((s, i) => ({ ...s, o: i * 2.1 + (i === 2 ? .5 : 0), rx: 4.5 - (i % 2) * .5, rz: 3 - (i % 2) * .3 }));
+// 砲弾、煙、水しぶき
+const shots = [...Array(5)].map((_, i) => ({ m: P.add(null, new THREE.SphereGeometry(.07, 6, 5), 0x2a2438, 0, -5, 0), a: 1, from: new THREE.Vector3(), to: new THREE.Vector3(), next: i * .9, splash: false, k: i }));
+const smoke = [...Array(15)].map(() => ({ m: ball(null, .12, 0xeeeaf4, 0, -5, 0), a: 1, vx: 0, vz: 0 })); let sm = 0;
+const rings = [...Array(4)].map(() => { const m = P.add(null, new THREE.TorusGeometry(.3, .03, 4, 12), 0xffffff, 0, -5, 0); m.rotation.x = Math.PI / 2; return { m, a: 1 }; }); let rn = 0;
+const drops = [...Array(16)].map(() => ({ m: ball(null, .05, 0xffffff, 0, -5, 0), a: 1, v: new THREE.Vector3() })); let dn = 0;
+const waves = [...Array(46)].map((_, i) => ({ m: box(null, .5, .01, .035, 0xffffff, -8 + hash(i, 5) * 16, .005, -6 + hash(i, 6) * 12), ph: hash(i, 7) * 6 }));
+const fin = grp(); prism(fin, .03, .22, .3, 0x8a8698, 0, 0, 0);
+const row = grp(null, 3, 0, 1.2); box(row, .2, .1, .46, 0xc09a6a, 0, .04, 0); const rower = P.person(row, 0, 0, 0xe2574c, 0, .0); rower.scale.setScalar(.7); const oars = box(row, .7, .02, .03, 0x8a6a4a, 0, .14, 0);
+const gulls = [...Array(3)].map((_, i) => { const g = grp(); box(g, .26, .02, .08, 0xfaf6ec, 0, 0, 0); box(g, .06, .05, .16, 0xfaf6ec, 0, 0, 0); return { g, a: i * 2.1 }; });
+const puff = (x, y, z) => { for (let k = 0; k < 3; k++) { const s = smoke[sm++ % smoke.length]; s.a = 0; s.m.position.set(x, y, z); s.vx = (Math.random() - .5) * .5; s.vz = (Math.random() - .5) * .5; } };
+
+P.run((dt, t) => {
+  for (const s of ships) {
+    const a = t * .16 + s.o; s.g.position.set(Math.cos(a) * s.rx, .02 + Math.sin(t * 1.7 + s.o) * .03, Math.sin(a) * s.rz);
+    s.g.rotation.y = Math.atan2(-Math.sin(a) * s.rx, Math.cos(a) * s.rz); s.b.rotation.z = Math.sin(t * 1.3 + s.o) * .07; s.b.rotation.x = Math.sin(t * 1.1 + s.o) * .04;
+  }
+  for (const s of shots) {
+    if (s.a >= 1) {
+      if (t < s.next) continue;
+      const sh = ships[(s.k + ((t / 3) | 0)) % 3], top = new THREE.Vector3(-.2, 1.85, -.2);
+      if (s.k % 2 === 0) { s.from.copy(sh.g.position).setY(.3); s.to.copy(top).add(new THREE.Vector3((Math.random() - .5) * 1.6, Math.random() < .5 ? -1.2 : -1.8, (Math.random() - .5) * 1.6)); s.splash = s.to.y < .1; if (s.splash) s.to.y = 0; }
+      else { s.from.copy(top); s.to.copy(sh.g.position).add(new THREE.Vector3((Math.random() - .5) * 1.8, 0, (Math.random() - .5) * 1.8)).setY(0); s.splash = true; }
+      s.a = 0; puff(s.from.x, s.from.y, s.from.z);
+    }
+    s.a += dt * .8;
+    if (s.a >= 1) {
+      s.m.position.y = -5; s.next = t + 1 + Math.random() * 2.5;
+      if (s.splash) { const r = rings[rn++ % 4]; r.a = 0; r.m.position.set(s.to.x, .02, s.to.z); for (let k = 0; k < 5; k++) { const d = drops[dn++ % 16]; d.a = 0; d.m.position.set(s.to.x, .05, s.to.z); d.v.set((Math.random() - .5) * 1.2, 2 + Math.random(), (Math.random() - .5) * 1.2); } }
+      else puff(s.to.x, s.to.y, s.to.z);
+      continue;
+    }
+    s.m.position.lerpVectors(s.from, s.to, s.a); s.m.position.y += Math.sin(s.a * Math.PI) * 1.6;
+  }
+  for (const s of smoke) { if (s.a >= 1) { s.m.position.y = -5; continue; } s.a += dt * .9; s.m.position.x += s.vx * dt; s.m.position.z += s.vz * dt; s.m.position.y += dt * .5; s.m.scale.setScalar(.6 + s.a * 1.6 - s.a * s.a * 1.6); }
+  for (const r of rings) { if (r.a >= 1) { r.m.position.y = -5; continue; } r.a += dt * 1.2; r.m.scale.setScalar(.4 + r.a * 2.2); }
+  for (const d of drops) { if (d.a >= 1) { d.m.position.y = -5; continue; } d.a += dt * 1.3; d.v.y -= 6 * dt; d.m.position.addScaledVector(d.v, dt); }
+  for (const w of waves) w.m.scale.x = .25 + .75 * Math.abs(Math.sin(t * .7 + w.ph));
+  fflag.rotation.y = Math.sin(t * 3) * .4;
+  fin.position.set(-3.6 + Math.cos(t * .5) * 1, .0, 1.6 + Math.sin(t * .5) * .8); fin.rotation.y = -t * .5;
+  row.position.x = 3 + Math.sin(t * .25) * .8; row.position.y = Math.sin(t * 2) * .02; oars.rotation.y = Math.sin(t * 2.5) * .5;
+  for (const g of gulls) { const a = t * .6 + g.a; g.g.position.set(Math.cos(a) * 1.8, 3.4 + Math.sin(a * 2) * .2, Math.sin(a) * 1.4); g.g.rotation.y = -a; g.g.rotation.z = Math.sin(t * 9 + g.a) * .4; }
+});
+</script>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4-06 街づくり 色鉛筆</title>
+<style>
+html,body{margin:0;height:100%;background:#f6f1e3;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3048}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">4-06 ─ 街づくり / 色鉛筆のハッチング　｜　見るだけ（自動で進む）</div>
+<script src="pencil.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const P = PENCIL(THREE, { sky: 0xc4e4f4, size: 5.6, wide: 7.6, look: [0, .6, 0] });
+const { box, cyl, cone, ball, prism, grp, hash } = P;
+
+// 道（たて 2 本、よこ 2 本）、公園、歩道
+const road = (ix, iz) => ix === 3 || ix === 8 || iz === 3 || iz === 6;
+const park = (ix, iz) => ix >= 4 && ix <= 7 && iz >= 4 && iz <= 5;
+P.tiles(12, 8, (ix, iz) => road(ix, iz) ? [0xa8a4b6, -.05] : park(ix, iz) ? [(ix + iz) % 2 ? 0x8cc152 : 0x7ab648, 0] : [0xe4decf, 0]);
+P.dirt(12, 8, 0xa89a8a); P.sea(0xc4e4f4, -1.6);
+for (let i = 0; i < 16; i++) { const a = -5.6 + i * .75; for (const x of [-2.5, 2.5]) if (Math.abs(a) < 4) box(null, .05, .01, .3, 0xffffff, x, -.04, a); for (const z of [-.5, 2.5]) box(null, .3, .01, .05, 0xffffff, a, -.04, z); }
+for (const x of [-2.5, 2.5]) for (const z of [-.5, 2.5]) { box(null, 1, .012, 1, 0xa8a4b6, x, -.045, z); for (let k = 0; k < 4; k++) { box(null, .12, .014, .4, 0xffffff, x - .3 + k * .2, -.04, z + .72); box(null, .4, .014, .12, 0xffffff, x + .72, -.04, z - .3 + k * .2); } }
+
+// ビル：1 階ごとに窓の帯と床のふち
+function tower(x, z, w, d, n, c, top) {
+  const g = grp(null, x, 0, z), floors = [];
+  for (let i = 0; i < n; i++) { const f = grp(g, 0, i * .4, 0); box(f, w, .4, d, c, 0, .2, 0); box(f, w + .02, .16, d + .02, 0x9fc8e8, 0, .22, 0); box(f, w + .06, .05, d + .06, 0xf6efdc, 0, .4, 0); for (const s of [-1, 1]) { box(f, .05, .4, d + .03, c, s * w * .5, .2, 0); box(f, w + .03, .4, .05, c, 0, .2, s * d * .5); } floors.push(f); }
+  const y = n * .4 + .03;
+  if (top === 1) { box(g, w * .4, .16, d * .3, 0xbdb6cc, -w * .15, y + .08, 0); cyl(g, .02, .02, .5, 0x4a4058, w * .3, y + .25, d * .2, 4); }
+  if (top === 2) { cyl(g, w * .24, w * .24, .26, 0xb08a5a, 0, y + .2, 0, 8); cone(g, w * .26, .12, 0x8a6a4a, 0, y + .39, 0, 8); for (const s of [-.1, .1]) box(g, .03, .14, .03, 0x4a4058, s, y + .05, s); }
+  if (top === 3) { cyl(g, w * .36, w * .36, .03, 0x8a8698, 0, y + .02, 0, 10); box(g, w * .4, .02, .06, 0xf0c83a, 0, y + .04, 0); box(g, .06, .02, w * .4, 0xf0c83a, 0, y + .04, 0); }
+  return floors;
+}
+tower(-5, -3, .9, .9, 6, 0xf2d8b0, 1); tower(-3.95, -3, .85, .9, 4, 0xe8e0f0, 2); tower(-4.5, -1.9, 1.7, .8, 2, 0xe89a8a, 1);
+tower(-1, -2.9, .9, 1, 7, 0xbfd4e8, 3); tower(.1, -2.95, 1, .9, 5, 0xf6e6c8, 2); tower(1.15, -2.2, .7, .7, 3, 0xe89a8a, 1); tower(-.6, -1.85, 1.3, .6, 2, 0xc8e0b8, 0);
+tower(4, -2.95, 1, .9, 5, 0xe8e0f0, 1); tower(5.1, -2.9, .8, .85, 8, 0xf2d8b0, 1);
+tower(4, 1, 1, .8, 3, 0xbfd4e8, 2); tower(5.15, 1, .8, .8, 2, 0xf6e6c8, 0);
+// 建設中のビルとクレーン
+const site = tower(4.2, -1.85, 1, .7, 6, 0xf0d8a0, 0);
+const crane = grp(null, 5.3, 0, -1.85); box(crane, .3, .2, .3, 0x8a8698, 0, .1, 0); box(crane, .1, 3.2, .1, 0xf0b03a, 0, 1.7, 0);
+const jib = grp(crane, 0, 3.3, 0); box(jib, 1.9, .08, .08, 0xf0b03a, -.6, 0, 0); box(jib, .26, .2, .2, 0x8a8698, .3, -.05, 0); box(jib, .02, .5, .02, 0x4a4058, -1.2, -.25, 0); box(jib, .3, .06, .2, 0xf0d8a0, -1.2, -.5, 0);
+// 家と店（左手前と前列）
+const WALL = [0xf6efdc, 0xf2d8b0, 0xe8e0f0], ROOF = [0xe2574c, 0x4f7fd8, 0xf0a03a, 0x4fa07a];
+[[-5.1, .65, 0], [-4.1, .65, 1], [-5, 1.5, 2], [-4, 1.5, 3], [-5, 3.5, 1], [-3.9, 3.5, 0], [-1.3, 3.5, 2], [-.2, 3.5, 3], [.9, 3.5, 0], [3.9, 3.5, 1], [5, 3.5, 2]].forEach(([x, z, i]) => { const g = P.house(null, x, z, .78, .7, .55 + (i % 2) * .15, WALL[i % 3], ROOF[i]); box(g, .16, .16, .03, 0x9fc8e8, .24, .4, .36); });
+for (const [x, c] of [[-1.3, 0xe2574c], [.9, 0x4f7fd8]]) for (let k = 0; k < 4; k++) box(null, .2, .03, .26, k % 2 ? 0xf6efdc : c, x - .3 + k * .2, .34, 3.98).rotation.x = .3;
+// 公園：木、噴水、ベンチ
+for (const [x, z, s] of [[-1.3, .7, 1], [-.5, 1.4, .9], [1.3, .7, 1.1], [1.2, 1.5, .9], [-1.4, 1.5, .8]]) (hash(x, z) > .5 ? P.tree : P.round)(null, x, z, s);
+cyl(null, .42, .46, .14, 0xd8d2e0, 0, .07, 1, 10); cyl(null, .36, .36, .02, 0x8fd0f0, 0, .15, 1, 10); cyl(null, .06, .08, .34, 0xd8d2e0, 0, .24, 1, 6);
+const jets = [...Array(5)].map((_, i) => ({ m: ball(null, .05, 0xdff2fc, 0, 0, 0), ph: i / 5 }));
+box(null, .5, .05, .16, 0xb08a5a, .2, .16, .6);
+// 街灯と信号
+for (const [x, z] of [[-3.1, -1.1], [-1.9, 1.9], [1.9, -1.1], [3.1, 1.9], [-3.1, 3.1], [1.9, 3.1]]) { cyl(null, .025, .03, .8, 0x4a4058, x, .4, z, 5); P.add(null, new THREE.SphereGeometry(.07, 6, 4), P.glow(0xffe880), x, .84, z); }
+const sigs = [[-3.05, 0.05], [3.05, 0.05], [-3.05, 3.05], [3.05, 3.05]].map(([x, z]) => { cyl(null, .025, .025, .7, 0x4a4058, x, .35, z, 5); box(null, .1, .26, .1, 0x4a4058, x, .8, z); return [P.add(null, new THREE.SphereGeometry(.045, 6, 4), P.glow(0xff5040), x, .87, z + .05), P.add(null, new THREE.SphereGeometry(.045, 6, 4), P.glow(0x60e070), x, .75, z + .05)]; });
+
+// 車とバス（1 ブロックを回る）と、まっすぐ抜ける車
+const loop = P.path([[-2.5, -.5], [2.5, -.5], [2.5, 2.5], [-2.5, 2.5]]);
+function car(c, bus) {
+  const g = grp(), b = grp(g, .15, 0, 0), L = bus ? .7 : .42;
+  box(b, .22, bus ? .26 : .12, L, c, 0, bus ? .19 : .1, 0); if (!bus) box(b, .2, .1, L * .5, 0xbfe0f4, 0, .2, -.02); else box(b, .23, .1, L * .9, 0xbfe0f4, 0, .24, 0);
+  for (const [x, z] of [[-.11, -L * .3], [.11, -L * .3], [-.11, L * .3], [.11, L * .3]]) cyl(b, .05, .05, .03, 0x4a4058, x, .05, z, 6).rotation.z = Math.PI / 2;
+  return g;
+}
+const cars = [0xe2574c, 0x4f7fd8, 0xf0c83a, 0x4fa07a, 0xf6efdc].map((c, i) => ({ g: car(c), o: i * 3.3 + (i % 2) }));
+cars.push({ g: car(0xf0a03a, true), o: 14.5 });
+const thru = [[-2.5, 0xb05cc8, 1], [2.5, 0x5ab8d8, -1]].map(([x, c, dir], i) => { const g = car(c); g.position.x = x; g.rotation.y = dir > 0 ? 0 : Math.PI; return { g, dir, o: i * 4 }; });
+const folks = [...Array(5)].map((_, i) => ({ g: P.person(null, 0, 0, [0xe2574c, 0x4f7fd8, 0xf0b03a, 0xb05cc8, 0x4fa07a][i]), o: i * 2.7, p: i < 3 ? P.path([[-1.8, .2], [1.8, .2], [1.8, 1.85], [-1.8, 1.85]]) : P.path([[-5.6, 3], [5.6, 3], [5.6, 3.02], [-5.6, 3.02]]) }));
+const heli = grp(null, 0, 4, 0); box(heli, .2, .16, .4, 0xe2574c, 0, 0, 0); box(heli, .05, .05, .3, 0xe2574c, 0, .02, -.32); const rotor = box(heli, .7, .015, .05, 0x4a4058, 0, .1, 0);
+
+P.run((dt, t) => {
+  const c = (t % 16) / 16, n = c * 8;
+  site.forEach((f, i) => { const a = Math.min(1, Math.max(0, n - i)); f.visible = a > 0; f.scale.set(1, a < 1 ? a * (1.3 - .3 * a) : 1, 1); });
+  jib.rotation.y = t * .5;
+  for (const k of cars) loop.at(t * 1.2 + k.o, k.g);
+  for (const k of thru) { const z = ((t * 1.5 + k.o) % 9) - 4.5; k.g.position.z = z * k.dir; k.g.visible = Math.abs(z) < 4; }
+  for (const f of folks) { f.p.at(t * .45 + f.o, f.g); f.g.position.y = Math.abs(Math.sin(t * 9 + f.o)) * .03; }
+  const red = (t % 6) < 3; sigs.forEach((s, i) => { s[0].visible = red === (i % 2 === 0); s[1].visible = !s[0].visible; });
+  jets.forEach(j => { const a = (t * .9 + j.ph) % 1; j.m.position.set(Math.cos(j.ph * 6.28) * a * .25, .42 + a * .5 - a * a * .7, 1 + Math.sin(j.ph * 6.28) * a * .25); });
+  heli.position.set(Math.cos(t * .3) * 4, 4.2 + Math.sin(t) * .1, -1 + Math.sin(t * .3) * 2.2); heli.rotation.y = -t * .3; rotor.rotation.y = t * 25;
+});
+</script>
+</html>
