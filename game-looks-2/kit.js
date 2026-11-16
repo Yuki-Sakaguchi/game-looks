@@ -8,7 +8,7 @@ window.KIT = (THREE) => {
     const renderer = new THREE.WebGLRenderer({ antialias: o.aa !== false }); renderer.setPixelRatio(o.pr || Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
     const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(o.fov || 45, 1, .1, o.far || 500), subs = [];
     const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); subs.forEach(f => f(innerWidth, innerHeight)); };
-    addEventListener('resize', resize); resize();
+    addEventListener('resize', resize); resize(); addEventListener('orientationchange', () => [100, 400, 900].forEach(t => setTimeout(resize, t))); if (window.visualViewport) visualViewport.addEventListener('resize', resize);   // iOS は回した直後だと画面の大きさが古いままのことがあるので、少し待ってからも測りなおす
     return { renderer, scene, cam, onResize: f => { subs.push(f); f(innerWidth, innerHeight); } };
   }
 

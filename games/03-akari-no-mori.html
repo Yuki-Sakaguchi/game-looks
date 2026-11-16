@@ -458,7 +458,7 @@ function resize() {
   const a = innerWidth / innerHeight, RH = a >= 1 ? 240 : Math.round(240 / a), RW = a >= 1 ? Math.round(240 * a) : 240; // 短辺を 240 画素に
   renderer.setSize(RW, RH, false); rt.setSize(RW, RH); cam.aspect = a; cam.fov = vfov(60, 48, 90); cam.updateProjectionMatrix();
 }
-addEventListener('resize', resize); resize();
+addEventListener('resize', resize); resize(); addEventListener('orientationchange', () => [100, 400, 900].forEach(t => setTimeout(resize, t))); if (window.visualViewport) visualViewport.addEventListener('resize', resize);   // iOS は回した直後だと画面の大きさが古いままのことがあるので、少し待ってからも測りなおす
 
 // ───────── 音（すべてその場で合成）
 let AC = null, master, windG, waterG, noiseB, muted = false;
