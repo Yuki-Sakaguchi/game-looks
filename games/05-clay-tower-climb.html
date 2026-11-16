@@ -395,7 +395,7 @@ const FLOOR = { on: true, dx: 0, dy: 0, dz: 0, top: -.6 };
 // たての画角を決める。スマホ（短い辺が 520px 未満）は 1 割ほど広くし、たて長の画面では横の画角が hMin 度を下回らないように広げる（上限 vMax 度）
 const vfov = (base, hMin, vMax) => Math.min(vMax, Math.max(base * (Math.min(innerWidth, innerHeight) < 520 ? 1.12 : 1), Math.atan(Math.tan(hMin * Math.PI / 360) * innerHeight / innerWidth) * 360 / Math.PI));
 function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.fov = vfov(40, 35, 72); cam.updateProjectionMatrix(); }
-addEventListener('resize', resize); resize();
+addEventListener('resize', resize); resize(); addEventListener('orientationchange', () => [100, 400, 900].forEach(t => setTimeout(resize, t))); if (window.visualViewport) visualViewport.addEventListener('resize', resize);   // iOS は回した直後だと画面の大きさが古いままのことがあるので、少し待ってからも測りなおす
 
 // 1 秒 12 コマでだけ変えるもの
 function pose(s) {

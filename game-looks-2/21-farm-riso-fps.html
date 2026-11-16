@@ -1,30 +1,30 @@
 <!doctype html>
 <html lang="ja">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>2-21 農場 FPS 2 色刷りの立体</title>
 <style>
 :root{--paper:#f4eddb;--a:#1a808f;--b:#ff5c3d;--ink:#1a808f}
 html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 canvas{display:block}
 body,button{font:12px/1.5 ui-monospace,Menlo,monospace;color:var(--ink)}
-#cap{position:fixed;left:12px;bottom:10px;background:var(--paper);padding:0 6px;pointer-events:none}
-#hud{position:fixed;left:12px;top:10px;background:var(--paper);padding:2px 8px;font-size:14px;font-weight:700;pointer-events:none}
+#cap{position:fixed;left:calc(12px + env(safe-area-inset-left));bottom:10px;background:var(--paper);padding:0 6px;pointer-events:none}
+#hud{position:fixed;left:calc(12px + env(safe-area-inset-left));top:10px;background:var(--paper);padding:2px 8px;font-size:14px;font-weight:700;pointer-events:none}
 #hud b{color:var(--b)}
 #cross{position:fixed;left:50%;top:50%;width:22px;height:22px;margin:-11px;pointer-events:none;background:
  linear-gradient(var(--ink),var(--ink)) 50% 0/2px 7px no-repeat,linear-gradient(var(--ink),var(--ink)) 50% 100%/2px 7px no-repeat,
  linear-gradient(var(--ink),var(--ink)) 0 50%/7px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) 100% 50%/7px 2px no-repeat}
 #cross.hit{transform:rotate(45deg) scale(1.5);filter:drop-shadow(0 0 0 var(--b))}
 #cross.hit{background-image:linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b)),linear-gradient(var(--b),var(--b))}
-#pal{position:fixed;right:10px;top:10px;display:flex;gap:6px;z-index:3;background:var(--paper);padding:5px;border-radius:20px}
+#pal{position:fixed;right:calc(10px + env(safe-area-inset-right));top:10px;display:flex;gap:6px;z-index:3;background:var(--paper);padding:5px;border-radius:20px}
 #pal button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;outline-offset:2px}
 #pal button.on{outline:2px solid var(--ink)}
-#palname{position:fixed;right:14px;top:54px;background:var(--paper);padding:0 6px;pointer-events:none}
+#palname{position:fixed;right:calc(14px + env(safe-area-inset-right));top:54px;background:var(--paper);padding:0 6px;pointer-events:none}
 #start{position:fixed;inset:0;display:grid;place-items:center;z-index:2;cursor:pointer}
 #start div{background:var(--paper);border:2px solid var(--ink);padding:18px 26px;max-width:min(430px,84vw);box-shadow:5px 5px 0 var(--b)}
 #start h1{margin:0 0 6px;font-size:20px}#start p{margin:6px 0 0}#start .go{color:var(--b);font-weight:700;font-size:14px;margin-top:12px}
 .tbtn{position:fixed;display:none;place-items:center;border-radius:50%;border:2px solid var(--ink);background:var(--paper);opacity:.8;font-weight:700;pointer-events:none}
-#fire{right:26px;bottom:70px;width:84px;height:84px;color:var(--b);border-color:var(--b)}#jump{right:124px;bottom:36px;width:56px;height:56px}
+#fire{right:calc(26px + env(safe-area-inset-right));bottom:calc(70px + env(safe-area-inset-bottom));width:84px;height:84px;color:var(--b);border-color:var(--b)}#jump{right:calc(124px + env(safe-area-inset-right));bottom:calc(36px + env(safe-area-inset-bottom));width:56px;height:56px}
 #stick{position:fixed;display:none;width:96px;height:96px;margin:-48px;border-radius:50%;border:2px solid var(--ink);opacity:.6;pointer-events:none}
 #stick i{position:absolute;left:50%;top:50%;width:36px;height:36px;margin:-18px;border-radius:50%;background:var(--ink)}
 @media(max-width:620px){#hud{top:54px;font-size:12px}#palname{display:none}#cap{display:none}}
@@ -54,7 +54,7 @@ window.KIT = (THREE) => {
     const renderer = new THREE.WebGLRenderer({ antialias: o.aa !== false }); renderer.setPixelRatio(o.pr || Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
     const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(o.fov || 45, 1, .1, o.far || 500), subs = [];
     const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); subs.forEach(f => f(innerWidth, innerHeight)); };
-    addEventListener('resize', resize); resize();
+    addEventListener('resize', resize); resize(); addEventListener('orientationchange', () => [100, 400, 900].forEach(t => setTimeout(resize, t))); if (window.visualViewport) visualViewport.addEventListener('resize', resize);   // iOS は回した直後だと画面の大きさが古いままのことがあるので、少し待ってからも測りなおす
     return { renderer, scene, cam, onResize: f => { subs.push(f); f(innerWidth, innerHeight); } };
   }
 
