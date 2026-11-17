@@ -61,13 +61,13 @@ const esc = new THREE.Mesh(gearGeo(15, .12, true), steel); esc.position.set(PP[0
 // アンクル（左右にかたんと振れる）と てんぷ（行き来する輪）
 const BX = PP[0] - 1.9, BY = PP[1] + 3.7, fork = new THREE.Group(); fork.position.set(PP[0] - .8, PP[1] + 2.05, -.5); scene.add(fork);
 { const arm = new THREE.Mesh(new THREE.BoxGeometry(.14, 1.7, .1), steel); arm.position.y = .55; const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, .14, .1), steel); bar.position.y = -.3; fork.add(arm, bar); for (const sx of [-1, 1]) { const pj = new THREE.Mesh(new THREE.BoxGeometry(.12, .34, .14), ruby); pj.position.set(sx * .7, -.42, 0); fork.add(pj); } fork.rotation.z = Math.atan2(-(BX - fork.position.x), BY - fork.position.y); }
-const forkBase = fork.rotation.z, bal = new THREE.Group(); bal.position.set(BX, BY, .3); scene.add(bal);
+const forkBase = fork.rotation.z, bal = new THREE.Group(); bal.position.set(BX, BY, -.9); scene.add(bal);
 { const rim = new THREE.Mesh(new THREE.TorusGeometry(1.75, .13, 10, 56), gold); const sp = new THREE.Mesh(new THREE.BoxGeometry(3.4, .2, .1), gold); bal.add(rim, sp); for (let i = 0; i < 14; i++) { const a = i * Math.PI / 7 + .2, w = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .16, 8), gold); w.position.set(Math.cos(a) * 1.9, Math.sin(a) * 1.9, 0); w.rotation.z = a - Math.PI / 2; bal.add(w); } }
 const spiral = []; for (let i = 0; i <= 220; i++) { const a = i * .16, r = .22 + i * .0046; spiral.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, .12)); }
 const spring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(spiral), new THREE.LineBasicMaterial({ color: '#5a8cff' })); bal.add(spring);
 // てんぷ受け（鋼の橋）とルビー、青焼きのねじ
 const screw = (x, y, z, r) => { const g = new THREE.Group(), h = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .1, 20), blued), sl = new THREE.Mesh(new THREE.BoxGeometry(r * 1.9, .03, r * .22), new THREE.MeshBasicMaterial({ color: '#050814' })); sl.position.y = .05; g.add(h, sl); g.rotation.x = Math.PI / 2; g.rotation.y = Math.random() * 3; g.position.set(x, y, z); scene.add(g); };
-{ const cock = new THREE.Mesh(new THREE.BoxGeometry(.8, 3.6, .14), steel); cock.position.set(BX + .75, BY + 1.3, .75); cock.rotation.z = -.52; scene.add(cock); const j = new THREE.Mesh(new THREE.SphereGeometry(.2, 16, 10), ruby); j.scale.z = .5; j.position.set(BX, BY, .86); const rg = new THREE.Mesh(new THREE.TorusGeometry(.27, .07, 8, 20), gold); rg.position.copy(j.position); scene.add(j, rg); screw(BX + 1.25, BY + 2.2, .86, .2); screw(BX + 1.6, BY + 2.8, .86, .2); }
+{ const cock = new THREE.Mesh(new THREE.BoxGeometry(.8, 3.6, .14), steel); cock.position.set(BX + .75, BY + 1.3, -.45); cock.rotation.z = -.52; scene.add(cock); const j = new THREE.Mesh(new THREE.SphereGeometry(.2, 16, 10), ruby); j.scale.z = .5; j.position.set(BX, BY, -.34); const rg = new THREE.Mesh(new THREE.TorusGeometry(.27, .07, 8, 20), gold); rg.position.copy(j.position); scene.add(j, rg); screw(BX + 1.25, BY + 2.2, -.34, .2); screw(BX + 1.6, BY + 2.8, -.34, .2); }
 // 地板（ペルラージュ＝うろこ模様の研ぎ）と、ケースのふち
 const pc = mkc(512, 512); { const c = pc.getContext('2d'); c.fillStyle = '#707070'; c.fillRect(0, 0, 512, 512); for (let y = 0; y < 13; y++) for (let x = 0; x < 13; x++) { const gx = x * 44 + (y % 2) * 22, gy = y * 40, gr = c.createRadialGradient(gx, gy, 2, gx, gy, 30); gr.addColorStop(0, '#d0d0d0'); gr.addColorStop(.8, '#8a8a8a'); gr.addColorStop(1, '#404040'); c.fillStyle = gr; c.beginPath(); c.arc(gx, gy, 30, 0, 7); c.fill(); } }
 const perl = new THREE.CanvasTexture(pc); perl.wrapS = perl.wrapT = THREE.RepeatWrapping; perl.repeat.set(5, 5); perl.colorSpace = THREE.SRGBColorSpace;
@@ -104,7 +104,7 @@ function frame(now) {
   man.position.set(px, py, 0); man.rotation.y = dir > 0 ? 0 : Math.PI; man.rotation.z = air ? -.25 * dir * Math.cos((su - STAY) / HOP * Math.PI) : 0;
   const st = t * 14; legL.rotation.z = air ? .7 : Math.sin(st) * .6; legR.rotation.z = air ? -.5 : -Math.sin(st) * .6; wind.rotation.x = t * 6;
   for (const g of gems) { g.userData.hide -= dt; g.visible = g.userData.hide <= 0; g.rotation.y = t * 2.5; }
-  const k = tall ? .9 : .25, tx = CX + (px - CX) * k, ty = tall ? py + 1.6 : CY + .4 + (py - CY) * .12; camX += (tx - camX) * Math.min(1, dt * 2.5); camY += (ty - camY) * Math.min(1, dt * 2.5);
+  const k = tall ? .9 : .08, tx = CX + (px - CX) * k, ty = tall ? py + 1.6 : CY + .4 + (py - CY) * .12; camX += (tx - camX) * Math.min(1, dt * 2.5); camY += (ty - camY) * Math.min(1, dt * 2.5);
   cam.position.set(camX - 2.6, camY - 1.2, tall ? 20 : 23.5); cam.lookAt(camX, camY, 0);
   renderer.render(scene, cam); requestAnimationFrame(frame);
 }
