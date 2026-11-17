@@ -22,13 +22,14 @@ const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = inne
 const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 // 映りこみ用の環境: 上が明るい窓あかり、下は暗い机。四角い光をいくつか置くと金属らしく見える
 const ec = mkc(512, 256); { const c = ec.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#fff4d8'); gr.addColorStop(.3, '#c89a5a'); gr.addColorStop(.52, '#4a3018'); gr.addColorStop(.6, '#0c0806'); gr.addColorStop(1, '#1a120a'); c.fillStyle = gr; c.fillRect(0, 0, 512, 256); c.fillStyle = '#ffffff'; for (const [x, y, w, h] of [[40, 20, 70, 60], [200, 40, 30, 80], [300, 10, 90, 40], [430, 50, 40, 70]]) c.fillRect(x, y, w, h); c.fillStyle = '#5a7ab8'; c.fillRect(120, 70, 50, 40); c.fillStyle = '#ffb060'; c.fillRect(350, 150, 60, 18); }
-const envT = new THREE.CanvasTexture(ec); envT.mapping = THREE.EquirectangularReflectionMapping; envT.colorSpace = THREE.SRGBColorSpace; scene.environment = envT;
+const envT = new THREE.CanvasTexture(ec); envT.mapping = THREE.EquirectangularReflectionMapping; envT.colorSpace = THREE.SRGBColorSpace;
 // ヘアライン（細いすじ）: 明るさと粗さの両方に入れる
 const hc = mkc(256, 256); { const c = hc.getContext('2d'); c.fillStyle = '#b0b0b0'; c.fillRect(0, 0, 256, 256); for (let i = 0; i < 900; i++) { const v = 120 + Math.random() * 135 | 0; c.fillStyle = `rgba(${v},${v},${v},.5)`; c.fillRect(Math.random() * 256, Math.random() * 256, 30 + Math.random() * 200, 1); } }
 const hair = new THREE.CanvasTexture(hc); hair.wrapS = hair.wrapT = THREE.RepeatWrapping; hair.repeat.set(.5, .5);
-const metal = (color, rough, o = {}) => new THREE.MeshStandardMaterial({ color, metalness: 1, roughness: rough, roughnessMap: hair, ...o });
+// 金属は「色 × 環境の映りこみ」をまぜるだけの軽い材質（粗いほど映りこみを弱く）
+const metal = (color, rough, o = {}) => new THREE.MeshPhongMaterial({ color, envMap: envT, combine: THREE.MixOperation, reflectivity: .92 - rough * .7, shininess: 90, specular: '#ffe6b0', ...o });
 const brass = metal('#e2ab48', .5, { map: hair }), brassD = metal('#8a6428', .7, { map: hair }), gold = metal('#ffd27a', .22), steel = metal('#c2c8d0', .32, { map: hair }), blued = metal('#2244c8', .3);
-const ruby = new THREE.MeshStandardMaterial({ color: '#e0103a', roughness: .08, metalness: .2, emissive: '#70001c' });
+const ruby = new THREE.MeshPhongMaterial({ color: '#e0103a', emissive: '#80001c', shininess: 200, specular: '#ffffff', envMap: envT, reflectivity: .25 });
 scene.add(new THREE.HemisphereLight(0xfff0d0, 0x201008, .5)); const key = new THREE.DirectionalLight(0xffe2b0, 2.2); key.position.set(-6, 9, 12); scene.add(key);
 
 // ── 歯車の形（歯は台形、内側は 5 本うでの抜き）
@@ -70,12 +71,12 @@ const screw = (x, y, z, r) => { const g = new THREE.Group(), h = new THREE.Mesh(
 // 地板（ペルラージュ＝うろこ模様の研ぎ）と、ケースのふち
 const pc = mkc(512, 512); { const c = pc.getContext('2d'); c.fillStyle = '#707070'; c.fillRect(0, 0, 512, 512); for (let y = 0; y < 13; y++) for (let x = 0; x < 13; x++) { const gx = x * 44 + (y % 2) * 22, gy = y * 40, gr = c.createRadialGradient(gx, gy, 2, gx, gy, 30); gr.addColorStop(0, '#d0d0d0'); gr.addColorStop(.8, '#8a8a8a'); gr.addColorStop(1, '#404040'); c.fillStyle = gr; c.beginPath(); c.arc(gx, gy, 30, 0, 7); c.fill(); } }
 const perl = new THREE.CanvasTexture(pc); perl.wrapS = perl.wrapT = THREE.RepeatWrapping; perl.repeat.set(5, 5); perl.colorSpace = THREE.SRGBColorSpace;
-const CX = 5.4, CY = 2.9, plate = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshStandardMaterial({ color: '#6a4c22', metalness: 1, roughness: .55, map: perl })); plate.position.set(CX, CY, -2.6); scene.add(plate);
+const CX = 5.4, CY = 2.9, plate = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshPhongMaterial({ color: '#8a6430', map: perl, envMap: envT, combine: THREE.MixOperation, reflectivity: .3, shininess: 30 })); plate.position.set(CX, CY, -2.6); scene.add(plate);
 const rimC = new THREE.Mesh(new THREE.TorusGeometry(11.6, .8, 14, 90), gold); rimC.position.set(CX, CY, -1.6); scene.add(rimC);
 for (const [x, y] of [[2.7, -2.6], [8.6, -3.2], [4.6, 8.6], [-2.6, 4.6], [13.6, 5.2], [14.2, -.6], [-3.4, -2.2]]) screw(x, y, -2.5, .36);
 
 // ── ぜんまいじかけの人形（赤いほうろうの胴、真鍮の頭、背中のねじ）
-const man = new THREE.Group(), enamel = new THREE.MeshStandardMaterial({ color: '#d8261c', metalness: .4, roughness: .25 });
+const man = new THREE.Group(), enamel = new THREE.MeshPhongMaterial({ color: '#d8261c', shininess: 120, specular: '#ffffff', envMap: envT, reflectivity: .2 });
 const body = new THREE.Mesh(new THREE.CylinderGeometry(.17, .24, .5, 12), enamel); body.position.y = .5; const head = new THREE.Mesh(new THREE.SphereGeometry(.19, 14, 10), gold); head.position.y = .93; const hat = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 10), enamel); hat.position.y = 1.2;
 const legL = new THREE.Mesh(new THREE.BoxGeometry(.1, .28, .1), steel), legR = legL.clone(); legL.position.set(0, .14, .1); legR.position.set(0, .14, -.1);
 const wind = new THREE.Group(); { const st = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .2, 6), gold); st.rotation.z = Math.PI / 2; const lp = new THREE.Mesh(new THREE.TorusGeometry(.1, .035, 6, 14), gold); lp.position.x = -.18; lp.rotation.y = Math.PI / 2; wind.add(st, lp); wind.position.set(-.3, .55, 0); }

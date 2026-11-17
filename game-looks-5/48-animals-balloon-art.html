@@ -22,8 +22,8 @@ const scene = new THREE.Scene(); scene.background = new THREE.Color('#ffe6cf'); 
 const cam = new THREE.PerspectiveCamera(28, 1, .1, 200);
 const resize = () => {
   renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
-  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(3.0 / th, 3.5 / (th * cam.aspect));
-  cam.position.set(d * .2, 1.9 + d * .27, d * .93); scene.fog.near = d + 9; scene.fog.far = d + 48; cam.lookAt(0, 1.75, 0);
+  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(4.0 / th, 3.9 / (th * cam.aspect));
+  cam.position.set(d * .16, 1.6 + d * .4, d * .9); cam.lookAt(0, 1.45, .3); scene.fog.near = d + 9; scene.fog.far = d + 48;
 }; addEventListener('resize', resize); resize();
 // つやのうつりこみ用の明るい部屋
 { const es = new THREE.Scene(); es.add(new THREE.Mesh(new THREE.BoxGeometry(40, 40, 40), new THREE.MeshBasicMaterial({ color: '#b8a8a0', side: THREE.BackSide })));
@@ -40,7 +40,7 @@ function rubber(c) {
   const m = new THREE.MeshPhysicalMaterial({ color: c, roughness: .2, clearcoat: 1, clearcoatRoughness: .06, envMapIntensity: .7 });
   m.onBeforeCompile = s => { s.fragmentShader = s.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
     float fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.0);
-    totalEmissiveRadiance += diffuseColor.rgb * (fr * .75 + .1) + vec3(fr * fr * .22);`); };
+    totalEmissiveRadiance += diffuseColor.rgb * (fr * .5 + .06) + vec3(fr * fr * .2);`); };
   return m;
 }
 // 風船の節: a から b までのカプセル。ねじり目は小さくしぼった玉
@@ -68,7 +68,7 @@ function animal(c, o) {
   const ears = [-1, 1].map(s => { const e = pv(V(0, 0, 0)); head.add(e); seg(e, mat, V(0, 0, s * r * .45), V(-Math.cos(o.ea) * o.ear, Math.sin(o.ea) * o.ear, s * (r * 1.0 + o.ear * .22)), r * .95, segs); return e; });
   if (o.pom) bub(head, mat, V(-.05, r * 1.7, 0), r * 1.3, segs);
   // 鼻先の結び目（しぼり口）
-  bub(head, dark, tip.clone().add(V(r * .98, -.01)), r * .2); const lip = new THREE.Mesh(new THREE.TorusGeometry(r * .17, r * .07, 6, 12), dark); lip.position.copy(tip).add(V(r * 1.16, -.02)); lip.rotation.y = Math.PI / 2; head.add(lip);
+  bub(head, dark, tip.clone().add(V(r * .22, -.01)), r * .2); const lip = new THREE.Mesh(new THREE.TorusGeometry(r * .17, r * .07, 6, 12), dark); lip.position.copy(tip).add(V(r * .42, -.02)); lip.rotation.y = Math.PI / 2; head.add(lip);
   const T = V(-Math.cos(o.ta) * o.tail, Math.sin(o.ta) * o.tail); seg(tail, mat, V(0, 0), T, r * .95, segs);
   if (o.pom) bub(tail, mat, T.clone().multiplyScalar(1 + r * 1.5 / o.tail), r * 1.3, segs);
   else { const e = T.clone().normalize(); seg(tail, dark, T.clone().addScaledVector(e, r * .75), T.clone().addScaledVector(e, r * 1.5), r * .16, []); }   // ふくらまない残り

@@ -21,7 +21,7 @@ const DPR = Math.min(devicePixelRatio || 1, 2);
 const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(DPR); document.body.prepend(renderer.domElement);
 const hud = document.getElementById('hud'), g = hud.getContext('2d');
 const cubeRT = new THREE.WebGLCubeRenderTarget(320), cubeCam = new THREE.CubeCamera(.05, 500, cubeRT);
-const scene = new THREE.Scene(), SUN = new THREE.Vector3(.5, .62, -.6).normalize();
+const scene = new THREE.Scene(), SUN = new THREE.Vector3(.1, .45, -.89).normalize();
 scene.add(new THREE.HemisphereLight(0xcfe6ff, 0xb8a080, 1.5)); const sun = new THREE.DirectionalLight(0xfff0d0, 2.6); sun.position.copy(SUN).multiplyScalar(50); scene.add(sun);
 const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), bas = c => new THREE.MeshBasicMaterial({ color: c });
 const P = (par, geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); par.add(o); return o; };
@@ -59,7 +59,7 @@ const sk = new THREE.Group(); sk.matrixAutoUpdate = false; scene.add(sk); const 
 const SKIN = lam(0xf2b98a), SHIRT = lam(0xe8382f), PANT = lam(0x27304f), WH = lam(0xffffff);
 const board = new THREE.Group(); body.add(board); P(board, BX(.86, .025, .23), lam(0x15171c), 0, .105, 0); P(board, BX(.84, .02, .22), lam(0x12c8b8), 0, .085, 0); for (const s of [-1, 1]) { P(board, BX(.14, .025, .23), lam(0x12c8b8), s * .48, .125, 0).rotation.z = s * .4; for (const z of [-1, 1]) P(board, new THREE.CylinderGeometry(.04, .04, .05, 8), WH, s * .28, .04, z * .1).rotation.x = Math.PI / 2; }
 const limb = (w, m) => P(body, BX(1, w, w), m), th = [limb(.15, PANT), limb(.15, PANT)], shn = [limb(.13, PANT), limb(.13, PANT)], ft = [P(body, BX(.26, .09, .13), WH), P(body, BX(.26, .09, .13), WH)], ua = [limb(.1, SHIRT), limb(.1, SHIRT)], fa = [limb(.09, SKIN), limb(.09, SKIN)];
-const torso = P(body, BX(.3, 1, .22), SHIRT), head = new THREE.Group(); body.add(head); P(head, new THREE.IcosahedronGeometry(.13, 1), SKIN); P(head, new THREE.SphereGeometry(.155, 10, 6, 0, 6.3, 0, 1.7), lam(0xffd21f), 0, .02, 0);
+const torso = P(body, BX(1, .3, .22), SHIRT), head = new THREE.Group(); body.add(head); P(head, new THREE.IcosahedronGeometry(.13, 1), SKIN); P(head, new THREE.SphereGeometry(.155, 10, 6, 0, 6.3, 0, 1.7), lam(0xffd21f), 0, .02, 0);
 const seg = (m, ax, ay, bx, by, z = 0) => { m.position.set((ax + bx) / 2, (ay + by) / 2, z); m.rotation.z = Math.atan2(by - ay, bx - ax); m.scale.x = Math.hypot(bx - ax, by - ay) + .04; };
 const knee = (hx, hy, fx, fy, l, out) => { const dx = fx - hx, dy = fy - hy, d = Math.min(Math.hypot(dx, dy), l * 2 - .001), a = Math.acos(d / (2 * l)), b = Math.atan2(dy, dx), k1 = [hx + Math.cos(b + a) * l, hy + Math.sin(b + a) * l], k2 = [hx + Math.cos(b - a) * l, hy + Math.sin(b - a) * l]; return (k1[0] - k2[0]) * out > 0 ? k1 : k2; };
 const shadow = P(scene, new THREE.CircleGeometry(.55, 16), new THREE.MeshBasicMaterial({ color: 0x1a1a22, transparent: true, opacity: .45, depthWrite: false }));
@@ -70,12 +70,12 @@ const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMater
 vec3 look(vec2 p,float k){float r=length(p),th=r*uTh*k;vec2 n=r>1e-5?p/r:vec2(0.);return uB*vec3(sin(th)*n,cos(th));}
 float gh(vec2 p,vec2 c,float rad){float d=length(p-c)/rad;return smoothstep(1.,.86,d)*(.3+.7*d*d);}
 void main(){vec2 p=(gl_FragCoord.xy-uC)/uRd;float r=length(p);
- float ca=.004+.03*r*r;                          // はしほど赤と青がずれる
+ float ca=.003+.014*r*r;                          // はしほど赤と青がずれる
  vec3 c=vec3(textureCube(tC,look(p,1.+ca)).r,textureCube(tC,look(p,1.)).g,textureCube(tC,look(p,1.-ca)).b);
  vec3 sl=uSun*uB;float ths=acos(clamp(sl.z,-1.,1.));vec2 ps=normalize(sl.xy+1e-6)*ths/uTh;
  float vis=smoothstep(.6,.98,textureCube(tC,uSun).g)*smoothstep(1.3,.95,length(ps));
  vec2 d=p-ps;float dd=length(d),an=atan(d.y,d.x);
- vec3 fl=vec3(1.,.96,.85)*(1.2*exp(-dd*dd*70.)+.4*exp(-dd*5.5)+.07);
+ vec3 fl=vec3(1.,.96,.85)*(.9*exp(-dd*dd*70.)+.22*exp(-dd*5.5)+.03);
  fl+=vec3(1.,.9,.7)*pow(abs(cos(an*3.+.5)),50.)*.55/(1.+dd*8.);
  fl+=vec3(1.,.75,.5)*exp(-abs(d.y)*110.)*.4/(1.+abs(d.x)*4.);
  fl+=vec3(.3,1.,.5)*gh(p,ps*-.3,.045)*.22+vec3(1.,.55,.2)*gh(p,ps*-.62,.085)*.2+vec3(.6,.4,1.)*gh(p,ps*-1.05,.15)*.16+vec3(.3,.8,1.)*gh(p,ps*.42,.03)*.25+vec3(1.,.3,.4)*gh(p,ps*-.85,.025)*.3;
@@ -103,7 +103,7 @@ function frame(now) {
   const hy = .8 - .34 * crouch, hx = .03, lean = .12 + .1 * crouch, shx = hx + lean, shy = hy + .46, wv = Math.sin(t * 7) * .08;
   for (const i of [0, 1]) { const o = i ? 1 : -1, fx = o * .25, fy = .16, kn = knee(hx + o * .07, hy, fx, fy, .36, o); seg(th[i], hx + o * .07, hy, kn[0], kn[1], o * .02); seg(shn[i], kn[0], kn[1], fx, fy, o * .02); ft[i].position.set(fx, .15, .02);
     const hxn = air && i === 0 ? -.3 : shx + o * (.5 - .12 * crouch), hyn = air && i === 0 ? .22 : shy + (air ? .35 : .05 + o * wv - .1 * crouch), el = [(shx + o * .1 + hxn) / 2 + o * .03, (shy + hyn) / 2 - .09]; seg(ua[i], shx + o * .13, shy - .03, el[0], el[1], o * .05); seg(fa[i], el[0], el[1], hxn, hyn, o * .05); }
-  seg(torso, hx, hy - .05, shx, shy + .02); torso.scale.x = .56; torso.scale.set(.56, 1, 1); torso.rotation.z = Math.atan2(shy - hy, shx - hx); torso.scale.y = 1; torso.geometry.parameters; head.position.set(shx + .06, shy + .2, 0);
+  seg(torso, hx, hy - .05, shx, shy + .02); head.position.set(shx + .06, shy + .2, 0);
   scene.userData.fr.forEach(f => { const up2 = air ? Math.abs(Math.sin(t * 12 + f.userData.k)) * .25 : 0; f.position.y = R + up2; f.lookAt(px, R, sz); });
   // カメラ: パイプの底、地面から 30cm。スケーターを少しおくれて追う
   cp.set(px * .3, .3, sz + 2.5); want.set(px * .8 + nx * .7, py * .8 + ny * .7 + .25, sz); tgt.lerp(want, Math.min(1, dt * 7));
