@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 26 格闘 ブラウン管のRGB画素</title>
+<style>
+html,body{margin:0;height:100%;background:#050506;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b8c0d0;background:rgba(5,5,6,.7);padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 26 ─ 格闘 / ブラウン管を近くで見た RGB の画素　｜　見るだけ（自動で打ち合う。画面に寄ったり引いたりする）</div>
+<script>
+// ブラウン管のテレビに顔を近づけて見た格闘ゲーム。絵そのものは 160×100 ほどの小さなドット絵（色は 16 色ほど）。
+// それを 1 画素ごとに 赤・緑・青 のたて長の光る粒 3 本に分けて描く。粒は明るいほど太り、走査線のすき間は暗い。
+// 明るい色はまわりににじみ、ガラスは丸くふくらんで四すみが暗く、窓が映りこむ。寄ると粒、引くと絵になる
+const cv = document.getElementById('c'), gl = cv.getContext('webgl', { antialias: false });
+const lo = document.createElement('canvas'), x = lo.getContext('2d');
+let LW = 160, LH = 100, FY = 80, HY = 5, ZM = 2.2;
+function resize() {
+  const d = Math.min(devicePixelRatio || 1, 2); cv.width = Math.round(innerWidth * d); cv.height = Math.round(innerHeight * d);
+  const a = innerWidth / innerHeight;
+  if (a >= 1) { LW = Math.round(Math.min(200, Math.max(150, 100 * a))); LH = 100; ZM = 1.8; } else { LW = 100; LH = Math.round(Math.min(180, 100 / a)); ZM = 1.8; }
+  lo.width = LW; lo.height = LH; FY = LH - Math.round(LH * .2); HY = Math.max(5, Math.round(LH * .09) - 4);
+  gl.viewport(0, 0, cv.width, cv.height);
+}
+// ---- ドット絵（小さな絵のほう） ----
+const R = (c, px, py, w, h) => { x.fillStyle = c; x.fillRect(Math.round(px), Math.round(py), Math.round(w), Math.round(h)); };
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const INK = '#100818', SKIN = '#f0b080', SKD = '#b06848';
+const SKY = ['#1a1040', '#3a1860', '#7a2070', '#c83c60', '#f07840', '#f8c860'];
+const FONT = { 0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001', 5: '111100111001111', 6: '111100111101111', 7: '111001001001001', 8: '111101111101111', 9: '111101111001111', K: '101101110101101', O: '111101101101111' };
+function glyph(ch, px, py, s, c) { const b = FONT[ch]; for (let i = 0; i < 15; i++) if (b[i] === '1') R(c, px + (i % 3) * s, py + ((i / 3) | 0) * s, s, s); }
+function backdrop(t) {
+  const hz = FY - 6;
+  for (let y = 0; y < hz; y++) { const f = y / hz * 5, i = Math.min(4, f | 0), fr = f - i; R(SKY[i], 0, y, LW, 1); for (let px = (y % 2); px < LW; px += 2) if (hash(px, y) < fr) R(SKY[i + 1], px, y, 1, 1); }   // 帯のあいだは網点でつなぐ
+  const sx = LW / 2, sy = hz - 30;
+  for (let y = -11; y <= 11; y++) { const w = Math.round(Math.sqrt(11 * 11 - y * y)); if (sy + y < hz && ((y + 40) % 5 || y < 2)) R(y < -4 ? '#fff0a0' : '#f8c860', sx - w, sy + y, w * 2, 1); }                // 夕日（下はすだれ状）
+  for (let k = 0; k < 2; k++) { const bx = k ? LW - 30 : 8, c = '#281850'; R(c, bx + 8, hz - 34, 6, 34); for (let j = 0; j < 3; j++) { R(c, bx + 2 - j, hz - 30 + j * 10, 18 + j * 2, 2); R(c, bx + 5 - j, hz - 28 + j * 10, 12 + j * 2, 8); } R(c, bx + 10, hz - 40, 2, 6); } // 塔のかげ
+  for (let px = 0; px < LW; px++) { const h = 3 + Math.round(2 * Math.sin(px * .21) + 2 * Math.sin(px * .08 + 2)); R('#281850', px, hz - h, 1, h); }
+  R('rgba(16,8,40,.42)', 0, 0, LW, hz);                                                                           // 奥は暗くしずめて、手前の 2 人を立たせる
+  R('#603040', 0, hz, LW, LH - hz); R('#a06070', 0, hz, LW, 1); R('#402030', 0, hz + 3, LW, 1);
+  for (let k = -9; k <= 9; k++) for (let y = hz + 4; y < LH; y++) { const px = LW / 2 + k * (10 + (y - hz) * .9); if (px >= 0 && px < LW) R('#402030', px, y, 1, 1); }                                         // 床板の線
+  for (const lx of [14, LW - 15]) { R(INK, lx, hz - 22, 1, 22); const f = Math.sin(t * 9 + lx) > .3 ? 1 : 0; R('#f07840', lx - 2, hz - 30, 5, 8); R('#fff0a0', lx - 1, hz - 28 - f, 3, 4 + f); R(INK, lx - 2, hz - 31, 5, 1); R(INK, lx - 2, hz - 22, 5, 1); } // ちょうちん
+}
+// 格闘家。足もとを原点に右向きで作り、face で左右を返す。p: {arm, leg, lean, bob, block, hit, down}
+function fighter(ox, oy, face, p, col) {
+  const L = [], A = (c, px, py, w, h) => L.push([c, face > 0 ? ox + px : ox - px - w, oy + py, w, h]);
+  if (p.down) {
+    A(col.pants, -2, -5, 13, 4); A(col.shoe, 11, -6, 3, 5); A(col.body, -15, -6, 13, 6); A(col.belt, -3, -6, 2, 6); A(SKIN, -21, -7, 6, 6); A(col.hair, -22, -8, 4, 7); A(SKIN, -12, -9, 3, 3);
+  } else {
+    const l = Math.round(p.lean || 0), b = Math.round(p.bob || 0), k = p.leg || 0, a = p.arm || 0;
+    A(col.pants, -7, -13 + b, 4, 13 - b); A(col.shoe, -8, -2, 6, 2);                                           // うしろ足
+    if (k > .05) { A(col.pants, 1, -18 + b, 5 + k * 11, 4); A(col.shoe, 6 + k * 11, -19 + b, 4, 5); }           // けり
+    else { A(col.pants, 3, -13 + b, 4, 13 - b); A(col.shoe, 3, -2, 6, 2); }
+    A(col.pants, -6, -17 + b, 12, 5);
+    A(col.body, -5 + l, -29 + b, 10, 12); A(col.trim, -1 + l, -29 + b, 2, 9); A(col.belt, -6, -19 + b, 12, 2); A(col.belt, -7, -18 + b, 2, 5);
+    A(col.body, -8 + l, -28 + b, 3, 6); A(SKIN, -8 + l, -22 + b, 3, 3);                                         // うしろ手
+    const hx = l + (p.hit ? -2 : 0);
+    A(SKIN, -3 + hx, -37 + b, 7, 8); A(SKD, -3 + hx, -30 + b, 6, 1); A(col.hair, -4 + hx, -39 + b, 8, 3); A(col.hair, -4 + hx, -37 + b, 2, 5); A(col.band, -4 + hx, -36 + b, 8, 1); A(col.band, -7 + hx, -35 + b, 3, 1);
+    A(INK, 2 + hx, -34 + b, 1, p.hit ? 1 : 2); if (p.hit) A('#f8f8ff', 1 + hx, -32 + b, 3, 2);
+    if (p.block) { A(col.body, 3 + l, -28 + b, 3, 4); A(SKIN, 6 + l, -34 + b, 3, 10); A(SKIN, 4 + l, -32 + b, 2, 8); }
+    else if (p.hit) { A(col.body, 3 + l, -29 + b, 4, 3); A(SKIN, 6 + l, -34 + b, 3, 6); }
+    else if (a > .05) { A(col.body, 3 + l, -28 + b, 3 + a * 5, 3); A(SKIN, 6 + l + a * 5, -28 + b, a * 6, 3); A(SKIN, 6 + l + a * 11, -29 + b, 4, 4); } // つき
+    else { A(col.body, 3 + l, -28 + b, 3, 5); A(SKIN, 5 + l, -25 + b, 5, 3); A(SKIN, 9 + l, -27 + b, 3, 4); }
+  }
+  for (const r of L) R(INK, r[1] - 1, r[2] - 1, Math.round(r[3]) + 2, Math.round(r[4]) + 2);                     // 先に黒いふち
+  for (const r of L) R(r[0], r[1], r[2], r[3], r[4]);
+}
+const COL = [{ body: '#f0f0f8', trim: '#b0b0c8', pants: '#f0f0f8', belt: '#e02828', band: '#e02828', hair: '#a04828', shoe: SKD },
+             { body: '#2848d0', trim: '#58c8f0', pants: '#182868', belt: '#f8d830', band: '#58c8f0', hair: '#f8d830', shoe: '#f8d830' }];
+const ATT = [0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0], HIT = [1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1];
+const BEAT = .72, ROUND = 16, HP = 9;
+let focus = [0, 0];
+function drawGame(t) {
+  const round = Math.floor(t / ROUND), rt = t - round * ROUND, sw = round % 2;
+  backdrop(t);
+  const k = Math.min(19, Math.floor(rt / BEAT)), u = rt / BEAT - k, over = rt > 19 * BEAT + .28;
+  const hp = [HP, HP]; for (let i = 0; i < 20; i++) if (HIT[i] && rt > i * BEAT + .2) hp[1 - (ATT[i] ^ sw)]--;
+  const loser = sw ? 0 : 1, att = ATT[k] ^ sw, kick = k % 3 === 1, lands = HIT[k];
+  const cx = LW / 2 + Math.sin(t * .45) * Math.min(16, LW / 2 - 40), D = 13.5;
+  const P = [{}, {}], X = [cx - D, cx + D];
+  for (let f = 0; f < 2; f++) {
+    const p = P[f]; p.bob = Math.sin(t * 7 + f * 2) > 0 ? 1 : 0; let dx = Math.round(Math.sin(t * 2.3 + f * 1.7) * 1.5);
+    if (over) { if (f === loser) { p.down = rt > 19 * BEAT + .5; p.hit = 1; p.lean = -4; dx = -Math.min(10, (rt - 19 * BEAT - .28) * 40); } else { p.arm = 0; p.bob = Math.sin(t * 12) > 0 ? 2 : 0; } }
+    else if (f === att) { const e = u < .12 ? 0 : u < .2 ? .5 : u < .45 ? 1 : u < .55 ? .5 : 0; if (kick) { p.leg = e; p.lean = -e * 2; } else { p.arm = e; p.lean = e * 2; } dx += e * 2; p.bob = 0; }
+    else if (u > .2 && u < .6) { if (lands) { p.hit = 1; p.lean = -3; dx -= 3; } else { p.block = 1; p.lean = -1; dx -= 1; } p.bob = 0; }
+    X[f] += (f ? -1 : 1) * dx;
+  }
+  const order = att ? [0, 1] : [1, 0];
+  for (const f of order) { R('rgba(16,8,24,.5)', X[f] - 9, FY - 1, 18, 2); fighter(X[f], FY, f ? -1 : 1, P[f], COL[f]); }
+  // 当たりの火花（白と黄色。ここがいちばんにじむ）
+  if (!over || rt < 19 * BEAT + .45) if (u > .2 && u < .42) { const s = Math.round((u - .2) * 30), hx = Math.round(X[1 - att] + (att ? 6 : -6)), hy = FY - (kick ? 17 : 27), c = lands ? '#fff0a0' : '#58c8f0';
+    R('#ffffff', hx - 1, hy - 1, 3, 3); for (const [ax, ay] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) { const d = (ax && ay) ? s * .7 : s + 1; R(c, hx + ax * d, hy + ay * d, 1 + (ax && !ay ? 1 : 0), 1 + (ay && !ax ? 1 : 0)); R('#ffffff', hx + ax * d * .5, hy + ay * d * .5, 1, 1); } }
+  // 体力ゲージと残り時間
+  const bw = Math.floor(LW / 2) - 13;
+  for (let f = 0; f < 2; f++) { const bx = f ? LW / 2 + 9 : 4, w = Math.round(bw * Math.max(0, hp[f]) / HP); R('#f8f8ff', bx - 1, HY - 1, bw + 2, 7); R('#d81818', bx, HY, bw, 5); R('#f8e020', f ? bx : bx + bw - w, HY, w, 5); R('#fff0a0', f ? bx : bx + bw - w, HY + 1, w, 1); R(COL[f].body, f ? bx + bw - 8 : bx, HY + 8, 8, 2); }
+  const tm = Math.max(0, 60 - Math.floor(rt * 3)); glyph(String((tm / 10) | 0), LW / 2 - 4, HY, 1, '#f8f8ff'); glyph(String(tm % 10), LW / 2 + 1, HY, 1, '#f8f8ff');
+  if (over && Math.sin(rt * 20) > -.5) { const s = 3, gx = LW / 2 - 11 * s / 2 - 1, gy = Math.round(FY * .42); for (const [ch, o] of [['K', 0], ['O', 6]]) { glyph(ch, gx + o * s + 1, gy + 1, s, INK); glyph(ch, gx + o * s, gy, s, '#f8e020'); } R('#f8e020', gx + 4 * s, gy + 4 * s, s, s); R('#f8e020', gx + 10 * s, gy + 4 * s, s, s); }
+  if (over && rt < 19 * BEAT + .36) R('#ffffff', 0, 0, LW, LH);
+  focus = [cx / LW * 2 - 1, 1 - (FY - 20) / LH * 2];
+}
+// ---- ブラウン管（大きく映すほう） ----
+const VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+const FS = `precision highp float;
+uniform sampler2D T, B; uniform vec2 R, L, C; uniform float Z, t;
+void main(){
+  float sc = min(R.x / L.x, R.y / L.y) * .965;                    // 引いたときの、ドット 1 個の画面上の大きさ
+  vec2 u = (gl_FragCoord.xy - .5 * R) / (sc * Z * L * .5) + C;
+  vec2 v = u * (1. + .045 * u.yx * u.yx);                          // ガラスのふくらみ
+  vec2 e = abs(v) - (1. - .07); float sd = length(max(e, 0.)) - .07;
+  float pp = sc * Z;
+  if (sd > 0.) { float g = exp(-sd * 9.); vec3 b = vec3(.028, .028, .034) * (1. + .6 * smoothstep(.02, .0, abs(sd - .03))) + vec3(.05, .03, .06) * g; gl_FragColor = vec4(sqrt(b), 1.); return; }
+  vec2 tc = vec2(v.x * .5 + .5, .5 - v.y * .5) * L;
+  vec3 c = texture2D(T, tc / L).rgb; c *= c;
+  vec3 bl = texture2D(B, tc / L).rgb; bl *= bl;                     // 明るい色のにじみ（小さくぼかした絵を別に持つ）
+  float m = fract(tc.x) * 3., ch = floor(m), fx = fract(m);
+  vec3 mk = vec3(step(ch, .5), step(abs(ch - 1.), .5), step(1.5, ch));
+  float sx = smoothstep(0., .3, fx) * smoothstep(1., .7, fx);
+  vec3 wy = mix(vec3(.2), vec3(.5), sqrt(c)); float fy = fract(tc.y) - .5;
+  vec3 sy = max(1. - fy * fy / (wy * wy * 1.7), 0.); sy *= sy;                              // 明るい粒ほどたてに太る。暗い所は走査線のすき間があく
+  vec3 dots = c * mk * sx * sy * 4.6;
+  vec3 col = mix(c * 1.05, dots, smoothstep(2.2, 4.5, pp));         // 粒が 1 画素より細かくなるほど引いたら、ならして絵に見せる
+  col += bl * mix(.14, .24, smoothstep(2.2, 4.5, pp)) + bl * bl * .22;
+  col *= 1. + .07 * sin(v.y * 2.5 + t * 4.) + .03 * sin(t * 60.);   // 明るさの帯がゆっくり流れる
+  float vg = dot(v, v) * .5; col *= 1. - .42 * vg * vg;                       // 四すみの暗がり
+  col *= smoothstep(0., -.035, sd);
+  vec2 w = v - vec2(-.5, .52); w.x += w.y * .28;                    // ガラスに映った窓
+  float win = smoothstep(.2, .15, abs(w.x)) * smoothstep(.27, .22, abs(w.y)) * (1. - .8 * smoothstep(.014, .004, abs(w.x))) * (1. - .8 * smoothstep(.014, .004, abs(w.y + .03)));
+  col += vec3(.75, .85, 1.) * (win * .05 + .035 * smoothstep(.2, 1.6, v.y - v.x * .4) + .02 * smoothstep(-.06, 0., sd));
+  gl_FragColor = vec4(sqrt(col), 1.);
+}`;
+const sh = (ty, s) => { const o = gl.createShader(ty); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(o)); return o; };
+const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr); gl.useProgram(pr);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.bindAttribLocation(pr, 0, 'p'); gl.linkProgram(pr); gl.useProgram(pr); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const U = n => gl.getUniformLocation(pr, n);
+const TX = [gl.NEAREST, gl.LINEAR].map((fl, i) => { const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tx); for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, fl], [gl.TEXTURE_MAG_FILTER, fl], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v); return tx; });
+gl.uniform1i(U('T'), 0); gl.uniform1i(U('B'), 1);
+const b1 = document.createElement('canvas'), b2 = document.createElement('canvas');
+addEventListener('resize', resize); resize();
+const ease = f => f * f * (3 - 2 * f);
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  drawGame(t);
+  // 寄り引き: はじめは寄って粒を見せ、引いて絵にし、決着の前にまた寄る
+  const ct = t % ROUND, zf = ct < 3.6 ? 1 : ct < 6.2 ? 1 - ease((ct - 3.6) / 2.6) : ct < 12.6 ? 0 : ease(Math.min(1, (ct - 12.6) / 2.6)), Z = 1 + (ZM - 1) * zf;
+  // にじみ用: 絵を 1/3 に縮めてから戻す（それだけでぼける）
+  const sw = Math.ceil(LW / 3), sh2 = Math.ceil(LH / 3); if (b1.width !== sw || b1.height !== sh2) { b1.width = sw; b1.height = sh2; b2.width = LW; b2.height = LH; }
+  b1.getContext('2d').drawImage(lo, 0, 0, sw, sh2); const c2 = b2.getContext('2d'); c2.drawImage(b1, 0, 0, LW, LH); c2.globalAlpha = .5; c2.drawImage(b1, -1.5, 0, LW, LH); c2.globalAlpha = .33; c2.drawImage(b1, 1.5, 0, LW, LH); c2.globalAlpha = 1;
+  gl.activeTexture(gl.TEXTURE0); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, lo);
+  gl.activeTexture(gl.TEXTURE1); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, b2);
+  gl.uniform2f(U('R'), cv.width, cv.height); gl.uniform2f(U('L'), LW, LH); const lim = 1 - 1 / Z, cl = v => Math.max(-lim, Math.min(lim, v)); gl.uniform2f(U('C'), cl(focus[0]), cl(focus[1])); gl.uniform1f(U('Z'), Z); gl.uniform1f(U('t'), t);
+  gl.drawArrays(gl.TRIANGLES, 0, 3); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

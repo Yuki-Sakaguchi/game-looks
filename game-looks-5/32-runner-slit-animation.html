@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 32 障害物走 スリットアニメ</title>
+<style>
+html,body{margin:0;height:100%;background:#f1ede2;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1a1a1e;background:#f1ede2;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 32 ─ 障害物走 / スリットアニメ（しま板をすべらせる絵）　｜　見るだけ（自動で板がすべり、走ってとぶ）</div>
+<script>
+// 見立て: スリットアニメ。紙には 6 こま分の絵を細いたて帯に切って順にならべた「まざった縞の絵」が刷ってある。
+// その上に、帯 5 本ぶんが黒・1 本ぶんが透明のしま板をのせる。板が帯 1 本ぶんすべるたびに次のこまだけが見えて、走る人が動く。
+// 色は紙の白・黒インク・赤の 3 つだけ。板の下では、白いすき間の列が消えた所が人の形になる。板はわくの中だけなので、外ではまざった絵がそのまま見える。板を引きもどすと絵は逆回しになる
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const INK = '#141418', RED = '#e0331f', PAPER = '#f1ede2', FG = INK, NF = 6;
+let W, H, S, P, U, D, lanes, inter, bars, grain, sheet;
+// 1 こま分の絵（k = 0..5）。1 周期で 1 歩ぶん走り、ハードルを 1 台とびこえる
+function drawFrame(c, k) { for (const gy of lanes) for (let n = -1; n <= 1; n++) drawRunner(c, k, gy, W * .5 + n * D, n === 0); }
+function drawRunner(c, k, gy, cx, ground) {
+  const ph = Math.PI / 2 + Math.PI * 2 * (k - 2) / NF, A = Math.sin(ph), B = Math.cos(ph), lift = Math.max(0, Math.cos(Math.PI * 2 * (k - 2) / NF)) * U * .16 + Math.max(0, -A) * U * .07;
+  c.lineCap = c.lineJoin = 'round'; c.fillStyle = c.strokeStyle = FG;
+  if (ground) { c.fillRect(0, gy, W, Math.max(2, U * .008)); for (let x = -D; x < W + D; x += D / 2) { const tx = x - k * D / NF + (W * .5) % (D / 2); c.fillRect(tx, gy + U * .035, U * .12, U * .012); c.fillRect(tx + U * .2, gy + U * .075, U * .07, U * .012); } }
+  // ハードル（赤）。1 こまごとに間かくの 1/6 ずつ流れて、3 こま目で走る人の真下に来る
+  { const hx = cx + (2 - k) * D / NF + U * .02, hh = U * .2; c.strokeStyle = RED; c.lineWidth = U * .022; c.beginPath(); c.moveTo(hx - U * .05, gy); c.lineTo(hx + U * .03, gy); c.moveTo(hx, gy); c.lineTo(hx, gy - hh); c.stroke(); c.fillStyle = RED; c.fillRect(hx - U * .02, gy - hh - U * .012, U * .04, U * .05); c.fillStyle = PAPER; c.fillRect(hx - U * .02, gy - hh + U * .008, U * .04, U * .012); }
+  // 走る人（黒）
+  const hipY = gy - U * .262 - lift, hipX = cx - U * .01, T = U * .14, Sh = U * .14, lean = .28;
+  c.strokeStyle = FG; c.fillStyle = FG;
+  const leg = (a, bend, w) => { const kx = hipX + Math.sin(a) * T, ky = hipY + Math.cos(a) * T, b = a - bend; c.lineWidth = w; c.beginPath(); c.moveTo(hipX, hipY); c.lineTo(kx, ky); c.lineTo(kx + Math.sin(b) * Sh, ky + Math.cos(b) * Sh); c.stroke(); const fx = kx + Math.sin(b) * Sh, fy = ky + Math.cos(b) * Sh; c.lineWidth = w * .8; c.beginPath(); c.moveTo(fx, fy); c.lineTo(fx + Math.cos(b) * U * .04, fy - Math.sin(b) * U * .04); c.stroke(); };
+  leg(-A * 1.15, .25 + .9 * Math.max(0, B) + .3, U * .055); leg(A * 1.15, .25 + .9 * Math.max(0, -B), U * .06);
+  const sx = hipX + Math.sin(lean) * U * .19, sy = hipY - Math.cos(lean) * U * .19;
+  const arm = (a, w) => { const ex = sx + Math.sin(a) * U * .085, ey = sy + Math.cos(a) * U * .085, b = a + 1.3; c.lineWidth = w; c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(ex + Math.sin(b) * U * .08, ey + Math.cos(b) * U * .08); c.stroke(); };
+  arm(A * 1.0, U * .04); c.lineWidth = U * .092; c.beginPath(); c.moveTo(hipX, hipY); c.lineTo(sx, sy); c.stroke(); arm(-A * 1.0, U * .044);
+  c.beginPath(); c.arc(sx + U * .035, sy - U * .075, U * .052, 0, 7); c.fill();
+  c.strokeStyle = RED; c.lineWidth = U * .014; c.beginPath(); c.moveTo(sx + U * .0, sy - U * .1); c.lineTo(sx - U * .08, sy - U * .1 + B * U * .02); c.stroke();   // はちまき
+}
+function build() {
+  const dpr = Math.min(devicePixelRatio || 1, 2); W = cv.width = Math.round(innerWidth * dpr); H = cv.height = Math.round(innerHeight * dpr);
+  const tall = W < H * .9; lanes = tall ? [H * .43, H * .86] : [H * .8]; U = tall ? Math.min(H * .5, W * 1.15) : Math.min(H * .8, W * .46); D = tall ? U * .95 : W * .38;
+  S = Math.max(2, Math.round(Math.min(W, H * 1.6) / 420)); P = S * NF;
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  // 6 こまを帯に切って 1 枚にまぜる
+  inter = mk(W, H); const ic = inter.getContext('2d'), f = mk(W, H), fc = f.getContext('2d');
+  for (let k = 0; k < NF; k++) { fc.clearRect(0, 0, W, H); drawFrame(fc, k); for (let x = k * S; x < W; x += P) ic.drawImage(f, x, 0, S, H, x, 0, S, H); }
+  bars = mk(P, 4); const bc = bars.getContext('2d'); bc.fillStyle = '#0b0b0e'; bc.fillRect(S + 1, 0, P - S - 1, 4);   // すき間は帯 1 本より 1px だけ広くして明るさをかせぐ
+  grain = mk(256, 256); const gc = grain.getContext('2d'); for (let i = 0; i < 2600; i++) { gc.fillStyle = Math.random() < .5 ? 'rgba(90,80,60,.07)' : 'rgba(255,255,255,.25)'; gc.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 2, 1); }
+  // たて長では走路を 2 段にして、板は下の段だけにかける（上の段は まざった絵のまま）
+  sheet = tall ? { w: Math.round(W * .74 / P) * P, y: H * .5, h: H * .42, x0: W * .06, travel: W * .18 } : { w: Math.round(W * .5 / P) * P, y: H * .12, h: H * .78, x0: W * .24, travel: W * .17 };
+}
+addEventListener('resize', build); build();
+let last = performance.now(), t = 0, pos = 0, phase = 0, score = 0, back0 = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 板は 1 秒に帯 8 本ぶん（= 8 こま）すべる。はしまで行ったら、手でさっと引きもどす
+  if (phase === 0) { pos += dt * 8 * S; if (pos >= sheet.travel) { phase = 1; back0 = t; } } else { const u = Math.min(1, (t - back0) / .8), e = u * u * (3 - 2 * u); pos = sheet.travel * (1 - e); if (u >= 1) { phase = 0; pos = 0; score = 0; } }
+  if (phase === 0) score = Math.floor(pos / P + .4);
+  g.fillStyle = PAPER; g.fillRect(0, 0, W, H); g.fillStyle = g.createPattern(grain, 'repeat'); g.fillRect(0, 0, W, H);
+  g.drawImage(inter, 0, 0);
+  g.fillStyle = INK; g.font = `bold ${Math.round(U * .034)}px ui-monospace,Menlo,monospace`; g.textBaseline = 'top'; g.fillText('HURDLES  6 こま ／ 帯 ' + S + 'px', Math.min(W, H) * .035, H * .022);
+  // しま板（透明シート）。影、しま、つや、赤いわくと持ち手
+  const sx = Math.round(sheet.x0 / P) * P + Math.floor(pos / S) * S,   // 板は帯 1 本ぶんずつ かくっと進む
+     sy = sheet.y, sw = sheet.w, sh = sheet.h, wob = Math.round(Math.sin(t * 1.7) * U * .004);   // 手の ゆれは上下だけ（かたむくと こまがまざる）
+  g.save(); g.translate(sx, Math.round(sy) + wob);
+  g.fillStyle = 'rgba(20,20,30,.16)'; g.fillRect(U * .012, U * .016, sw, sh);
+  g.save(); g.beginPath(); g.rect(0, 0, sw, sh); g.clip(); g.fillStyle = g.createPattern(bars, 'repeat'); g.fillRect(0, 0, sw, sh);
+  const gl = g.createLinearGradient(0, 0, sw, sh); gl.addColorStop(.18, 'rgba(255,255,255,0)'); gl.addColorStop(.27, 'rgba(255,255,255,.07)'); gl.addColorStop(.3, 'rgba(255,255,255,0)'); gl.addColorStop(.62, 'rgba(255,255,255,0)'); gl.addColorStop(.66, 'rgba(255,255,255,.04)'); gl.addColorStop(.72, 'rgba(255,255,255,0)'); g.fillStyle = gl; g.fillRect(0, 0, sw, sh); g.restore();
+  g.strokeStyle = RED; g.lineWidth = U * .012; g.strokeRect(0, 0, sw, sh);
+  const tw = U * .22, th = U * .075; g.fillStyle = RED; g.fillRect(sw - tw, -th, tw, th); g.fillStyle = PAPER; g.font = `bold ${Math.round(th * .5)}px ui-monospace,Menlo,monospace`; g.textBaseline = 'middle'; g.fillText((phase ? '←← ' : '→ ') + String(score).padStart(2, '0') + ' 台', sw - tw + th * .25, -th / 2);
+  g.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

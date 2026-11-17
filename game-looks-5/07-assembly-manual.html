@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 07 組み立てパズル 家具の組立説明書の線画</title>
+<style>
+html,body{margin:0;height:100%;background:#fdfcf8;overflow:hidden}
+canvas{position:fixed;left:0;top:0;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#161616;background:#fdfcf8;padding:0 6px}
+</style>
+<canvas id="c"></canvas><canvas id="o"></canvas>
+<div id="cap">LOOK 07 ─ 組み立てパズル / 家具の組立説明書の線画　｜　見るだけ（自動で手順どおりに組み上がる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 見立て: 箱に入っている家具の組立説明書。白い紙に、黒い均一な線と、強調のだいだい 1 色だけ。
+// 決まり: 等角投影（遠近なし）。部品は「面の向き＋部品番号」だけを別の絵に描き、となりの画素と番号か向きがちがう所を
+// 同じ太さの黒い線にする（面は白のまま）。いま動かす部品だけ強調色でぬる。矢印・番号・吹き出し・人は上に 2D で描く
+import * as THREE from 'three';
+const ACC = '#ff5a1f', INK = '#161616', PAPER = '#fdfcf8';
+const cv = document.getElementById('c'), ov = document.getElementById('o'), g = ov.getContext('2d');
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false }); renderer.setClearColor(0xffffff, 0);
+const scene = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 100), TARGET = new THREE.Vector3(1.43, 2.26, 0);
+cam.position.copy(TARGET).add(new THREE.Vector3(20, 20, 20)); cam.lookAt(TARGET);
+const rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+const post = new THREE.ShaderMaterial({
+  uniforms: { tex: { value: rt.texture }, px: { value: new THREE.Vector2() }, lw: { value: 2 }, acc: { value: new THREE.Color(ACC).convertLinearToSRGB() } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+  fragmentShader: `uniform sampler2D tex; uniform vec2 px; uniform float lw; uniform vec3 acc; varying vec2 vUv;
+  void main(){ vec4 c = texture2D(tex, vUv); float e = 0.;
+    for (int i = 0; i < 16; i++) { float a = float(i) * .3927; vec2 o = vec2(cos(a), sin(a)) * px * lw * (mod(float(i), 2.) < .5 ? 1. : .5); vec4 s = texture2D(tex, vUv + o);
+      e += min(1., step(.003, abs(s.a - c.a)) + step(.3, length(s.rgb - c.rgb))); }   // 部品番号がちがう、または面の向きがちがう = 線
+    vec3 col = mix(vec3(.992, .988, .973), mix(vec3(1.), acc, .42), step(.5, c.a));
+    gl_FragColor = vec4(mix(col, vec3(.086), smoothstep(.5, 5., e)), 1.); }` });
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post), qScene = new THREE.Scene(), qCam = new THREE.Camera(); quad.frustumCulled = false; qScene.add(quad);
+let w, h, U, LW;
+function resize() {
+  w = innerWidth; h = innerHeight; const d = Math.min(devicePixelRatio || 1, 2); U = Math.min(w, h); LW = Math.max(2, U / 270);
+  renderer.setPixelRatio(d); renderer.setSize(w, h); rt.setSize(w * d, h * d); post.uniforms.px.value.set(1 / (w * d), 1 / (h * d)); post.uniforms.lw.value = LW * d * .5;
+  const ppu = Math.min(w / 5.0, h / 6.7); cam.left = -w / 2 / ppu; cam.right = w / 2 / ppu; cam.top = h / 2 / ppu; cam.bottom = -h / 2 / ppu; cam.updateProjectionMatrix();
+  ov.width = w * d; ov.height = h * d; ov.style.width = w + 'px'; ov.style.height = h + 'px'; g.setTransform(d, 0, 0, d, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+// 部品。fin = はまる位置、off = 分解図でのずれ（軸にそって）、lead = 矢印を出す先端、m0〜m1 = 動く時刻
+const parts = []; let nid = 0;
+function part(geos, fin, off, lead, st, m0, m1, letter, lab) {
+  const mat = new THREE.ShaderMaterial({ uniforms: { id: { value: 0 } }, vertexShader: 'varying vec3 n; void main(){ n = mat3(modelMatrix) * normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }', fragmentShader: 'uniform float id; varying vec3 n; void main(){ gl_FragColor = vec4(normalize(n) * .5 + .5, id); }' });
+  const gp = new THREE.Group(); for (const ge of geos) gp.add(new THREE.Mesh(ge, mat)); scene.add(gp);
+  const p = { gp, mat, base: ++nid / 128, fin: new THREE.Vector3(...fin), off: new THREE.Vector3(...off), lead: new THREE.Vector3(...lead), st, m0, m1, letter, lab: lab && new THREE.Vector3(...lab), pos: new THREE.Vector3() }; parts.push(p); return p;
+}
+const box = (a, b, c) => new THREE.BoxGeometry(a, b, c), START = [0, 5, 8, 11, 13.6], T = 16, YS = [.3, 1.3, 2.2];
+part([box(.12, 3, .9)], [-1, 1.5, 0], [0, 0, 0], [0, 0, 0], 0, 0, 0, 'A', [-.2, 1.9, 0]);
+YS.forEach((y, i) => part([box(1.88, .1, .86)], [0, y, 0], [2.0, 0, 0], [-.94, 0, .43], 0, 2.2 + i * .7, 3.2 + i * .7, i === 2 ? 'B' : '', [1.1, .42, 0]));
+part([box(.12, 3, .9)], [1, 1.5, 0], [1.9, 0, 0], [-.06, 0, .45], 1, 6, 7.2, 'A', [.25, 1.9, 0]);
+part([box(2.3, .12, 1)], [0, 3.06, 0], [0, 1.1, 0], [1.15, -.06, .5], 2, 8.8, 9.9, 'C', [-.6, .45, 0]);
+{ const sh = new THREE.CylinderGeometry(.04, .04, .5, 12), hd = new THREE.CylinderGeometry(.1, .1, .07, 14); sh.rotateZ(Math.PI / 2); hd.rotateZ(Math.PI / 2); sh.translate(-.25, 0, 0); hd.translate(.035, 0, 0);
+  let k = 0; for (const y of YS) for (const z of [-.24, .24]) { part([sh, hd], [1.06, y, z], [1.2, 0, 0], [-.5, 0, 0], 3, 11.5 + k * .2, 12.3 + k * .2, k === 5 ? 'D' : '', [.35, .3, 0]).screw = true; k++; } }
+
+const ease = x => x * x * (3 - 2 * x), v = new THREE.Vector3();
+const P = p => { v.copy(p).project(cam); return [(v.x + 1) / 2 * w, (1 - v.y) / 2 * h]; };
+const line = (...a) => { g.beginPath(); g.moveTo(a[0], a[1]); for (let i = 2; i < a.length; i += 2) g.lineTo(a[i], a[i + 1]); g.stroke(); };
+function arrow(x1, y1, x2, y2) {            // 点線の矢印（強調色）
+  const d = Math.hypot(x2 - x1, y2 - y1); if (d < LW * 6) return; const ux = (x2 - x1) / d, uy = (y2 - y1) / d, a = LW * 4.2;
+  g.strokeStyle = g.fillStyle = ACC; g.lineWidth = LW * 1.15; g.lineCap = 'round'; g.setLineDash([.01, LW * 3.2]); line(x1, y1, x2 - ux * a, y2 - uy * a); g.setLineDash([]); g.lineCap = 'butt';
+  g.beginPath(); g.moveTo(x2, y2); g.lineTo(x2 - ux * a * 1.5 - uy * a * .7, y2 - uy * a * 1.5 + ux * a * .7); g.lineTo(x2 - ux * a * 1.5 + uy * a * .7, y2 - uy * a * 1.5 - ux * a * .7); g.fill();
+}
+function person(x, y, s, up, t) {            // にこにこした棒の人
+  const b = Math.sin(t * 3) * s * .012, hy = y - s * .84 + b; g.strokeStyle = g.fillStyle = INK; g.lineWidth = LW;
+  g.beginPath(); g.arc(x, hy, s * .15, 0, 7); g.stroke(); line(x, hy + s * .15, x, y - s * .32); line(x - s * .15, y, x, y - s * .32, x + s * .15, y);
+  g.beginPath(); g.arc(x, hy + s * .01, s * .085, .25, Math.PI - .25); g.stroke(); g.beginPath(); g.arc(x - s * .055, hy - s * .035, LW * .8, 0, 7); g.arc(x + s * .055, hy - s * .035, LW * .8, 0, 7); g.fill();
+  if (up) { line(x - s * .27, y - s * .9, x, y - s * .58, x + s * .27, y - s * .9); g.strokeStyle = ACC; for (let i = 0; i < 5; i++) { const a = -Math.PI * (.15 + i * .175), r = s * (.3 + (i & 1) * .04 + Math.sin(t * 8) * .01); line(x + Math.cos(a) * r, hy + Math.sin(a) * r, x + Math.cos(a) * (r + s * .08), hy + Math.sin(a) * (r + s * .08)); } }
+  else { const tw = Math.sin(t * 9) * s * .02; line(x - s * .2, y - s * .36, x, y - s * .58, x + s * .2, y - s * .5 + tw); line(x + s * .2, y - s * .5 + tw, x + s * .38, y - s * .68 + tw); g.strokeStyle = ACC; g.lineWidth = LW * 3; line(x + s * .16, y - s * .46 + tw, x + s * .26, y - s * .56 + tw); }
+}
+function callout(cx, cy, R, jx, jy, screw, t) {  // 丸い吹き出し（つなぎ目の拡大図）
+  const d = Math.hypot(jx - cx, jy - cy), k = t * 1.4 % 1, m = ease(Math.min(1, k * 1.6)); g.strokeStyle = INK; g.lineWidth = LW * .55; g.fillStyle = PAPER;
+  line(cx + (jx - cx) / d * R, cy + (jy - cy) / d * R, jx - (jx - cx) / d * LW * 4, jy - (jy - cy) / d * LW * 4); g.beginPath(); g.arc(jx, jy, LW * 4, 0, 7); g.stroke();
+  g.lineWidth = LW; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill(); g.stroke(); g.save(); g.beginPath(); g.arc(cx, cy, R - LW, 0, 7); g.clip(); g.translate(cx, cy); g.scale(R, R); g.lineWidth = LW / R; g.lineJoin = 'round';
+  if (screw) {
+    g.strokeRect(.2, -1.1, .5, 2.2); for (let i = -5; i < 6; i++) line(.2, i * .22, .7, i * .22 - .3);
+    const x0 = -.78 + m * .22; g.fillStyle = PAPER; g.beginPath(); g.moveTo(x0, -.3); g.lineTo(x0 + .13, -.16); g.lineTo(x0 + .13, .16); g.lineTo(x0, .3); g.closePath(); g.fill(); g.stroke();
+    g.fillRect(x0 + .13, -.09, .8, .18); g.strokeRect(x0 + .13, -.09, .8, .18); for (let i = 0; i < 7; i++) line(x0 + .2 + i * .1, -.09, x0 + .26 + i * .1, .09);
+    g.strokeStyle = g.fillStyle = ACC; g.lineWidth = LW * 1.2 / R; g.beginPath(); g.ellipse(x0 - .02, 0, .2, .5, 0, .9, 5.2); g.stroke(); const a = 5.2 + t * 0; g.beginPath(); g.moveTo(x0 + .2, -.5); g.lineTo(x0 - .04, -.62); g.lineTo(x0 + .02, -.3); g.fill();
+  } else {
+    g.strokeRect(-.75, .22, 1.5, .5); g.setLineDash([.06, .06]); line(-.11, .22, -.11, .56, .11, .56, .11, .22); g.setLineDash([]);
+    const y0 = -.62 + m * .3; g.fillStyle = PAPER; g.beginPath(); g.roundRect(-.11, y0, .22, .5, .06); g.fill(); g.stroke(); line(-.04, y0 + .08, -.04, y0 + .42); line(.04, y0 + .08, .04, y0 + .42);
+    g.strokeStyle = g.fillStyle = ACC; g.lineWidth = LW * 1.2 / R; line(.42, -.55, .42, -.1); g.beginPath(); g.moveTo(.42, .08); g.lineTo(.3, -.14); g.lineTo(.54, -.14); g.fill();
+  }
+  g.restore();
+}
+function noBox(x, y, s) {                     // 「×」のだめな例（かなづちでたたかない）
+  g.strokeStyle = INK; g.lineWidth = LW; g.fillStyle = PAPER; g.fillRect(x, y, s, s); g.strokeRect(x, y, s, s);
+  g.save(); g.translate(x + s * .5, y + s * .52); g.rotate(-.6); g.lineWidth = LW * 1.6; line(0, -s * .18, 0, s * .34); g.lineWidth = LW; g.fillRect(-s * .22, -s * .32, s * .44, s * .16); g.strokeRect(-s * .22, -s * .32, s * .44, s * .16); g.restore();
+  g.strokeStyle = ACC; g.lineWidth = LW * 2.2; g.lineCap = 'round'; line(x + s * .14, y + s * .14, x + s * .86, y + s * .86); line(x + s * .86, y + s * .14, x + s * .14, y + s * .86); g.lineCap = 'butt';
+}
+
+let last = performance.now(), t = 0;
+const JOINT = [[-.94, 1.3, .43], [.94, 1.3, .43], [1, 3, .45], [1.1, 1.3, .24], [1.1, 1.3, .24]].map(a => new THREE.Vector3(...a)), tmp = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t = (t + dt) % T;
+  const st = t < 5 ? 0 : t < 8 ? 1 : t < 11 ? 2 : t < 13.6 ? 3 : 4;
+  for (const p of parts) {
+    const k = p.m1 > p.m0 ? ease(Math.min(1, Math.max(0, (t - p.m0) / (p.m1 - p.m0)))) : 1; p.k = k; p.gp.visible = t >= START[p.st];
+    p.pos.copy(p.fin).addScaledVector(p.off, 1 - k); p.gp.position.copy(p.pos); if (p.screw) p.gp.rotation.x = (1 - k) * 14;
+    p.hot = p.screw || (p.st === st && p.m1 > 0 && t < p.m1 + .25); p.mat.uniforms.id.value = p.base * .5 + (p.hot ? .5 : 0);
+  }
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(qScene, qCam);
+
+  // 上にのせる 2D: 矢印、部品の記号、はまった印、番号、吹き出し、人、だめな例
+  g.clearRect(0, 0, w, h); g.lineCap = 'butt'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const p of parts) if (p.gp.visible && p.st === st) {
+    if (p.k < 1) { const [x1, y1] = P(tmp.copy(p.pos).add(p.lead)), [x2, y2] = P(tmp.copy(p.fin).add(p.lead)); arrow(x1, y1, x2, y2); }
+    else if (t < p.m1 + .4 && p.m1 > 0) { const [x, y] = P(tmp.copy(p.fin).add(p.lead)), r = LW * 4 + (t - p.m1) * U * .12; g.strokeStyle = ACC; g.lineWidth = LW * 1.2; for (let i = 0; i < 6; i++) { const a = i * 1.047 + .4; line(x + Math.cos(a) * r, y + Math.sin(a) * r, x + Math.cos(a) * (r + LW * 4), y + Math.sin(a) * (r + LW * 4)); } }
+    if (p.letter && (p.k < .97 || p.m1 === 0)) { const [x, y] = P(tmp.copy(p.pos).add(p.lab)), r = U * .03; g.fillStyle = PAPER; g.strokeStyle = INK; g.lineWidth = LW; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.stroke(); g.fillStyle = INK; g.font = `800 ${r * 1.25}px Helvetica,Arial,sans-serif`; g.fillText(p.letter, x, y + r * .08); }
+  }
+  const F = U * .19, mx = Math.max(14, U * .035); g.fillStyle = INK; g.textAlign = 'left'; g.textBaseline = 'top';
+  if (st < 4) { g.font = `900 ${F}px Helvetica,Arial,sans-serif`; g.fillText(String(st + 1), mx, mx * .6); }
+  else { g.strokeStyle = ACC; g.lineWidth = LW * 4; g.lineCap = g.lineJoin = 'round'; const k = Math.min(1, (t - 13.6) * 3); g.beginPath(); g.moveTo(mx + F * .1, mx + F * .45); g.lineTo(mx + F * .32, mx + F * .7); if (k > .4) g.lineTo(mx + F * .32 + (k - .4) / .6 * F * .45, mx + F * .7 - (k - .4) / .6 * F * .6); g.stroke(); g.lineCap = 'butt'; g.lineJoin = 'miter'; }
+  for (let i = 0; i < 4; i++) { const s = U * .034, x = mx + F * .75 + i * s * 1.35, y = mx + F * .12; g.lineWidth = LW; g.strokeStyle = INK; g.fillStyle = i < st ? INK : i === st ? ACC : PAPER; g.fillRect(x, y, s, s); g.strokeRect(x, y, s, s); }
+  const R = U * .135, [jx, jy] = P(JOINT[st]); callout(Math.min(w - R - mx, w / 2 + U * .5), R + mx + (w > h ? h * .07 : 0), R, jx, jy, st >= 3, t);
+  const ps = U * .27; person(mx + ps * .32, h - 38, ps, st === 4, t); const bs = U * .15; noBox(w - bs - mx, h - bs - 38, bs);
+  const fade = Math.max(0, (t - 15.6) / .4, 1 - t / .25); if (fade > 0) { g.fillStyle = PAPER; g.globalAlpha = Math.min(1, fade); g.fillRect(0, 0, w, h); g.globalAlpha = 1; }   // ページをめくる
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

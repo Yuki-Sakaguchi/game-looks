@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 18 スケートパーク 魚眼のアクションカメラ</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;opacity:.85;text-shadow:0 1px 2px #000}
+</style>
+<canvas id="hud"></canvas>
+<div id="cap">LOOK 18 ─ スケートパーク / 魚眼のアクションカメラ　｜　見るだけ（自動ですべって技を決める）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 地面すれすれに置いた魚眼レンズのアクションカメラに見立てる。場面をまず 6 方向（キューブマップ）に描き、
+// 全画面のシェーダーで「画面の中心からの距離 ＝ 視線の角度」として引き直す（200 度ちかくが丸く写り、まっすぐな線がたる型に曲がる）。
+// 四すみはレンズの丸い影で黒く欠け、はしほど赤と青がずれる。真昼の強い日ざしで、太陽からレンズフレアの輪が画面の中心をはさんで並ぶ
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const DPR = Math.min(devicePixelRatio || 1, 2);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(DPR); document.body.prepend(renderer.domElement);
+const hud = document.getElementById('hud'), g = hud.getContext('2d');
+const cubeRT = new THREE.WebGLCubeRenderTarget(512), cubeCam = new THREE.CubeCamera(.05, 500, cubeRT);
+const scene = new THREE.Scene(), SUN = new THREE.Vector3(.5, .62, -.6).normalize();
+scene.add(new THREE.HemisphereLight(0xcfe6ff, 0xb8a080, 1.5)); const sun = new THREE.DirectionalLight(0xfff0d0, 2.6); sun.position.copy(SUN).multiplyScalar(50); scene.add(sun);
+const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), bas = c => new THREE.MeshBasicMaterial({ color: c });
+const P = (par, geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); par.add(o); return o; };
+const BX = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+// 空（青のグラデーションと太陽）
+const sky = new THREE.Mesh(new THREE.SphereGeometry(300, 24, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, uniforms: { uSun: { value: SUN } }, vertexShader: 'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader: 'uniform vec3 uSun;varying vec3 vD;void main(){vec3 d=normalize(vD);float h=max(d.y,0.);vec3 c=mix(vec3(.55,.8,1.),vec3(.03,.22,.72),pow(h,.55));float s=max(dot(d,uSun),0.);c+=vec3(1.,.9,.7)*(pow(s,900.)*8.+pow(s,40.)*.5+pow(s,6.)*.18);if(d.y<0.)c=vec3(.3,.33,.36);gl_FragColor=vec4(c,1.);}' })); scene.add(sky);
+// ハーフパイプ: 断面は「平ら 4m ＋ 左右に半径 3m の 4 分の 1 円」。s は断面にそった道のり
+const F = 2, R = 3, L = F + R * Math.PI / 2, ZL = 9;
+const prof = s => { const a = Math.abs(s), sg = Math.sign(s) || 1; if (a <= F) return [s, 0, 0, 1]; if (a <= L) { const q = (a - F) / R; return [sg * (F + R * Math.sin(q)), R * (1 - Math.cos(q)), -sg * Math.sin(q), Math.cos(q)]; } return [sg * (F + R), R + a - L, -sg, 0]; };
+{ const st = []; for (let i = 0; i <= 3; i++) st.push([-(F + R) - 3.5 + i * 3.5 / 3, R]); for (let i = 1; i <= 12; i++) st.push(prof(-L + (L - F) * i / 12)); for (let i = 1; i <= 4; i++) st.push(prof(-F + 2 * F * i / 4)); for (let i = 1; i <= 12; i++) st.push(prof(F + (L - F) * i / 12)); for (let i = 1; i <= 3; i++) st.push([F + R + i * 3.5 / 3, R]);
+  const pos = [], uv = [], idx = [], n = st.length; st.forEach((p, i) => { pos.push(p[0], p[1], -ZL, p[0], p[1], ZL); uv.push(i / (n - 1), 0, i / (n - 1), 1); if (i < n - 1) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } });
+  const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); ge.setIndex(idx); ge.computeVertexNormals();
+  // コンクリートの板の目地と、らくがき
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512; const c = cv.getContext('2d'); c.fillStyle = '#cfc9bd'; c.fillRect(0, 0, 1024, 512);
+  for (let i = 0; i < 500; i++) { c.fillStyle = `rgba(${hash(i) < .5 ? '90,84,76' : '255,250,240'},${.03 + hash(i, 1) * .06})`; c.fillRect(hash(i, 2) * 1024, hash(i, 3) * 512, 10 + hash(i, 4) * 70, 4 + hash(i, 5) * 20); }
+  const cols = ['#ff3d7f', '#18c8d8', '#ffd21f', '#7a4cff', '#ff7a1a']; for (let i = 0; i < 14; i++) { c.fillStyle = c.strokeStyle = cols[i % 5]; c.globalAlpha = .9; const x = 80 + hash(i, 6) * 860, y = 30 + hash(i, 7) * 450; c.lineWidth = 7; c.beginPath(); if (i % 3 === 0) { c.arc(x, y, 14 + hash(i, 8) * 22, 0, 7); c.fill(); } else if (i % 3 === 1) { c.moveTo(x - 40, y); c.bezierCurveTo(x - 10, y - 50, x + 10, y + 50, x + 46, y - 8); c.stroke(); } else { c.moveTo(x, y - 26); c.lineTo(x + 30, y + 20); c.lineTo(x - 30, y + 20); c.closePath(); c.stroke(); } }
+  c.globalAlpha = 1; c.strokeStyle = 'rgba(60,56,50,.55)'; c.lineWidth = 2; for (let i = 1; i < 12; i++) { c.beginPath(); c.moveTo(0, i * 512 / 12); c.lineTo(1024, i * 512 / 12); c.stroke(); } for (let i = 1; i < 16; i++) { c.beginPath(); c.moveTo(i * 64, 0); c.lineTo(i * 64, 512); c.stroke(); }
+  c.fillStyle = '#e8382f'; c.fillRect(0, 0, 1024, 10); c.fillRect(0, 502, 1024, 10);
+  const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4; scene.add(new THREE.Mesh(ge, new THREE.MeshLambertMaterial({ map: tx, flatShading: true, side: THREE.DoubleSide })));
+  const wood = new THREE.MeshLambertMaterial({ color: 0xc08a4a, flatShading: true, side: THREE.DoubleSide });
+  for (const sg of [-1, 1]) { const sh = new THREE.Shape(); sh.moveTo(sg * (F + R + 3.5), 0); sh.lineTo(sg * (F + R + 3.5), R); for (let i = 12; i >= 0; i--) { const p = prof(sg * (F + (L - F) * i / 12)); sh.lineTo(p[0], p[1]); } sh.closePath(); for (const z of [-ZL, ZL]) P(scene, new THREE.ShapeGeometry(sh), wood, 0, 0, z); P(scene, BX(.1, R, ZL * 2), wood, sg * (F + R + 3.5), R / 2, 0);
+    const cp = P(scene, new THREE.CylinderGeometry(.07, .07, ZL * 2, 8), lam(0xe8eef2), sg * (F + R), R + .02, 0); cp.rotation.x = Math.PI / 2;
+    const rl = P(scene, new THREE.CylinderGeometry(.04, .04, ZL * 2, 6), lam(0x2a6fd8), sg * (F + R + 3.4), R + 1.1, 0); rl.rotation.x = Math.PI / 2; for (let i = 0; i <= 6; i++) P(scene, new THREE.CylinderGeometry(.04, .04, 1.1, 6), lam(0x2a6fd8), sg * (F + R + 3.4), R + .55, -ZL + i * ZL / 3);
+    // 見物の友だち
+    for (let i = 0; i < 3; i++) { const f = new THREE.Group(), cc = [0x18c8d8, 0xffd21f, 0xff3d7f, 0x7a4cff, 0x3ad06a, 0xff7a1a][i + (sg > 0 ? 3 : 0)]; P(f, BX(.34, .6, .22), lam(cc), 0, 1.1, 0); P(f, BX(.3, .8, .2), lam(0x2a3050), 0, .4, 0); P(f, new THREE.IcosahedronGeometry(.15, 0), lam(0xf2b98a), 0, 1.58, 0); f.position.set(sg * (F + R + 1.2 + hash(i, sg) * 1.6), R, -5.5 + i * 2.6 + hash(i, 3 + sg)); f.userData.k = i + sg; scene.add(f); (scene.userData.fr ??= []).push(f); } } }
+P(scene, new THREE.PlaneGeometry(600, 600), lam(0x8d949a), 0, -.01, 0).rotation.x = -Math.PI / 2;
+// まわり: 三角の旗、やしの木、建物、街灯、雲
+{ const cols = [0xff3d7f, 0xffd21f, 0x18c8d8, 0xffffff, 0x7a4cff]; for (const z of [-5, 3.5]) { for (const sg of [-1, 1]) P(scene, new THREE.CylinderGeometry(.07, .09, 8.5, 6), lam(0xf0f0f0), sg * 8.3, 4.25, z); const N = 26; for (let i = 0; i < N; i++) { const k = (i + .5) / N, tri = new THREE.Mesh(new THREE.ConeGeometry(.3, .6, 3), new THREE.MeshBasicMaterial({ color: cols[i % 5], side: THREE.DoubleSide })); tri.scale.z = .05; tri.rotation.x = Math.PI; tri.position.set(-8.3 + 16.6 * k, 8.4 - Math.sin(k * Math.PI) * 1.5 - .3, z); scene.add(tri); } }
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + .2, d = 17 + hash(i, 11) * 14, x = Math.cos(a) * d, z = Math.sin(a) * d - 4, pm = new THREE.Group(), h = 7 + hash(i, 12) * 4; const tr = P(pm, new THREE.CylinderGeometry(.16, .28, h, 5), lam(0x9a7a50), 0, h / 2, 0); for (let k = 0; k < 7; k++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(.5, 3.4, 4), lam(k % 2 ? 0x2f9a48 : 0x3fb85a)); lf.scale.z = .25; const q = new THREE.Group(); q.position.y = h; q.rotation.y = k / 7 * Math.PI * 2; lf.rotation.z = -1.95; lf.position.set(1.4, -.3, 0); q.add(lf); pm.add(q); } pm.position.set(x, 0, z); pm.rotation.z = (hash(i, 13) - .5) * .12; scene.add(pm); }
+  const pc = [0xffe0c8, 0xf6c7d8, 0xcfe9f2, 0xfff2b8, 0xe9e2f8, 0xffffff]; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, d = 42 + hash(i, 15) * 16, w = 9 + hash(i, 16) * 10, h = 6 + hash(i, 17) * 16, b = P(scene, BX(w, h, w), lam(pc[i % 6]), Math.cos(a) * d, h / 2, Math.sin(a) * d); b.rotation.y = -a; P(scene, BX(w * 1.02, .8, w * 1.02), lam(0x4a6f9a), b.position.x, h * .55, b.position.z).rotation.y = -a; }
+  for (let i = 0; i < 9; i++) { const cl = new THREE.Group(), a = i / 9 * 6.28 + hash(i, 20); for (let k = 0; k < 4; k++) P(cl, new THREE.IcosahedronGeometry(7 + hash(i, k) * 6, 0), bas(k % 2 ? 0xffffff : 0xeaf2fa), k * 9 - 13, hash(k, i) * 4, hash(k, i + 5) * 6).scale.y = .55; cl.position.set(Math.cos(a) * 170, 55 + hash(i, 21) * 50, Math.sin(a) * 170); cl.lookAt(0, 30, 0); scene.add(cl); } }
+// スケーター（板の向きを X、頭の向きを Y とする切り絵のような人形。関節は毎コマ計算して箱をつなぐ）
+const sk = new THREE.Group(); sk.matrixAutoUpdate = false; scene.add(sk); const body = new THREE.Group(); body.scale.setScalar(1.2); sk.add(body);
+const SKIN = lam(0xf2b98a), SHIRT = lam(0xe8382f), PANT = lam(0x27304f), WH = lam(0xffffff);
+const board = new THREE.Group(); body.add(board); P(board, BX(.86, .025, .23), lam(0x15171c), 0, .105, 0); P(board, BX(.84, .02, .22), lam(0x12c8b8), 0, .085, 0); for (const s of [-1, 1]) { P(board, BX(.14, .025, .23), lam(0x12c8b8), s * .48, .125, 0).rotation.z = s * .4; for (const z of [-1, 1]) P(board, new THREE.CylinderGeometry(.04, .04, .05, 8), WH, s * .28, .04, z * .1).rotation.x = Math.PI / 2; }
+const limb = (w, m) => P(body, BX(1, w, w), m), th = [limb(.15, PANT), limb(.15, PANT)], shn = [limb(.13, PANT), limb(.13, PANT)], ft = [P(body, BX(.26, .09, .13), WH), P(body, BX(.26, .09, .13), WH)], ua = [limb(.1, SHIRT), limb(.1, SHIRT)], fa = [limb(.09, SKIN), limb(.09, SKIN)];
+const torso = P(body, BX(.3, 1, .22), SHIRT), head = new THREE.Group(); body.add(head); P(head, new THREE.IcosahedronGeometry(.13, 1), SKIN); P(head, new THREE.SphereGeometry(.155, 10, 6, 0, 6.3, 0, 1.7), lam(0xffd21f), 0, .02, 0);
+const seg = (m, ax, ay, bx, by, z = 0) => { m.position.set((ax + bx) / 2, (ay + by) / 2, z); m.rotation.z = Math.atan2(by - ay, bx - ax); m.scale.x = Math.hypot(bx - ax, by - ay) + .04; };
+const knee = (hx, hy, fx, fy, l, out) => { const dx = fx - hx, dy = fy - hy, d = Math.min(Math.hypot(dx, dy), l * 2 - .001), a = Math.acos(d / (2 * l)), b = Math.atan2(dy, dx), k1 = [hx + Math.cos(b + a) * l, hy + Math.sin(b + a) * l], k2 = [hx + Math.cos(b - a) * l, hy + Math.sin(b - a) * l]; return (k1[0] - k2[0]) * out > 0 ? k1 : k2; };
+const shadow = P(scene, new THREE.CircleGeometry(.55, 16), new THREE.MeshBasicMaterial({ color: 0x1a1a22, transparent: true, opacity: .45, depthWrite: false }));
+// 仕上げ: 魚眼の引き直し、色ずれ、けられ、レンズフレア
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ depthTest: false, uniforms: { tC: { value: cubeRT.texture }, uB: { value: new THREE.Matrix3() }, uC: { value: new THREE.Vector2() }, uRd: { value: 1 }, uTh: { value: 1.75 }, uSun: { value: SUN } },
+  vertexShader: 'void main(){gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader: `uniform samplerCube tC;uniform mat3 uB;uniform vec2 uC;uniform float uRd,uTh;uniform vec3 uSun;
+vec3 look(vec2 p,float k){float r=length(p),th=r*uTh*k;vec2 n=r>1e-5?p/r:vec2(0.);return uB*vec3(sin(th)*n,cos(th));}
+float gh(vec2 p,vec2 c,float rad){float d=length(p-c)/rad;return smoothstep(1.,.86,d)*(.3+.7*d*d);}
+void main(){vec2 p=(gl_FragCoord.xy-uC)/uRd;float r=length(p);
+ float ca=.004+.03*r*r;                          // はしほど赤と青がずれる
+ vec3 c=vec3(textureCube(tC,look(p,1.+ca)).r,textureCube(tC,look(p,1.)).g,textureCube(tC,look(p,1.-ca)).b);
+ vec3 sl=uSun*uB;float ths=acos(clamp(sl.z,-1.,1.));vec2 ps=normalize(sl.xy+1e-6)*ths/uTh;
+ float vis=smoothstep(.6,.98,textureCube(tC,uSun).g)*smoothstep(1.3,.95,length(ps));
+ vec2 d=p-ps;float dd=length(d),an=atan(d.y,d.x);
+ vec3 fl=vec3(1.,.96,.85)*(1.2*exp(-dd*dd*70.)+.4*exp(-dd*5.5)+.07);
+ fl+=vec3(1.,.9,.7)*pow(abs(cos(an*3.+.5)),50.)*.55/(1.+dd*8.);
+ fl+=vec3(1.,.75,.5)*exp(-abs(d.y)*110.)*.4/(1.+abs(d.x)*4.);
+ fl+=vec3(.3,1.,.5)*gh(p,ps*-.3,.045)*.22+vec3(1.,.55,.2)*gh(p,ps*-.62,.085)*.2+vec3(.6,.4,1.)*gh(p,ps*-1.05,.15)*.16+vec3(.3,.8,1.)*gh(p,ps*.42,.03)*.25+vec3(1.,.3,.4)*gh(p,ps*-.85,.025)*.3;
+ c+=fl*vis;
+ c=pow(clamp(c,0.,1.),vec3(.4545));c=mix(vec3(dot(c,vec3(.3,.59,.11))),c,1.3);c=c*c*(3.-2.*c)*.6+c*.4;   // こい色、強い明暗
+ c*=(1.-.45*pow(r,4.))*smoothstep(1.005,.955,r);  // 四すみの丸いけられ
+ gl_FragColor=vec4(c,1.);}` }));
+const pScene = new THREE.Scene(); pScene.add(post); const pCam = new THREE.Camera();
+let W = 1, HH = 1;
+const resize = () => { W = innerWidth; HH = innerHeight; renderer.setSize(W, HH); hud.width = W * DPR; hud.height = HH * DPR; const u = post.material.uniforms; u.uC.value.set(W * DPR / 2, HH * DPR / 2); u.uRd.value = Math.hypot(W, HH) / 2 * DPR * .975; u.uTh.value = HH > W ? 1.95 : 1.75; };
+addEventListener('resize', resize); resize();
+const X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3(), m4 = new THREE.Matrix4(), tgt = new THREE.Vector3(0, 1, 0), cp = new THREE.Vector3(), fw = new THREE.Vector3(), rt = new THREE.Vector3(), up = new THREE.Vector3(), want = new THREE.Vector3();
+const A = 8.55, OM = Math.PI * 2 / 5, PH0 = 4.08, q0 = Math.asin(L / A);
+let last = performance.now(), t = 0, score = 12400, lastAir = -1, pop = null;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // スケーターの動き: 断面にそって振り子のように行き来し、ふちをこえた分だけ宙に出て半回転（または 1 回転半）して戻る
+  const ph = OM * t + PH0, s = A * Math.sin(ph), vs = Math.sign(Math.cos(ph)) || 1, sg = Math.sign(s) || 1, sz = Math.sin(t * Math.PI * 2 / 10) * 2.4 - .5, [px, py, nx, ny] = prof(s), air = Math.abs(s) > L, k = Math.floor(ph / Math.PI), spin = k % 2 ? 3 : 1;
+  let q = 0, crouch = .55 + .35 * Math.min(1, Math.abs(Math.cos(ph)));
+  if (air) { const pp = ((ph % Math.PI) + Math.PI) % Math.PI; q = Math.max(0, Math.min(1, (pp - q0) / (Math.PI - 2 * q0))); const th = Math.PI * spin * q; X.set(0, Math.cos(th), -sg * Math.sin(th)); Y.set(-sg, 0, 0); crouch = .95; if (k !== lastAir) { lastAir = k; const pt = spin === 3 ? 900 : 350; score += pt; pop = { n: spin === 3 ? '540 スピン' : 'バックサイド エア', pt, t0: t }; } }
+  else { const a = Math.abs(s) <= F ? 0 : (Math.abs(s) - F) / R; X.set(vs * Math.cos(a), vs * sg * Math.sin(a), 0); Y.set(nx, ny, 0); }
+  Z.crossVectors(X, Y); m4.makeBasis(X, Y, Z); m4.setPosition(px - (air ? sg * .15 : 0), py, sz); sk.matrix.copy(m4); sk.matrixWorldNeedsUpdate = true;
+  { const [bx, by, bnx, bny] = prof(Math.max(-L, Math.min(L, s))); shadow.position.set(bx + bnx * .03, by + bny * .03, sz); shadow.lookAt(bx + bnx, by + bny, sz); shadow.material.opacity = air ? .25 : .45; }
+  // 姿勢
+  const hy = .8 - .34 * crouch, hx = .03, lean = .12 + .1 * crouch, shx = hx + lean, shy = hy + .46, wv = Math.sin(t * 7) * .08;
+  for (const i of [0, 1]) { const o = i ? 1 : -1, fx = o * .25, fy = .16, kn = knee(hx + o * .07, hy, fx, fy, .36, o); seg(th[i], hx + o * .07, hy, kn[0], kn[1], o * .02); seg(shn[i], kn[0], kn[1], fx, fy, o * .02); ft[i].position.set(fx, .15, .02);
+    const hxn = air && i === 0 ? -.3 : shx + o * (.5 - .12 * crouch), hyn = air && i === 0 ? .22 : shy + (air ? .35 : .05 + o * wv - .1 * crouch), el = [(shx + o * .1 + hxn) / 2 + o * .03, (shy + hyn) / 2 - .09]; seg(ua[i], shx + o * .13, shy - .03, el[0], el[1], o * .05); seg(fa[i], el[0], el[1], hxn, hyn, o * .05); }
+  seg(torso, hx, hy - .05, shx, shy + .02); torso.scale.x = .56; torso.scale.set(.56, 1, 1); torso.rotation.z = Math.atan2(shy - hy, shx - hx); torso.scale.y = 1; torso.geometry.parameters; head.position.set(shx + .06, shy + .2, 0);
+  scene.userData.fr.forEach(f => { const up2 = air ? Math.abs(Math.sin(t * 12 + f.userData.k)) * .25 : 0; f.position.y = R + up2; f.lookAt(px, R, sz); });
+  // カメラ: パイプの底、地面から 30cm。スケーターを少しおくれて追う
+  cp.set(px * .3, .3, sz + 2.5); want.set(px * .8 + nx * .7, py * .8 + ny * .7 + .25, sz); tgt.lerp(want, Math.min(1, dt * 7));
+  fw.subVectors(tgt, cp).normalize(); up.set(Math.sin(-px * .035), Math.cos(px * .035), 0); rt.crossVectors(fw, up).normalize(); up.crossVectors(rt, fw);
+  post.material.uniforms.uB.value.set(rt.x, up.x, fw.x, rt.y, up.y, fw.y, rt.z, up.z, fw.z);
+  sky.position.copy(cp); cubeCam.position.copy(cp); cubeCam.update(renderer, scene); renderer.setRenderTarget(null); renderer.render(pScene, pCam);
+  // 得点と技の名前
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, W, HH); const u = Math.min(W, HH) / 100, tx = (s2, x, y, sz2, al = 'left', col = '#fff') => { g.font = `italic 900 ${sz2}px "Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif`; g.textAlign = al; g.lineJoin = 'round'; g.lineWidth = sz2 * .22; g.strokeStyle = '#101018'; g.strokeText(s2, x, y); g.fillStyle = col; g.fillText(s2, x, y); };
+  g.textBaseline = 'middle'; const mx = W * (HH > W ? .08 : .13), my = HH * (HH > W ? .1 : .16); tx(String(score).padStart(7, '0'), mx, my, u * 5.2); tx('スコア', mx, my - u * 4.6, u * 2.6, 'left', '#ffd21f');
+  if (pop && t - pop.t0 < 2.2) { const e = t - pop.t0, sc = 1 + .6 * Math.max(0, 1 - e * 5); g.globalAlpha = Math.min(1, (2.2 - e) * 3); g.save(); g.translate(W / 2, HH * .8); g.rotate(-.06); g.scale(sc, sc); tx(pop.n, 0, 0, u * 6.4, 'center', '#ffd21f'); tx(`+${pop.pt}`, 0, u * 7, u * 5, 'center'); g.restore(); g.globalAlpha = 1; }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

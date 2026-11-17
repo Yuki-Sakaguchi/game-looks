@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 17 手荷物検査 X 線の検査画面</title>
+<style>
+html,body{margin:0;height:100%;background:#fff;overflow:hidden}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9fb4c8;opacity:.9}
+</style>
+<canvas id="hud"></canvas>
+<div id="cap">LOOK 17 ─ 手荷物検査 / X 線の検査画面　｜　見るだけ（自動で流れて、あやしい物に印がつく）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 空港の手荷物の X 線検査機の画面に見立てる。背景は白。物はすべて「光を吸う半透明」で、面を 1 枚通るたびに下の色に掛け算する（重なるほどこい）。
+// 視線と面がななめなほど通る道のりが長いので、輪郭ほどこく出る。色は材質で 3 つだけ: 有機物＝だいだい、混合＝緑、金属＝青。
+// 小さな絵に描いて拡大し、検出器のすじと粒をのせる。あやしい道具が中央に来るとベルトが止まり、赤い枠がつく
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const DPR = Math.min(devicePixelRatio || 1, 2);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(1); renderer.setClearColor(0xffffff); document.body.prepend(renderer.domElement);
+const hud = document.getElementById('hud'), g = hud.getContext('2d');
+const RT = new THREE.WebGLRenderTarget(64, 64, { depthBuffer: false }); RT.texture.magFilter = THREE.NearestFilter;
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(20, 1, 1, 200);
+// 材質: 吸う色（赤・緑・青をどれだけ吸うか）と、こさ
+const AB = { o: [.1, .75, 2.2], m: [1.5, .22, 1.4], k: [2.2, 1.1, .18], n: [.6, .55, .5] }, cache = {};
+const mat = (cat, d) => cache[cat + d] ??= new THREE.ShaderMaterial({ uniforms: { uA: { value: new THREE.Vector3(...AB[cat]) }, uD: { value: d * (cat === 'k' ? .6 : 1) } }, side: THREE.DoubleSide, transparent: true, depthTest: false, depthWrite: false,
+  blending: THREE.CustomBlending, blendSrc: THREE.DstColorFactor, blendDst: THREE.ZeroFactor,
+  vertexShader: 'varying vec3 vN,vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalMatrix*normal;vV=-mv.xyz;gl_Position=projectionMatrix*mv;}',
+  fragmentShader: 'uniform vec3 uA;uniform float uD;varying vec3 vN,vV;void main(){float nv=abs(dot(normalize(vN),normalize(vV)));gl_FragColor=vec4(exp(-uA*uD/max(nv,.2)),1.);}' });
+const B = (w, h, d) => new THREE.BoxGeometry(w, h, d), C = (r, h, s = 16, r2 = r) => new THREE.CylinderGeometry(r2, r, h, s), S = (r) => new THREE.SphereGeometry(r, 18, 12), T = (r, t, a = Math.PI * 2) => new THREE.TorusGeometry(r, t, 8, 24, a);
+const P = (par, geo, m, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); par.add(o); return o; };
+const G = (par, x = 0, y = 0, z = 0, rz = 0) => { const o = new THREE.Group(); o.position.set(x, y, z); o.rotation.z = rz; par.add(o); return o; };
+const H = Math.PI / 2;
+// 中に入れる物
+const ITEM = {
+  scissors(p) { for (const s of [-1, 1]) { const q = G(p, 0, 0, s * .03, s * .2); const b = P(q, new THREE.ConeGeometry(.1, 1.5, 4), mat('k', 1.3), .75, 0, 0, 0, 0, -H); b.scale.z = .25; P(q, B(.55, .07, .04), mat('k', 1.3), -.27, 0, 0); P(q, T(.22, .07), mat('o', .9), -.74, -s * .12, 0); P(q, T(.22, .025), mat('k', .8), -.74, -s * .12, 0); } P(p, C(.06, .12), mat('k', 2), 0, 0, 0, H); },
+  pliers(p) { for (const s of [-1, 1]) { const q = G(p, 0, 0, s * .04, s * .15); P(q, B(.7, .17, .1), mat('k', 1.7), .42, s * .07, 0); P(q, B(1.4, .09, .09), mat('k', 1.4), -.8, -s * .03, 0); P(q, B(1.05, .19, .17), mat('m', .7), -.95, -s * .03, 0); } P(p, C(.09, .14), mat('k', 2), .08, 0, 0, H); },
+  wrench(p) { P(p, B(1.5, .15, .06), mat('k', 1.6)); P(p, T(.17, .075, 4.7), mat('k', 1.6), .88, 0, 0, 0, 0, .8); P(p, T(.14, .07), mat('k', 1.6), -.86, 0, 0); },
+  laptop(p) { P(p, B(2.5, 1.7, .09), mat('m', .28)); P(p, B(2.5, 1.7, .05), mat('o', .12), 0, 0, .1); for (let i = 0; i < 3; i++) P(p, B(.62, .5, .05), mat('k', .45), -.75 + i * .68, -.5, 0); P(p, B(1.3, .7, .03), mat('m', .5), .4, .35, 0); P(p, C(.2, .05), mat('k', .7), -.8, .4, 0, H); P(p, C(.04, 2.3, 8), mat('k', .9), 0, .88, 0, 0, 0, H); for (let i = 0; i < 9; i++) P(p, B(.1 + hash(i, 1) * .2, .08 + hash(i, 2) * .14, .03), mat('k', .7), -.1 + hash(i, 3) * 1.1, .1 + hash(i, 4) * .55, 0); },
+  bottle(p) { P(p, C(.3, 1.1), mat('o', .5)); P(p, C(.26, .8), mat('o', .4), 0, -.12, 0); P(p, C(.3, .25, 16, .12), mat('o', .5), 0, .67, 0); P(p, C(.13, .16), mat('m', .8), 0, .86, 0); },
+  shoe(p) { const s = P(p, S(.3), mat('o', .32)); s.scale.set(2.5, 1, 1); P(p, B(1.5, .1, .5), mat('m', .5), 0, -.28, 0); for (let i = 0; i < 4; i++) P(p, T(.035, .012), mat('k', 1), .1 + i * .14, .22 - i * .04, 0); },
+  coins(p) { for (let i = 0; i < 6; i++) P(p, C(.11, .02), mat('k', .9), hash(i, 5) * .5, hash(i, 6) * .4, i * .02, H); },
+  keys(p) { P(p, T(.13, .02), mat('k', 1.2)); for (let i = 0; i < 3; i++) { const q = G(p, .05, -.12, 0, -1 + i * .5); P(q, B(.34, .05, .02), mat('k', 1.2), .26); P(q, C(.07, .02), mat('k', 1.2), .06, 0, 0, H); } },
+  umbrella(p) { P(p, C(.03, 2.6, 8), mat('k', 1.2)); P(p, C(.13, 1.9, 10, .09), mat('o', .3), 0, -.2, 0); P(p, T(.13, .04, Math.PI), mat('m', .8), .13, 1.3, 0); for (let i = 0; i < 6; i++) P(p, C(.012, 1.7, 4), mat('k', .8), Math.cos(i) * .08, -.2, Math.sin(i) * .08); },
+  camera(p) { P(p, B(1.05, .72, .5), mat('m', .4)); P(p, C(.27, .5), mat('k', .5), .12, 0, .3, H); P(p, T(.2, .03), mat('k', 1), .12, 0, .5); P(p, B(.3, .5, .2), mat('k', .7), -.33, 0, 0); P(p, B(.3, .1, .2), mat('m', .5), -.2, .41, 0); },
+  banana(p) { P(p, T(.55, .11, 1.7), mat('o', .6)); },
+  apple(p) { P(p, S(.3), mat('o', .5)); P(p, C(.012, .16, 4), mat('o', 1.5), 0, .3, 0); },
+  dryer(p) { P(p, C(.3, 1, 16, .24), mat('m', .35), 0, 0, 0, 0, 0, H); P(p, B(.26, .85, .24), mat('m', .4), .2, -.55, 0, 0, 0, .15); for (let i = 0; i < 6; i++) P(p, T(.19, .022), mat('k', 1), -.36 + i * .1, 0, 0, 0, H); P(p, C(.14, .28), mat('k', 1.3), .3, 0, 0, 0, 0, H); },
+  phones(p) { P(p, T(.55, .035, Math.PI), mat('k', 1)); for (const s of [-1, 1]) { P(p, C(.27, .16), mat('m', .5), s * .55, -.08, 0, 0, 0, H); P(p, C(.12, .08), mat('k', 1.5), s * .55, -.08, 0, 0, 0, H); } },
+  charger(p, k = 0) { P(p, B(.45, .45, .26), mat('m', .6)); P(p, B(.2, .25, .12), mat('k', 1), 0, 0, 0); for (const s of [-1, 1]) P(p, B(.04, .18, .08), mat('k', 1.5), s * .1, .3, 0); const pts = [...Array(9)].map((_, i) => new THREE.Vector3(Math.sin(i * 1.9 + k) * .5 - i * .08, -.25 - i * .12 + Math.cos(i * 2.3 + k) * .3, hash(i, k) * .2)); P(p, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, .02, 5), mat('k', .9)); },
+  phone(p) { P(p, B(.7, 1.4, .07), mat('m', .5)); P(p, B(.5, .8, .04), mat('k', .45), 0, -.15, 0); P(p, C(.05, .04), mat('k', 1.4), -.2, .55, 0, H); },
+  book(p) { P(p, B(1.1, 1.5, .22), mat('o', .32)); },
+  can(p) { P(p, C(.25, .75), mat('k', .22)); P(p, C(.22, .6), mat('o', .4)); },
+  cloth(p, w = 2, h = 1.4) { P(p, B(w, h, .3), mat('o', .07)); P(p, B(w * .9, h * .5, .3), mat('o', .06), .05, h * .2, 0); }
+};
+const put = (bag, name, x, y, z, rz, a, b) => { const q = G(bag, x, y, z, rz); ITEM[name](q, a, b); return q; };
+// かばん 3 つ（1: スーツケース＝はさみ入り、2: リュック＝異常なし、3: ボストンバッグ＝工具入り）
+const bags = [];
+{ const b = G(scene); P(b, B(4.6, 3.2, 1.3), mat('o', .06)); for (const s of [-1, 1]) { P(b, B(4.5, .05, .08), mat('k', .5), 0, s * 1.55, 0); P(b, B(.05, 3.1, .08), mat('k', .5), s * 2.25, 0, 0); P(b, C(.035, 2.9, 8), mat('k', .9), .8, s * .5, -.5, 0, 0, H); P(b, C(.2, .16), mat('m', .7), -2.4, s * 1.2, -.3, 0, 0, H); P(b, C(.05, .3, 8), mat('k', 1.4), -2.4, s * 1.2, -.3, 0, 0, H); } P(b, B(.12, 2, .12), mat('m', .7), 2.36, 0, -.5);
+  put(b, 'cloth', -1, .6, -.3, .05, 2.2, 1.5); put(b, 'cloth', .9, -.6, -.2, -.1, 2.4, 1.6); put(b, 'cloth', 1.2, .8, .2, .2, 1.6, 1.2); put(b, 'laptop', -.75, -.35, -.45, .04); put(b, 'bottle', 1.75, -.55, .2, .25); put(b, 'shoe', 1.1, .95, .3, .1); put(b, 'shoe', 1.2, .35, .35, 3.3); put(b, 'charger', -1.7, 1, .2, .4, 1); put(b, 'coins', .1, -1.2, .4); put(b, 'book', -.2, .75, -.2, 1.5);
+  bags.push({ g: b, marks: [{ o: put(b, 'scissors', -.55, .3, .35, .5), n: 'はさみ', r: 1.15 }] }); }
+{ const b = G(scene); const sh = P(b, S(1), mat('o', .07)); sh.scale.set(2.1, 1.6, .75); const pk = P(b, S(1), mat('o', .05), -.5, 0, .4); pk.scale.set(1.1, 1.1, .4); for (const s of [-1, 1]) { P(b, T(1.3, .07, 2.2), mat('o', .35), .5, s * .75, -.5, 0, 0, s > 0 ? .4 : -2.6); P(b, B(.16, .12, .05), mat('k', 1), -1.2, s * .9, .3); } P(b, T(1.2, .02, 2.6), mat('k', .7), -.2, 0, .6, 0, 0, 1.8); P(b, T(.3, .06, Math.PI), mat('o', .5), 2.05, 0, 0, 0, 0, -H);
+  put(b, 'camera', -.7, .45, .1, .2); put(b, 'banana', .75, -.2, .3, 2.4); put(b, 'apple', -.1, -.75, .2); put(b, 'phones', .95, .65, 0, -.4); put(b, 'can', -1.25, -.5, 0, .3); put(b, 'book', .55, .1, -.3, .1); put(b, 'phone', -.3, .1, .35, -.5); put(b, 'keys', 1.5, -.5, .3, 1); put(b, 'cloth', 0, 0, -.2, 0, 2.6, 1.8);
+  bags.push({ g: b, marks: [], ok: 1 }); }
+{ const b = G(scene); const sh = P(b, C(1.45, 4.4, 20), mat('o', .07), 0, 0, 0, 0, 0, H); sh.scale.z = .5; for (const s of [-1, 1]) { P(b, T(.8, .05, Math.PI), mat('o', .4), 0, s * .5, .5, 0, 0, s > 0 ? 0 : Math.PI); P(b, C(1.45, .05, 20), mat('o', .2), s * 2.2, 0, 0, 0, 0, H).scale.z = .5; } P(b, B(4, .04, .05), mat('k', .6), 0, 0, .7);
+  put(b, 'cloth', -.8, .2, -.2, .1, 2.2, 1.7); put(b, 'cloth', 1, -.2, -.1, -.15, 2, 1.6); put(b, 'dryer', 1.25, .45, .1, -.3); put(b, 'bottle', -1.6, .55, .2, 1.3); put(b, 'shoe', -1.2, -.75, .2, .1); put(b, 'umbrella', .2, -1.05, -.2, H + .03); put(b, 'coins', 1.5, -.6, .3); put(b, 'keys', -.2, .95, .3, 2); put(b, 'charger', 1.7, -.2, -.2, 2, 3);
+  bags.push({ g: b, marks: [{ o: put(b, 'pliers', -.2, .35, .3, -.35), n: 'ペンチ', r: 1.3 }, { o: put(b, 'wrench', .35, -.5, .35, .25), n: 'スパナ', r: 1.1 }] }); }
+// ベルトの桟（うすい線）
+const cleats = [...Array(12)].map(() => P(scene, B(.06, 5, .05), mat('n', .05), 0, 0, -.9));
+// 仕上げ: 検出器のすじ・粒・輪郭の強調
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ depthTest: false, uniforms: { tD: { value: RT.texture }, uPx: { value: new THREE.Vector2() }, uT: { value: 0 }, uV: { value: 0 } }, vertexShader: 'varying vec2 vU;void main(){vU=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader: `uniform sampler2D tD;uniform vec2 uPx;uniform float uT,uV;varying vec2 vU;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+void main(){vec3 c=texture2D(tD,vU).rgb;
+ vec3 bl=(texture2D(tD,vU+vec2(uPx.x,0.)).rgb+texture2D(tD,vU-vec2(uPx.x,0.)).rgb+texture2D(tD,vU+vec2(0.,uPx.y)).rgb+texture2D(tD,vU-vec2(0.,uPx.y)).rgb)*.25;
+ c=clamp(c+(c-bl)*.9,0.,1.);                      // 輪郭の強調
+ vec2 q=floor(vU/uPx);float row=mix(q.y,q.x,uV);
+ c*=1.-.035*h(vec2(row,3.))-.05*step(.97,h(vec2(row,9.)));   // 検出器の 1 素子ごとのむら（流れる向きにすじになる）
+ c*=1.-.04*h(q+floor(uT*6.));
+ c=mix(c,vec3(dot(c,vec3(.33))),-.25);            // 色を少し強く
+ gl_FragColor=vec4(c*vec3(.97,.99,1.),1.);}` }));
+const pScene = new THREE.Scene(); pScene.add(post); const pCam = new THREE.Camera();
+let W = 1, HH = 1, tall = false, top = 0, bot = 0, hh = 3, ppu = 1;
+const resize = () => { W = innerWidth; HH = innerHeight; tall = HH > W; renderer.setSize(W, HH); hud.width = W * DPR; hud.height = HH * DPR; const k = Math.min(1, 640 / Math.max(W, HH)), rw = Math.round(W * k), rh = Math.round(HH * k); RT.setSize(rw, rh); post.material.uniforms.uPx.value.set(1 / rw, 1 / rh); post.material.uniforms.uV.value = tall ? 1 : 0;
+  top = tall ? .13 : .1; bot = tall ? .17 : .12; hh = tall ? 2.6 / (W / HH) : 2.5 / (1 - top - bot); ppu = HH / (2 * hh); const D = hh / Math.tan(10 * Math.PI / 180), off = (bot - top) * hh;
+  cam.aspect = W / HH; cam.up.set(tall ? 1 : 0, tall ? 0 : 1, 0); cam.position.set(tall ? -off : 0, tall ? 0 : -off, D); cam.lookAt(cam.position.x, cam.position.y, 0); cam.updateProjectionMatrix(); };
+addEventListener('resize', resize); resize();
+const SP = 8.5, V = 1.9, v3 = new THREE.Vector3();
+const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; const tt = t % 15.62;
+  // ベルトの進み: あやしいかばんが中央に来たら 1.1 秒止まる
+  const prog = tt < 3 ? V * tt : tt < 4.1 ? V * 3 : tt < 13.05 ? V * (tt - 1.1) : tt < 14.15 ? V * 11.95 : V * (tt - 2.2), stop = (tt >= 3 && tt < 4.1) || (tt >= 13.05 && tt < 14.15);
+  bags.forEach((b, i) => { b.x = ((i * SP + V * 3 - prog + SP * 1.5) % (SP * 3) + SP * 3) % (SP * 3) - SP * 1.5; b.g.position.x = b.x; b.g.rotation.z = [.04, -.12, .07][i]; });
+  cleats.forEach((c, i) => c.position.x = ((i * 2.125 - prog) % 25.5 + 25.5) % 25.5 - 12.75);
+  post.material.uniforms.uT.value = t;
+  renderer.setRenderTarget(RT); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(pScene, pCam);
+  // 検査機の表示枠
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, W, HH); const th = top * HH, bh = bot * HH, fs = Math.max(11, Math.min(17, Math.min(W, HH) * .03)), F = (s, b = '') => `${b} ${s}px "Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif`;
+  g.fillStyle = '#18222d'; g.fillRect(0, 0, W, th); g.fillRect(0, HH - bh, W, bh); g.fillStyle = '#2e4257'; g.fillRect(0, th - 3, W, 3); g.fillRect(0, HH - bh, W, 3);
+  g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = F(fs * 1.15, 'bold'); g.fillStyle = '#dbe8f4'; const l1 = tall ? th * .3 : th * .5, l2 = tall ? th * .7 : th * .5; g.fillText('手荷物 X 線検査　レーン 3', 14, l1);
+  // 色の見本
+  g.font = F(fs); let lx = tall ? 14 : Math.max(W * .34, 14 + fs * 17); for (const [c, n] of [['#f08a1c', '有機物'], ['#2fae4c', '混合'], ['#2a5fd0', '金属']]) { g.fillStyle = c; g.fillRect(lx, l2 - fs * .5, fs, fs); g.fillStyle = '#dbe8f4'; g.fillText(n, lx + fs * 1.3, l2); lx += fs * 1.3 + g.measureText(n).width + fs; }
+  const cyc = Math.floor(t / 15.62) * 3, done = cyc + (tt > 4.1 ? 1 : 0) + (tt > 8.6 ? 1 : 0) + (tt > 14.15 ? 1 : 0), hit = Math.floor(t / 15.62) * 3 + (tt >= 3 ? 1 : 0) + (tt >= 13.05 ? 2 : 0);
+  g.textAlign = 'right'; g.fillStyle = '#dbe8f4'; g.fillText(`検査 ${String(127 + done).padStart(4, '0')}`, W - 14, tall ? l1 : th * .32); g.fillStyle = '#ff6a5a'; g.fillText(`要確認 ${String(hit).padStart(2, '0')}`, W - 14, tall ? l2 : th * .7);
+  // 下の段: ボタンとベルトの表示
+  const bw = Math.min(fs * 5.2, (W - 28) / 5 - 6), by = HH - bh + (tall ? bh * .14 : bh * .2), bhh = Math.min(fs * 2, bh * .42); g.textAlign = 'center'; g.font = F(fs * .9);
+  ['カラー', '白黒', '有機強調', '高密度', '拡大'].forEach((n, i) => { const x = 14 + i * (bw + 6), on = i === 0 || (i === 4 && stop); rr(x, by, bw, bhh, 4); g.fillStyle = on ? '#3d6f9e' : '#223142'; g.fill(); g.strokeStyle = '#4a6784'; g.lineWidth = 1; g.stroke(); g.fillStyle = on ? '#fff' : '#9fb4c8'; g.fillText(n, x + bw / 2, by + bhh / 2 + 1); });
+  g.textAlign = 'right'; g.font = F(fs, 'bold'); g.fillStyle = stop ? '#ff6a5a' : '#7fe08f'; const ar = tall ? '▼▼▼' : '◀◀◀', ph = Math.floor(t * 4) % 4; g.fillText(stop ? '■ ベルト停止　確認中' : `${ar.slice(0, ph) || '　'} ベルト運転中`, W - 14, tall ? HH - bh * .5 : by + bhh / 2);
+  // 画面のふちの目盛り
+  g.strokeStyle = 'rgba(40,70,100,.55)'; g.lineWidth = 1; g.beginPath(); for (let i = 0; i < 60; i++) { const q = i * ppu * .5; if (q < W) { g.moveTo(q, th); g.lineTo(q, th + (i % 2 ? 4 : 9)); } if (th + q < HH - bh) { g.moveTo(0, th + q); g.lineTo(i % 2 ? 4 : 9, th + q); } } g.stroke();
+  // あやしい物の赤い枠、異常なしの札
+  const sc = o => { o.getWorldPosition(v3).project(cam); return [(v3.x * .5 + .5) * W, (-v3.y * .5 + .5) * HH]; };
+  g.font = F(fs, 'bold'); g.textAlign = 'left';
+  for (const b of bags) { if (b.x > .7 || b.x < -9) continue; const e = (.7 - b.x) / V + (stop ? ((tt - (tt < 5 ? 3 : 13.05))) : (b.x < 0 ? 1.1 : 0));
+    for (const m of b.marks) { const [sx, sy] = sc(m.o), r = m.r * ppu * (1 + .5 * Math.max(0, 1 - e * 3)); if (e < .7 && Math.floor(e * 12) % 2) continue; g.strokeStyle = '#e8201a'; g.lineWidth = Math.max(2, fs * .16); g.strokeRect(sx - r, sy - r * .8, r * 2, r * 1.6); const lb = `要確認　${m.n}`, tw = g.measureText(lb).width + fs; g.fillStyle = '#e8201a'; g.fillRect(sx - r - g.lineWidth / 2, sy - r * .8 - fs * 1.6, tw, fs * 1.6); g.fillStyle = '#fff'; g.fillText(lb, sx - r + fs * .4, sy - r * .8 - fs * .75); }
+    if (b.ok && b.x < -.3) { const [sx, sy] = sc(b.g), lb = '異常なし ✓', tw = g.measureText(lb).width + fs, ox = tall ? -tw / 2 : -tw / 2, oy = tall ? 0 : -2.1 * ppu; g.fillStyle = '#1f9a45'; g.fillRect(sx + ox, sy + oy - fs * .8, tw, fs * 1.6); g.fillStyle = '#fff'; g.fillText(lb, sx + ox + fs * .5, sy + oy + 1); } }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

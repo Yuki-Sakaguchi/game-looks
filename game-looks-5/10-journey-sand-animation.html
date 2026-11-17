@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 10 旅 ライトテーブルの砂絵</title>
+<style>
+html,body{margin:0;height:100%;background:#120804;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffd98a;background:rgba(18,8,4,.75);padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 10 ─ 旅 / ライトテーブルの砂絵　｜　見るだけ（らくだの隊列が進み、景色が描きかえられる）</div>
+<script>
+// 見立て: 下から光るガラス板に砂をまき、指でなぞって絵にするサンドアニメーション（砂絵）。
+// 決まり: 持っているのは「砂の厚さ」の絵 1 枚だけ。厚い所ほど光を通さず黒く、うすい所は琥珀色、砂のない所は白く光る（色相は 1 つ）。
+// 描く手は 3 つ: 砂をまく（厚くなる・ふちがぼける）／指でなぞる（砂がどいて明るい線、わきに砂が盛り上がる）／腕でならして消す。手の影も映る
+const cv = document.getElementById('c'), gl = cv.getContext('webgl', { antialias: false });
+const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d')]; };
+const [bgc, bg] = mk(), [frc, fr] = mk(), [edc, ed] = mk();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+// 砂の厚さ → 光の色（粒ごとに厚さがばらつき、うすい所は粒がまばらになる）
+const prog = gl.createProgram();
+for (const [type, src] of [[gl.VERTEX_SHADER, 'attribute vec2 p; varying vec2 v; void main(){ v = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0., 1.); }'], [gl.FRAGMENT_SHADER, `precision highp float; uniform sampler2D t; uniform float gs; varying vec2 v;
+float h(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+void main(){ float th = texture2D(t, v).r; vec2 gc = floor(gl_FragCoord.xy / gs); float g1 = h(gc), g2 = h(gc + 17.3);
+  float T = exp(-5.6 * th * (.5 + 1.0 * g1));                                  // 光の通りやすさ
+  if (g2 > smoothstep(0., .15, th) * 1.12) T = mix(T, 1., .8);                 // 粒のすきまから光がもれる
+  vec3 c = mix(vec3(.045, .02, .01), vec3(.34, .15, .04), smoothstep(0., .13, T));
+  c = mix(c, vec3(.9, .52, .1), smoothstep(.07, .4, T)); c = mix(c, vec3(1., .83, .45), smoothstep(.34, .74, T)); c = mix(c, vec3(1., .98, .88), smoothstep(.7, 1., T));
+  vec2 q = v - .5; gl_FragColor = vec4(c * (1.04 - dot(q, q) * .5), 1.); }`]]) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); gl.attachShader(prog, s); }
+gl.linkProgram(prog); gl.useProgram(prog); gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.bindAttribLocation(prog, 0, 'p'); gl.linkProgram(prog); gl.useProgram(prog); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+gl.bindTexture(gl.TEXTURE_2D, gl.createTexture()); for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, val);
+
+let TW, TH, U, ops = [], scene = 0, sc = 0, t = 0, hx = 0, hy = 0, wipe = null;
+const D = 6.5, BASE = 32, gray = v => { v = Math.max(0, Math.min(255, Math.round(v))); return `rgb(${v},${v},${v})`; };
+const ridge = x => TH * .665 + Math.sin(x / TW * 5 + 1) * TH * .034 + Math.sin(x / TW * 11 + 2) * TH * .011;
+const far = x => TH * .53 + Math.sin(x / TW * 4 + 2.4) * TH * .045;
+// 点の列を作る道具
+const curve = (f, x0, x1) => { const p = []; for (let x = x0; x <= x1; x += 3 * U) p.push([x, f(x)]); return p; };
+const arc = (cx, cy, r, a0, a1) => { const p = [], n = Math.max(4, Math.ceil(Math.abs(a1 - a0) * r / (3 * U))); for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; p.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return p; };
+const spiral = (cx, cy, r, gap) => { const p = []; for (let a = 0; a * gap / 6.283 < r; a += .22) p.push([cx + Math.cos(a) * a * gap / 6.283, cy + Math.sin(a) * a * gap / 6.283]); return p; };
+const seg = (x1, y1, x2, y2) => { const n = Math.max(2, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / (3 * U))), p = []; for (let i = 0; i <= n; i++) p.push([x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n]); return p; };
+const quad = (x1, y1, cx, cy, x2, y2) => { const p = []; for (let i = 0; i <= 14; i++) { const s = i / 14, a = (1 - s) * (1 - s), b = 2 * s * (1 - s), c = s * s; p.push([x1 * a + cx * b + x2 * c, y1 * a + cy * b + y2 * c]); } return p; };
+function buildScene(n) {
+  const o = [], pour = (poly, amt, t0, t1) => o.push({ k: 'pour', poly, amt, t0, t1 }), pline = (pts, wd, amt, t0, t1) => o.push({ k: 'pline', pts, wd, amt, t0, t1 }), finger = (pts, wd, t0, t1) => o.push({ k: 'finger', pts, wd, t0, t1 }), dot = (x, y, r, t0) => o.push({ k: 'dot', x, y, r, t0, t1: t0 + .05 });
+  const below = (f, g2) => [...curve(f, -12 * U, TW + 12 * U), ...(g2 ? curve(g2, -12 * U, TW + 12 * U).reverse() : [[TW + 12 * U, TH + 10], [-12 * U, TH + 10]])];
+  if (n === 0) {                                                        // 昼: 大きな太陽と遠い砂丘、鳥
+    pour(below(far, ridge), .2, 1.15, 1.9); const sx = TW * .7, sy = TH * .25;
+    finger(spiral(sx, sy, 36 * U, 10 * U), 13 * U, 2.0, 2.9); for (let i = 0; i < 9; i++) { const a = i * .7 + .2; finger(seg(sx + Math.cos(a) * 52 * U, sy + Math.sin(a) * 52 * U, sx + Math.cos(a) * 70 * U, sy + Math.sin(a) * 70 * U), 4.5 * U, 2.9 + i * .05, 2.95 + i * .05); }
+    for (const [bx, by] of [[.22, .2], [.33, .29]]) finger([...quad(TW * bx - 13 * U, TH * by - 5 * U, TW * bx - 5 * U, TH * by - 9 * U, TW * bx, TH * by), ...quad(TW * bx, TH * by, TW * bx + 5 * U, TH * by - 9 * U, TW * bx + 13 * U, TH * by - 5 * U)], 3.2 * U, 3.4 + bx, 3.55 + bx);
+  } else if (n === 1) {                                                 // 夜: 空に砂をまいて暗くし、三日月と星、やしの木
+    pour([[-12 * U, -10], [TW + 12 * U, -10], ...curve(ridge, -12 * U, TW + 12 * U).reverse()], .22, 1.1, 1.9);
+    for (const [px, s] of [[.2, 1], [.34, .78]]) { const x = TW * px, y = ridge(x) + 4 * U, tx = x + 14 * U * s, ty = y - 108 * U * s; pline(quad(x, y, x - 6 * U * s, y - 60 * U * s, tx, ty), 7 * U * s, .75, 1.9, 2.3); for (let i = 0; i < 6; i++) { const a = -2.9 + i * .56, l = 46 * U * s; pline(quad(tx, ty, tx + Math.cos(a) * l * .6, ty + Math.sin(a) * l * .7 - 12 * U * s, tx + Math.cos(a) * l, ty + Math.sin(a) * l * .5 + 12 * U * s), 5.5 * U * s, .7, 2.3 + i * .07, 2.5 + i * .07); } }
+    finger(arc(TW * .72, TH * .22, 27 * U, -1.9, 1.5), 11 * U, 2.75, 3.25);
+    for (let i = 0; i < 11; i++) dot(TW * (.08 + hash(i, 3) * .84), TH * (.06 + hash(i, 4) * .36), (2.2 + hash(i, 5) * 1.6) * U, 3.3 + i * .07);
+  } else {                                                              // 町: 丸屋根と塔の影、低い夕日、窓
+    const dome = (x, wd, ht) => { const y = ridge(x) + 6 * U; pour([[x - wd, y], [x - wd, y - ht], ...arc(x, y - ht, wd, Math.PI, 2 * Math.PI), [x + wd, y]], .66, 1.2, 2.1); pline(seg(x, y - ht - wd, x, y - ht - wd - 12 * U), 2.5 * U, .7, 2.1, 2.2); };
+    const tower = (x, wd, ht) => { const y = ridge(x) + 6 * U; pour([[x - wd, y], [x - wd, y - ht], [x - wd * 1.5, y - ht], [x - wd * 1.5, y - ht - 6 * U], [x, y - ht - 26 * U], [x + wd * 1.5, y - ht - 6 * U], [x + wd * 1.5, y - ht], [x + wd, y - ht], [x + wd, y]], .66, 1.3, 2.2); };
+    dome(TW * .3, 36 * U, 34 * U); dome(TW * .47, 22 * U, 22 * U); tower(TW * .15, 7 * U, 104 * U); tower(TW * .4, 6 * U, 76 * U); tower(TW * .56, 5 * U, 52 * U);
+    finger(spiral(TW * .8, TH * .36, 42 * U, 10 * U), 13 * U, 2.1, 3.0);
+    [[.3, 30], [.27, 12], [.33, 12], [.47, 18], [.15, 80], [.15, 56], [.4, 54]].forEach(([px, up], i) => dot(TW * px, ridge(TW * px) - up * U, 2.6 * U, 3.05 + i * .07));
+    finger(arc(TW * .3, ridge(TW * .3) + 2 * U, 9 * U, Math.PI, 2 * Math.PI), 3 * U, 3.55, 3.75);
+  }
+  pour(below(ridge), .62, 1.0, 1.9);                                    // 手前の砂丘と、指でつけた風の筋
+  for (let i = 0; i < 4; i++) { const a = TW * (.04 + hash(n, i) * .42), b = a + TW * (.3 + hash(n, i + 5) * .25); finger(curve(x => ridge(x) + (16 + i * 21) * U + Math.sin(x / (38 * U) + i) * 5 * U, a, Math.min(b, TW + 10)), 5 * U, 3.75 + i * .32, 4.2 + i * .32); }
+  for (const p of o) { p.f = 0; p.i = 0; p.c = 0; } return o;
+}
+const path = (x, pts, i0, i1) => { x.beginPath(); x.moveTo(pts[i0][0], pts[i0][1]); for (let i = i0 + 1; i <= i1; i++) x.lineTo(pts[i][0], pts[i][1]); };
+// 場面の時刻 lt まで絵を進める。戻り値は手のある所
+function advance(lt) {
+  let hand = null; bg.lineJoin = 'round';
+  if (lt < 1.1) {                                                       // 腕でならして消す（上半分を右へ、下半分を左へ）
+    const ps = lt < .55 ? 0 : 1, f = (lt - ps * .55) / .55, x = (ps ? 1 - f : f) * (TW + 100 * U) - 50 * U, y0 = ps ? TH * .47 : 0, y1 = ps ? TH : TH * .53;
+    if (!wipe || wipe.ps !== ps) wipe = { ps, x }; const xa = Math.min(wipe.x, x), xb = Math.max(wipe.x, x); wipe.x = x;
+    bg.globalCompositeOperation = 'source-over'; bg.globalAlpha = .94; bg.fillStyle = gray(BASE); bg.fillRect(xa - 1, y0, xb - xa + 2, y1 - y0); bg.globalAlpha = .55;
+    for (let i = 0; i < 16; i++) { bg.fillStyle = gray(hash(i, ps + scene) < .5 ? BASE + 34 : 6); bg.fillRect(xa - 1, y0 + hash(i, ps + 7 + scene) * (y1 - y0), xb - xa + 2, (1 + hash(i, 9) * 2.2) * U); } bg.globalAlpha = 1;
+    hand = { x, y: (y0 + y1) / 2, bar: [y0, y1, ps ? -1 : 1] };
+  } else wipe = null;
+  for (const p of ops) { if (lt < p.t0) continue; const f = Math.min(1, (lt - p.t0) / (p.t1 - p.t0)); if (p.f >= 1) continue;
+    if (p.k === 'pour') { p.c += p.amt * 255 * (f - p.f); const v = Math.floor(p.c); p.c -= v; if (v > 0) { bg.globalCompositeOperation = 'lighter'; bg.fillStyle = gray(v); bg.beginPath(); for (const q of p.poly) bg.lineTo(q[0] + (Math.random() - .5) * 7 * U, q[1] + (Math.random() - .5) * 7 * U); bg.fill(); } if (!hand && p.amt > .3) { const q = p.poly[Math.floor(f * (p.poly.length - 1) * .5)]; hand = { x: q[0], y: q[1] - 14 * U + Math.sin(lt * 30) * 5 * U, pinch: true }; } }
+    else if (p.k === 'dot') { bg.globalCompositeOperation = 'lighter'; bg.fillStyle = gray(40); bg.beginPath(); bg.arc(p.x, p.y, p.r + 3 * U, 0, 7); bg.fill(); bg.globalCompositeOperation = 'source-over'; bg.fillStyle = gray(4); bg.beginPath(); bg.arc(p.x, p.y, p.r, 0, 7); bg.fill(); hand = { x: p.x, y: p.y }; }
+    else { const i1 = Math.floor(f * (p.pts.length - 1)); if (i1 > p.i) { path(bg, p.pts, p.i, i1);
+        if (p.k === 'pline') { bg.globalCompositeOperation = 'lighter'; bg.lineCap = 'butt'; bg.strokeStyle = gray(p.amt * 255); bg.lineWidth = p.wd; bg.stroke(); }
+        else { bg.globalCompositeOperation = 'lighter'; bg.lineCap = 'butt'; bg.strokeStyle = gray(46); bg.lineWidth = p.wd + 8 * U; bg.stroke(); bg.globalCompositeOperation = 'source-over'; bg.lineCap = 'round'; bg.strokeStyle = gray(4); bg.lineWidth = p.wd; bg.stroke(); }   // わきに砂が寄る → まん中の砂がどく
+        p.i = i1; } hand = { x: p.pts[i1][0], y: p.pts[i1][1], pinch: p.k === 'pline' }; }
+    p.f = f; }
+  return hand;
+}
+function camel(x, s, ph, kind) {            // 砂を盛って作った影絵（右向き）。足は 1 秒 8 コマで動く
+  const y = ridge(x) + 3 * U, sl = Math.atan((ridge(x + 6) - ridge(x - 6)) / 12) * .7; fr.save(); fr.translate(x, y); fr.rotate(sl); fr.fillStyle = fr.strokeStyle = gray(205); fr.lineCap = 'round';
+  const ln = (x1, y1, x2, y2, wd) => { fr.lineWidth = wd * s; fr.beginPath(); fr.moveTo(x1 * s, y1 * s); fr.lineTo(x2 * s, y2 * s); fr.stroke(); }, el = (cx, cy, rx, ry, r = 0) => { fr.beginPath(); fr.ellipse(cx * s, cy * s, rx * s, ry * s, r, 0, 7); fr.fill(); };
+  const a = Math.sin(ph) * .2, b = Math.sin(ph + 1.9) * .2;
+  if (kind) { ln(-.08, -.5, -.08 - a * .8, 0, .11); ln(.08, -.5, .08 + a * .8, 0, .11); fr.beginPath(); fr.moveTo(-.2 * s, -.42 * s); fr.lineTo(0, -1.12 * s); fr.lineTo(.2 * s, -.42 * s); fr.fill(); el(0, -1.2, .12, .12); ln(.3, -1.3, .34, 0, .045); ln(.05, -.9, .3, -.8, .08); }
+  else { ln(-.44, -.85, -.44 - a, 0, .1); ln(-.3, -.85, -.3 + a, 0, .1); ln(.34, -.85, .34 - b, 0, .1); ln(.46, -.85, .46 + b, 0, .1);
+    el(0, -1.02, .62, .3); el(-.06, -1.34, .3, .24); ln(.48, -1.08, .82, -1.62, .17); el(.96, -1.68, .2, .1, .15); ln(-.6, -1.1, -.72, -.74, .05); fr.fillRect(-.26 * s, -1.66 * s, .4 * s, .16 * s); }
+  fr.restore();
+}
+function render() {
+  fr.globalCompositeOperation = 'copy'; fr.drawImage(bgc, 0, 0); fr.globalCompositeOperation = 'lighter';
+  const tq = Math.floor(t * 8) / 8, sp = 96 * U, s = 30 * U, n = Math.ceil(TW / sp) + 3, off = tq * 20 * U;
+  for (let i = -1; i < n; i++) { const k = i - Math.floor(off / sp), x = i * sp + off % sp - sp * .5; camel(x, s, tq * 7 + k * 1.3, ((k % 5) + 5) % 5 === 0); }
+  fr.drawImage(edc, 0, 0);
+  if (hx > -150 * U && hx < TW + 150 * U) {                             // 手の影（ガラスより上にあるのでぼやける）
+    fr.lineCap = 'round'; const L = (x1, y1, x2, y2, wd) => { for (const e of [14, 7, 0]) { fr.strokeStyle = gray(72); fr.lineWidth = (wd + e) * U; fr.beginPath(); fr.moveTo(x1, y1); fr.lineTo(x2, y2); fr.stroke(); } };
+    if (hand.bar) { const [y0, y1, dr] = hand.bar; L(hx - dr * 22 * U, y0 + 20 * U, hx - dr * 30 * U, y1 + 120 * U, 44); L(hx - dr * 20 * U, y0 + 20 * U, hx - dr * 14 * U, y0 - 30 * U, 30); fr.strokeStyle = gray(120); fr.lineWidth = 9 * U; fr.beginPath(); fr.moveTo(hx + dr * 8 * U, y0); fr.lineTo(hx + dr * 8 * U, y1); fr.stroke(); }
+    else { L(hx + 36 * U, hy + 66 * U, hx + 170 * U, hy + 330 * U, 44); L(hx + 18 * U, hy + 34 * U, hx + 36 * U, hy + 66 * U, 40); L(hx, hy, hx + 14 * U, hy + 26 * U, 11); L(hx + 34 * U, hy + 30 * U, hx + 40 * U, hy + 36 * U, 24); }
+  }
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frc); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+let hand = {};
+function start() {
+  const w = innerWidth, h = innerHeight, d = Math.min(devicePixelRatio || 1, 2), k = 640 / Math.max(w, h); cv.width = w * d; cv.height = h * d; gl.viewport(0, 0, cv.width, cv.height); gl.uniform1f(gl.getUniformLocation(prog, 'gs'), 1.6 * d);
+  TW = Math.round(w * k); TH = Math.round(h * k); U = Math.min(TW, TH) / 400; for (const c of [bgc, frc, edc]) { c.width = TW; c.height = TH; }
+  // ガラスのふちにたまった砂
+  for (let i = 0; i < 260; i++) { const s = hash(i, 1) * 2 * (TW + TH), e = hash(i, 2) * 10 * U, r = (14 + hash(i, 3) * 26) * U; let x, y; if (s < TW) { x = s; y = e; } else if (s < TW + TH) { x = TW - e; y = s - TW; } else if (s < 2 * TW + TH) { x = s - TW - TH; y = TH - e; } else { x = e; y = s - 2 * TW - TH; } const gr = ed.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,.3)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); ed.fillStyle = gr; ed.fillRect(x - r, y - r, r * 2, r * 2); }
+  bg.fillStyle = gray(BASE); bg.fillRect(0, 0, TW, TH); scene = 0; ops = buildScene(0); wipe = null; for (let lt = 0; lt < 3.5; lt += 1 / 30) advance(lt); sc = 3.5; hx = TW * 1.2; hy = TH * 1.2;   // はじめから 1 枚目がほぼ描けている所から
+}
+addEventListener('resize', start); start();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; sc += dt;
+  if (sc >= D) { sc -= D; scene = (scene + 1) % 3; ops = buildScene(scene); }
+  const hd = advance(sc); hand = hd || {}; const tx = hd ? hd.x : TW + 200 * U, ty = hd ? hd.y : TH * .9, k = Math.min(1, dt * (hd && hd.bar ? 40 : 9)); hx += (tx - hx) * k; hy += (ty - hy) * k;
+  render(); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

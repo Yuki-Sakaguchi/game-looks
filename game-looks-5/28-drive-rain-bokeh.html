@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 28 雨の夜のドライブ フロントガラスの雨粒と玉ボケ</title>
+<style>
+html,body{margin:0;height:100%;background:#03060c;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9fb4d8;opacity:.85}
+</style>
+<div id="cap">LOOK 28 ─ 雨の夜のドライブ / フロントガラスの雨粒と玉ボケ　｜　見るだけ（街の光が流れ、ワイパーが粒をぬぐう）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 運転席からカメラで撮った雨の夜。ピントは目の前のガラスの雨粒に合っているので、街の光はぜんぶ大きな丸いボケ（ふちが少し明るい円、重なると足される）になる。
+// 雨粒は小さなレンズで、中に街が逆さに小さくはっきり映る。ワイパーが通った所は粒が消え、時間がたつとまた増え、大きい粒はすじを引いて流れ落ちる。
+// 描き方: 街の光は点の集まりとして「大きな円」と「小さな点」の 2 枚に描き、仕上げの 1 枚で ガラスの粒・ワイパー・ダッシュボードの影 を重ねる
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.autoClear = false; document.body.prepend(renderer.domElement);
+const cam = new THREE.Camera(), opt = { depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+const rtB = new THREE.WebGLRenderTarget(4, 4, opt), rtS = new THREE.WebGLRenderTarget(4, 4, opt);
+// ---- 街の光（1 個 = 四角 1 枚。円の形はシェーダーで切る） ----
+const N = 220, cen = new Float32Array(N * 12), cor = new Float32Array(N * 8), siz = new Float32Array(N * 8), col = new Float32Array(N * 12), idx = [];
+for (let i = 0; i < N; i++) { cor.set([-1, -1, 1, -1, 1, 1, -1, 1], i * 8); idx.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3); }
+const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(cen, 3)); lg.setAttribute('cor', new THREE.BufferAttribute(cor, 2)); lg.setAttribute('siz', new THREE.BufferAttribute(siz, 2)); lg.setAttribute('col', new THREE.BufferAttribute(col, 3)); lg.setIndex(idx);
+const lm = new THREE.ShaderMaterial({ uniforms: { sharp: { value: 0 }, asp: { value: 1 } }, depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending,
+  vertexShader: `attribute vec2 cor, siz; attribute vec3 col; uniform float sharp, asp; varying vec2 vU; varying vec3 vC;
+    void main(){ vU = cor; vC = col; vec2 s = mix(siz, vec2(.03, .03 + (siz.y - siz.x) * .4), sharp); gl_Position = vec4(position.xy + cor * s * vec2(1. / asp, 1.) * 2., 0., 1.); }`,
+  fragmentShader: `uniform float sharp; varying vec2 vU; varying vec3 vC;
+    void main(){ float d = length(vU);
+      float bok = smoothstep(1., .94, d) * (.6 + .4 * smoothstep(.55, .96, d));   // 玉ボケ: 平らな円で、ふちだけ少し明るい
+      float pt = exp(-d * d * 3.5) * 1.3;
+      gl_FragColor = vec4(vC * mix(bok, pt, sharp), 1.); }` });
+const lmesh = new THREE.Mesh(lg, lm); lmesh.frustumCulled = false; const lscene = new THREE.Scene(); lscene.add(lmesh);
+// ---- 仕上げ（ガラスの上のこと全部） ----
+const fm = new THREE.ShaderMaterial({ uniforms: { tB: { value: rtB.texture }, tS: { value: rtS.texture }, res: { value: new THREE.Vector2() }, t: { value: 0 }, wx: { value: .45 }, hy: { value: .1 } }, depthTest: false, depthWrite: false,
+  vertexShader: `void main(){ gl_Position = vec4(position.xy, 0., 1.); }`,
+  fragmentShader: `precision highp float;
+    uniform sampler2D tB, tS; uniform vec2 res; uniform float t, wx, hy;
+    const float A = 1.2, SW = .8, T = 6.5; const vec2 PIV = vec2(0., -.98);
+    vec3 h3(vec2 p){ vec3 q = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973)); q += dot(q, q.yxz + 33.33); return fract((q.xxy + q.yxx) * q.zyx); }
+    // その場所を最後にワイパーが通ってから何秒たったか
+    float age(vec2 p){ vec2 d = p - PIV; float r = length(d), an = atan(d.x, d.y);
+      if (r < .3 || r > 1.5 || abs(an) > A) return 20. + h3(floor(p * 9.)).x * 6.;
+      float f = (A - an) / (2. * A), tu = f * SW, td = 2. * SW - tu, ta = mod(t + 2.6, T);
+      return ta >= td ? ta - td : ta >= tu ? ta - tu : ta + T - td; }
+    // じっとしている小さな粒
+    vec3 dots(vec2 p, float sc, float seed){ vec2 g = p * sc, id = floor(g), f = fract(g) - .5; vec3 h = h3(id + seed);
+      vec2 c = (h.xy - .5) * .55; float ag = age((id + .5 + c) / sc), born = fract(h.z * 7.31) * 5.;
+      float rad = (.08 + .34 * h.z * h.z * h.z) * step(h.x + h.y * .3, .85) * smoothstep(born, born + .7, ag);
+      vec2 q = (f - c) / max(rad, 1e-4); q.y *= .88; float d = length(q);
+      return vec3(q, smoothstep(1., .82, d)); }
+    // 流れ落ちる大きい粒と、そのあとに残るすじ
+    vec3 runs(vec2 p, float cols, float seed, float agp){ float ci = floor(p.x * cols + seed * .37), cxm = (ci + .5 - seed * .37) / cols; vec3 h = h3(vec2(ci, seed * 17.));
+      if (h.x < .42) return vec3(0.);
+      float y0 = .08 + h.y * .42, ag = age(vec2(cxm, y0)), tt = max(ag - h.z * 2.6, 0.);
+      float yh = y0 - (.035 * tt + .011 * tt * tt) - .006 * sin(tt * 2.6 + h.x * 9.);
+      float xh = cxm + (h.z - .5) * .03 + .006 * sin(yh * 23. + h.y * 20.), rad = (.014 + .012 * h.y) * smoothstep(0., .5, tt);
+      vec2 q = (p - vec2(xh, yh)) / max(rad, 1e-4); q.y *= q.y > 0. ? .62 : 1.; float d = length(q);
+      vec3 o = vec3(q, smoothstep(1., .85, d));
+      float xt = cxm + (h.z - .5) * .03 + .006 * sin(p.y * 23. + h.y * 20.), dx = (p.x - xt) / (rad * .34);
+      float tr = smoothstep(1., .5, abs(dx)) * step(yh, p.y) * smoothstep(y0 + .01, y0 - .01, p.y) * step(.01, tt) * (.55 + .45 * step(.5, fract(p.y * 70. + h.x * 5.) + .25 * sin(p.y * 190.)));
+      if (tr > o.z) o = vec3(dx, 0., tr * .8);
+      o.z *= step(tt - .3, agp);                                                   // あとからワイパーが通った所には残らない
+      return o; }
+    void main(){
+      vec2 uv = gl_FragCoord.xy / res, p = (gl_FragCoord.xy - .5 * res) / res.y; float asp = res.x / res.y;
+      float ag = age(p), wet = smoothstep(0., 5., ag);
+      vec3 sky = vec3(.010, .022, .055) + vec3(.07, .045, .09) * exp(-abs(p.y - hy * .5) * 5.) + vec3(.0, .012, .03) * smoothstep(.1, -.5, p.y);
+      vec3 bg = sky + texture2D(tB, uv).rgb * 1.9;
+      bg += vec3(.012, .018, .03) * wet * (.6 + .8 * h3(floor(gl_FragCoord.xy / 2.)).x);      // ぬぐってから時間がたった所は、こまかい水でうっすら白い
+      vec3 a = dots(p, 30., 1.), b = dots(p + .013, 13., 5.), c = runs(p, 13., 1., ag), e = runs(p, 9., 4., ag);
+      vec3 dr = a; if (b.z > dr.z) dr = b; if (c.z > dr.z) dr = c; if (e.z > dr.z) dr = e;
+      vec3 colr = bg;
+      if (dr.z > .001) { vec2 n = dr.xy; float d2 = dot(n, n);
+        vec2 suv = vec2(.5, .5 + hy * .5) + (uv - .5) * .22 - n * vec2(.26 / max(asp, .8), .26);     // 粒はレンズ: 上下左右が逆さの小さい街
+        vec3 dc = sky * .6 + texture2D(tS, suv).rgb * 3.2;
+        dc *= 1. - .78 * smoothstep(.3, 1., d2) * smoothstep(-.9, .5, n.y);             // 上のふちは暗い
+        dc += vec3(.55, .65, .8) * (smoothstep(.34, .0, length(n - vec2(-.3, .42))) * .5 + smoothstep(.8, 1., d2) * smoothstep(.2, -.8, n.y) * .22);
+        colr = mix(bg, dc, dr.z); }
+      // ワイパー
+      float ta = mod(t + 2.6, T), ba = ta < SW ? A - 2. * A * ta / SW : ta < 2. * SW ? -A + 2. * A * (ta - SW) / SW : A + .12;
+      vec2 d = p - PIV; float r = length(d), an = atan(d.x, d.y), w = (an - ba) * r;
+      float blade = smoothstep(.016, .011, abs(w)) * smoothstep(.28, .31, r) * smoothstep(1.52, 1.49, r) + smoothstep(.009, .005, abs(w - .02)) * smoothstep(1.2, 1.17, r);
+      colr = mix(colr, vec3(.006, .008, .012), clamp(blade, 0., 1.));
+      colr += vec3(.3, .36, .45) * smoothstep(.007, .0, abs(abs(w) - .02)) * step(ta, 2. * SW) * smoothstep(.3, .34, r) * smoothstep(1.5, 1.4, r) * .5;   // ブレードが押す水のふち
+      // ダッシュボードとハンドルの影、メーターのあかり
+      float dash = smoothstep(.012, -.004, p.y - (-.335 + .04 * cos(p.x * 2.4)));
+      float wr = length(p - vec2(wx, -.64)); dash = max(dash, smoothstep(.024, .016, abs(wr - .38)));
+      dash = max(dash, smoothstep(.006, .0, max(abs(p.x + .02) - .15, abs(p.y - .455) - .034)) * step(.9, asp));
+      colr = mix(colr, vec3(.004, .006, .010), dash);
+      vec2 m = p - vec2(wx, -.44); colr += dash * (vec3(.05, .55, .45) * exp(-(m.x * m.x * 60. + m.y * m.y * 1400.)) * .3 + vec3(.8, .25, .05) * exp(-((m.x - .07) * (m.x - .07) * 2500. + m.y * m.y * 2500.)) * .6);
+      colr *= 1. - .35 * dot(p, p);
+      colr = 1. - exp(-colr * 1.7);
+      gl_FragColor = vec4(pow(colr, vec3(.82)), 1.);
+    }` });
+const fscene = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fm); quad.frustumCulled = false; fscene.add(quad);
+let asp = 1, tanH = .5;
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const d = renderer.getPixelRatio(), w = innerWidth * d, h = innerHeight * d; asp = w / h; tanH = Math.max(.5, .4 / asp);
+  rtB.setSize(Math.ceil(w / 2), Math.ceil(h / 2)); rtS.setSize(Math.ceil(72 * Math.max(1, asp)), Math.ceil(72 / Math.min(1, asp))); /* 粒に映る街は小さくてよい */ fm.uniforms.res.value.set(w, h); fm.uniforms.wx.value = Math.min(.45, asp * .5 - .17); lm.uniforms.asp.value = asp; };
+addEventListener('resize', resize); resize();
+const HY = .2, RED = [1, .12, .08], YEL = [1, .72, .25], GRN = [.15, 1, .5], WHT = [.9, .95, 1], SIGN = [RED, YEL, GRN, WHT, [1, .45, .1], RED, YEL];
+let n = 0;
+function put(X, Y, Z, c, I, R0 = .058) {
+  if (Z < 2.2 || n >= N - 1) return;
+  const sx = X / (Z * tanH * asp), sy = (Y - 1.2) / (Z * tanH) + HY, R = R0 * (.72 + 5 / (Z + 10)) * (1 + 2.2 / Z), k = I * Math.min(1, 22 / (Z + 6) + .06) * Math.min(1, (300 - Z) / 80) * .5;
+  if (Math.abs(sx) > 1.4 || sy > 1.4) return;
+  const w = (cx, cy, rx, ry, kk) => { for (let v = 0; v < 4; v++) { cen[n * 12 + v * 3] = cx; cen[n * 12 + v * 3 + 1] = cy; siz[n * 8 + v * 2] = rx; siz[n * 8 + v * 2 + 1] = ry; col[n * 12 + v * 3] = c[0] * kk; col[n * 12 + v * 3 + 1] = c[1] * kk; col[n * 12 + v * 3 + 2] = c[2] * kk; } n++; };
+  w(sx, sy, R, R, k);
+  const ry = (-Y - 1.2) / (Z * tanH) + HY; if (Z > 5 && ry > -1.3) w(sx, ry - R * .8, R * .9, R * 2.6, k * .3);          // ぬれた路面にたてに伸びる映りこみ
+}
+let last = performance.now(), t = 0, s = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; s += dt * (12 + 3 * Math.sin(t * .35));
+  n = 0;
+  for (let i = 0; i < 22; i++) put((hash(i, 3) - .5) * 620, 2 + hash(i, 4) * 40, 250 + hash(i, 5) * 30, SIGN[i % 7], 1.6, .05);                    // 遠い街
+  const each = (per, far, f) => { const k0 = Math.ceil(s / per); for (let k = k0; k * per - s < far; k++) f(k, k * per - s); };
+  each(24, 200, (k, z) => put(-5.6, 6.2, z, YEL, 1.5));                                                                                       // 左の街灯
+  each(24, 200, (k, z) => put(9, 6.4, z + 12, YEL, 1.3));                                                                                     // 右の街灯
+  each(11, 170, (k, z) => { const sd = hash(k, 1) < .5 ? -1 : 1; put(sd * (7.5 + hash(k, 2) * 7) + (sd > 0 ? 3 : 0), 1.6 + hash(k, 6) * 8, z, SIGN[(hash(k, 7) * 7) | 0], .9 + hash(k, 8) * .6); });   // 店の看板
+  each(86, 290, (k, z) => { const c = (hash(k, 9) < .5) ? GRN : RED; put(-2.4, 5.4, z + 40, c, 2.2, .062); put(1.2, 5.4, z + 40, c, 2.2, .062); put(-7.2, 2.6, z + 43, c === GRN ? RED : GRN, 1); }); // 信号
+  for (let j = 0; j < 3; j++) { const z = 250 - ((t * 27 + j * 97 + hash(j, 11) * 30) % 270); put(2.9, .7, z, WHT, 1.7, .06); put(4.3, .7, z, WHT, 1.7, .06); }   // 対向車
+  { const z = 17 + 5 * Math.sin(t * .4), br = Math.sin(t * .4 + 1.2) > .5 ? 2.4 : 1.2; put(-.85, .8, z, RED, br, .05); put(.65, .8, z, RED, br, .05); }            // 前の車の尾灯
+  for (let i = n * 12; i < N * 12; i++) col[i] = 0;
+  for (const k of ['position', 'siz', 'col']) lg.attributes[k].needsUpdate = true;
+  lm.uniforms.sharp.value = 0; renderer.setRenderTarget(rtB); renderer.setClearColor(0, 1); renderer.clear(); renderer.render(lscene, cam);
+  lm.uniforms.sharp.value = 1; renderer.setRenderTarget(rtS); renderer.clear(); renderer.render(lscene, cam);
+  fm.uniforms.t.value = t; fm.uniforms.hy.value = HY; renderer.setRenderTarget(null); renderer.render(fscene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 25 洞窟くぐり フリップドット表示板</title>
+<style>
+html,body{margin:0;height:100%;background:#17181a;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;right:12px;bottom:8px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9aa08a}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 25 ─ 洞窟くぐり / フリップドット表示板　｜　見るだけ（自動で飛ぶ）</div>
+<script>
+// 駅やバスのフリップドット表示板に見立てる。黒い板に、表が黄緑・裏が黒の丸い円盤がならぶ（色はこの 2 つだけ）。
+// 絵は 1 秒に 9 回だけ書きかわり、変わるドットは少しずつ遅れて、ななめの軸で回って（だ円につぶれて）裏返る。
+// 円盤にはつやと影と軸の切り欠き、板にはつなぎ目と小さなねじ。画面の形に合わせてドットの列と行の数を決める
+const cv = document.getElementById('c'), g = cv.getContext('2d'), cap = document.getElementById('cap');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const TAU = Math.PI * 2, FPS = 9, FLIP = .13, HUD = 7;
+let W, H, S, cell, cols, rows, ox, oy, bg, spr, tgt, side, to, st, drawnTick = -1;
+function disc(on) { // 円盤 1 枚（影・つや・軸の切り欠きつき）
+  const c = document.createElement('canvas'); c.width = c.height = cell; const x = c.getContext('2d'), m = cell / 2, r = cell * .44;
+  x.fillStyle = 'rgba(0,0,0,.6)'; x.beginPath(); x.arc(m + cell * .05, m + cell * .07, r, 0, TAU); x.fill();
+  const gr = x.createRadialGradient(m - r * .35, m - r * .4, r * .05, m, m, r * 1.05);
+  if (on) { gr.addColorStop(0, '#f6ffb0'); gr.addColorStop(.3, '#dcf23a'); gr.addColorStop(.85, '#c2da22'); gr.addColorStop(1, '#7f9410'); }
+  else { gr.addColorStop(0, '#3a3b3c'); gr.addColorStop(.35, '#1d1e1f'); gr.addColorStop(1, '#0c0c0d'); }
+  x.fillStyle = gr; x.beginPath(); x.arc(m, m, r, 0, TAU); x.fill();
+  x.fillStyle = on ? '#3a4406' : '#000'; for (const s of [-1, 1]) { x.beginPath(); x.arc(m + s * r * .72, m - s * r * .72, r * .2, 0, TAU); x.fill(); } // 軸の両はし
+  return c;
+}
+function layout() {
+  S = Math.min(devicePixelRatio || 1, 2); W = cv.width = Math.round(innerWidth * S); H = cv.height = Math.round(innerHeight * S);
+  const m = Math.round(Math.min(W, H) * .04), bot = Math.round((cap.offsetHeight + 14) * S), aw = W - m * 2, ah = H - m - bot;
+  cell = Math.sqrt(aw * ah / (56 * 35)); cols = Math.floor(aw / cell); rows = Math.floor(ah / cell); cell = Math.floor(Math.min(aw / cols, ah / rows));
+  ox = Math.round((W - cols * cell) / 2); oy = m + Math.round((ah - rows * cell) / 2);
+  spr = [disc(0), disc(1)];
+  // 板（動かないので 1 枚に描いておく）
+  bg = document.createElement('canvas'); bg.width = W; bg.height = H; const x = bg.getContext('2d'), pw = cols * cell, ph = rows * cell, f = Math.round(cell * .8);
+  x.fillStyle = '#17181a'; x.fillRect(0, 0, W, H);
+  const fr = x.createLinearGradient(0, oy - f, 0, oy + ph + f); fr.addColorStop(0, '#3a3c40'); fr.addColorStop(.08, '#2a2c2f'); fr.addColorStop(1, '#1e1f22'); x.fillStyle = fr; x.fillRect(ox - f, oy - f, pw + f * 2, ph + f * 2);
+  x.fillStyle = '#0a0a0b'; x.fillRect(ox - 2, oy - 2, pw + 4, ph + 4);
+  const sh = x.createLinearGradient(0, oy, 0, oy + ph); sh.addColorStop(0, '#141516'); sh.addColorStop(.5, '#0b0b0c'); sh.addColorStop(1, '#080808'); x.fillStyle = sh; x.fillRect(ox, oy, pw, ph);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { x.fillStyle = '#030303'; x.beginPath(); x.arc(ox + (c + .5) * cell, oy + (r + .5) * cell, cell * .46, 0, TAU); x.fill(); x.fillStyle = '#2a2a2c'; x.fillRect(ox + (c + .5) * cell - 1, oy + (r + .5) * cell - 1, 2, 2); }
+  x.fillStyle = '#26272a'; for (let c = 14; c < cols; c += 14) x.fillRect(ox + c * cell - 1, oy, Math.max(1, S), ph); for (let r = 7; r < rows; r += 7) x.fillRect(ox, oy + r * cell - 1, pw, Math.max(1, S)); // 板のつなぎ目
+  const screw = (sx, sy) => { const r = f * .26; x.fillStyle = '#0c0c0d'; x.beginPath(); x.arc(sx + 1, sy + 1.5, r * 1.15, 0, TAU); x.fill(); const q = x.createRadialGradient(sx - r * .3, sy - r * .4, 0, sx, sy, r); q.addColorStop(0, '#b8bcc0'); q.addColorStop(1, '#5a5d62'); x.fillStyle = q; x.beginPath(); x.arc(sx, sy, r, 0, TAU); x.fill(); const a = hash(sx, sy) * 3; x.strokeStyle = '#1a1b1d'; x.lineWidth = Math.max(1, r * .3); x.beginPath(); x.moveTo(sx - Math.cos(a) * r * .75, sy - Math.sin(a) * r * .75); x.lineTo(sx + Math.cos(a) * r * .75, sy + Math.sin(a) * r * .75); x.stroke(); };
+  for (let c = 0; c <= cols; c += 14) { const sx = ox + Math.min(c, cols) * cell + (c ? (c >= cols ? f * .5 : 0) : -f * .5); screw(sx, oy - f * .5); screw(sx, oy + ph + f * .5); }
+  if (cols % 14) { screw(ox + pw + f * .5, oy - f * .5); screw(ox + pw + f * .5, oy + ph + f * .5); }
+  for (let r = 7; r < rows; r += 7) { screw(ox - f * .5, oy + r * cell); screw(ox + pw + f * .5, oy + r * cell); }
+  const n = cols * rows; tgt = new Uint8Array(n); side = new Uint8Array(n); to = new Uint8Array(n); st = new Float32Array(n).fill(-1); drawnTick = -1;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(bg, 0, 0); for (let i = 0; i < n; i++) dot(i, 0, 0);
+}
+function dot(i, sd, k) { // k: 0=平ら、1=真横（うすい線）。ななめの軸で回す
+  const x = ox + (i % cols) * cell, y = oy + Math.floor(i / cols) * cell; g.drawImage(bg, x, y, cell, cell, x, y, cell, cell);
+  if (!k) { g.drawImage(spr[sd], x, y); return; }
+  g.translate(x + cell / 2, y + cell / 2); g.rotate(-Math.PI / 4); g.scale(1, Math.max(.1, 1 - k)); g.rotate(Math.PI / 4); g.drawImage(spr[sd], -cell / 2, -cell / 2); g.setTransform(1, 0, 0, 1, 0, 0);
+}
+// 3×5 のドット文字
+const F = { 0: '75557', 1: '26227', 2: '71747', 3: '71717', 4: '55711', 5: '74717', 6: '74757', 7: '71111', 8: '75757', 9: '75717', S: '74717', C: '74447', O: '75557', R: '75655', E: '74747' };
+const set = (c, r, v = 1) => { if (c >= 0 && c < cols && r >= 0 && r < rows) tgt[r * cols + c] = v; };
+function txt(s, c, r) { for (const ch of s) { const f = F[ch]; if (f) for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) if (+f[y] & (4 >> x)) set(c + x, r + y); c += 4; } return c; }
+// 洞窟の形（横に 144 列でくり返す）
+const P = 144, CR = () => rows - HUD;
+const mid = wx => CR() * (.5 + .12 * Math.sin(TAU * wx / P * 2) + .05 * Math.sin(TAU * wx / P * 5 + 1));
+const gap = wx => Math.max(8, CR() * (.3 + .025 * Math.sin(TAU * wx / P * 3 + 2)));
+const pil = wx => { const k = Math.round((wx - 30) / 36), d = wx - (k * 36 + 30); return { k, d }; };     // 36 列ごとに岩の柱（上と下を交互に）
+const HELI = [['..#####.', '....#...', '#..###..', '#######.', '...####.', '..#..#..'], ['....#...', '....#...', '#..###..', '#######.', '...####.', '..#..#..']];
+function paint(tick) { // その時刻の絵（点く・消える）を作る
+  tgt.fill(0); const hc = Math.max(5, Math.floor(cols * .26)), cr = CR();
+  for (let c = 0; c < cols; c++) {
+    const wx = tick + c, m = mid(wx), gp = gap(wx), p = pil(wx); let top = Math.round(m - gp - (hash(wx, 1) < .3) - (hash(wx, 5) < .08) * 2), bot = Math.round(m + gp + (hash(wx, 2) < .3) + (hash(wx, 6) < .08) * 2);
+    if (Math.abs(p.d) < 1.5) { if (p.k % 2) bot = Math.round(m + 4 + Math.abs(p.d)); else top = Math.round(m - 4 - Math.abs(p.d)); }
+    for (let r = 0; r < cr; r++) if (r <= Math.max(0, top) || r >= Math.min(cr - 1, bot)) set(c, HUD + r);
+    const k = Math.round((wx - 12) / 36), d = wx - (k * 36 + 12); // 柱と柱の間に、点滅する的
+    if (Math.abs(d) <= 1 && c > hc + 5) { const r = HUD + Math.round(mid(k * 36 + 12)); if (tick % 4 < 3) { if (!d) { set(c, r - 1); set(c, r + 1); set(c, r); } else set(c, r); } }
+  }
+  const wh = tick + hc, p = pil(wh), dodge = (p.k % 2 ? -1 : 1) * 2 * Math.max(0, Math.cos(Math.min(1, Math.abs(p.d) / 9) * Math.PI / 2)) ** 2;
+  const hy = Math.round(HUD + mid(wh + 1) + dodge) - 3, sp = HELI[tick % 2];
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) { for (let e = -1; e <= 1; e++) set(hc - 4 + c + e, hy + r, 0); }
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) if (sp[r][c] === '#') set(hc - 4 + c, hy + r);
+  const got = Math.floor((wh - 12 + 2) / 36), since = wh - (got * 36 + 12); // 的を取った直後は火花
+  if (since >= 0 && since < 3) for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + .5; set(Math.round(hc + 5 + Math.cos(a) * (2 + since * 1.6)), Math.round(hy + 3 + Math.sin(a) * (1.5 + since * 1.3))); }
+  for (let r = 0; r < HUD; r++) for (let c = 0; c < cols; c++) tgt[r * cols + c] = 0;
+  const score = String((tick + Math.max(0, got + 1) * 50) % 100000).padStart(5, '0');
+  if (cols >= 48) { txt('SCORE', 2, 1); txt(score, cols - 21, 1); } else txt(score, Math.floor((cols - 19) / 2), 1);
+}
+addEventListener('resize', layout); layout();
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const tick = Math.floor(t * FPS), n = cols * rows;
+  if (tick !== drawnTick) { drawnTick = tick; paint(tick); }
+  for (let i = 0; i < n; i++) {
+    if (st[i] < 0) { if (side[i] !== tgt[i]) { st[i] = t + hash(i, tick) * .09; to[i] = tgt[i]; } continue; } // 少しずつ遅れて回りはじめる
+    const p = (t - st[i]) / FLIP; if (p < 0) continue;
+    if (p >= 1) { side[i] = to[i]; st[i] = -1; dot(i, side[i], 0); } else dot(i, p < .5 ? side[i] : to[i], 1 - Math.abs(Math.cos(p * Math.PI)));
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

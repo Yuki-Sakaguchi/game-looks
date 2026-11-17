@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 27 おばけ退治 幻灯機のガラス絵</title>
+<style>
+html,body{margin:0;height:100%;background:#070504;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8c8a0;background:rgba(7,5,4,.7);padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 27 ─ おばけ退治 / 幻灯機のガラス絵　｜　見るだけ（ランプをかかげると、おばけがにげる）</div>
+<script>
+// 暗い部屋のかべに、幻灯機（ろうそくの光でガラス絵を映す昔の映写機）の丸い光が当たっている。
+// 絵は手描きのガラス絵: 黒いふち線に、すきとおった 赤・緑・青・黄。光の円はまん中が明るく、ふちは暗くぼけて色がずれる。
+// 背景のガラス板は横にすべって入れかわり、おばけは別のガラス板を重ねてすべらせる。子どもの腕は 2 枚の絵をぱたりと切りかえる
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+let seed = 11; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const RED = '#e02418', GRN = '#1f9a48', BLU = '#2440c8', YEL = '#f2c21a', BRN = '#8a3c14', CLR = '#fff4d8', INK = '#120a06', TEAL = '#7fd6f0';
+// 手描きの道具: 線は少しふるえ、色は線から少しはみ出し、筆のむらがある
+function path(c, pts, close) { c.beginPath(); pts.forEach(([px, py], i) => { const jx = px + (rnd() - .5) * 2.6, jy = py + (rnd() - .5) * 2.6; i ? c.lineTo(jx, jy) : c.moveTo(jx, jy); }); if (close) c.closePath(); }
+function tint(c, pts, col) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [px, py] of pts) { x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); }
+  c.save(); c.translate(2.5, -2); path(c, pts, 1); c.fillStyle = col; c.globalAlpha = .93; c.fill(); c.clip(); c.lineCap = 'round';
+  const n = 3 + ((x1 - x0) * (y1 - y0) / 9000) | 0;
+  for (let i = 0; i < n; i++) { c.globalAlpha = .1 + rnd() * .1; c.strokeStyle = rnd() < .6 ? '#fff' : '#000'; c.lineWidth = 3 + rnd() * 9; const y = y0 + rnd() * (y1 - y0), a = (rnd() - .5) * .5; c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y + (x1 - x0) * a); c.stroke(); }
+  c.restore();
+}
+function ink(c, pts, w = 4, close = 0) { c.strokeStyle = INK; c.lineJoin = c.lineCap = 'round'; c.lineWidth = w; path(c, pts, close); c.stroke(); c.lineWidth = w * .45; path(c, pts, close); c.stroke(); }
+const shape = (c, pts, col, w = 4) => { tint(c, pts, col); ink(c, pts, w, 1); };
+const black = (c, pts) => { path(c, pts, 1); c.fillStyle = INK; c.fill(); };
+const ell = (cx, cy, rx, ry = rx, n = 18, a0 = 0, a1 = Math.PI * 2) => [...Array(n + 1)].map((_, i) => { const a = a0 + (a1 - a0) * i / n; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; });
+const box = (x, y, w, h) => [[x, y], [x + w * .5, y], [x + w, y], [x + w, y + h * .5], [x + w, y + h], [x + w * .5, y + h], [x, y + h], [x, y + h * .5]];
+
+// ---- 背景のガラス板（2 場面を横にならべた長い板。あいだは木のわく） ----
+const U = 640, GAP = 90, strip = mk(U * 2 + GAP, U);
+{
+  const c = strip.getContext('2d'); c.fillStyle = INK; c.fillRect(0, 0, strip.width, U);
+  // 場面 1: 居間（だんろと窓）
+  shape(c, box(0, 0, U, 425), YEL, 3);
+  for (let y = 40; y < 400; y += 54) for (let x = 30 + (y % 108 ? 27 : 0); x < U; x += 54) ink(c, [[x - 5, y - 4], [x, y + 4], [x + 5, y - 4]], 1.6);
+  shape(c, box(0, 432, U, 208), BRN, 3); for (let k = -6; k <= 6; k++) ink(c, [[320 + k * 60, 436], [320 + k * 110, 640]], 1.6);
+  shape(c, box(0, 412, U, 20), GRN, 3);
+  shape(c, ell(300, 548, 215, 52, 22), RED, 4); ink(c, ell(300, 548, 180, 38, 22), 2, 1);
+  shape(c, box(365, 122, 165, 232), BLU, 5); shape(c, ell(470, 188, 27), CLR, 3);
+  for (const [sx, sy] of [[392, 150], [420, 215], [505, 262], [398, 300], [488, 320]]) { c.fillStyle = CLR; c.beginPath(); c.arc(sx, sy, 3, 0, 7); c.fill(); }
+  ink(c, [[447, 122], [447, 354]], 5); ink(c, [[365, 238], [530, 238]], 5);
+  shape(c, [[333, 104], [388, 104], [384, 200], [372, 362], [328, 368], [336, 220]], RED, 4); shape(c, [[506, 104], [562, 104], [560, 230], [568, 368], [522, 362], [512, 200]], RED, 4);
+  ink(c, [[350, 110], [352, 360]], 1.6); ink(c, [[540, 110], [545, 360]], 1.6); ink(c, [[318, 102], [578, 102]], 7);
+  shape(c, box(92, 272, 188, 160), GRN, 5); shape(c, box(78, 252, 216, 22), BRN, 4); black(c, [[126, 432], [126, 340], [150, 318], [222, 318], [246, 340], [246, 432]]);
+  shape(c, [[150, 430], [158, 392], [170, 410], [184, 370], [198, 408], [210, 388], [222, 430]], RED, 2.5); shape(c, [[168, 430], [176, 408], [186, 396], [196, 412], [204, 430]], YEL, 2);
+  for (let y = 290; y < 430; y += 28) ink(c, [[96, y], [124, y]], 1.6), ink(c, [[248, y], [276, y]], 1.6);
+  shape(c, ell(186, 162, 50, 60, 20), BRN, 5); shape(c, ell(186, 162, 35, 45, 18), CLR, 3); black(c, ell(186, 150, 13, 15, 12)); black(c, [[160, 196], [170, 172], [202, 172], [212, 196], [200, 204], [172, 204]]);
+  // 場面 2: 階段の広間（大時計）
+  c.save(); c.translate(U + GAP, 0);
+  shape(c, box(0, 0, U, 425), GRN, 3); for (let x = 36; x < U; x += 48) ink(c, [[x, 6], [x + 2, 410]], 1.4);
+  shape(c, box(0, 432, U, 208), BRN, 3); for (let k = -6; k <= 6; k++) ink(c, [[320 + k * 60, 436], [320 + k * 110, 640]], 1.6);
+  shape(c, box(0, 412, U, 20), YEL, 3);
+  const st = [[352, 432]]; for (let i = 0; i < 6; i++) { st.push([352 + i * 50, 432 - (i + 1) * 46], [402 + i * 50, 432 - (i + 1) * 46]); } st.push([652, 432]);
+  shape(c, st, RED, 5); for (let i = 0; i < 6; i++) { ink(c, [[377 + i * 50, 386 - i * 46], [377 + i * 50, 300 - i * 46]], 3); } ink(c, [[352, 346], [652, 70]], 7); shape(c, ell(352, 340, 13), YEL, 3); ink(c, [[352, 352], [352, 432]], 6);
+  shape(c, box(86, 150, 96, 282), BLU, 5); shape(c, [[78, 150], [134, 104], [190, 150]], BLU, 5); shape(c, ell(134, 206, 32), CLR, 4); ink(c, [[134, 206], [134, 184]], 3); ink(c, [[134, 206], [150, 214]], 3);
+  shape(c, box(112, 262, 44, 130), YEL, 3); ink(c, [[134, 266], [140, 352]], 2.5); black(c, ell(141, 362, 11, 11, 12));
+  for (let i = 0; i < 6; i++) { const a = i / 5 * 1.57; ink(c, [[640, 0], [640 - Math.cos(a) * 150, Math.sin(a) * 150]], 1.3); } for (const r of [50, 95, 140]) ink(c, ell(640, 0, r, r, 8, Math.PI / 2, Math.PI), 1.3);
+  shape(c, ell(250, 250, 40, 48, 18), YEL, 5); shape(c, ell(250, 250, 27, 34, 16), CLR, 3); black(c, ell(250, 240, 10, 12, 10)); black(c, [[232, 276], [238, 256], [262, 256], [268, 276]]);
+  shape(c, ell(300, 552, 190, 46, 22), BLU, 4);
+  c.restore();
+  c.fillStyle = '#1c0f08'; c.fillRect(U, 0, GAP, U);
+}
+// ---- 子ども（腕だけ 2 枚の絵。ランプを下げた絵と、かかげた絵） ----
+const kid = [0, 1].map(pose => {
+  const k = mk(250, 300), c = k.getContext('2d'); c.translate(20, 50);
+  black(c, ell(68, 238, 17, 8, 10)); black(c, ell(104, 238, 17, 8, 10));
+  shape(c, [[50, 232], [58, 160], [62, 98], [104, 98], [112, 160], [122, 232]], BLU, 4.5); ink(c, [[84, 130], [86, 228]], 1.8); ink(c, [[62, 208], [116, 208]], 1.8);
+  shape(c, ell(82, 68, 27, 28, 16), '#f8d4a4', 4.5); shape(c, [[54, 60], [60, 40], [84, 30], [108, 44], [110, 58], [84, 50]], RED, 4); shape(c, [[58, 46], [36, 40], [22, 60], [36, 56], [56, 60]], RED, 3.5); shape(c, ell(20, 66, 8, 8, 10), CLR, 3);
+  black(c, ell(94, 68, 3.5, 4.5, 8)); ink(c, [[92, 82], [100, 80]], 2.5);
+  if (!pose) { shape(c, [[90, 104], [104, 100], [142, 132], [132, 146]], BLU, 4); shape(c, ell(140, 142, 8, 8, 10), '#f8d4a4', 3); ink(c, [[142, 148], [142, 166]], 3); shape(c, box(128, 166, 28, 34), YEL, 4); shape(c, [[124, 166], [142, 154], [160, 166]], BRN, 3); ink(c, [[124, 200], [160, 200]], 5); }
+  else {
+    for (let i = 0; i < 11; i++) { const a = -Math.PI * .05 - i / 10 * Math.PI * .9 - .0, r0 = 34, r1 = 62 + (i % 2) * 26, cx = 146, cy = 30, da = .1; shape(c, [[cx + Math.cos(a - da) * r0, cy + Math.sin(a - da) * r0], [cx + Math.cos(a) * r1, cy + Math.sin(a) * r1], [cx + Math.cos(a + da) * r0, cy + Math.sin(a + da) * r0]], YEL, 2.2); }
+    shape(c, [[90, 108], [102, 98], [142, 60], [152, 72]], BLU, 4); shape(c, ell(148, 62, 8, 8, 10), '#f8d4a4', 3); ink(c, [[148, 56], [147, 48]], 3); shape(c, box(132, 14, 28, 34), CLR, 4); shape(c, [[128, 14], [146, 2], [164, 14]], BRN, 3); ink(c, [[128, 48], [164, 48]], 5); shape(c, [[142, 42], [146, 26], [150, 42]], YEL, 2);
+  }
+  return k;
+});
+// ---- おばけ（別のガラス板。すきとおった青緑なので、うしろの絵がすけて見える） ----
+const ghost = [0, 1].map(pose => {
+  const k = mk(180, 200), c = k.getContext('2d'); c.translate(5, 5);
+  shape(c, pose ? [[30, 96], [4, 60], [0, 76], [26, 122]] : [[30, 100], [8, 108], [6, 124], [30, 126]], TEAL, 4); shape(c, pose ? [[140, 96], [166, 60], [170, 76], [144, 122]] : [[140, 100], [162, 108], [164, 124], [140, 126]], TEAL, 4);
+  shape(c, [[30, 176], [27, 120], [28, 80], ...ell(85, 80, 57, 62, 14, Math.PI, Math.PI * 2), [143, 120], [142, 176], [124, 158], [106, 178], [88, 158], [68, 178], [50, 158]], TEAL, 5.5);
+  black(c, ell(66, 80, 10, pose ? 15 : 12, 12)); black(c, ell(106, 80, 10, pose ? 15 : 12, 12)); c.fillStyle = CLR; c.beginPath(); c.arc(69, 76, 3, 0, 7); c.arc(109, 76, 3, 0, 7); c.fill();
+  if (pose) { black(c, ell(86, 124, 13, 18, 12)); ink(c, [[52, 58], [74, 50]], 3.5); ink(c, [[120, 58], [98, 50]], 3.5); } else { ink(c, [[52, 60], [76, 68]], 3.5); ink(c, [[120, 60], [96, 68]], 3.5); black(c, [[62, 112], [74, 122], [86, 114], [98, 122], [110, 112], [100, 134], [86, 128], [72, 134]]); }
+  return k;
+});
+// ---- レンズのほこりと毛（映る絵の上でいつも同じ場所にある） ----
+const dust = mk(U, U);
+{ const c = dust.getContext('2d'); for (let i = 0; i < 16; i++) { const px = 60 + rnd() * 520, py = 60 + rnd() * 520, r = 3 + rnd() * 9, gr = c.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, 'rgba(20,10,0,.34)'); gr.addColorStop(1, 'rgba(20,10,0,0)'); c.fillStyle = gr; c.fillRect(px - r, py - r, r * 2, r * 2); }
+  c.strokeStyle = 'rgba(20,10,0,.3)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(430, 90); c.bezierCurveTo(470, 120, 440, 170, 492, 190); c.moveTo(120, 470); c.bezierCurveTo(150, 462, 150, 500, 186, 494); c.stroke(); }
+const P = mk(U, U), pc = P.getContext('2d'), CH = [0, 1, 2].map(() => mk(U, U)), vig = mk(U, U);
+{ const c = vig.getContext('2d'), gr = c.createRadialGradient(U / 2, U / 2, 0, U / 2, U / 2, U / 2); gr.addColorStop(0, '#fffaec'); gr.addColorStop(.5, '#fff0c8'); gr.addColorStop(.76, '#f0b060'); gr.addColorStop(.9, '#8a3c10'); gr.addColorStop(.97, '#1c0800'); gr.addColorStop(1, '#000'); c.fillStyle = gr; c.fillRect(0, 0, U, U); }
+// ---- かべ（しっくいと、うすいしま模様のかべ紙。下は腰板） ----
+let W = 0, H = 0, wall = null, wallDim = null, D = 0, CX = 0, CY = 0;
+function resize() {
+  const d = Math.min(devicePixelRatio || 1, 2); W = cv.width = Math.round(innerWidth * d); H = cv.height = Math.round(innerHeight * d);
+  D = Math.min(W * .97, H * .93); CX = W / 2; CY = H * (W > H ? .5 : .44);
+  wall = mk(W, H); const c = wall.getContext('2d'), s = Math.max(W, H) / 1280; seed = 5;
+  c.fillStyle = '#cfc2a6'; c.fillRect(0, 0, W, H);
+  for (let x = 0; x < W; x += 46 * s) { c.fillStyle = 'rgba(120,96,60,.08)'; c.fillRect(x, 0, 16 * s, H); c.fillStyle = 'rgba(120,96,60,.13)'; c.fillRect(x + 24 * s, 0, 2 * s, H); }
+  for (let i = 0; i < 5000; i++) { c.fillStyle = rnd() < .5 ? 'rgba(60,40,20,.07)' : 'rgba(255,250,230,.07)'; const r = (1 + rnd() * 5) * s; c.fillRect(rnd() * W, rnd() * H, r, r); }
+  c.strokeStyle = 'rgba(50,34,20,.5)'; c.lineWidth = 1.5 * s; c.beginPath(); let px = W * .7, py = 0; c.moveTo(px, py); for (let i = 0; i < 16; i++) { px += (rnd() - .6) * 40 * s; py += rnd() * 36 * s; c.lineTo(px, py); } c.stroke();
+  const ry = H * .9; c.fillStyle = '#a48f6c'; c.fillRect(0, ry, W, H - ry); c.fillStyle = '#6e563a'; c.fillRect(0, ry - 12 * s, W, 16 * s); c.fillStyle = '#d8c8a4'; c.fillRect(0, ry - 12 * s, W, 3 * s); c.fillStyle = 'rgba(40,26,14,.5)'; c.fillRect(0, ry + 4 * s, W, 5 * s);
+  for (let x = 30 * s; x < W; x += 150 * s) { c.strokeStyle = 'rgba(60,44,26,.5)'; c.lineWidth = 3 * s; c.strokeRect(x, ry + 22 * s, 120 * s, H); }
+  wallDim = mk(W, H); const w = wallDim.getContext('2d'); w.drawImage(wall, 0, 0); w.globalCompositeOperation = 'multiply'; w.fillStyle = '#17110e'; w.fillRect(0, 0, W, H);
+}
+addEventListener('resize', resize); resize();
+const ease = f => f * f * (3 - 2 * f), cl = f => Math.max(0, Math.min(1, f));
+const SD = 8, POS = [0, U + GAP];
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const si = Math.floor(t / SD) % 2, st = t % SD, raised = st > 4.6 && st < 6.5;
+  // 板を手で押してすべらせる（止まるときに少し行きすぎて戻る）
+  let f = cl((st - 7) / .9); f = ease(f) + Math.sin(f * Math.PI) * .0 + (f > 0 ? Math.sin(cl((st - 7.7) / .3) * Math.PI) * .012 : 0);
+  const jolt = Math.exp(-Math.abs(st - 4.6) * 14) * (st > 4.6 ? 3 : 0) + Math.exp(-Math.abs(st - 6.5) * 14) * (st > 6.5 ? 2 : 0);
+  const off = POS[si] + (POS[1 - si] - POS[si]) * f + Math.sin(t * 1.7) * .8, oy = Math.sin(t * 1.1) * .6 + jolt;
+  pc.globalCompositeOperation = 'source-over'; pc.fillStyle = INK; pc.fillRect(0, 0, U, U);
+  pc.drawImage(strip, -off, oy);
+  for (let k = 0; k < 2; k++) { const kx = POS[k] - off + (k ? 190 : 215); if (kx > -260 && kx < U) pc.drawImage(kid[k === si && raised ? 1 : 0], kx, 292 + oy); }
+  // おばけの板: すべって入ってきて、ただよい、ランプの光でいっせいに外へすべり出る
+  pc.globalCompositeOperation = 'multiply';
+  const pin = ease(cl((st - .3) / 1.4)), pout = cl((st - 4.75) / .8), pres = pin * (1 - pout * pout), sc = st > 4.6 ? 1 : 0;
+  for (let i = 0; i < 2; i++) { const hx = (i ? 300 : 440) + 46 * Math.sin(t * .8 + i * 2.4) - (st > 3 && st < 4.6 ? (st - 3) * (i ? 22 : 40) : st >= 4.6 ? 1.6 * (i ? 22 : 40) : 0), hy = (i ? 70 : 190) + 26 * Math.sin(t * 1.15 + i * 1.3), ox = i ? 380 : 700, oyy = i ? -230 : 150;
+    pc.drawImage(ghost[sc], ox + (hx - ox) * pres, oyy + (hy - oyy) * pres); }
+  pc.drawImage(dust, 0, 0); pc.drawImage(vig, 0, 0);
+  // 赤・緑・青に分け、ふちへ行くほど少しずつずらして重ねる（レンズの色のにじみ）
+  const cols = ['#ff0000', '#00ff00', '#0000ff'];
+  for (let k = 0; k < 3; k++) { const c = CH[k].getContext('2d'); c.globalCompositeOperation = 'source-over'; c.drawImage(P, 0, 0); c.globalCompositeOperation = 'multiply'; c.fillStyle = cols[k]; c.fillRect(0, 0, U, U); }
+  const fl = .9 + .06 * Math.sin(t * 13.1) * Math.sin(t * 7.3) + .04 * Math.sin(t * 31.7 + Math.sin(t * 3.1) * 4);   // ほのおのゆらぎ
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = fl; g.imageSmoothingQuality = 'high';
+  const wob = Math.sin(t * 9.7) * D * .0012;
+  for (let k = 0; k < 3; k++) { const s = D * (1 + (1 - k) * .013); g.drawImage(CH[k], CX - s / 2 + wob, CY - s / 2, s, s); }
+  g.globalAlpha = .09 * fl; let gr = g.createRadialGradient(CX, CY, D * .3, CX, CY, D * .95); gr.addColorStop(0, '#ffb050'); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.fillRect(0, 0, W, H);   // 円の外にもれる光
+  g.globalAlpha = 1; g.globalCompositeOperation = 'multiply'; g.drawImage(wall, 0, 0);
+  g.globalCompositeOperation = 'lighter'; g.drawImage(wallDim, 0, 0);
+  // 光のすじの中をただようほこり
+  for (let i = 0; i < 14; i++) { const a = i * 2.4 + t * .05 * (1 + i % 3), r = D * (.08 + (i * .37 % 1) * .36), px = CX + Math.cos(a) * r + Math.sin(t * .5 + i) * D * .02, py = CY + Math.sin(a * 1.3) * r - ((t * 4 * (1 + i % 4) + i * 50) % (D * .2)) + D * .1; g.globalAlpha = .1 + .08 * Math.sin(t * 2 + i * 1.7); g.fillStyle = '#ffe2b0'; g.beginPath(); g.arc(px, py, D * (.0022 + (i % 3) * .0012), 0, 7); g.fill(); }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

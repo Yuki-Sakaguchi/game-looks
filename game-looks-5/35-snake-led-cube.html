@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 35 立体スネーク LED キューブ</title>
+<style>
+html,body{margin:0;height:100%;background:#030407;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#8fe8b0;opacity:.85}
+</style>
+<div id="cap">LOOK 35 ─ 立体スネーク / 8×8×8 の LED キューブ　｜　見るだけ（へびが自動でえさを取る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 見立て: 電子工作の LED キューブ。細い針金の柱に 512 個の LED が立体に並び、下に緑の基板がある。暗い机の上でゆっくり回る。
+// 絵は「512 個の点をつける・消す」だけで作る。消えた LED は透明な粒としてうすく見え、ついた LED は加算のにじみで光る。
+// へびは緑 1 色、えさは赤 1 色。LED は消えるとき少し残光を引く。ときどき波と雨のデモ模様が全体に流れる
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#030407');
+const cam = new THREE.PerspectiveCamera(34, 1, .1, 200);
+const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const gc = mkc(64, 64); { const c = gc.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.18, 'rgba(255,255,255,.7)'); gr.addColorStop(.45, 'rgba(255,255,255,.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); }
+const glowT = new THREE.CanvasTexture(gc);
+const glowM = new THREE.PointsMaterial({ size: 1.5, map: glowT, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight, T = Math.tan(17 * Math.PI / 180); cam.aspect = a; cam.fov = a >= 1.25 ? 34 : Math.min(84, 2 * Math.atan(T * 1.25 / a) * 180 / Math.PI); cam.updateProjectionMatrix(); glowM.size = 1.5 * T / Math.tan(cam.fov * Math.PI / 360); }; addEventListener('resize', resize); resize();
+scene.add(new THREE.HemisphereLight(0x8090b0, 0x101010, .5)); const dl = new THREE.DirectionalLight(0xfff0e0, .9); dl.position.set(4, 10, 6); scene.add(dl);
+const cubeLight = new THREE.PointLight(0xffffff, 0, 0, 2); cubeLight.position.set(0, 4, 0); scene.add(cubeLight);
+
+// ── キューブ本体: LED の粒（InstancedMesh）、針金、にじみ（Points）
+const N = 8, NN = 512, Y0 = 1.3, cube = new THREE.Group(); scene.add(cube);
+const led = new THREE.InstancedMesh(new THREE.SphereGeometry(.13, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: .62 }), NN); cube.add(led);
+const gp = new Float32Array(NN * 3), gcol = new Float32Array(NN * 3), O = new THREE.Object3D(), C = new THREE.Color();
+for (let i = 0; i < NN; i++) { const x = i % 8, y = (i >> 3) % 8, z = i >> 6; O.position.set(x - 3.5, y + Y0, z - 3.5); O.scale.set(1, 1.3, 1); O.updateMatrix(); led.setMatrixAt(i, O.matrix); led.setColorAt(i, C.setRGB(.1, .11, .14)); gp.set([x - 3.5, y + Y0, z - 3.5], i * 3); }
+const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(gp, 3)); gg.setAttribute('color', new THREE.BufferAttribute(gcol, 3)); const glow = new THREE.Points(gg, glowM); glow.frustumCulled = false; cube.add(glow);
+{ const w = []; for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) { w.push(a - 3.5, .3, b - 3.5, a - 3.5, Y0 + 7.15, b - 3.5); w.push(-3.5, a + Y0 - .16, b - 3.5, 3.5, a + Y0 - .16, b - 3.5); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(w, 3)); cube.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: '#8a94a4', transparent: true, opacity: .3 }))); }
+// ── 基板（緑の板、配線、はんだの点、部品）
+const pc = mkc(512, 512); { const c = pc.getContext('2d'); c.fillStyle = '#0a5a30'; c.fillRect(0, 0, 512, 512); c.strokeStyle = '#128048'; c.lineWidth = 3; const u = 512 / 10.5, o = 256 - 3.5 * u;
+  for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(o + i * u, o); c.lineTo(o + i * u, o + 7 * u + 20); c.lineTo(o + i * u - 14, o + 7 * u + 40); c.lineTo(o + i * u - 14, 500); c.stroke(); c.beginPath(); c.moveTo(o, o + i * u + 8); c.lineTo(20, o + i * u + 8); c.stroke(); }
+  for (let i = 0; i < 64; i++) { const x = o + (i % 8) * u, y = o + (i >> 3) * u; c.fillStyle = '#d8c070'; c.beginPath(); c.arc(x, y, 6, 0, 7); c.fill(); c.fillStyle = '#c8ccd0'; c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); }
+  c.fillStyle = '#e8f0e8'; c.font = 'bold 13px monospace'; c.fillText('8x8x8 CUBE  REV.C', 24, 26); c.fillText('+5V  GND', 400, 26); c.strokeStyle = '#e8f0e8'; c.lineWidth = 1.5; c.strokeRect(8, 8, 496, 496); for (const [x, y] of [[20, 492], [492, 492], [20, 20], [492, 20]]) { c.fillStyle = '#04140a'; c.beginPath(); c.arc(x, y, 7, 0, 7); c.fill(); } }
+const pcT = new THREE.CanvasTexture(pc); pcT.colorSpace = THREE.SRGBColorSpace; pcT.anisotropy = 4;
+const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: .5, ...o }), pg = std('#0a5a30'), pcb = new THREE.Mesh(new THREE.BoxGeometry(10.5, .22, 10.5), [pg, pg, std('#ffffff', { map: pcT, roughness: .35 }), pg, pg, pg]); pcb.position.y = .25; cube.add(pcb);
+const comp = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); cube.add(m); return m; }, icM = std('#0c0c0e', { roughness: .3 }), tin = std('#c8ccd4', { metalness: .9, roughness: .3 });
+for (let i = 0; i < 4; i++) { comp(new THREE.BoxGeometry(1.5, .26, .6), icM, -3.2 + i * 2.1, .5, 4.55); comp(new THREE.BoxGeometry(1.4, .08, .8), tin, -3.2 + i * 2.1, .4, 4.55); }
+for (let i = 0; i < 8; i++) comp(new THREE.BoxGeometry(.2, .16, .5), std('#c8a878'), -4.55, .44, -3.5 + i);
+for (const z of [-2.5, -1.2]) { comp(new THREE.CylinderGeometry(.34, .34, .9, 14), std('#182a5a', { roughness: .3 }), 4.55, .8, z); comp(new THREE.CylinderGeometry(.3, .3, .02, 14), tin, 4.55, 1.26, z); }
+comp(new THREE.BoxGeometry(.9, .4, 1.1), tin, 4.6, .56, 2.6); comp(new THREE.BoxGeometry(.3, .3, .3), new THREE.MeshBasicMaterial({ color: '#ff3020' }), 4.5, .5, .6);
+for (const [x, z] of [[-4.8, -4.8], [4.8, -4.8], [-4.8, 4.8], [4.8, 4.8]]) comp(new THREE.CylinderGeometry(.2, .2, .2, 8), tin, x, .05, z);
+// 点数を出す 7 セグの表示器（基板のはし）
+const sc = mkc(128, 64), sT = new THREE.CanvasTexture(sc); sT.colorSpace = THREE.SRGBColorSpace; comp(new THREE.BoxGeometry(1.7, .36, 1), icM, 0, .54, -4.6); const disp = comp(new THREE.PlaneGeometry(1.5, .8), new THREE.MeshBasicMaterial({ map: sT }), 0, .73, -4.6); disp.rotation.set(-Math.PI / 2, 0, Math.PI);
+const SEG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+function show(txt) { const c = sc.getContext('2d'); c.fillStyle = '#120404'; c.fillRect(0, 0, 128, 64); [...txt].forEach((ch, k) => { const on = ch === '-' ? 'g' : SEG[+ch], x = 16 + k * 56, R = { a: [8, 6, 26, 6], b: [34, 10, 6, 20], c: [34, 34, 6, 20], d: [8, 52, 26, 6], e: [2, 34, 6, 20], f: [2, 10, 6, 20], g: [8, 29, 26, 6] }; for (const s in R) { c.fillStyle = on.includes(s) ? '#ff3a22' : '#3a0c08'; c.fillRect(x + R[s][0], R[s][1], R[s][2], R[s][3]); } }); sT.needsUpdate = true; }
+// 机と、机にうつる光
+const desk = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), std('#0b0c12', { roughness: .45, metalness: .2 })); desk.rotation.x = -Math.PI / 2; desk.position.y = -.06; scene.add(desk);
+const pool = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), new THREE.MeshBasicMaterial({ map: glowT, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: .3 })); pool.rotation.x = -Math.PI / 2; pool.position.y = -.04; scene.add(pool);
+
+// ── へびのゲーム（格子の上を 1 マスずつ。えさに近づく向きを選ぶ）
+const rnd = (() => { let s = 5; return () => (s = (s * 16807) % 2147483647) / 2147483647; })(), r8 = () => rnd() * 8 | 0, id = p => p[0] + p[1] * 8 + p[2] * 64;
+const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+let snake, dir, food, score, flash = 0;
+const hit = p => snake.some(s => s[0] === p[0] && s[1] === p[1] && s[2] === p[2]);
+const newFood = () => { do food = [r8(), r8(), r8()]; while (hit(food)); };
+const reset = () => { snake = [[3, 3, 4], [2, 3, 4], [1, 3, 4], [0, 3, 4]]; dir = DIRS[0]; score = 0; newFood(); show('00'); }; reset();
+function step() {
+  const h = snake[0]; let best = null, bs = 1e9;
+  for (const d of DIRS) { const p = [h[0] + d[0], h[1] + d[1], h[2] + d[2]]; if (p.some(v => v < 0 || v > 7) || hit(p)) continue; const sco = Math.abs(p[0] - food[0]) + Math.abs(p[1] - food[1]) + Math.abs(p[2] - food[2]) - (d === dir ? .5 : 0) + rnd() * .3; if (sco < bs) { bs = sco; best = d; } }
+  if (!best) { flash = .6; reset(); return; }
+  dir = best; const p = [h[0] + dir[0], h[1] + dir[1], h[2] + dir[2]]; snake.unshift(p);
+  if (id(p) === id(food)) { score++; show(String(score % 100).padStart(2, '0')); flash = .25; if (snake.length > 30) reset(); else newFood(); } else snake.pop();
+}
+const tgt = new Float32Array(NN * 3), cur = new Float32Array(NN * 3), put = (i, r, g, b) => { tgt[i * 3] = r; tgt[i * 3 + 1] = g; tgt[i * 3 + 2] = b; };
+let last = performance.now(), t = 0, acc = 0, mode = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; flash = Math.max(0, flash - dt);
+  const u = t % 21, m = u < 13.5 ? 0 : u < 17 ? 1 : 2; if (m !== mode) { mode = m; show(m ? '--' : String(score % 100).padStart(2, '0')); }
+  tgt.fill(0);
+  if (m === 0) {
+    acc += dt; while (acc > .11) { acc -= .11; step(); }
+    snake.forEach((p, k) => { const f = k ? Math.max(.3, 1 - k / snake.length * .75) : 1; k ? put(id(p), .08 * f, 1 * f, .3 * f) : put(id(p), .75, 1, .8); });
+    const pu = .6 + .4 * Math.sin(t * 11); put(id(food), 1 * pu, .12 * pu, .18 * pu);
+    if (flash > 0) { const h = snake[0]; for (const d of DIRS) { const p = [h[0] + d[0], h[1] + d[1], h[2] + d[2]]; if (!p.some(v => v < 0 || v > 7) && !hit(p)) put(id(p), flash * 2, flash * .5, flash * .5); } }
+  } else for (let i = 0; i < NN; i++) { const x = i % 8, y = (i >> 3) % 8, z = i >> 6;
+    if (m === 1) { const hgt = 3.5 + 3 * Math.sin(x * .6 + t * 4.5) * Math.cos(z * .6 + t * 3.1), d = Math.abs(y - hgt); if (d < .7) put(i, .1, .45 + y * .05, 1); }   // 波
+    else { const hsh = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453, r = hsh - Math.floor(hsh), yy = 9 - ((t * (7 + r * 5) + r * 30) % 16); if (Math.abs(y - yy) < .5) put(i, .5, .9, 1); else if (y === 0 && yy < 0 && yy > -2.5) put(i, .1, .25, .5); }   // 雨
+  }
+  let ar = 0, ag = 0, ab = 0; const kd = Math.exp(-dt * 9);
+  for (let i = 0; i < NN; i++) { const a = i * 3; for (let c = 0; c < 3; c++) cur[a + c] = Math.max(tgt[a + c], cur[a + c] * kd); const r = cur[a], g = cur[a + 1], b = cur[a + 2], l = Math.max(r, g, b); ar += r; ag += g; ab += b;
+    gcol[a] = r; gcol[a + 1] = g; gcol[a + 2] = b; led.setColorAt(i, C.setRGB(.1 + r + l * .5, .11 + g + l * .5, .14 + b + l * .5)); }
+  gg.attributes.color.needsUpdate = true; led.instanceColor.needsUpdate = true;
+  const tot = Math.max(1, ar + ag + ab); cubeLight.color.setRGB(ar / tot + .1, ag / tot + .1, ab / tot + .1); cubeLight.intensity = Math.min(90, tot * 4); pool.material.color.copy(cubeLight.color); pool.material.opacity = Math.min(.5, .08 + tot * .012);
+  cube.rotation.y = t * .28 + .5; cam.position.set(0, 9.8 + Math.sin(t * .4) * 1.2, 21.5); cam.lookAt(0, 4.3, 0);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

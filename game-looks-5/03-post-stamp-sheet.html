@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 03 郵便配達 切手シート</title>
+<style>
+html,body{margin:0;height:100%;background:#343c48;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e9e2cc;background:#343c48;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 03 ─ 郵便配達 / 切手シート　｜　見るだけ（自動で切手から切手へ配達）</div>
+<script>
+// 目打ち（丸い穴の列）で区切られた切手シートに見立てる。紙は黄ばんだ白、絵は切手 1 枚ごとに 1 色の凹版ふう。
+// 面は塗らず、平行な細い線（ハッチング）の間隔と向きだけで明暗を作り、わくと額面の数字を付ける。
+// 配達員は今いる切手のインクの色で刷られ、となりの切手へ入ると色が変わる。配達がすむと黒い丸い消印（波線つき）がどんと押される
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const DESK = '#343c48', PAPER = '#f0e8d2', INKS = ['#1d3a7c', '#9a2b2b', '#1e6a48', '#6a4a20', '#5a2c7c', '#0f6878', '#a8541a', '#3c3c44'], VAL = [10, 20, 50, 80, 100, 120, 15, 30, 60, 5, 200, 40];
+let W, H, S, art, bg, bx, mark, G = {};
+
+function resize() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * S; cv.height = H * S;
+  const wide = W > H, cols = wide ? 4 : 2, rows = wide ? 3 : 4, ratio = wide ? .8 : 1.05, mn = Math.min(W, H), sm = mn * .05, capH = W < 600 ? 50 : 34;
+  const cw = Math.min((W * .96 - 2 * sm) / cols, (H - capH - mn * .03 - 2 * sm) / rows / ratio), ch = cw * ratio;
+  const gx = (W - cw * cols) / 2, gy = (H - capH - ch * rows) / 2 + mn * .005, ib = cw * .09, pr = cw * .02;
+  G = { cols, rows, cw, ch, gx, gy, ib, sm, pr, n: cols * rows, pw: cw - 2 * ib, ph: ch - 2 * ib };
+  G.road = r => gy + r * ch + ib + G.ph * .79;
+  art = mk(cv.width, cv.height); const x = art.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0);
+  x.fillStyle = DESK; x.fillRect(0, 0, W, H);
+  const sx = gx - sm, sy = gy - sm, sw = cw * cols + 2 * sm, sh = ch * rows + 2 * sm;
+  x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(sx + 5, sy + 7, sw, sh);
+  x.fillStyle = PAPER; x.fillRect(sx, sy, sw, sh);
+  // 紙の黄ばみと繊維
+  for (let i = 0; i < 7; i++) { const cx = sx + hash(i, 1) * sw, cy = sy + hash(i, 2) * sh, r = mn * (.2 + hash(i, 3) * .3), gr = x.createRadialGradient(cx, cy, 0, cx, cy, r); gr.addColorStop(0, 'rgba(196,160,90,.13)'); gr.addColorStop(1, 'rgba(196,160,90,0)'); x.fillStyle = gr; x.fillRect(Math.max(sx, cx - r), Math.max(sy, cy - r), Math.min(sx + sw, cx + r) - Math.max(sx, cx - r), Math.min(sy + sh, cy + r) - Math.max(sy, cy - r)); }
+  for (let i = 0; i < 1500; i++) { x.fillStyle = hash(i, 4) < .5 ? 'rgba(120,96,50,.10)' : 'rgba(255,255,255,.4)'; x.fillRect(sx + hash(i, 5) * (sw - 4), sy + hash(i, 6) * sh, 1 + hash(i, 7) * 3, 1); }
+  for (let i = 0; i < G.n; i++) stamp(x, i);
+  // 目打ち（穴から下の机が見える）
+  x.fillStyle = DESK; x.beginPath(); const pitch = pr * 3.3;
+  for (let c = 0; c <= cols; c++) { const X = gx + c * cw, n = Math.round(sh / pitch); for (let k = 0; k <= n; k++) { const Y = sy + k / n * sh; x.moveTo(X + pr, Y); x.arc(X, Y, pr, 0, 7); } }
+  for (let r = 0; r <= rows; r++) { const Y = gy + r * ch, n = Math.round(sw / pitch); for (let k = 0; k <= n; k++) { const X = sx + k / n * sw; x.moveTo(X + pr, Y); x.arc(X, Y, pr, 0, 7); } }
+  x.fill();
+  // 耳紙（余白）の文字とカラーマーク
+  x.fillStyle = '#5a5648'; x.font = `600 ${Math.max(7, sm * .3)}px Georgia,serif`; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText('POSTAGE STAMPS  ·  SHEET OF ' + G.n + '  ·  ENGRAVED', gx + pr * 2, sy + sm * .5 - pr * .5);
+  INKS.forEach((c, i) => { x.fillStyle = c; x.beginPath(); x.arc(gx + cw * cols - pr * 3 - i * sm * .42, sy + sm * .5 - pr * .5, sm * .15, 0, 7); x.fill(); });
+  bg = mk(cv.width, cv.height); bx = bg.getContext('2d'); bx.drawImage(art, 0, 0);
+  // 消印（黒い二重丸と波線。かすれつき）
+  const mr = Math.min(cw, ch) * .21, mw = Math.ceil(mr * 4.4 * S), mh = Math.ceil(mr * 2.4 * S); mark = mk(mw, mh); mark.r = mr;
+  { const m = mark.getContext('2d'); m.setTransform(S, 0, 0, S, mr * 1.2 * S, mr * 1.2 * S); m.strokeStyle = m.fillStyle = '#1c1b22'; m.lineWidth = mr * .075; m.beginPath(); m.arc(0, 0, mr, 0, 7); m.moveTo(mr * .7, 0); m.arc(0, 0, mr * .7, 0, 7); m.moveTo(-mr * .68, -mr * .16); m.lineTo(mr * .68, -mr * .16); m.moveTo(-mr * .68, mr * .2); m.lineTo(mr * .68, mr * .2);
+    for (let k = 0; k < 5; k++) { const y0 = (k - 2) * mr * .34; m.moveTo(mr * 1.02, y0); for (let i = 1; i <= 26; i++) m.lineTo(mr * 1.02 + i / 26 * mr * 2, y0 + Math.sin(i / 26 * 12.56) * mr * .09); }
+    m.stroke(); m.textAlign = 'center'; m.textBaseline = 'middle'; m.font = `700 ${mr * .3}px Georgia,serif`; m.fillText('11.17', 0, mr * .03); m.font = `700 ${mr * .2}px Georgia,serif`; m.fillText('POST', 0, -mr * .4); m.fillText('★', 0, mr * .44);
+    m.globalCompositeOperation = 'destination-out'; m.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < mw * mh / 14; i++) { m.globalAlpha = .4 + Math.random() * .6; m.fillRect(Math.random() * mw, Math.random() * mh, 1 + Math.random() * 2, 1 + Math.random()); } }
+}
+
+// 切手 1 枚（わく、線だけの絵、額面）
+function stamp(x, i) {
+  const { cw, ch, gx, gy, ib, pw, ph, cols } = G, c = i % cols, r = Math.floor(i / cols), X = gx + c * cw + ib, Y = gy + r * ch + ib, ink = INKS[(i * 3 + r) % INKS.length], kind = (i * 5 + r * 2) % 6;
+  const u = ph / 100, sp = Math.max(1.9, ph * .0125), lw = Math.max(.55, ph * .004);
+  const hor = Y + ph * .56, road = Y + ph * .79, band = Y + ph * .86;
+  x.save(); x.beginPath(); x.rect(X, Y, pw, ph); x.clip(); x.strokeStyle = x.fillStyle = ink; x.lineCap = 'butt';
+  const lines = (ang, s, w, x0 = X, y0 = Y, x1 = X + pw, y1 = Y + ph) => { x.lineWidth = w; x.beginPath(); const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2 + 2, ca = Math.cos(ang), sa = Math.sin(ang); for (let d = -R; d <= R; d += s) { x.moveTo(cx - sa * d - ca * R, cy + ca * d - sa * R); x.lineTo(cx - sa * d + ca * R, cy + ca * d + sa * R); } x.stroke(); };
+  const hatch = (path, ang, s, w, cross) => { x.save(); x.beginPath(); path(); x.clip(); lines(ang, s, w); if (cross) lines(ang + 1.2, s * 1.1, w); x.restore(); };
+  const blank = path => { x.fillStyle = PAPER; x.beginPath(); path(); x.fill(); x.fillStyle = ink; };
+  const edge = (path, w = lw * 1.5) => { x.lineWidth = w; x.beginPath(); path(); x.stroke(); };
+  // 空: 上ほど線が太く、つまって見える
+  for (let k = 0, y = Y; y < hor; y += sp, k++) { x.lineWidth = lw * (1.9 - 1.4 * (y - Y) / (hor - Y)); x.beginPath(); x.moveTo(X, y); x.lineTo(X + pw, y); x.stroke(); }
+  const sunX = X + pw * (.2 + hash(i, 1) * .6), sunY = Y + ph * .2, sunP = () => x.arc(sunX, sunY, ph * .085, 0, 7); blank(sunP); edge(sunP, lw);
+  for (let k = 0; k < 2; k++) { const cx = X + pw * hash(i, 2 + k), cy = Y + ph * (.12 + hash(i, 4 + k) * .22), cl = () => { x.ellipse(cx, cy, ph * .16, ph * .04, 0, 0, 7); x.ellipse(cx + ph * .06, cy - ph * .03, ph * .08, ph * .04, 0, 0, 7); }; blank(cl); }
+  // 遠い山なみと手前の丘
+  const hill = (base, amp, seed, f) => () => { x.moveTo(X, Y + ph); x.lineTo(X, base); for (let k = 0; k <= 24; k++) { const t = k / 24; x.lineTo(X + t * pw, base - amp * (.5 + .5 * Math.sin(t * f + seed * 6)) - amp * .3 * Math.sin(t * f * 2.3 + seed * 9)); } x.lineTo(X + pw, Y + ph); };
+  const h1 = hill(hor - ph * .02, ph * .16, hash(i, 6), 5); blank(h1); hatch(h1, -.5, sp * 1.5, lw); edge(h1, lw * 1.2);
+  const h2 = hill(hor + ph * .07, ph * .07, hash(i, 7), 7); blank(h2); hatch(h2, .12, sp * 2.2, lw * .9); edge(h2, lw * 1.2);
+  // 主題
+  const bxp = X + pw * (.5 + (hash(i, 8) - .5) * .3), gy0 = road - ph * .045;
+  if (kind === 0 || kind === 5) {                                   // 家／郵便局
+    const w = (kind === 5 ? 34 : 24) * u, h = 17 * u, body = () => x.rect(bxp - w / 2, gy0 - h, w, h), roof = () => { x.moveTo(bxp - w / 2 - 3 * u, gy0 - h); x.lineTo(bxp - w * .28, gy0 - h - 11 * u); x.lineTo(bxp + w * .28, gy0 - h - 11 * u); x.lineTo(bxp + w / 2 + 3 * u, gy0 - h); x.closePath(); };
+    blank(body); hatch(() => x.rect(bxp, gy0 - h, w / 2, h), 1.57, sp * 1.1, lw); edge(body); blank(roof); hatch(roof, -.9, sp * .8, lw * 1.2, true); edge(roof);
+    const door = () => x.rect(bxp - 2.5 * u, gy0 - 9 * u, 5 * u, 9 * u); hatch(door, 0, sp * .6, lw * 1.3, true); edge(door, lw);
+    for (const dx of kind === 5 ? [-12, -6.5, 7, 12.5] : [-8, 7.5]) { const wn = () => x.rect(bxp + dx * u - 1.8 * u, gy0 - 12 * u, 3.6 * u, 4.6 * u); blank(wn); edge(wn, lw); }
+    if (kind === 5) { edge(() => { x.moveTo(bxp, gy0 - h - 11 * u); x.lineTo(bxp, gy0 - h - 24 * u); }); const fl = () => { x.moveTo(bxp, gy0 - h - 24 * u); x.lineTo(bxp + 9 * u, gy0 - h - 21.5 * u); x.lineTo(bxp, gy0 - h - 19 * u); x.closePath(); }; hatch(fl, 0, sp * .5, lw * 1.4); edge(fl, lw); }
+    else { const chm = () => x.rect(bxp + 4 * u, gy0 - h - 15 * u, 3.5 * u, 8 * u); blank(chm); hatch(chm, 1.57, sp * .7, lw); edge(chm, lw); }
+  } else if (kind === 1) {                                          // 木
+    for (const [dx, sc] of [[-9, 1], [10, .72]]) { const cx = bxp + dx * u, R = 12 * u * sc, cy = gy0 - 20 * u * sc, crown = () => { for (let k = 0; k <= 40; k++) { const a = k / 40 * 6.283, rr = R * (1 + .1 * Math.sin(a * 7 + i)); x.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * .95); } x.closePath(); }, trunk = () => x.rect(cx - 1.4 * u * sc, gy0 - 10 * u * sc, 2.8 * u * sc, 10 * u * sc);
+      blank(trunk); hatch(trunk, 1.57, sp * .55, lw * 1.2); edge(trunk, lw); blank(crown); hatch(crown, .9, sp * 1.1, lw); hatch(() => { x.arc(cx + R * .45, cy + R * .3, R * .85, 0, 7); crown; }, -.5, sp * 1.1, lw * 1.1); x.save(); x.beginPath(); crown(); x.clip(); x.restore(); edge(crown); }
+  } else if (kind === 2) {                                          // 灯台
+    const tw = () => { x.moveTo(bxp - 5.5 * u, gy0); x.lineTo(bxp - 3.4 * u, gy0 - 30 * u); x.lineTo(bxp + 3.4 * u, gy0 - 30 * u); x.lineTo(bxp + 5.5 * u, gy0); x.closePath(); }; blank(tw);
+    for (let k = 0; k < 3; k++) hatch(() => { tw(); }, 0, sp * .55, lw * 1.3 * (k === 1 ? 0 : 1)), 0;
+    x.save(); x.beginPath(); tw(); x.clip(); for (let k = 0; k < 3; k++) { x.save(); x.beginPath(); x.rect(X, gy0 - (9 + k * 10) * u, pw, 5 * u); x.clip(); lines(0, sp * .5, lw * 1.4); x.restore(); } x.beginPath(); x.rect(bxp + 1 * u, Y, 9 * u, ph); x.clip(); lines(1.57, sp * .9, lw); x.restore(); edge(tw);
+    const lamp = () => x.rect(bxp - 3 * u, gy0 - 35 * u, 6 * u, 5 * u); blank(lamp); edge(lamp, lw * 1.2); const cap = () => { x.moveTo(bxp - 4 * u, gy0 - 35 * u); x.lineTo(bxp, gy0 - 40 * u); x.lineTo(bxp + 4 * u, gy0 - 35 * u); x.closePath(); }; hatch(cap, .8, sp * .5, lw * 1.3, true); edge(cap, lw);
+    edge(() => { for (const s of [-1, 1]) for (const a of [-.22, 0, .22]) { x.moveTo(bxp + s * 4 * u, gy0 - 32.5 * u); x.lineTo(bxp + s * 26 * u, gy0 - 32.5 * u + a * 26 * u); } }, lw);
+  } else if (kind === 3) {                                          // 風車
+    const tw = () => { x.moveTo(bxp - 7 * u, gy0); x.lineTo(bxp - 4 * u, gy0 - 22 * u); x.lineTo(bxp + 4 * u, gy0 - 22 * u); x.lineTo(bxp + 7 * u, gy0); x.closePath(); }; blank(tw); hatch(tw, 1.57, sp * .9, lw); hatch(() => x.rect(bxp, gy0 - 22 * u, 8 * u, 22 * u), 0, sp * .8, lw); edge(tw);
+    const cp = () => { x.arc(bxp, gy0 - 22 * u, 4.6 * u, 3.14, 6.29); x.closePath(); }; hatch(cp, .8, sp * .5, lw * 1.3, true); edge(cp, lw);
+    const hx = bxp, hy = gy0 - 23 * u; for (let k = 0; k < 4; k++) { const a = .5 + k * 1.5708, ca = Math.cos(a), sa = Math.sin(a), bl = () => { x.moveTo(hx + ca * 3 * u - sa * .3 * u, hy + sa * 3 * u + ca * .3 * u); x.lineTo(hx + ca * 19 * u - sa * .3 * u, hy + sa * 19 * u + ca * .3 * u); x.lineTo(hx + ca * 19 * u - sa * 4.4 * u, hy + sa * 19 * u + ca * 4.4 * u); x.lineTo(hx + ca * 5 * u - sa * 4.4 * u, hy + sa * 5 * u + ca * 4.4 * u); x.closePath(); }; blank(bl); hatch(bl, a + 1.57, sp * .9, lw); hatch(bl, a, sp * 1.2, lw); edge(bl, lw); edge(() => { x.moveTo(hx, hy); x.lineTo(hx + ca * 19 * u, hy + sa * 19 * u); }, lw * 1.6); }
+  } else {                                                          // 高い山と、もみの木
+    const mt = () => { x.moveTo(bxp - 30 * u, gy0 - 2 * u); x.lineTo(bxp - 4 * u, gy0 - 40 * u); x.lineTo(bxp + 3 * u, gy0 - 33 * u); x.lineTo(bxp + 8 * u, gy0 - 37 * u); x.lineTo(bxp + 32 * u, gy0 - 2 * u); x.closePath(); }; blank(mt); hatch(() => { x.moveTo(bxp - 4 * u, gy0 - 40 * u); x.lineTo(bxp + 3 * u, gy0 - 33 * u); x.lineTo(bxp + 8 * u, gy0 - 37 * u); x.lineTo(bxp + 32 * u, gy0 - 2 * u); x.lineTo(bxp + 2 * u, gy0 - 2 * u); x.lineTo(bxp - 2 * u, gy0 - 24 * u); x.closePath(); }, 1.05, sp * .8, lw * 1.1);
+    hatch(() => { x.moveTo(bxp - 30 * u, gy0 - 2 * u); x.lineTo(bxp - 12 * u, gy0 - 28 * u); x.lineTo(bxp - 2 * u, gy0 - 24 * u); x.lineTo(bxp + 2 * u, gy0 - 2 * u); x.closePath(); }, -.95, sp * 1.6, lw); edge(mt);
+    for (const dx of [-22, -15, 19, 25]) { const cx = bxp + dx * u, pn = () => { x.moveTo(cx - 3.4 * u, gy0); x.lineTo(cx, gy0 - 12 * u); x.lineTo(cx + 3.4 * u, gy0); x.closePath(); }; blank(pn); hatch(pn, 0, sp * .5, lw * 1.3); edge(pn, lw); }
+  }
+  // 道（白くぬいた帯）と手前の草
+  x.fillStyle = PAPER; x.fillRect(X, road - ph * .045, pw, ph * .085); x.fillStyle = ink;
+  x.lineWidth = lw * 1.6; x.beginPath(); x.moveTo(X, road - ph * .045); x.lineTo(X + pw, road - ph * .045); x.moveTo(X, road + ph * .04); x.lineTo(X + pw, road + ph * .04); x.stroke();
+  x.lineWidth = lw; x.beginPath(); for (let k = 0; k < 40; k++) { const px = X + hash(i, k + 20) * pw, py = road + ph * .045 + hash(i, k + 60) * ph * .03; x.moveTo(px, py); x.lineTo(px + 2 * u, py - 2.4 * u); } x.stroke();
+  // 下の帯（べたに見えるほど細かい線）と額面
+  x.save(); x.beginPath(); x.rect(X, band, pw, Y + ph - band); x.clip(); lines(0, Math.max(1.2, sp * .42), lw * 1.5); x.restore();
+  const v = String(VAL[i % VAL.length]), fs = ph * .2, bw2 = fs * (.36 + v.length * .56);
+  x.fillStyle = PAPER; x.fillRect(X + pw - bw2 - ph * .03, Y + ph * .035, bw2, fs * 1.02); x.fillStyle = ink; x.lineWidth = lw * 1.5; x.strokeRect(X + pw - bw2 - ph * .03, Y + ph * .035, bw2, fs * 1.02);
+  x.font = `700 ${fs}px Georgia,"Times New Roman",serif`; x.textAlign = 'center'; x.textBaseline = 'alphabetic'; x.fillText(v, X + pw - bw2 / 2 - ph * .03, Y + ph * .035 + fs * .84);
+  x.fillStyle = PAPER; x.font = `700 ${ph * .085}px Georgia,serif`; x.textAlign = 'left'; x.fillText('P O S T', X + ph * .04, Y + ph - ph * .035); x.textAlign = 'right'; x.font = `italic 700 ${ph * .075}px Georgia,serif`; x.fillText(['HOUSE', 'TREES', 'LIGHT', 'MILL', 'PEAK', 'OFFICE'][kind], X + pw - ph * .04, Y + ph - ph * .037);
+  x.restore();
+  x.strokeStyle = ink; x.lineWidth = lw * 2.2; x.strokeRect(X - lw * 2.6, Y - lw * 2.6, pw + lw * 5.2, ph + lw * 5.2); x.lineWidth = lw; x.strokeRect(X, Y, pw, ph);     // 二重のわく
+}
+addEventListener('resize', () => { resize(); restamp(); }); resize();
+
+// ── 場面: 1 枚ずつ左から右へ、行の終わりで次の行へ
+let t = 0, last = performance.now(), prog = 0, done = 0, hits = [], pause = 0, shake = 0;
+function putMark(ctx, i, k) { const { cw, ch, gx, gy, cols } = G, c = i % cols, r = Math.floor(i / cols), mr = mark.r, px = gx + (c + .46 + (hash(i, 31) - .5) * .12) * cw, py = gy + (r + .4 + (hash(i, 32) - .5) * .12) * ch; ctx.save(); ctx.translate(px, py); ctx.rotate((hash(i, 33) - .5) * .7); ctx.scale(k, k); ctx.globalAlpha = .86; ctx.drawImage(mark, -mr * 1.2, -mr * 1.2, mark.width / S, mark.height / S); ctx.restore(); }
+function restamp() { bx.setTransform(1, 0, 0, 1, 0, 0); bx.drawImage(art, 0, 0); bx.setTransform(S, 0, 0, S, 0, 0); for (let i = 0; i < done; i++) putMark(bx, i, 1); hits = []; }
+prog = G.cols + .25; done = G.cols + (W > H ? 0 : 1); restamp(); if (W <= H) prog = done - .15;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const { cols, rows, cw, ch, gx, gy, n, ph, sm } = G;
+  if (pause > 0) { pause -= dt; if (pause <= 0) { prog = -.3; done = 0; restamp(); } } else prog += dt * .72;
+  // 行の中の位置（行の両はしでは耳紙まで走りぬける）
+  const row = Math.min(rows - 1, Math.floor(Math.max(0, prog) / cols)), inRow = prog - row * cols;
+  const X = gx + inRow * cw, Y = G.road(row), si = Math.floor(prog);
+  if (pause <= 0 && si >= done && si < n && prog - si > .5) { hits.push({ i: si, t: 0 }); done = si + 1; shake = .12; }
+  if (pause <= 0 && prog > n + .35) pause = 1.6;
+  shake = Math.max(0, shake - dt);
+  const shx = shake > 0 ? Math.sin(t * 90) * 2.5 * shake / .12 : 0;
+  g.setTransform(1, 0, 0, 1, shx * S, 0); g.drawImage(bg, 0, 0); g.setTransform(S, 0, 0, S, shx * S, 0);
+  // 押したての消印（大きく落ちてきて、紙に定着する）
+  for (const h of hits) { h.t += dt; if (h.t > .16) { putMark(bx, h.i, 1); h.done = true; putMark(g, h.i, 1); } else putMark(g, h.i, 1.7 - .7 * (h.t / .16)); } hits = hits.filter(h => !h.done);
+
+  // 配達員（今いる切手のインクの色。線と小さなべただけ）
+  if (pause <= 0 || pause > 1.2) {
+    const inside = inRow >= 0 && inRow < cols, ci = Math.max(0, Math.min(cols - 1, Math.floor(inRow))) + row * cols, ink = inside ? INKS[(ci * 3 + row) % INKS.length] : '#4a4a50';
+    const u = ph * .085, sp = prog * cw / u, bob = Math.sin(sp * .5) * u * .06, P = (a, b) => [X + a * u, Y + b * u + bob];
+    g.strokeStyle = g.fillStyle = PAPER; g.lineCap = g.lineJoin = 'round'; g.lineWidth = u * .5;
+    const body = () => { g.beginPath();
+      for (const wx of [-1.5, 1.5]) { const [cx, cy] = P(wx, -1); g.moveTo(cx + u, cy); g.arc(cx, cy, u, 0, 6.2832); for (let k = 0; k < 4; k++) { const a = sp + k * .785; g.moveTo(cx - Math.cos(a) * u, cy - Math.sin(a) * u); g.lineTo(cx + Math.cos(a) * u, cy + Math.sin(a) * u); } }
+      const L = (...p) => { p.forEach((q, k) => { const [a, b] = P(q[0], q[1]); k ? g.lineTo(a, b) : g.moveTo(a, b); }); };
+      const pa = sp * .9, pd = [-.3 + Math.cos(pa) * .5, -1 + Math.sin(pa) * .5], kn = [(-.7 + pd[0]) / 2 + .75, (-2.5 + pd[1]) / 2 - .25];
+      L([-1.5, -1], [-.3, -1], [-.7, -2.3], [1, -2.3], [1.5, -1]); L([-.3, -1], [1, -2.3], [1.1, -2.9], [.75, -3]); L([-1.05, -2.35], [-.4, -2.35]);
+      L([-.7, -2.5], kn, pd); L([-.7, -2.5], [.05, -4]); L([.05, -3.9], [.5, -3.3], [.95, -2.95]); L([-2.3, -1.75], [-1.2, -1.75]); };
+    body(); g.stroke();                                              // 紙の色でふちを取って、絵から浮かせる
+    g.strokeStyle = g.fillStyle = ink; g.lineWidth = u * .19; body(); g.stroke();
+    g.beginPath(); { const [hx, hy] = P(.28, -4.55); g.arc(hx, hy, u * .42, 0, 7); const [c1, c2] = P(-.2, -5.02); g.rect(c1, c2, u * .95, u * .26); const [v1, v2] = P(.6, -4.82); g.rect(v1, v2, u * .5, u * .12);
+      const [b1, b2] = P(-1.15, -3.5); g.rect(b1, b2, u * .95, u * .8); const [r1, r2] = P(-2.4, -2.75); g.rect(r1, r2, u * 1.1, u * .95); } g.fill();
+    g.strokeStyle = PAPER; g.lineWidth = u * .09; g.beginPath(); { const [r1, r2] = P(-2.4, -2.75); g.moveTo(r1, r2 + u * .1); g.lineTo(r1 + u * .55, r2 + u * .5); g.lineTo(r1 + u * 1.1, r2 + u * .1); } g.stroke();   // 荷台の手紙
+  }
+  // 耳紙の配達数
+  g.fillStyle = '#5a5648'; g.font = `700 ${Math.max(8, sm * .34)}px Georgia,serif`; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText('DELIVERED  ' + String(done).padStart(2, '0') + ' / ' + n, gx + cw * cols - G.pr * 2, gy + ch * rows + sm * .5 + G.pr * .5);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

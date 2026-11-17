@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 36 遊覧飛行 パッチワークキルト</title>
+<style>
+html,body{margin:0;height:100%;background:#cfdfe4;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a4636;background:#f3ead8cc;padding:0 6px}
+#hud{position:fixed;left:14px;top:12px;font:700 15px/1.2 "Hiragino Maru Gothic ProN","Arial Rounded MT Bold",ui-rounded,system-ui,sans-serif;color:#7a3b34;background:#f3ead8;padding:6px 12px;border-radius:6px;outline:2px dashed #c4674a;outline-offset:-5px;box-shadow:0 2px 0 #0002}
+</style>
+<div id="hud">ボタン 0</div>
+<div id="cap">LOOK 36 ─ 遊覧飛行 / パッチワークキルト　｜　見るだけ（自動で丘の上を回る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 丘の畑を、布をぬい合わせたパッチワークキルトに見立てる。地面は 1 枚の布の絵（花がら・チェック・水玉・しま・無地を Canvas で作り、
+// 境目にぬい目の点線）をくり返してはり、同じ区切りで作った「綿のふくらみ」の高さの絵を重ねて、ぬい目の所がへこむ陰影を出す。
+// 木・家・雲・お日さまはフェルトのアップリケ（ふちにぬい目、実や窓はボタン）で、いつもこちらを向く。飛行機も布のぬいぐるみ。光はやわらかく、影はつけない
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.fog = new THREE.Fog('#d6e4e6', 70, 200);
+const cam = new THREE.PerspectiveCamera(42, 1, .5, 600);
+let tall = false; const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 62 : 42; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; };
+const texOf = (c, rep) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; } return t; };
+const CREAM = '#f3ead8', SAGE = '#9db88a', GREEN = '#7fa56a', MUST = '#e2b94f', ROSE = '#d88f8f', TEAL = '#7fa9b5', OLIVE = '#93a05c', BRICK = '#c4674a', BROWN = '#8a6244';
+// 布目（たて糸・よこ糸のうすい線）
+function weave(x, w, h, a = .06) { for (let i = 0; i < w; i += 3) { x.fillStyle = `rgba(${i % 2 ? '255,255,255' : '60,40,20'},${a})`; x.fillRect(i, 0, 1, h); } for (let i = 0; i < h; i += 3) { x.fillStyle = `rgba(${i % 2 ? '60,40,20' : '255,255,255'},${a})`; x.fillRect(0, i, w, 1); } }
+
+// 空は、うすい水色のリネンの布
+{ const [c, x] = mkc(512, 512); const gr = x.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#bcd3de'); gr.addColorStop(1, '#dde8e6'); x.fillStyle = gr; x.fillRect(0, 0, 512, 512); weave(x, 512, 512, .07); scene.background = texOf(c); }
+
+// 布の柄（中心を原点に、±R の四角をうめる）
+const FAB = [['floral', SAGE], ['gingham', GREEN], ['dots', MUST], ['stripe', SAGE], ['floral', CREAM], ['gingham', ROSE], ['dots', TEAL], ['stripe', MUST], ['plain', OLIVE], ['gingham', MUST], ['dots', GREEN], ['plain', SAGE]];
+function fabric(x, [kind, col], R, seed) {
+  x.fillStyle = kind === 'gingham' || kind === 'stripe' ? CREAM : col; x.fillRect(-R, -R, R * 2, R * 2);
+  if (kind === 'gingham') { x.fillStyle = col; x.globalAlpha = .55; for (let i = -R; i < R; i += 28) { x.fillRect(i, -R, 14, R * 2); x.fillRect(-R, i, R * 2, 14); } x.globalAlpha = 1; }
+  if (kind === 'stripe') { x.fillStyle = col; for (let i = -R; i < R; i += 24) { x.fillRect(i, -R, 11, R * 2); x.fillRect(i + 15, -R, 2, R * 2); } }
+  if (kind === 'dots') { x.fillStyle = CREAM; for (let j = -R, r = 0; j < R; j += 15, r++) for (let i = -R + (r & 1) * 15; i < R; i += 30) { x.beginPath(); x.arc(i, j, 5.2, 0, 7); x.fill(); } }
+  if (kind === 'floral') { const pet = col === CREAM ? ROSE : '#fff7ea'; for (let j = -R, r = 0; j < R; j += 24, r++) for (let i = -R + (r & 1) * 24; i < R; i += 48) { const fx = i + (hash(i, j + seed) - .5) * 12, fy = j + (hash(i + 3, j + seed) - .5) * 10, a0 = hash(i, j) * 6; x.fillStyle = col === CREAM ? GREEN : '#6f9560'; for (const s of [0, 2.6]) { x.beginPath(); x.ellipse(fx + Math.cos(a0 + s) * 10, fy + Math.sin(a0 + s) * 10, 6, 2.8, a0 + s, 0, 7); x.fill(); } x.fillStyle = pet; for (let k = 0; k < 5; k++) { x.beginPath(); x.arc(fx + Math.cos(a0 + k * 1.257) * 5.5, fy + Math.sin(a0 + k * 1.257) * 5.5, 4.2, 0, 7); x.fill(); } x.fillStyle = col === MUST ? BRICK : MUST; x.beginPath(); x.arc(fx, fy, 3, 0, 7); x.fill(); } }
+}
+// キルトの区切り: 6×6 のますの角を少しずらした四角。はしはくり返しでつながる
+const N = 6, TS = 1024, cs = TS / N;
+const corner = (i, j) => { const a = ((i % N) + N) % N, b = ((j % N) + N) % N; return [(i + (hash(a, b) - .5) * .36) * cs, (j + (hash(a + 9, b + 5) - .5) * .36) * cs]; };
+function eachPatch(f) { for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) for (const oy of [-1, 0, 1]) for (const ox of [-1, 0, 1]) { if ((ox && i && i !== N - 1) || (oy && j && j !== N - 1)) continue; const q = [corner(i, j), corner(i + 1, j), corner(i + 1, j + 1), corner(i, j + 1)].map(([x, y]) => [x + ox * TS, y + oy * TS]); f(q, i + j * N, [(q[0][0] + q[1][0] + q[2][0] + q[3][0]) / 4, (q[0][1] + q[1][1] + q[2][1] + q[3][1]) / 4]); } }
+const poly = (x, q, c, k) => { x.beginPath(); q.forEach(([px, py], n) => x[n ? 'lineTo' : 'moveTo'](c[0] + (px - c[0]) * k, c[1] + (py - c[1]) * k)); x.closePath(); };
+const [quiltC, qx] = mkc(TS, TS), [bumpC, bx] = mkc(512, 512); bx.scale(.5, .5); bx.fillStyle = '#000'; bx.fillRect(0, 0, TS, TS);
+eachPatch((q, id, c) => {
+  qx.save(); poly(qx, q, c, 1.01); qx.clip(); qx.translate(c[0], c[1]); qx.rotate([0, .785, -.3, 1.571, .2][id % 5]); fabric(qx, FAB[(id * 5 + (id / N | 0) * 2) % FAB.length], cs * 1.1, id); qx.restore();
+  // 綿のふくらみ: ふちから中へ、だんだん高く。ぬい目の所は点々とへこむ
+  for (let k = 0; k < 18; k++) { poly(bx, q, c, 1 - k * .05); const v = Math.round(255 * Math.sin(Math.min(1, k / 9) * 1.5708)); bx.fillStyle = `rgb(${v},${v},${v})`; bx.fill(); }
+  bx.setLineDash([9, 8]); bx.lineWidth = 4; bx.strokeStyle = 'rgba(0,0,0,.6)'; poly(bx, q, c, .88); bx.stroke(); bx.setLineDash([]);
+});
+weave(qx, TS, TS, .07);
+eachPatch((q, id, c) => {
+  qx.lineJoin = 'round'; for (const [lw, a] of [[26, .1], [14, .13], [5, .3]]) { poly(qx, q, c, 1); qx.strokeStyle = `rgba(70,45,25,${a})`; qx.lineWidth = lw; qx.stroke(); }       // ぬい合わせの谷
+  for (const [o, col, lw] of [[1.5, 'rgba(60,40,20,.45)', 3.4], [0, '#fff8ea', 3]]) { qx.save(); qx.translate(o, o); qx.setLineDash([9, 8]); qx.lineCap = 'butt'; poly(qx, q, c, .88); qx.strokeStyle = col; qx.lineWidth = lw; qx.stroke(); qx.restore(); }  // ぬい目の糸
+});
+const TILE = 110, hAt = (x, z) => 7 * Math.sin(x * .045) * Math.cos(z * .038) + 4 * Math.sin(x * .021 + 1.3) + 3 * Math.sin(z * .027 + x * .012);
+{ const geo = new THREE.PlaneGeometry(560, 560, 140, 140); geo.rotateX(-Math.PI / 2); const p = geo.attributes.position, uv = geo.attributes.uv; for (let i = 0; i < p.count; i++) { p.setY(i, hAt(p.getX(i), p.getZ(i))); uv.setXY(i, p.getX(i) / TILE, p.getZ(i) / TILE); } geo.computeVertexNormals();
+  const bump = texOf(bumpC, 1); bump.colorSpace = THREE.NoColorSpace;
+  scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: texOf(quiltC, 1), bumpMap: bump, bumpScale: 9, roughness: 1 }))); }
+scene.add(new THREE.HemisphereLight(0xfff8ee, 0xc9b8a0, 2.1));
+const sun = new THREE.DirectionalLight(0xfff0dc, 1.5); sun.position.set(-1, .75, .5); scene.add(sun);
+
+// フェルトのアップリケ: 毛ばだちの点、ふちの暗がり、内がわを一周するぬい目
+function felt(x, path, col, cx, cy, stitch = '#fff8ea') {
+  x.save(); path(1); x.fillStyle = col; x.fill(); x.clip(); for (let i = 0; i < 500; i++) { x.fillStyle = `rgba(${hash(i, 1) > .5 ? '255,255,255' : '40,25,10'},.09)`; x.fillRect(hash(i, 2) * x.canvas.width, hash(i, 3) * x.canvas.height, 2 + hash(i, 4) * 3, 1.5); }
+  path(1); x.strokeStyle = 'rgba(40,25,10,.3)'; x.lineWidth = 7; x.stroke(); x.restore();
+  if (stitch) { x.save(); x.translate(cx, cy); x.scale(.84, .84); x.translate(-cx, -cy); x.setLineDash([8, 6]); path(1); x.strokeStyle = stitch; x.lineWidth = 3; x.stroke(); x.restore(); }
+}
+function button(x, cx, cy, r, col) {
+  x.fillStyle = 'rgba(40,25,10,.35)'; x.beginPath(); x.arc(cx + r * .08, cy + r * .12, r, 0, 7); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill();
+  x.strokeStyle = 'rgba(40,25,10,.3)'; x.lineWidth = r * .1; x.beginPath(); x.arc(cx, cy, r * .68, 0, 7); x.stroke(); x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = r * .09; x.beginPath(); x.arc(cx, cy, r * .88, 3.4, 5); x.stroke();
+  x.strokeStyle = '#fff8ea'; x.lineWidth = r * .11; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - r * .24, cy - r * .24); x.lineTo(cx + r * .24, cy + r * .24); x.moveTo(cx + r * .24, cy - r * .24); x.lineTo(cx - r * .24, cy + r * .24); x.stroke();
+  x.fillStyle = '#3a2a20'; for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { x.beginPath(); x.arc(cx + a * r * .24, cy + b * r * .24, r * .1, 0, 7); x.fill(); }
+}
+const sprite = (w, h, draw) => { const [c, x] = mkc(w, h); draw(x); return new THREE.MeshStandardMaterial({ map: texOf(c), alphaTest: .5, roughness: 1, side: THREE.DoubleSide }); };
+const treeM = ['#5f9a5a', '#7fb06a', '#4f8a6a'].map((col, k) => sprite(128, 176, x => {
+  felt(x, () => { x.beginPath(); x.roundRect(52, 96, 24, 78, 5); }, BROWN, 64, 135, null);
+  if (k < 2) { felt(x, () => { x.beginPath(); x.arc(64, 62, 58, 0, 7); }, col, 64, 62); for (const [bx2, by2] of [[44, 44], [84, 60], [56, 86]]) button(x, bx2, by2, 9, k ? MUST : BRICK); }
+  else felt(x, () => { x.beginPath(); x.moveTo(64, 4); x.lineTo(118, 122); x.lineTo(10, 122); x.closePath(); }, col, 64, 84);
+}));
+const houseM = [[CREAM, BRICK], [ROSE, '#7a5a8a'], [MUST, BRICK]].map(([wall, roof]) => sprite(160, 160, x => {
+  felt(x, () => { x.beginPath(); x.rect(26, 70, 108, 86); }, wall, 80, 113, BRICK); felt(x, () => { x.beginPath(); x.moveTo(80, 6); x.lineTo(154, 76); x.lineTo(6, 76); x.closePath(); }, roof, 80, 54);
+  felt(x, () => { x.beginPath(); x.roundRect(88, 104, 28, 52, 6); }, BROWN, 102, 130, null); button(x, 56, 108, 15, TEAL);
+}));
+const cloudM = sprite(256, 144, x => { felt(x, () => { x.beginPath(); for (const [cx, cy, r] of [[60, 92, 44], [112, 62, 54], [168, 74, 50], [204, 98, 38], [128, 102, 40]]) { x.moveTo(cx + r, cy); x.arc(cx, cy, r, 0, 7); } }, '#fbf6ea', 128, 84, null); x.setLineDash([9, 7]); x.strokeStyle = TEAL; x.lineWidth = 3; x.beginPath(); x.arc(112, 62, 42, 3.3, 6.1); x.stroke(); x.beginPath(); x.arc(168, 74, 38, 4.4, 6.9); x.stroke(); x.beginPath(); x.arc(60, 92, 32, 2.4, 4.6); x.stroke(); x.setLineDash([]); button(x, 150, 98, 13, '#e9eef0'); });
+const sunM = sprite(256, 256, x => { felt(x, () => { x.beginPath(); for (let i = 0; i < 24; i++) { const a = i / 24 * 6.283, r = i & 1 ? 84 : 124; x[i ? 'lineTo' : 'moveTo'](128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } x.closePath(); }, '#f0c55a', 128, 128, null); button(x, 128, 128, 70, '#f6dc86'); });
+[cloudM, sunM].forEach(m => { m.fog = false; });
+const quad = new THREE.PlaneGeometry(1, 1), bills = [], shadowM = new THREE.MeshBasicMaterial({ color: 0x4a3524, transparent: true, opacity: .2, depthWrite: false }), disc = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2);
+function standee(mat, x, z, w, h) { const m = new THREE.Mesh(quad, mat); m.scale.set(w, h, 1); const y = hAt(x, z); m.position.set(x, y + h / 2 - .2, z); scene.add(m); bills.push(m); const s = new THREE.Mesh(disc, shadowM); s.scale.set(w * .5, 1, w * .28); s.position.set(x + w * .12, y + .35, z + w * .1); scene.add(s); }
+for (let i = 0; i < 90; i++) { const a = hash(i, 1) * 6.283, r = 14 + Math.sqrt(hash(i, 2)) * 120, h = 7 + hash(i, 3) * 5; standee(treeM[i % 3], Math.cos(a) * r, Math.sin(a) * r, h * .73, h); }
+for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + hash(i, 5), r = 26 + hash(i, 6) * 70; standee(houseM[i % 3], Math.cos(a) * r, Math.sin(a) * r, 11, 11); }
+const clouds = [...Array(11)].map((_, i) => { const m = new THREE.Mesh(quad, cloudM), a = i / 11 * 6.283 + hash(i, 7), r = 50 + hash(i, 8) * 90, s = 22 + hash(i, 9) * 16; m.scale.set(s, s * .56, 1); m.position.set(Math.cos(a) * r, 40 + hash(i, 10) * 14, Math.sin(a) * r); scene.add(m); return m; });
+const sunB = new THREE.Mesh(quad, sunM); sunB.scale.set(46, 46, 1); sunB.position.set(-150, 78, -170); scene.add(sunB); clouds.push(sunB);
+
+// ぬいぐるみの飛行機（頭が +x）。赤いチェックの胴、生成りのつばさ、ボタンの車輪とプロペラの軸
+const cloth = (draw, rx = 1, ry = 1) => { const [c, x] = mkc(128, 128); draw(x); weave(x, 128, 128, .08); const t = texOf(c, 1); t.repeat.set(rx, ry); return new THREE.MeshStandardMaterial({ map: t, roughness: 1 }); };
+const redCheck = cloth(x => { x.translate(64, 64); fabric(x, ['gingham', '#d2453c'], 70, 0); }, 3, 2);
+const creamSt = cloth(x => { x.fillStyle = CREAM; x.fillRect(0, 0, 128, 128); x.setLineDash([10, 8]); x.strokeStyle = BRICK; x.lineWidth = 4; x.strokeRect(10, 10, 108, 108); }, 1, 1);
+const plainM = c => cloth(x => { x.fillStyle = c; x.fillRect(0, 0, 128, 128); });
+const plane = new THREE.Group(), body = new THREE.Group(); plane.add(body);
+const add = (geo, mat, px, py, pz, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, mat); m.position.set(px, py, pz); m.scale.set(sx, sy, sz); body.add(m); return m; };
+const ball = new THREE.SphereGeometry(1, 24, 16);
+add(new THREE.CapsuleGeometry(1.15, 3.2, 8, 20).rotateZ(-Math.PI / 2), redCheck, 0, 0, 0);
+add(ball, plainM(CREAM), 2.25, 0, 0, .95, .95, .95);                                          // 鼻
+add(ball, creamSt, .5, .15, 0, 1.15, .24, 5);                                                 // 主よく
+add(ball, creamSt, -2.5, .25, 0, .65, .16, 1.9); add(ball, plainM(MUST), -2.6, 1.05, 0, .75, .85, .16); // 尾よく
+add(ball, plainM(TEAL), .5, .95, 0, .85, .6, .7);                                             // 窓
+const btnTex = col => { const [c, x] = mkc(128, 128); button(x, 64, 64, 60, col); return texOf(c); };
+const btnMat = col => { const side = new THREE.MeshStandardMaterial({ color: col, roughness: .6 }), face = new THREE.MeshStandardMaterial({ map: btnTex(col), roughness: .6 }); return [side, face, face]; };
+const btnGeo = new THREE.CylinderGeometry(1, 1, .28, 28);
+for (const s of [-1, 1]) { const w = new THREE.Mesh(btnGeo, btnMat('#4a3a34')); w.rotation.x = Math.PI / 2; w.scale.setScalar(.55); w.position.set(.9, -1.25, s * 1.0); body.add(w); add(new THREE.CylinderGeometry(.09, .09, .7, 6), plainM(BROWN), .9, -.95, s * .9); for (const e of [0]) { const eye = new THREE.Mesh(btnGeo, btnMat('#3a2a20')); eye.rotation.z = Math.PI / 2; eye.rotation.y = -s * .5; eye.scale.setScalar(.2); eye.position.set(2.98, .3, s * .42); body.add(eye); } }
+const prop = new THREE.Group(); prop.position.set(3.25, 0, 0); body.add(prop);
+{ const hub = new THREE.Mesh(btnGeo, btnMat(MUST)); hub.rotation.z = -Math.PI / 2; hub.scale.setScalar(.42); prop.add(hub); for (const r of [0, Math.PI / 2]) { const b = new THREE.Mesh(new THREE.BoxGeometry(.1, 3.4, .5), plainM(BROWN)); b.rotation.x = r; b.position.x = -.1; prop.add(b); } }
+plane.scale.setScalar(1.5); body.rotation.order = 'YZX'; scene.add(plane);
+
+// 空にうかぶ大きなボタン（通ると取れる）
+const RAD = 50, ALT = 31, coins = [...Array(8)].map((_, i) => { const m = new THREE.Mesh(btnGeo, btnMat([BRICK, MUST, TEAL, ROSE][i % 4])), a = i / 8 * 6.283 + .5; m.position.set(Math.cos(a) * RAD, ALT + Math.sin(i * 2.4) * 1.5, Math.sin(a) * RAD); m.userData = { a, on: 1, pop: 0, y: m.position.y }; scene.add(m); return m; });
+const hud = document.getElementById('hud'); let score = 0, t = 0, last = performance.now();
+const camP = new THREE.Vector3(), look = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 飛行機: 半径 50 の輪を 17 秒ほどで一回り。内がわへかたむき、ふわふわ上下する
+  const a = t * .36 + .9, px = Math.cos(a) * RAD, pz = Math.sin(a) * RAD, py = ALT + Math.sin(t * 1.3) * 1.1, tx = -Math.sin(a), tz = Math.cos(a);
+  plane.position.set(px, py, pz); body.rotation.set(-.38 + Math.sin(t * .9) * .07, Math.atan2(-tz, tx), Math.cos(t * 1.3) * .07); prop.rotation.x = t * 30;
+  for (const c of coins) { const u = c.userData; let d = (u.a - a) % 6.283; if (d < -3.1416) d += 6.283; if (d > 3.1416) d -= 6.283;
+    if (u.on && Math.abs(d) < .04) { u.on = 0; u.pop = .001; score++; hud.textContent = 'ボタン ' + score; }
+    if (!u.on && u.pop === 0 && Math.abs(d) > 2.6) u.on = 1;
+    if (u.pop > 0) { u.pop += dt * 3; if (u.pop >= 1) u.pop = 0; }
+    const s = u.pop > 0 ? 2.2 * (1 + u.pop * .8) * (1 - u.pop) : u.on ? 2.2 : 0; c.visible = s > .01; c.scale.set(s, s, s); c.position.y = u.y + (u.pop > 0 ? u.pop * 5 : Math.sin(t * 2 + u.a * 3) * .4); c.rotation.set(Math.PI / 2, 0, u.a + Math.sin(t * 1.5 + u.a) * .5 + u.pop * 9, 'ZYX'); }
+  // カメラ: うしろ・少し外がわ・少し上から
+  const back = tall ? 21 : 16; camP.set(px - tx * back + Math.cos(a) * 6.5, py + (tall ? 8 : 6), pz - tz * back + Math.sin(a) * 6.5); cam.position.copy(camP); look.set(px + tx * 9 - Math.cos(a) * 3, py - 2.2, pz + tz * 9 - Math.sin(a) * 3); cam.lookAt(look);
+  for (const b of bills) b.rotation.y = Math.atan2(cam.position.x - b.position.x, cam.position.z - b.position.z);
+  for (const c of clouds) c.lookAt(cam.position);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

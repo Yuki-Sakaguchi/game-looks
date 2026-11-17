@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 22 ミクロ探検 電子顕微鏡の写真</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#bar{position:fixed;left:0;right:0;bottom:0;background:#000;border-top:2px solid #e8e8e8;color:#f2f2f2;font:13px/1.4 ui-monospace,Menlo,monospace;padding:7px 12px 30px;display:flex;flex-wrap:wrap;gap:2px 22px;align-items:center;letter-spacing:.06em}
+#bar b{font-weight:400;margin-left:auto;display:flex;align-items:center;gap:8px}
+#bar i{display:inline-block;width:92px;height:5px;border:solid #f2f2f2;border-width:0 2px 3px 2px}
+#cap{position:fixed;left:12px;bottom:8px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9a9a9a}
+</style>
+<div id="bar"><span>SE 15.0kV</span><span>x1,200</span><span>WD 8.4mm</span><span id="smp">SAMPLE 000</span><b><i></i>10 μm</b></div>
+<div id="cap">LOOK 22 ─ ミクロ探検 / 走査型電子顕微鏡の写真　｜　見るだけ（自動で進む）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 走査型電子顕微鏡（SEM）の写真に見立てる。白黒だけ。光の向きは使わず、
+// 「面が視線に対して傾いている所ほど明るい」で塗る（ふちが白く光り、こちらを向いた面は暗い灰色）。
+// 背景は黒、遠くまでピントが合い、表面には細かいぶつぶつ。走査線の横じまと、下に倍率やスケールバーの黒い帯
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, .1, 200);
+// 表面のぶつぶつ用の、くり返す乱数の模様
+const nc = document.createElement('canvas'); nc.width = nc.height = 64; { const c = nc.getContext('2d'), d = c.createImageData(64, 64); for (let i = 0; i < 4096; i++) { d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = Math.random() * 255; d.data[i * 4 + 3] = 255; } c.putImageData(d, 0, 0); }
+const nT = new THREE.CanvasTexture(nc); nT.wrapS = nT.wrapT = THREE.RepeatWrapping; nT.generateMipmaps = false; nT.minFilter = THREE.LinearFilter;
+const U = { tN: { value: nT }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) } };
+const VS = `varying vec3 vN,vV,vP;void main(){
+#ifdef USE_INSTANCING
+  mat4 m=modelMatrix*instanceMatrix;vP=(instanceMatrix*vec4(position,1.)).xyz;
+#else
+  mat4 m=modelMatrix;vP=position;
+#endif
+  vec4 mv=viewMatrix*m*vec4(position,1.);vN=mat3(viewMatrix)*mat3(m)*normal;vV=mv.xyz;gl_Position=projectionMatrix*mv;}`;
+const FS = `uniform float uTime,uFlat,uBump,uGain;uniform vec2 uRes;varying vec3 vN,vV,vP;
+uniform sampler2D tN;
+float n3(vec3 p){vec2 u=p.xz+p.y*vec2(.37,.61);return texture2D(tN,u/64.).r;}
+void main(){
+  vec3 n=uFlat>.5?normalize(cross(dFdx(vV),dFdy(vV))):normalize(vN),v=normalize(-vV);
+  float nz=n3(vP*uBump),nz2=n3(vP.zxy*uBump*3.3+9.);
+  float e=clamp(1.-abs(dot(n,v))+(nz-.5)*.34,0.,1.);   // 視線に対する傾き（ぶつぶつで少しゆらす）
+  float b=.12+1.08*e*sqrt(e);                          // 傾いた所ほど明るい＝ふちが白い
+  b*=.8+.4*nz2;b-=smoothstep(.62,.8,nz)*.1;
+  b*=mix(1.,.1,smoothstep(12.,52.,-vV.z))*uGain;
+  vec2 fc=gl_FragCoord.xy;
+  b*=.9+.1*sin(fc.y*2.0944);                            // 走査線の横じま
+  b*=1.+.22*smoothstep(.03,0.,abs(gl_FragCoord.y/uRes.y-(1.-fract(uTime*.21)))); // ゆっくり下りる走査の帯
+  b+=(texture2D(tN,fc/64.+floor(uTime*4.)*.37).r-.5)*.07;                // フィルムの粒
+  gl_FragColor=vec4(vec3(b),1.);}`;
+const mat = (bump, gain = 1, flat = 0) => new THREE.ShaderMaterial({ uniforms: { ...U, uBump: { value: bump }, uGain: { value: gain }, uFlat: { value: flat } }, vertexShader: VS, fragmentShader: FS });
+const L = 60, K = Math.PI * 2 / L, SPEED = 4;
+const hgt = (x, z) => Math.sin(x * .33 + Math.sin(z * K * 2) * 1.2) * .5 + Math.sin(z * K * 3 + x * .21) * .6 + Math.sin(x * 1.3 + z * K * 9) * .12 + x * x * .014 - .6;
+// 地面（でこぼこの面。進む向きに L でくり返す）
+const gg = new THREE.PlaneGeometry(64, L * 3, 40, 100); gg.rotateX(-Math.PI / 2); gg.translate(0, 0, -L);
+{ const p = gg.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, hgt(p.getX(i), p.getZ(i))); gg.computeVertexNormals(); }
+const ground = new THREE.Mesh(gg, mat(2.6, .62)); scene.add(ground);
+// 流れてくる物（z は「何 μm 先か」。L でくり返す）
+const things = [], M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V3 = (x, y, z) => new THREE.Vector3(x, y, z), UP = V3(0, 1, 0);
+const put = (grp, x, z, y = 0, spin = 0) => { grp.userData = { z, spin }; grp.position.set(x, hgt(x, -z) + y, 0); scene.add(grp); things.push(grp); return grp; };
+const inst = (geo, m, list) => { const im = new THREE.InstancedMesh(geo, m, list.length); list.forEach((a, i) => { Q.setFromUnitVectors(UP, a.dir.clone().normalize()); im.setMatrixAt(i, M4.compose(a.pos, Q, a.scl)); }); im.frustumCulled = false; return im; };
+// 花粉: 球にとげ
+const sphG = new THREE.IcosahedronGeometry(1, 3), spkG = new THREE.ConeGeometry(.085, .46, 6); spkG.translate(0, .2, 0);
+const pollen = (x, z, s, y, k) => { const gp = new THREE.Group(), list = []; const n = 110; for (let i = 0; i < n; i++) { const yy = 1 - (i + .5) / n * 2, r = Math.sqrt(1 - yy * yy), a = i * 2.39996 + k; const d = V3(Math.cos(a) * r, yy, Math.sin(a) * r); list.push({ pos: d.clone().multiplyScalar(.98), dir: d, scl: V3(1, 1, 1) }); } gp.add(new THREE.Mesh(sphG, mat(7, 1)), inst(spkG, mat(9, 1.15), list)); gp.scale.setScalar(s); gp.rotation.set(k, k * 2, 0); return put(gp, x, z, y, .12 + hash(k) * .2); };
+pollen(-5.2, 13, 2.3, 2.4, 1); pollen(4.6, 22, 1.5, 3.6, 2); pollen(6.8, 3, 1.9, 1.7, 3); pollen(-7.5, 37, 2.6, 2.2, 4); pollen(3.9, 46, 1.3, 4.4, 5); pollen(-3.6, 55, 1.2, 4.8, 6); pollen(10, 31, 2.9, 2.4, 7);
+// 結晶の林: 六角柱（先がとがる）
+const cryG = new THREE.LatheGeometry([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1.28)], 6);
+{ const list = [], cm = mat(14, 1.05, 1); [[7, 14], [-8.5, 24], [5.5, 34], [-5, 44], [8, 52], [-9, 4], [12, 44], [-13, 14], [14, 24], [-13, 50]].forEach(([cx, cz], c) => { const gp = new THREE.Group(), l = []; for (let i = 0; i < 9; i++) { const a = hash(c, i) * 6.28, r = i ? .4 + hash(i, c + 5) * 1.6 : 0, w = .32 + hash(c + 9, i) * .5; l.push({ pos: V3(Math.cos(a) * r, -.4, Math.sin(a) * r), dir: V3(Math.cos(a) * r * .32, 1, Math.sin(a) * r * .32), scl: V3(w, (i ? 2 : 5) + hash(i, c) * 4.5, w) }); } gp.add(inst(cryG, cm, l)); put(gp, cx, cz); }); }
+// 毛: 細長い円すいの束
+const hairG = new THREE.ConeGeometry(1, 1, 5, 6); hairG.translate(0, .5, 0);
+{ const p = hairG.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) + y * y * 2.2); } hairG.computeVertexNormals(); } // しなり
+{ const hm = mat(30, 1.1);[[-4.2, 5], [4.4, 9], [-6.5, 18], [9, 20], [-4.4, 29], [4.2, 40], [-9.5, 43], [7, 58], [-6, 50], [-11, 33], [11, 10]].forEach(([cx, cz], c) => { const gp = new THREE.Group(), l = []; for (let i = 0; i < 7; i++) { const a = hash(c, i + 20) * 6.28, r = hash(i, c + 30) * 1.3, w = .07 + hash(c, i + 40) * .06; l.push({ pos: V3(Math.cos(a) * r, -.3, Math.sin(a) * r), dir: V3(Math.cos(a) * .25, 1, Math.sin(a) * .25), scl: V3(w, 3 + hash(i + 50, c) * 6, w) }); } const im = inst(hairG, hm, l); gp.add(im); gp.rotation.y = hash(c, 77) * 6.28; put(gp, cx, cz); }); }
+// 胞子: 小さな粒をたくさん
+{ const l = []; for (let i = 0; i < 260; i++) { const x = (hash(i, 60) - .5) * 44, z = hash(i, 61) * L * 3 - L * 2.5, s = .1 + hash(i, 62) * hash(i, 63) * .55; l.push({ pos: V3(x, hgt(x, z) + s * .6, z), dir: UP, scl: V3(s, s * .85, s) }); } const im = inst(new THREE.IcosahedronGeometry(1, 1), mat(5, .95), l); ground.add(im); }
+// ダニ: 丸い体に 8 本の足と毛
+const mite = new THREE.Group(), legs = [];
+{ const bm = mat(6, 1), body = new THREE.Mesh(sphG, bm); body.scale.set(1.7, 1.15, 2.2); body.position.y = 1.7; const head = new THREE.Mesh(sphG, bm); head.scale.set(.8, .6, .9); head.position.set(0, 1.35, -2.4); mite.add(body, head);
+  const segG = new THREE.CylinderGeometry(.07, .17, 1, 7); segG.translate(0, .5, 0); const lm = mat(12, 1.1);
+  for (let i = 0; i < 8; i++) { const sd = i < 4 ? 1 : -1, k = i % 4, lg = new THREE.Group(), up = new THREE.Mesh(segG, lm), lo = new THREE.Mesh(segG, lm); up.scale.set(1.2, 1.7, 1.2); up.rotation.z = -sd * 1.05; lo.scale.set(.8, 2.1, .8); lo.position.set(sd * 1.47, .85, 0); lo.rotation.z = -sd * 2.75; lg.add(up, lo); lg.position.set(sd * 1.1, 1.3, -1.5 + k * .9); lg.userData = { y: sd * (-.75 + k * .5), ph: k * 1.7 + (sd > 0 ? 0 : 3.14) }; mite.add(lg); legs.push(lg); }
+  const l = []; for (let i = 0; i < 26; i++) { const a = hash(i, 80) * 6.28, e = .2 + hash(i, 81) * 1.1, d = V3(Math.cos(a) * Math.sin(e), Math.cos(e), Math.sin(a) * Math.sin(e)); l.push({ pos: V3(d.x * 1.65, 1.7 + d.y * 1.1, d.z * 2.15), dir: d, scl: V3(.035, .9 + hash(i, 82) * .8, .035) }); } mite.add(inst(hairG, mat(30, 1.2), l));
+  mite.rotation.y = -1.0; put(mite, -6.2, 21, 0); }
+// 探査機（主役）: 丸い胴に輪とアンテナ。帯電したように強く光る
+const probe = new THREE.Group();
+{ const pm = mat(20, 1.55), b = new THREE.Mesh(sphG, pm); b.scale.set(.55, .45, .75); const ring = new THREE.Mesh(new THREE.TorusGeometry(.86, .07, 8, 28), pm); ring.rotation.x = Math.PI / 2; const eye = new THREE.Mesh(sphG, pm); eye.scale.setScalar(.2); eye.position.set(0, -.05, -.74); probe.add(b, ring, eye);
+  for (let i = 0; i < 3; i++) { const a = i * 2.094 + .52, pod = new THREE.Mesh(sphG, pm); pod.scale.setScalar(.17); pod.position.set(Math.cos(a) * .86, 0, Math.sin(a) * .86); probe.add(pod); }
+  for (const sx of [-1, 1]) { const an = new THREE.Mesh(hairG, pm); an.scale.set(.03, 1.1, .03); an.position.set(sx * .25, .3, .35); an.rotation.set(.5, 0, -sx * .3); probe.add(an); } probe.scale.setScalar(1.35); scene.add(probe); }
+let tall = false;
+// 走査の細かさは画面によらず約 42 万画素に決め、それを画面いっぱいに引きのばす（少しやわらかい、走査像らしい絵になる）
+const resize = () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2, Math.sqrt(420000 / (innerWidth * innerHeight)))); renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 74 : 50; cam.updateProjectionMatrix(); renderer.getDrawingBufferSize(U.uRes.value); };
+addEventListener('resize', resize); resize();
+const smp = document.getElementById('smp'); let last = performance.now(), t = 0, shown = -1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; U.uTime.value = t;
+  const s = t * SPEED; ground.position.z = s % L;
+  for (const g of things) { const zr = (((g.userData.z - s + 14) % L) + L) % L - 14; g.position.z = -zr; if (g.userData.spin) g.rotation.y += dt * g.userData.spin; }
+  for (const lg of legs) lg.rotation.y = lg.userData.y + Math.sin(t * 3 + lg.userData.ph) * .22; mite.position.y = hgt(-6.2, -21) + Math.sin(t * 3) * .05;
+  const w = t * Math.PI * 2 / 15, px = Math.sin(w * 2) * 1.5, py = 2.3 + Math.sin(w * 5) * .25;
+  probe.position.set(px, py, 0); probe.rotation.set(Math.sin(w * 5) * .08, -Math.cos(w * 2) * .3, -Math.cos(w * 2) * .35); probe.children[1].rotation.z = t * 2.2;
+  cam.position.set(px * .5, tall ? 5.2 : 4.3, tall ? 8.6 : 7.4); cam.lookAt(px * .8, 2.3, -6);
+  const n = Math.floor(s / 10); if (n !== shown) { shown = n; smp.textContent = 'SAMPLE ' + String(n % 1000).padStart(3, '0'); }
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 29 探偵の尾行 ぬれた路面の映りこみ</title>
+<style>
+html,body{margin:0;height:100%;background:#0a1626;overflow:hidden}
+canvas{display:block}
+#vg{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 46%,transparent 45%,rgba(2,4,10,.72) 100%)}
+#hud{position:fixed;left:12px;top:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#21e6c1;letter-spacing:.08em;text-shadow:0 0 8px #21e6c1}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9fb4d0;opacity:.85}
+</style>
+<div id="vg"></div>
+<div id="hud"></div>
+<div id="cap">LOOK 29 ─ 探偵の尾行 / ぬれた路面の映りこみ　｜　見るだけ（コートの人物を追う。ふり向くと物かげに寄る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨上がりの夜の路地。色は 黒・こい青 と、看板のあかり 3 色（赤むらさき・青緑・だいだい）だけ。
+// 路面は鏡: 場面を上下逆さのカメラでもう 1 回描き、その絵を路面にはる。水たまりの所ははっきり、ほかのアスファルトは たてに長くにじませる。
+// 遠くは霧にとけ、街灯の下では人物の長い影が路面に落ちる。建物も人もローポリの箱
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const FOG = new THREE.Color('#0b1a2c'), scene = new THREE.Scene(); scene.background = FOG; scene.fog = new THREE.FogExp2(FOG, .042);
+const cam = new THREE.PerspectiveCamera(46, 1, .1, 200), camM = new THREE.PerspectiveCamera(46, 1, .1, 200);
+const rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+const ACC = ['#ff2e63', '#21e6c1', '#ffb43a'];
+const tex = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+// かべ（暗い青に、まばらな窓あかり）
+const wallT = [0, 1, 2].map(v => tex(128, 256, c => { c.fillStyle = ['#111a2b', '#0e1626', '#141d30'][v]; c.fillRect(0, 0, 128, 256);
+  for (let y = 0; y < 256; y += 8) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y, 128, 1); }
+  for (let r = 0; r < 4; r++) for (let q = 0; q < 3; q++) { const lit = Math.random() < .22; c.fillStyle = lit ? (Math.random() < .7 ? '#ffc56a' : '#6fe9d8') : '#070b14'; c.globalAlpha = lit ? .55 + Math.random() * .4 : 1; c.fillRect(14 + q * 38, 16 + r * 44, 24, 28); c.globalAlpha = 1; c.fillStyle = '#070b14'; c.fillRect(25 + q * 38, 16 + r * 44, 2, 28); c.fillRect(14 + q * 38, 44 + r * 44, 24, 3); }
+  c.fillStyle = '#080c16'; c.fillRect(0, 200, 128, 56); c.fillStyle = '#18233a'; c.fillRect(v * 30 + 10, 206, 40, 50); c.fillStyle = '#0c1220'; for (let y = 210; y < 256; y += 6) c.fillRect(v * 30 + 10, y, 40, 2); }));
+const wallM = wallT.map(t => new THREE.MeshBasicMaterial({ map: t }));
+// 看板（色つきの光る板。文字は読めない記号）
+const signT = ACC.flatMap((col, ci) => [0, 1].map(v => tex(64, 192, c => { const inv = v === 1; c.fillStyle = inv ? '#0a0c14' : col; c.fillRect(0, 0, 64, 192); c.strokeStyle = inv ? col : '#0a0c14'; c.lineWidth = 3; c.strokeRect(4, 4, 56, 184); c.lineWidth = 5; c.lineCap = 'square';
+  for (let g = 0; g < 4; g++) { const oy = 16 + g * 43; for (let k = 0; k < 4; k++) { const p = () => [14 + ((Math.random() * 3) | 0) * 18, oy + ((Math.random() * 3) | 0) * 15]; const [x1, y1] = p(), [x2, y2] = p(); c.beginPath(); c.moveTo(x1, y1); Math.random() < .5 ? c.lineTo(x2, y1) : c.lineTo(x1, y2); c.lineTo(x2, y2); c.stroke(); } } })));
+const signM = signT.map(t => new THREE.MeshBasicMaterial({ map: t, fog: false, side: THREE.DoubleSide }));
+const glowT = tex(64, 64, c => { const g = c.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.25, 'rgba(255,255,255,.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, 64, 64); });
+const glowM = (col, op) => new THREE.MeshBasicMaterial({ map: glowT, color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+const glowA = ACC.map(c => glowM(c, .5)), washA = ACC.map(c => glowM(c, .32)), lampGlow = glowM('#ffd9a0', .8), dark = new THREE.MeshBasicMaterial({ color: '#060910' }), bulbM = new THREE.MeshBasicMaterial({ color: '#fff0d0', fog: false });
+const P1 = new THREE.PlaneGeometry(1, 1), B1 = new THREE.BoxGeometry(1, 1, 1);
+const SP = 7, HW = 2.7, LSP = 14;
+// 路地の 1 区画（左右の建物・看板・がらくた）を使い回す
+const slots = [...Array(11)].map(() => [-1, 1].map(sd => {
+  const gp = new THREE.Group(), body = new THREE.Mesh(B1, wallM[0]), sign = new THREE.Mesh(B1, signM[0]), arm = new THREE.Mesh(B1, dark), glow = new THREE.Mesh(P1, glowA[0]), wash = new THREE.Mesh(P1, washA[0]), junk = new THREE.Mesh(B1, dark), junk2 = new THREE.Mesh(B1, dark), wire = new THREE.Mesh(B1, dark);
+  wash.rotation.y = -sd * Math.PI / 2; gp.add(body, sign, arm, glow, wash, junk, junk2, wire); scene.add(gp); return { gp, body, sign, arm, glow, wash, junk, junk2, wire, sd, i: null };
+}));
+// 街灯
+const lamps = [...Array(5)].map(() => { const gp = new THREE.Group(), pole = new THREE.Mesh(B1, dark), arm = new THREE.Mesh(B1, dark), bulb = new THREE.Mesh(new THREE.SphereGeometry(.13, 8, 6), bulbM), gl = new THREE.Mesh(P1, lampGlow);
+  pole.scale.set(.09, 3.5, .09); pole.position.y = 1.75; arm.scale.set(.7, .07, .07); arm.position.set(.3, 3.5, 0); bulb.position.set(.62, 3.4, 0); gl.position.set(.62, 3.4, .02); gl.scale.setScalar(3.4); gp.add(pole, arm, bulb, gl); scene.add(gp); return gp; });
+const lampX = k => (k % 2 ? 1 : -1) * 2.45, lampZ = k => -(k * LSP + 5);
+const haze = new THREE.Mesh(P1, new THREE.MeshBasicMaterial({ map: glowT, color: '#21e6c1', transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); haze.scale.set(26, 20, 1); scene.add(haze);
+// コートの人物
+scene.add(new THREE.HemisphereLight(0x2a3a58, 0x05070c, 1.2)); const key = new THREE.DirectionalLight(0xffd9a0, 2.2); scene.add(key, key.target);
+const man = new THREE.Group(), coatM = new THREE.MeshLambertMaterial({ color: '#27324a', flatShading: true }), blk = new THREE.MeshLambertMaterial({ color: '#0c1018', flatShading: true });
+const upper = new THREE.Group(); man.add(upper);
+const add = (g, geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+add(upper, new THREE.CylinderGeometry(.2, .38, 1.1, 7), coatM, 0, 1.0, 0); add(upper, new THREE.BoxGeometry(.6, .2, .3), coatM, 0, 1.5, 0); add(upper, new THREE.BoxGeometry(.3, .12, .26), blk, 0, 1.62, 0);
+const head = new THREE.Group(); head.position.y = 1.74; upper.add(head); add(head, new THREE.IcosahedronGeometry(.13, 0), blk, 0, 0, 0); add(head, new THREE.CylinderGeometry(.27, .27, .03, 9), blk, 0, .09, 0); add(head, new THREE.CylinderGeometry(.14, .16, .16, 9), blk, 0, .18, 0);
+const limb = (g, w, h, d, m, x, y) => { const p = new THREE.Group(); add(p, new THREE.BoxGeometry(w, h, d), m, 0, -h / 2, 0); p.position.set(x, y, 0); g.add(p); return p; };
+const lL = limb(man, .14, .62, .16, blk, -.11, .62), lR = limb(man, .14, .62, .16, blk, .11, .62), aL = limb(upper, .12, .62, .14, coatM, -.34, 1.56), aR = limb(upper, .12, .62, .14, coatM, .34, 1.56);
+scene.add(man);
+// ---- 路面（映りこみをはる板） ----
+const gm = new THREE.ShaderMaterial({ uniforms: { tR: { value: rt.texture }, res: { value: new THREE.Vector2() }, t: { value: 0 }, fogC: { value: FOG }, fig: { value: new THREE.Vector3() }, L0: { value: new THREE.Vector3() }, L1: { value: new THREE.Vector3() }, L2: { value: new THREE.Vector3() } },
+  vertexShader: `varying vec3 vW; varying float vD; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vec4 v = viewMatrix * w; vD = -v.z; gl_Position = projectionMatrix * v; }`,
+  fragmentShader: `precision highp float; uniform sampler2D tR; uniform vec2 res; uniform float t; uniform vec3 fogC, fig, L0, L1, L2; varying vec3 vW; varying float vD;
+    float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float ns(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + 1.), f.x), f.y); }
+    // 街灯 1 本ぶんの、路面の明るみと人物の影
+    vec3 lamp(vec3 L){ vec2 g = vW.xz, d = g - L.xz; float pool = 1. / (1. + dot(d, d) * .09);
+      vec2 fd = fig.xz - L.xz; float dl = length(fd); vec2 dir = fd / max(dl, .01), rel = g - fig.xz; float s = dot(rel, dir), lat = abs(dot(rel, vec2(-dir.y, dir.x)));
+      float len = 1.85 * dl / max(L.y - 1.85, .3), w = .26 * (1. + s / max(dl, .5)), soft = .04 + s * .05;
+      float sh = smoothstep(w + soft, w - soft * .3, lat) * smoothstep(-.1, .1, s) * smoothstep(len, len * .7, s);
+      return vec3(pool * (1. - sh * .92), sh * pool, 0.); }
+    void main(){
+      vec2 uv = gl_FragCoord.xy / res, r = vec2(uv.x, 1. - uv.y);
+      float pud = smoothstep(.46, .54, ns(vW.xz * .5 + 3.) * .7 + ns(vW.xz * 1.3) * .3 + .1 * smoothstep(1.2, .0, abs(vW.x)));   // 水たまりの形
+      float rough = ns(vW.xz * 16.) * .6 + ns(vW.xz * 43.) * .4, grain = h2(floor(vW.xz * 90.));
+      // 水たまりに落ちるしずくの輪
+      vec2 cid = floor(vW.xz / 1.6), cp = (cid + .2 + .6 * vec2(h2(cid), h2(cid + 7.))) * 1.6; float ph = fract(t / 2.6 + h2(cid + 3.)), dd = length(vW.xz - cp), ring = sin((dd - ph * .7) * 70.) * smoothstep(.07, .0, abs(dd - ph * .7)) * (1. - ph);
+      vec3 sharp = texture2D(tR, r + vec2(0., ring * .012 + sin(vW.z * 3. + t * .7) * .0008)).rgb;
+      vec3 blur = vec3(0.); for (int i = 0; i < 8; i++) { float o = float(i) / 7. - .5; blur += texture2D(tR, r + vec2((rough - .5) * .03, o * .3 + (grain - .5) * .05)).rgb; } blur /= 8.;
+      float fres = mix(.7, 1.1, smoothstep(2., 14., vD));
+      vec3 l0 = lamp(L0), l1 = lamp(L1), l2 = lamp(L2); float pool = l0.x + l1.x + l2.x, shd = clamp(l0.y + l1.y + l2.y, 0., 1.);
+      vec3 col = vec3(.008, .012, .02) * (.5 + rough) + vec3(1., .78, .5) * pool * (.02 + .035 * rough * grain);
+      col += mix(blur * (.75 + .9 * rough), sharp, pud) * fres * (1. - shd * .6);
+      col *= 1. - .25 * smoothstep(.0, .08, pud) * smoothstep(.3, .08, pud);                    // 水たまりのふちは少し暗い
+      float f = 1. - exp(-.042 * .042 * vD * vD); col = mix(col, fogC, f);
+      gl_FragColor = vec4(col, 1.);
+      #include <colorspace_fragment>
+    }` });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 140), gm); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+let tall = false;
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight; tall = a < 1; cam.aspect = camM.aspect = a; cam.fov = camM.fov = tall ? 66 : 46; cam.updateProjectionMatrix(); camM.updateProjectionMatrix();
+  const d = renderer.getPixelRatio(); rt.setSize(Math.ceil(innerWidth * d / 2), Math.ceil(innerHeight * d / 2)); gm.uniforms.res.value.set(innerWidth * d, innerHeight * d); };
+addEventListener('resize', resize); resize();
+const hud = document.getElementById('hud'); let hudS = '';
+const ease = f => f * f * (3 - 2 * f), cl = f => Math.max(0, Math.min(1, f));
+let last = performance.now(), t = 0, zf = 30, ph = 0, duck = 0;
+const tgt = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 16 秒で一巡: 歩く → 立ち止まってふり向く → また歩く
+  const ct = t % 16, stop = ease(cl((ct - 10.3) / .7)) * (1 - ease(cl((ct - 13.6) / .7))), look = ease(cl((ct - 11) / .5)) * (1 - ease(cl((ct - 12.9) / .5))), v = 1.15 * (1 - stop);
+  zf += v * dt; ph += v * dt * 4.2; duck += ((look > .05 ? 1 : 0) - duck) * Math.min(1, dt * 4);
+  const fx = .35 * Math.sin(zf * .13), fz = -zf, sw = Math.sin(ph) * .5 * (1 - stop);
+  man.position.set(fx, Math.abs(Math.sin(ph)) * .03 * (1 - stop), fz); man.rotation.y = Math.PI + Math.cos(zf * .13) * .05; lL.rotation.x = sw; lR.rotation.x = -sw; aL.rotation.x = -sw * .5; aR.rotation.x = sw * .5; upper.rotation.z = Math.sin(ph) * .03; upper.rotation.y = look * .7; head.rotation.y = look * 1.5;
+  const base = Math.floor(zf / SP) - 2;
+  slots.forEach((pair, k) => pair.forEach(s => { const i = base + k; if (s.i === i) return; s.i = i; const sd = s.sd, q = sd > 0 ? 50 : 0, h = 9 + hash(i, q + 1) * 7, w = 6;
+    s.gp.position.set(0, 0, -(i * SP + SP / 2)); s.body.material = wallM[(hash(i, q + 2) * 3) | 0]; s.body.scale.set(w, h, SP - .06 - hash(i, q + 3) * .5); s.body.position.set(sd * (HW + w / 2 + hash(i, q + 4) * .35), h / 2, 0);
+    const wx = s.body.position.x - sd * w / 2, has = hash(i, q + 5) < .62, ci = (hash(i, q + 6) * 3) | 0, vert = hash(i, q + 7) < .6, sy = 3 + hash(i, q + 8) * 2.2, sz = (hash(i, q + 9) - .5) * 3;
+    s.sign.visible = s.arm.visible = s.glow.visible = s.wash.visible = has; s.sign.material = signM[ci * 2 + (hash(i, q + 10) < .5 ? 0 : 1)]; s.glow.material = glowA[ci]; s.wash.material = washA[ci];
+    if (vert) { s.sign.scale.set(.75, 2.3, .1); s.sign.position.set(wx - sd * .6, sy, sz); s.sign.rotation.set(0, 0, 0); } else { s.sign.scale.set(.62, 1.9, .08); s.sign.position.set(wx - sd * 1.05, sy - .4, sz); s.sign.rotation.set(0, 0, Math.PI / 2); }
+    s.arm.scale.set(1.3, .06, .06); s.arm.position.set(wx - sd * .6, sy + (vert ? 1.2 : .0), sz); s.glow.position.set(s.sign.position.x, s.sign.position.y, sz + .08); s.glow.scale.set(4.2, 5.2, 1); s.wash.position.set(wx - sd * .03, sy - .2, sz); s.wash.scale.set(6.5, 6.5, 1);
+    s.junk.visible = hash(i, q + 11) < .7; s.junk.scale.set(.45 + hash(i, q + 12) * .3, .5 + hash(i, q + 13) * .7, .5 + hash(i, q + 14) * .6); s.junk.position.set(wx - sd * (s.junk.scale.x / 2 + .02), s.junk.scale.y / 2, -2 + hash(i, q + 15) * 4);
+    s.junk2.visible = hash(i, q + 16) < .5; s.junk2.scale.set(.5, .4, .9); s.junk2.position.set(wx - sd * .25, 2.4 + hash(i, q + 17) * 2.5, 2 - hash(i, q + 18) * 4);
+    s.wire.visible = sd > 0 && hash(i, 77) < .45; s.wire.scale.set(HW * 2 + 1.5, .025, .025); s.wire.position.set(-HW - .2, 6 + hash(i, 78) * 2, hash(i, 79) * 3); s.wire.rotation.z = (hash(i, 80) - .5) * .12; }));
+  const k0 = Math.floor((zf - 5 - 18) / LSP) + 1; lamps.forEach((g, j) => { const k = k0 + j; g.position.set(lampX(k), 0, lampZ(k)); g.scale.x = -Math.sign(lampX(k)); });
+  const ka = Math.ceil((zf - 5) / LSP), LU = ['L0', 'L1', 'L2']; [ka - 1, ka, ka + 1].forEach((k, j) => gm.uniforms[LU[j]].value.set(lampX(k) - Math.sign(lampX(k)) * .62, 3.4, lampZ(k)));
+  gm.uniforms.fig.value.copy(man.position); gm.uniforms.t.value = t; ground.position.set(0, 0, fz - 40); haze.position.set(0, 5, fz - 34);
+  key.position.set(lampX(ka) * .6, 5, lampZ(ka)); key.target.position.copy(man.position);
+  // カメラ（追う側の目）。ふり向かれたら かべぎわに寄って低くなる
+  const dist = (tall ? 7.2 : 6.2) + .4 * Math.sin(t * .3) - stop * .6, cx = .75 + duck * 1.25 + Math.sin(t * 1.9) * .03 * (1 - stop), cy = 1.5 - duck * .35 + Math.abs(Math.sin(t * 3.8)) * .025 * (1 - stop);
+  cam.position.set(cx, cy, fz + dist); tgt.set(fx * .6 + .1 + duck * .3, 1.12, fz - 5); cam.lookAt(tgt);
+  camM.position.set(cx, -cy, fz + dist); tgt.y = -tgt.y; camM.lookAt(tgt);
+  const hs = look > .05 ? '！　ふり向いた ── 物かげへ' : `尾行中　距離 ${dist.toFixed(1)} m`; if (hs !== hudS) hud.textContent = hudS = hs;
+  ground.visible = false; renderer.setRenderTarget(rt); renderer.render(scene, camM);          // 上下逆さのカメラで映りこみ用の絵
+  ground.visible = true; renderer.setRenderTarget(null); renderer.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

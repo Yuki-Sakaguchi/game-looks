@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 01 サーフィン シルクスクリーンの 3 色ポスター</title>
+<style>
+html,body{margin:0;height:100%;background:#f1e9d6;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1f2c63;background:#f1e9d6;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 01 ─ サーフィン / シルクスクリーンの 3 色ポスター　｜　見るだけ（自動で波をすべる）</div>
+<script>
+// シルクスクリーンの 3 色刷りポスターに見立てる。色は紙の白＋あさぎ・朱・紺のべただけで、輪郭線は引かない。
+// 版（色）ごとに、その色の形を 1 つにまとめて「乗算」で紙に刷る。だから重なった所は掛け合わせの色になる。
+// べたは「かすれと抜けの穴があいたインクの模様」で塗り、版は 1〜2px ずれる。1 秒に 8 枚、1 枚ずつ刷った絵をめくるように動かし、半秒ごとにずれが変わる
+const PAPER = '#f1e9d6', INK = ['#35b3ad', '#e9482b', '#1f2c63'];   // あさぎ・朱・紺
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const FONT = '"Arial Black","Helvetica Neue",Impact,sans-serif';
+let W, H, S, R, paper;
+
+// 版ごとのインクの模様: べたの中に、かすれ（細い横の筋）と抜け（白い粒）。白は乗算で「刷られない所」になる
+const pat = INK.map((ink, k) => {
+  const c = mk(300, 300), x = c.getContext('2d'); x.fillStyle = ink; x.fillRect(0, 0, 300, 300);
+  const dens = [1, .8, .55][k];
+  for (let i = 0; i < 5200 * dens; i++) { x.fillStyle = Math.random() < .45 ? '#fff' : 'rgba(255,255,255,.45)'; const s = Math.random() < .8 ? 1 : 2; x.fillRect(Math.random() * 300, Math.random() * 300, s, s); }
+  x.fillStyle = '#fff';
+  for (let i = 0; i < 80 * dens; i++) { x.globalAlpha = .3 + Math.random() * .5; x.fillRect(Math.random() * 300, Math.random() * 300, 10 + Math.random() * 70, 1 + Math.random() * 1.4); }
+  for (let i = 0; i < 12 * dens; i++) { x.globalAlpha = .9; x.beginPath(); x.ellipse(Math.random() * 300, Math.random() * 300, 1.5 + Math.random() * 3.5, 1 + Math.random() * 2.5, Math.random() * 3, 0, 7); x.fill(); }
+  return g.createPattern(c, 'repeat');
+});
+
+function resize() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * S; cv.height = H * S;
+  const mn = Math.min(W, H), m = Math.max(12, mn * .045), ft = Math.max(112, mn * .17);
+  R = { x: m, y: m, w: W - 2 * m, h: H - 2 * m - ft, ft, m };
+  R.s = Math.min(R.w * 1.35, R.h / .82); R.cx = R.x + R.w * .5; R.cy = R.y + R.h * .6; R.hh = R.h / R.s / 2;
+  // 紙（少しだけ繊維の点）
+  paper = mk(cv.width, cv.height); const x = paper.getContext('2d'); x.fillStyle = PAPER; x.fillRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < 2600; i++) { x.fillStyle = Math.random() < .5 ? 'rgba(120,96,60,.10)' : 'rgba(255,255,255,.35)'; x.fillRect(Math.random() * cv.width, Math.random() * cv.height, 1 + Math.random() * 3 * S, 1); }
+}
+addEventListener('resize', resize); resize();
+
+// 波の斜面（サーファーがすべる線）
+const F = [[-.55, .20], [-.20, .20], [.10, .10], [.20, -.10]];
+function face(u) { const v = 1 - u, a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u; return [a * F[0][0] + b * F[1][0] + c * F[2][0] + d * F[3][0], a * F[0][1] + b * F[1][1] + c * F[2][1] + d * F[3][1]]; }
+// 太い棒（線ではなく面として足す。同じ版の形は 1 つの面にまとめて、二重刷りにしない）
+function bar(x1, y1, x2, y2, w) { const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy) || 1, nx = dy / l * w, ny = -dx / l * w; g.moveTo(x1 + nx, y1 + ny); g.lineTo(x2 + nx, y2 + ny); g.lineTo(x2 - nx, y2 - ny); g.lineTo(x1 - nx, y1 - ny); g.closePath(); dot(x1, y1, w); dot(x2, y2, w); }
+function dot(x, y, r) { g.moveTo(x + r, y); g.arc(x, y, r, 0, 6.2832); }
+
+let t = 0, last = performance.now(), score = 0, prevUp = false, spray = [], off = [[0, 0], [1, -1], [-1, 1]], offN = -1, pop = 0, ox = 0, oy = 0, clock = 0, stpN = -1;
+const unit = () => { g.setTransform(S, 0, 0, S, ox, oy); g.translate(R.cx, R.cy); g.scale(R.s, R.s); };   // 形を置くときの座標
+const dev = () => g.setTransform(1, 0, 0, 1, ox, oy);                                                  // 刷るときの座標（模様を画素のままにする）
+function plate(i, clip) { ox = off[i][0] * S; oy = off[i][1] * S; g.save(); g.setTransform(S, 0, 0, S, ox, oy); g.globalCompositeOperation = 'multiply'; g.fillStyle = g.strokeStyle = pat[i]; }
+
+function frame(now) {
+  const fdt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; clock += fdt;
+  const stp = Math.floor(clock * 8); requestAnimationFrame(frame); if (stp === stpN) return; stpN = stp;      // 1 秒に 8 枚だけ刷る
+  const dt = 1 / 8; t += dt;
+  // 版ずれ（半秒ごとに刷り直し）
+  const n = Math.floor(t * 2); if (n !== offN) { offN = n; off = [0, 1, 2].map(i => [(hash(n, i) - .5) * 3.6, (hash(n, i + 7) - .5) * 3.6]); }
+  const wob = Math.sin(t * 2.1) * .012, wob2 = Math.sin(t * 1.3 + 1) * .01, px = R.s * S;
+  const sunY = -.13 - (R.hh - .36) * .25, sunR = .2 + (R.hh - .36) * .08, sunX = -.15;
+  // サーファー
+  const u = .60 + .31 * Math.sin(t * 1.3) + .04 * Math.sin(t * .41), du = Math.cos(t * 1.3);
+  const [sx, sy] = face(u), [sx2, sy2] = face(u + .01), ang = Math.atan2(sy2 - sy, sx2 - sx) + Math.PI, ca = Math.cos(ang) * 1.5, sa = Math.sin(ang) * 1.5;
+  const L = (lx, ly) => [sx + ca * lx + sa * ly, sy + sa * lx - ca * ly];
+  const up = u > .86; if (up && !prevUp) { score += 250; pop = 1; for (let i = 0; i < 26; i++) spray.push({ x: sx + .02, y: sy - .01, vx: .05 + Math.random() * .5, vy: -.25 - Math.random() * .55, r: .006 + Math.random() * .014, l: 1 }); } prevUp = up; pop = Math.max(0, pop - dt * 1.2);
+  for (let i = 0; i < 3; i++) spray.push({ x: -.07 + wob + (Math.random() - .5) * .04, y: -.17 + Math.random() * .03, vx: -.1 - Math.random() * .25, vy: -.05 + Math.random() * .1, r: .005 + Math.random() * .01, l: 1 });
+  for (let i = 0; i < 3; i++) { const [qx, qy] = face(Math.min(1, u + .05)); spray.push({ x: qx, y: qy, vx: .1 + Math.random() * .25, vy: -.1 - Math.random() * .25, r: .004 + Math.random() * .008, l: .7 }); }
+  for (const p of spray) { p.vy += .9 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt * .9; } spray = spray.filter(p => p.l > 0);
+  const by = H - R.m - R.ft * .5, fs = Math.min(R.ft * .56, R.w * .13), note = '3 COLOR SCREEN PRINT  No.' + String(1 + n % 99).padStart(2, '0') + '/99', nfs = Math.max(9, fs * .16);
+
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.drawImage(paper, 0, 0);
+
+  // ── あさぎの版: 波の形（巻いたくちびるまで 1 つの面）としぶき
+  plate(0, true); unit(); g.beginPath();
+  g.moveTo(-3, .20); g.lineTo(F[0][0], F[0][1]); g.bezierCurveTo(F[1][0], F[1][1], F[2][0], F[2][1], F[3][0], F[3][1]);
+  g.bezierCurveTo(.27, -.27, .10 + wob, -.35, -.02 + wob, -.275); g.quadraticCurveTo(-.085 + wob, -.24, -.075 + wob, -.16 + wob2);
+  g.bezierCurveTo(-.15 + wob, -.31, -.04, -.43 + wob2, .14, -.42 + wob2); g.bezierCurveTo(.42, -.41, .75, -.22, 3, -.17); g.lineTo(3, 3); g.lineTo(-3, 3); g.closePath();
+  for (const p of spray) dot(p.x, p.y, p.r * Math.min(1, p.l * 2));
+  dev(); g.fill();
+  // 白いあわと筋（あさぎを刷らない所 = 紙の白）
+  g.globalCompositeOperation = 'source-over'; g.fillStyle = g.strokeStyle = PAPER; unit(); g.beginPath();
+  for (let i = 0; i < 16; i++) { const k = i / 15, a = 3.6 + k * 2.0, r = .012 + .012 * Math.abs(Math.sin(i * 2.3 + t * 3)); dot(.03 + Math.cos(a) * .125 + wob, -.285 + Math.sin(a) * .135 + wob2, r); }
+  for (let i = 0; i < 14; i++) { const [qx, qy] = face(Math.min(1, u + .02 + i * .028)); dot(qx + .012, qy + .016, .013 * (1 - i / 15)); }      // 板のあとの白い筋
+  dev(); g.fill();
+  unit(); g.beginPath(); for (let k = 0; k < 6; k++) { const y = .30 + k * .1, ph = t * .5 + k; for (let i = 0; i < 7; i++) { const x0 = -1.2 + ((i * .37 + ph * .12 + k * .13) % 2.4); g.moveTo(x0, y + Math.sin(i + k) * .012); g.quadraticCurveTo(x0 + .06, y - .02, x0 + .13, y + Math.sin(i + k) * .012); } }
+  dev(); g.lineWidth = .009 * px; g.lineCap = 'round'; g.stroke();
+  if (pop > 0) { g.fillStyle = pat[0]; g.globalCompositeOperation = 'multiply'; g.font = `900 ${.085 * px}px ${FONT}`; g.textAlign = 'center'; g.fillText('+250', (R.cx + .206 * R.s) * S, (R.cy + (.106 - .48 * Math.min(1, R.hh / .5) - (1 - pop) * .03) * R.s) * S); }
+  g.restore();
+
+  // ── 朱の版: 太陽と光の筋、海のてり返し、板とはちまき
+  plate(1, true); unit(); g.beginPath(); dot(sunX, sunY, sunR);
+  for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283 + .1, w = .045, far = Math.sin(a) < .2 && Math.cos(a) < .35 ? 3 : sunR * 1.5; g.moveTo(sunX + Math.cos(a - w) * sunR * 1.22, sunY + Math.sin(a - w) * sunR * 1.22); g.lineTo(sunX + Math.cos(a - w * .5) * far, sunY + Math.sin(a - w * .5) * far); g.lineTo(sunX + Math.cos(a + w * .5) * far, sunY + Math.sin(a + w * .5) * far); g.lineTo(sunX + Math.cos(a + w) * sunR * 1.22, sunY + Math.sin(a + w) * sunR * 1.22); g.closePath(); }
+  for (let i = 0; i < 9; i++) { const y = .235 + i * .034, w = (.2 - i * .012) * (.75 + .25 * Math.sin(t * 2 + i * 1.7)), x0 = sunX - .22 + Math.sin(t + i) * .02; bar(x0 - w, y, x0 + w, y, .0065); }
+  { const [bx, by2] = L(0, -.004); g.moveTo(bx, by2); g.ellipse(bx, by2, .128, .0165, ang, 0, 6.2832); const [hx, hy] = L(.016 + du * .012, -.172); dot(hx, hy, .02); }
+  dev(); g.fill();
+  if (pop > 0) { g.font = `900 ${.085 * px}px ${FONT}`; g.textAlign = 'center'; g.fillText('+250', (R.cx + .2 * R.s) * S, (R.cy + (.1 - .48 * Math.min(1, R.hh / .5) - (1 - pop) * .03) * R.s) * S); }
+  g.restore();
+
+  // ── 紺の版: 巻いた中の影、深い海、人（面）と、斜面を走る縞
+  plate(2, true); unit(); g.beginPath();
+  g.moveTo(-.02 + wob, -.275); g.bezierCurveTo(.10 + wob, -.35, .27, -.27, F[3][0], F[3][1]); g.bezierCurveTo(.14, -.13, .07, -.23, -.02 + wob, -.275); g.closePath();
+  g.moveTo(-3, 3); g.lineTo(-3, .78); for (let i = 0; i <= 40; i++) { const x0 = -1.5 + i * .075; g.lineTo(x0, .76 + Math.sin(i * 1.1 + t * 1.5) * .014 - Math.max(0, x0) * .12); } g.lineTo(3, 3); g.closePath();
+  { const ln = du * .25, hip = [.004 + ln * .03, -.074], sh = [-.012 - ln * .05, -.135], B = (a, b, w) => { const p = L(a[0], a[1]), q = L(b[0], b[1]); bar(p[0], p[1], q[0], q[1], w * 1.5); };
+    B([.036, -.012], [.03, -.05], .0105); B([.03, -.05], hip, .0105); B(hip, [-.034, -.048], .0105); B([-.034, -.048], [-.038, -.012], .0105);
+    B(hip, sh, .013); B([sh[0] - .065, sh[1] - .02 - ln * .04], sh, .007); B(sh, [sh[0] + .062, sh[1] + .012 + ln * .04], .007);
+    const hd = L(sh[0] - .004, sh[1] - .034); dot(hd[0], hd[1], .0285); }
+  dev(); g.fill();
+  unit(); g.beginPath(); for (let k = 0; k < 6; k++) { const o = k * .085; g.moveTo(-1.3, .285 + o); g.bezierCurveTo(-.3, .285 + o, .2 + o * .7, .2 + o * .8, .36 + o * .9, -.1 + o * .6); g.quadraticCurveTo(.44 + o, -.26 + o * .5, .75 + o, -.16 + o); }
+  dev(); g.lineWidth = .024 * px; g.lineCap = 'round'; g.setLineDash([.22 * px, .07 * px]); g.lineDashOffset = t * .16 * px; g.stroke(); g.setLineDash([]);
+  g.restore();
+
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = PAPER; g.fillRect(0, 0, W, R.y - 1); g.fillRect(0, R.y + R.h + 1, W, H); g.fillRect(0, 0, R.x - 1, H); g.fillRect(R.x + R.w + 1, 0, W, H);   // 絵のまわりの余白
+  // 下の余白: 題字と点数、色見本とトンボ（ここも版ごとにずれる）
+  const cr = fs * .13, ccx = R.x + R.w - nfs * .6 * note.length - cr * 7, ccy = by - fs * .52 - nfs * .35;
+  for (let i = 0; i < 3; i++) {
+    plate(i, false); g.textAlign = 'left'; g.font = `900 ${fs}px ${FONT}`;
+    if (i === 0) g.fillText('SURF', R.x + fs * .09, by + fs * .07); if (i === 1) g.fillText('SURF', R.x, by);
+    if (i === 2) { g.textAlign = 'right'; g.font = `900 ${fs * .5}px ${FONT}`; g.fillText(String(score).padStart(5, '0'), R.x + R.w, by); g.font = `700 ${nfs}px ui-monospace,Menlo,monospace`; g.fillText(note, R.x + R.w, by - fs * .52); }
+    g.beginPath(); g.arc(ccx + i * cr * 1.5, ccy, cr, 0, 7); g.fill(); g.fillRect(ccx + cr * 4.5, ccy - cr * 1.3, 1.2, cr * 2.6); g.fillRect(ccx + cr * 3.2, ccy - .6, cr * 2.6, 1.2);
+    g.restore();
+  }
+}
+requestAnimationFrame(frame);
+</script>
+</html>

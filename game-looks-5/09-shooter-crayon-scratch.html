@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 09 花火シューティング クレヨンのスクラッチ画</title>
+<style>
+html,body{margin:0;height:100%;background:#0f0e0d;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f3eee2;background:#0f0e0d;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 09 ─ 花火シューティング / クレヨンのスクラッチ画　｜　見るだけ（自動で花火を打ち上げる）</div>
+<script>
+// 見立て: 画用紙に虹色のクレヨンをぬり、上から黒いクレヨンでぬりつぶして、とがった棒でひっかいた「スクラッチ画」。
+// 決まり: 絵は「ひっかき線の型」に描くだけ。型のある所だけ下の虹色の紙が見える（線の色は場所で決まり、えらべない）。
+// 面はぬらず線と点だけ。線は手のふるえでがたつき、数コマごとに描き直す。線のわきに黒いクレヨンのかすが残り、古い跡はうすれていく
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); return [c, c.getContext('2d')]; };
+const [Rc, R] = mk(), [Bc, B] = mk(), [Mc, m] = mk(), [Tc, tm] = mk();
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+let w, h, S, u, GY, crumbs = [];
+function build() {
+  w = innerWidth; h = innerHeight; S = Math.min(devicePixelRatio || 1, 2); u = Math.min(w, h) / 500; GY = h - 46 * u;
+  for (const c of [cv, Rc, Bc, Mc, Tc]) { c.width = w * S; c.height = h * S; } for (const x of [R, B, m]) x.setTransform(S, 0, 0, S, 0, 0);
+  let k = 0; const r = () => hash(++k, 3), mg = 11 * u;
+  const rough = (x, inset, j) => { x.beginPath(); const P = []; for (let a = inset; a < w - inset; a += 9 * u) P.push([a, inset + r() * j]); for (let a = inset; a < h - inset; a += 9 * u) P.push([w - inset - r() * j, a]); for (let a = w - inset; a > inset; a -= 9 * u) P.push([a, h - inset - r() * j]); for (let a = h - inset; a > inset; a -= 9 * u) P.push([inset + r() * j, a]); P.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); };
+  // 下の紙: 画用紙に、ななめの虹色の帯をクレヨンでぬる
+  R.fillStyle = '#f3eee2'; R.fillRect(0, 0, w, h); R.save(); rough(R, mg, 5 * u); R.clip();
+  const COL = ['#ff3a2f', '#ff8a1a', '#ffd51e', '#62d43c', '#16c8c2', '#2f7cf4', '#9150ea', '#ff4da6'], bw = 58 * u;
+  for (let i = -2; i * bw < h + w * .4 + bw * 2; i++) { R.fillStyle = COL[((i * 3) % 8 + 8) % 8]; R.beginPath(); const top = (x, q) => q * bw - x * .36 + Math.sin(x / (70 * u) + q * 1.7) * 13 * u + w * .2; for (let x = -20; x <= w + 20; x += 16) R.lineTo(x, top(x, i)); for (let x = w + 20; x >= -20; x -= 16) R.lineTo(x, top(x, i + 1) + 1); R.fill(); }
+  R.lineCap = 'round'; for (let i = 0, n = w * h / 60 / u / u; i < n; i++) { const x = r() * w, y = r() * h, l = (6 + r() * 16) * u; R.strokeStyle = i % 3 ? 'rgba(255,255,255,.13)' : 'rgba(40,0,60,.08)'; R.lineWidth = (.8 + r() * 1.6) * u; R.beginPath(); R.moveTo(x, y); R.lineTo(x + l, y - l * .55); R.stroke(); }
+  R.fillStyle = 'rgba(243,238,226,.6)'; for (let i = 0, n = w * h / 90 / u / u; i < n; i++) R.fillRect(r() * w, r() * h, u * (.5 + r()), u * (.5 + r())); R.restore();
+  // 上の層: 黒いクレヨン。ふちはぬりむらで下の色がのぞき、面にはぬった向きのすじが残る
+  B.setTransform(1, 0, 0, 1, 0, 0); B.drawImage(Rc, 0, 0); B.setTransform(S, 0, 0, S, 0, 0); B.fillStyle = B.strokeStyle = '#0f0e0d'; rough(B, mg + 3 * u, 6 * u); B.fill();
+  B.lineCap = 'round'; B.lineWidth = 3 * u; B.beginPath(); for (let i = 0, n = (w + h) * 2 / (5 * u); i < n; i++) { const s = r() * 2 * (w + h), l = (5 + r() * 9) * u, e = mg + 4 * u; let x, y, dx = 0, dy = 0; if (s < w) { x = s; y = e; dy = -1; } else if (s < w + h) { x = w - e; y = s - w; dx = 1; } else if (s < 2 * w + h) { x = s - w - h; y = h - e; dy = 1; } else { x = e; y = s - 2 * w - h; dx = -1; } B.moveTo(x - dx * l, y - dy * l); B.lineTo(x + dx * l * .6 + (r() - .5) * 6 * u, y + dy * l * .6 + (r() - .5) * 6 * u); } B.stroke();
+  B.save(); rough(B, mg + 8 * u, 2 * u); B.clip(); for (let i = 0, n = w * h / 240 / u / u; i < n; i++) { const x = r() * w, y = r() * h, l = (20 + r() * 50) * u; B.strokeStyle = i % 2 ? 'rgba(255,250,240,.03)' : 'rgba(0,0,0,.35)'; B.lineWidth = (1 + r() * 2.5) * u; B.beginPath(); B.moveTo(x, y); B.lineTo(x + l, y + l * .3 + (r() - .5) * 8 * u); B.stroke(); } B.restore();
+}
+// ひっかき線: 点の列をふるえさせて型に描き、線の中に「削りのこし」の細いすじを入れ、わきに黒いかすを置く
+function scr(p, wd, seed, al = 1, jit = 1) {
+  const n = p.length >> 1, q = [], j = 2.2 * u * jit; for (let i = 0; i < n; i++) q.push(p[i * 2] + (hash(seed, i) - .5) * j, p[i * 2 + 1] + (hash(seed, i + 60) - .5) * j);
+  const lw = wd * (.82 + hash(seed, 99) * .36); m.globalAlpha = al; m.lineWidth = lw; m.beginPath(); m.moveTo(q[0], q[1]); for (let i = 1; i < n; i++) m.lineTo(q[i * 2], q[i * 2 + 1]); if (n === 1) m.lineTo(q[0] + .01, q[1]); m.stroke();
+  if (n > 1 && lw > 2.6 * u) { const o = lw * (hash(seed, 5) - .5) * .5; m.globalCompositeOperation = 'destination-out'; m.globalAlpha = .85; m.lineWidth = lw * .17; m.setLineDash([lw * (2 + hash(seed, 6) * 5), lw * (1 + hash(seed, 7) * 2)]); m.beginPath(); m.moveTo(q[0] + o, q[1] + o); for (let i = 1; i < n; i++) m.lineTo(q[i * 2] + o, q[i * 2 + 1] + o); m.stroke(); m.setLineDash([]); m.globalCompositeOperation = 'source-over'; }
+  if (al > .45) for (let i = 0; i < n - 1; i++) { const dx = q[i * 2 + 2] - q[i * 2], dy = q[i * 2 + 3] - q[i * 2 + 1], len = Math.hypot(dx, dy) || 1, c = Math.floor(len / (9 * u) + hash(seed, i + 7)); for (let e = 0; e < c; e++) { const f = hash(seed + i * 13, e), sd = (hash(seed + i * 17, e + 3) < .5 ? -1 : 1) * (lw * .5 + hash(seed + i * 19, e) * 3.5 * u); crumbs.push(q[i * 2] + dx * f - dy / len * sd, q[i * 2 + 1] + dy * f + dx / len * sd, (.6 + hash(seed + i, e + 9) * 1.3) * u); } }
+}
+const ring = (x, y, r, n, ph = 0) => { const p = []; for (let i = 0; i <= n; i++) { const a = ph + i / n * Math.PI * 2; p.push(x + Math.cos(a) * r, y + Math.sin(a) * r); } return p; };
+const DIG = ['5,0,1,5,1,15,5,20,9,15,9,5,5,0', '3,4,6,0,6,20', '1,4,5,0,9,4,1,20,9,20', '1,1,8,0,4,9,9,14,5,20,1,18', '7,20,7,0,1,13,9.5,13', '9,0,2,0,1.5,9,7,8.5,9,14,5,20,1,18', '8,0,3,7,1,15,5,20,9,15,5,10,1.5,13', '1,0,9,0,4,20', '5,10,1.5,5,5,0,8.5,5,5,10,1,15,5,20,9,15,5,10', '8.5,7,5,10,1.5,5,5,0,8.5,5,8.5,7,7,20'].map(s => s.split(',').map(Number));
+
+// ---- あそびの中身: 的が上がってくる → 発射台が下に動いて打つ → 当たると花火
+let T = 0, tick = 0, tickT = 0, spawnT = 0, cool = 0, lx = 0, score = 0, bump = 0, uid = 1;
+const targets = [], shells = [], sparks = [], trails = [];
+function step(dt) {
+  T += dt; spawnT -= dt; cool -= dt; bump = Math.max(0, bump - dt * 3);
+  if (spawnT <= 0 && targets.length < 6) { spawnT = .95 + hash(uid, 1) * .5; targets.push({ id: uid++, x0: w * (.12 + hash(uid, 2) * .76), y: GY - 6 * u, r: (17 + hash(uid, 3) * 9) * u, vy: (50 + hash(uid, 4) * 30) * u, ph: hash(uid, 5) * 6, x: 0, cl: false }); }
+  for (const t of targets) { t.y -= t.vy * dt; t.x = t.x0 + Math.sin(T * 1.3 + t.ph) * 9 * u; }
+  let aim = null; for (const t of targets) if (!t.cl && t.y < GY - 70 * u && t.y > h * .16 && (!aim || t.y < aim.y)) aim = t;
+  if (aim) { const d = aim.x - lx, mv = 330 * u * dt; lx += Math.abs(d) < mv ? d : Math.sign(d) * mv; if (Math.abs(d) < 5 * u && cool <= 0) { cool = .5; aim.cl = true; shells.push({ id: uid++, x: lx, y: GY - 34 * u, px: lx, py: GY - 34 * u, tg: aim }); } }
+  for (const s of shells) { s.y -= 520 * u * dt; s.x += (s.tg.x - s.x) * Math.min(1, dt * 7) + Math.sin(T * 30 + s.id) * .4 * u; if (s.y <= s.tg.y) { s.dead = s.tg.dead = true; score++; bump = 1; const n = 18, c = s.tg; for (let i = 0; i < n + 9; i++) { const a = i / n * Math.PI * 2 + hash(c.id, i), sp = (i < n ? 190 + hash(c.id, i + 30) * 70 : 80 + hash(c.id, i + 60) * 40) * u; sparks.push({ id: uid++, x: c.x, y: c.y, px: c.x, py: c.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: i < n ? .85 : .6, age: 0 }); } trails.push({ p: ring(c.x, c.y, c.r, 10, hash(c.id, 8)), wd: 3.2 * u, born: T, life: .9, seed: c.id }); } }
+  for (const p of sparks) { p.age += dt; p.vx *= 1 - 2.2 * dt; p.vy = p.vy * (1 - 2.2 * dt) + 150 * u * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  for (const a of [targets, shells]) for (let i = a.length - 1; i >= 0; i--) if (a[i].dead || a[i].y < -50 * u) a.splice(i, 1);
+  tickT += dt; if (tickT >= 1 / 12) { tickT -= 1 / 12; tick++;                       // 1 秒に 12 回だけ、動くものの跡を刻む
+    for (const s of shells) { trails.push({ p: [s.px, s.py, s.x, s.y], wd: 3 * u, born: T, life: 1.1, seed: s.id + tick }); s.px = s.x; s.py = s.y; }
+    for (let i = sparks.length - 1; i >= 0; i--) { const p = sparks[i]; trails.push({ p: [p.px, p.py, (p.px + p.x) / 2 + (hash(p.id, tick) - .5) * 4 * u, (p.py + p.y) / 2 + (hash(p.id, tick + 9) - .5) * 4 * u, p.x, p.y], wd: (4.6 - p.age * 2.4) * u, born: T, life: 2.6, seed: p.id + tick * 7 }); p.px = p.x; p.py = p.y; if (p.age > p.life) { trails.push({ p: [p.x, p.y + 7 * u], wd: 5 * u, born: T, life: 2.2, seed: p.id }); sparks.splice(i, 1); } }
+    while (trails.length && T - trails[0].born > 2.7) trails.shift();
+    return true; }
+}
+function draw() {
+  crumbs.length = 0; m.clearRect(0, 0, w, h); m.strokeStyle = '#fff'; m.lineCap = m.lineJoin = 'round';
+  const b3 = Math.floor(tick / 4), b2 = Math.floor(tick / 2), W0 = 4.2 * u;
+  // 動かないもの: 星、月、地面と家なみ、点数
+  for (let i = 0; i < 34; i++) { const x = w * (.04 + hash(i, 1) * .92), y = h * (.04 + hash(i, 2) * .62), s = (3 + hash(i, 3) * 4) * u, sd = 100 + i * 9 + b3; if (hash(i, b3) < .12) continue; if (i % 3 === 0) { scr([x - s, y, x + s, y], 2.2 * u, sd, 1, .6); scr([x, y - s, x, y + s], 2.2 * u, sd + 1, 1, .6); } else scr([x, y], (2.4 + hash(i, 4) * 2) * u, sd, 1, .5); }
+  { const x = w * .15, y = Math.max(h * .14, 60 * u), r = 30 * u, p = []; for (let i = 0; i <= 12; i++) { const a = -1.9 + i / 12 * 3.8; p.push(x - Math.cos(a) * r, y + Math.sin(a) * r); } for (let i = 12; i >= 0; i--) { const a = -1.9 + i / 12 * 3.8; p.push(x + r * .45 - Math.cos(a) * r * .8, y + Math.sin(a) * r * .95); } scr(p, W0, 500 + b3, 1, .7); }
+  { const p = [], q = []; for (let x = 0; x <= w + 1; x += w / 14) p.push(x, GY + 8 * u); scr(p, W0, 600 + b3);
+    let x = 16 * u, i = 0; while (x < w - 30 * u) { const bw = (26 + hash(i, 11) * 30) * u, bh = (14 + hash(i, 12) * 46) * u, top = GY + 8 * u - bh; if (hash(i, 13) < .7) { const tri = hash(i, 14) < .4; scr(tri ? [x, GY + 8 * u, x, top, x + bw / 2, top - bw * .4, x + bw, top, x + bw, GY + 8 * u] : [x, GY + 8 * u, x, top, x + bw, top, x + bw, GY + 8 * u], 3 * u, 700 + i * 5 + b3, 1, .7); if (bh > 26 * u) scr([x + bw * .5, top + 12 * u], 4 * u, 900 + i, 1, .3); } x += bw + (4 + hash(i, 15) * 16) * u; i++; } }
+  { const s = 1.5 * u * (1 + bump * .3), str = String(score); let x = w - 26 * u - str.length * 15 * s, y = 28 * u; const st = []; for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i * Math.PI * .8; st.push(x - 22 * s + Math.cos(a) * 11 * s, y + 10 * s + Math.sin(a) * 11 * s); } scr(st, 3 * u, 950 + b3, 1, .5); for (const ch of str) { const d = DIG[+ch]; scr(d.map((v, i) => i % 2 ? y + v * s : x + v * s), W0, 960 + (+ch) + b3, 1, .6); x += 15 * s; } }
+  // うすれていく跡（花火と弾道）
+  for (const t of trails) { const a = (T - t.born) / t.life; if (a < 1) scr(t.p, t.wd * (1 - a * .45), t.seed, 1 - a * a, .5); }
+  // 的、弾、発射台
+  for (const t of targets) { const sd = t.id * 31 + b2; scr(ring(t.x, t.y, t.r, 11, t.ph), W0, sd); scr(ring(t.x, t.y, t.r * .5, 7, t.ph + 1), 3 * u, sd + 1); scr([t.x, t.y], 5.5 * u, sd + 2, 1, .3); scr([t.x, t.y + t.r, t.x + Math.sin(T * 4 + t.ph) * 5 * u, t.y + t.r * 1.5, t.x - Math.sin(T * 4 + t.ph) * 4 * u, t.y + t.r * 2, t.x, t.y + t.r * 2.5], 2.4 * u, sd + 3); }
+  for (const s of shells) scr([s.x, s.y], 7 * u, s.id + b2, 1, .4);
+  { const y = GY + 4 * u, k = Math.max(0, cool - .3) * 30 * u, sd = 40 + b2; scr([lx - 9 * u, y - 14 * u, lx - 7 * u, y - 40 * u + k, lx + 7 * u, y - 40 * u + k, lx + 9 * u, y - 14 * u], W0, sd, 1, .6); scr([lx - 20 * u, y - 4 * u, lx - 16 * u, y - 16 * u, lx + 16 * u, y - 16 * u, lx + 20 * u, y - 4 * u, lx - 20 * u, y - 4 * u], W0, sd + 1, 1, .6); scr(ring(lx - 13 * u, y - 1 * u, 5 * u, 6), 3 * u, sd + 2, 1, .5); scr(ring(lx + 13 * u, y - 1 * u, 5 * u, 6), 3 * u, sd + 3, 1, .5); }
+  m.globalAlpha = .55; m.fillStyle = '#fff'; for (let i = 0; i < 160; i++) m.fillRect(hash(i, 71) * w, hash(i, 72) * h, u * (.6 + hash(i, 73) * .9), u * (.6 + hash(i, 74)));   // ぬりのこしの小さな穴
+  // 型のある所だけ、下の虹色の紙を見せる
+  tm.globalCompositeOperation = 'copy'; tm.drawImage(Mc, 0, 0); tm.globalCompositeOperation = 'source-in'; tm.drawImage(Rc, 0, 0);
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(Bc, 0, 0); g.drawImage(Tc, 0, 0); g.setTransform(S, 0, 0, S, 0, 0);
+  g.fillStyle = '#1d1b19'; g.beginPath(); for (let i = 0; i < crumbs.length; i += 3) { g.moveTo(crumbs[i], crumbs[i + 1]); g.arc(crumbs[i], crumbs[i + 1], crumbs[i + 2], 0, 7); } g.fill();
+}
+function start() { build(); lx = w / 2; targets.length = shells.length = sparks.length = trails.length = 0; T = 0; score = 0; for (let i = 0; i < 420; i++) step(1 / 60); draw(); }
+addEventListener('resize', start); start();
+let last = performance.now();
+function frame(now) { const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; if (step(dt)) draw(); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 21 一人称ダンジョン 4 色パソコン画面</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;right:12px;bottom:6px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#55ffff}
+</style>
+<div id="cap">LOOK 21 ─ 一人称ダンジョン / 昔のパソコンの 4 色画面　｜　見るだけ（自動で 1 歩ずつ進む）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昔のパソコンの 4 色画面に見立てる。色は黒・シアン・マゼンタ・白の 4 色だけ。
+// 3D の廊下を 320×200 ほどの粗い画面（画素は少し横長）に描き、明暗は 4×4 の規則的な網（ベイヤー）で 4 色に落とす。
+// 動きは半歩ずつのこま送り。下のステータス枠と文字は 3×5 のドットを自分で打つ
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const cap = document.getElementById('cap');
+const CY = '#55ffff', MG = '#ff55ff', WH = '#ffffff', BK = '#000000';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const tex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
+
+// ── 迷路（# は壁）。輪になった廊下と、宝箱の行き止まり
+const MAP = ['#########', '#.......#', '#.#####.#', '#.#####.#', '#.......#', '#######.#', '#########'], C = 2;
+const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x000000, .5, 13);
+const brick = tex(32, 32, c => { c.fillStyle = '#0a2228'; c.fillRect(0, 0, 32, 32); for (let r = 0; r < 4; r++) for (let k = -1; k < 2; k++) { const x = k * 16 + (r % 2) * 8, h = hash(r * 7 + k, 3); c.fillStyle = h < .1 ? '#b060b8' : ['#62d0d0', '#4ab4bc', '#74e0e0', '#3c9aa4'][Math.floor(h * 4)]; c.fillRect(x + 1, r * 8 + 1, 15, 7); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(x + 1, r * 8 + 1, 15, 1); } });
+const wallA = new THREE.MeshBasicMaterial({ map: brick }), wallB = new THREE.MeshBasicMaterial({ map: brick, color: 0xb0b0b0 });
+const cells = []; MAP.forEach((row, z) => [...row].forEach((ch, x) => { if (ch === '#') cells.push([x, z]); }));
+const walls = new THREE.InstancedMesh(new THREE.BoxGeometry(C, C, C), [wallA, wallA, wallB, wallB, wallB, wallB], cells.length);
+cells.forEach(([x, z], i) => walls.setMatrixAt(i, new THREE.Matrix4().makeTranslation(x * C, C / 2, z * C))); scene.add(walls);
+const flat = (t, y, rx) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(9, 7); const m = new THREE.Mesh(new THREE.PlaneGeometry(18, 14), new THREE.MeshBasicMaterial({ map: t })); m.rotation.x = rx; m.position.set(8, y, 6); scene.add(m); };
+flat(tex(16, 16, c => { c.fillStyle = '#2a0a30'; c.fillRect(0, 0, 16, 16); c.fillStyle = '#9a3aa0'; c.fillRect(1, 1, 14, 14); c.fillStyle = '#c050c8'; c.fillRect(1, 1, 14, 1); c.fillStyle = '#6a2470'; c.fillRect(5, 6, 3, 2); c.fillRect(10, 11, 2, 1); }), 0, -Math.PI / 2);
+flat(tex(16, 16, c => { c.fillStyle = '#3a4a52'; c.fillRect(0, 0, 16, 16); c.fillStyle = '#10181c'; c.fillRect(0, 0, 16, 2); c.fillRect(0, 8, 16, 1); }), C, Math.PI / 2);
+// 扉（廊下の突き当たりの壁に 2 枚）
+const doorT = tex(24, 30, c => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, 24, 30); c.fillStyle = '#000'; c.fillRect(2, 2, 20, 28); c.fillStyle = '#f050f0'; for (let x = 3; x < 21; x += 6) c.fillRect(x, 3, 5, 27); c.fillStyle = '#ffffff'; c.fillRect(3, 8, 18, 2); c.fillRect(3, 22, 18, 2); c.fillRect(16, 14, 3, 3); c.fillStyle = '#000'; c.fillRect(17, 17, 1, 2); });
+const door = (x, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.75), new THREE.MeshBasicMaterial({ map: doorT })); m.position.set(x, .875, z); m.rotation.y = ry; scene.add(m); };
+door(15 - .02, 2, -Math.PI / 2); door(1 + .02, 8, Math.PI / 2);
+// 骸骨（ドット絵の立て札）
+const SK = ['......#####......', '.....#######.....', '.....#oo#oo#.....', '.....#oo#oo#.....', '.....###o###.....', '......#####......', '......#o#o#......', '.......###.......', '........#........', '...###########...', '..##.#######.##..', '..#...#ooo#...#..', '..#..#######..#..', '..#...#ooo#...#..', '.##..#######..#..', '.#.....###....#..', '.#....#####...##.', '.#....##.##....#.', '......#...#......', '......#...#......', '......#...#......', '......#...#......', '.....##...##.....', '....###...###....'];
+const skT = tex(17, 24, c => { SK.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') { c.fillStyle = ch === '#' ? '#fff' : '#000'; c.fillRect(x, y, 1, 1); } })); c.fillStyle = '#40ffff'; c.fillRect(15, 3, 1, 12); c.fillRect(14, 4, 1, 3); c.fillStyle = '#ff40ff'; c.fillRect(14, 15, 3, 1); });
+const skel = new THREE.Sprite(new THREE.SpriteMaterial({ map: skT, alphaTest: .5 })); scene.add(skel);
+// 宝箱
+const chT = tex(16, 8, c => { c.fillStyle = '#f050f0'; c.fillRect(0, 0, 16, 8); c.fillStyle = '#000'; c.fillRect(0, 0, 16, 1); c.fillStyle = '#fff'; c.fillRect(2, 0, 2, 8); c.fillRect(12, 0, 2, 8); c.fillRect(7, 2, 2, 3); });
+const chM = new THREE.MeshBasicMaterial({ map: chT }), chest = new THREE.Group(), lid = new THREE.Group();
+const base = new THREE.Mesh(new THREE.BoxGeometry(1, .5, .7), chM); base.position.y = .25; const lidM = new THREE.Mesh(new THREE.BoxGeometry(1, .26, .7), chM); lidM.position.set(0, .13, -.35); lid.add(lidM); lid.position.set(0, .5, .35);
+const gold = new THREE.Mesh(new THREE.BoxGeometry(.8, .16, .5), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false })); gold.position.y = .5; chest.add(base, lid, gold); chest.position.set(7 * C, 0, 5 * C + .1); scene.add(chest);
+
+// ── 歩く道すじ（1 歩 0.5 秒。途中で戦いと宝箱）
+const segs = []; let T = 0, cur = { x: 1, z: 1, a: 0 };
+const add = (type, dur, b) => { segs.push({ type, dur, t0: T, a: cur, b }); T += dur; cur = b; };
+const mv = (n, dx, dz) => { for (let i = 0; i < n; i++) add('mv', .5, { x: cur.x + dx, z: cur.z + dz, a: cur.a }); };
+const tn = () => add('tn', .5, { x: cur.x, z: cur.z, a: cur.a + 90 });
+mv(3, 1, 0); add('fight', 3, cur); mv(3, 1, 0); tn(); mv(3, 0, 1); add('chest', 1.6, cur); tn(); mv(6, -1, 0); tn(); mv(3, 0, -1); tn();
+const tF = segs.find(s => s.type === 'fight').t0, tC = segs.find(s => s.type === 'chest').t0;
+
+// ── 粗い画面と、上に重ねるドット文字
+const cam = new THREE.PerspectiveCamera(62, 1, .05, 40);
+let rt, lowW = 320, lowH = 200, viewH = 150, statH = 34;
+const ov = document.createElement('canvas'), g = ov.getContext('2d'), ovT = new THREE.CanvasTexture(ov); ovT.magFilter = ovT.minFilter = THREE.NearestFilter; ovT.generateMipmaps = false;
+const post = new THREE.ShaderMaterial({
+  uniforms: { tS: { value: null }, tO: { value: ovT }, uLow: { value: new THREE.Vector2() }, uViewH: { value: 150 }, uInv: { value: 0 } },
+  vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader: `uniform sampler2D tS,tO;uniform vec2 uLow;uniform float uViewH,uInv;varying vec2 vUv;
+  float b2(vec2 a){a=floor(a);return fract(a.x/2.+a.y*a.y*.75);}
+  float b4(vec2 a){return b2(.5*a)*.25+b2(a);}
+  void main(){
+    vec2 q=vec2(vUv.x,1.-vUv.y)*uLow,lp=floor(q);vec3 col=vec3(0.);
+    if(lp.y<uViewH){
+      vec3 c=pow(texture2D(tS,vec2((lp.x+.5)/uLow.x,1.-(lp.y+.5)/uViewH)).rgb,vec3(1./2.2));
+      c+=(b4(lp)-.47)*.6;                       // 規則的な網で明暗をばらす
+      vec3 CY=vec3(.333,1.,1.),MG=vec3(1.,.333,1.),d;float bd=dot(c,c),e; // いちばん近い 4 色へ
+      d=c-CY;e=dot(d,d);if(e<bd){bd=e;col=CY;}
+      d=c-MG;e=dot(d,d);if(e<bd){bd=e;col=MG;}
+      d=c-1.;e=dot(d,d);if(e<bd){bd=e;col=vec3(1.);}
+      if(uInv>.5)col=col==CY?MG:(col==MG?CY:1.-col);
+    }
+    vec4 o=texture2D(tO,vec2((lp.x+.5)/uLow.x,1.-(lp.y+.5)/uLow.y));if(o.a>.5)col=o.rgb;
+    col*=fract(q.y)>.8?.7:1.;                   // 走査線のすきま
+    gl_FragColor=vec4(col,1.);
+  }` });
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post), pScene = new THREE.Scene(), pCam = new THREE.Camera(); pScene.add(quad);
+function resize() {
+  const W = innerWidth, H = innerHeight; renderer.setSize(W, H);
+  const p = Math.sqrt(W * H / 64000), px = p * 1.1, py = p / 1.1; // 画素は少し横長
+  lowW = Math.round(W / px); lowH = Math.round(H / py);
+  const res = Math.ceil((cap.offsetHeight + 10) / py); viewH = lowH - statH - res;
+  if (rt) rt.dispose(); rt = new THREE.WebGLRenderTarget(lowW, viewH, { magFilter: THREE.NearestFilter, minFilter: THREE.NearestFilter });
+  ov.width = lowW; ov.height = lowH; ovT.dispose();
+  post.uniforms.tS.value = rt.texture; post.uniforms.uLow.value.set(lowW, lowH); post.uniforms.uViewH.value = viewH;
+  cam.aspect = (lowW * px) / (viewH * py); cam.fov = Math.min(100, Math.max(62, 2 * Math.atan(Math.tan(.66) / cam.aspect) * 57.3)); cam.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+// 3×5 のドット文字（1 行を 3 ビットで持つ）
+const F = { 0: '75557', 1: '26227', 2: '71747', 3: '71717', 4: '55711', 5: '74717', 6: '74757', 7: '71111', 8: '75757', 9: '75717', A: '25755', B: '65656', C: '74447', D: '65556', E: '74747', F: '74744', G: '74557', H: '55755', I: '72227', K: '55655', L: '44447', M: '57555', N: '65555', O: '25552', P: '75744', R: '75655', S: '34216', T: '72222', U: '55557', V: '55552', W: '55575', X: '55255', Y: '55222', '+': '02720', '/': '11244', '!': '22202', '-': '00700' };
+function txt(s, x, y, col, k = 2) { g.fillStyle = col; for (const ch of String(s)) { const f = F[ch]; if (f) for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (+f[r] & (4 >> c)) g.fillRect(x + c * k, y + r * k, k, k); x += 4 * k; } return x; }
+function msg(s, col) { const w = s.length * 8 + 6, x = Math.round((lowW - w) / 2); g.fillStyle = BK; g.fillRect(x - 2, 6, w + 4, 20); g.fillStyle = col; g.fillRect(x, 8, w, 16); g.fillStyle = BK; g.fillRect(x + 2, 10, w - 4, 12); txt(s, x + 4, 11, WH); }
+
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const tl = t % T, lap = Math.floor(t / T), sg = segs.find(s => tl < s.t0 + s.dur) || segs[0];
+  const f = Math.floor((tl - sg.t0) / sg.dur * 2) / 2, u = tl - tF, v = tl - tC; // 半歩ずつのこま送り
+  const x = (sg.a.x + (sg.b.x - sg.a.x) * f) * C, z = (sg.a.z + (sg.b.z - sg.a.z) * f) * C, ang = (sg.a.a + (sg.b.a - sg.a.a) * f) * Math.PI / 180;
+  const inF = sg.type === 'fight', hitP = inF ? [.5, 1.9, 2.5].find(h => u >= h && u < h + .32) : undefined, hitE = inF && u >= 1.2 && u < 1.5;
+  const shake = hitE ? (Math.floor(u * 20) % 2 ? .06 : -.06) : 0;
+  cam.position.set(x - Math.sin(ang) * shake, 1 - (sg.type === 'mv' && f ? .05 : 0), z + Math.cos(ang) * shake); cam.lookAt(x + Math.cos(ang) * 4, .95, z + Math.sin(ang) * 4);
+  // 骸骨: 立って上下にゆれ、たたかれるとゆれ、3 回目で点滅して消える
+  const dead = u >= 2.5; skel.visible = u < 2.5 || (u < 3 && Math.floor(u * 12) % 2 === 0);
+  const big = hitE ? 1.25 : 1; skel.scale.set(1.3 * big, 1.84 * big, 1);
+  skel.position.set(5 * C - (hitE ? .5 : 0), .94 * big + (Math.floor(t * 3) % 2 ? .05 : 0), C + (hitP !== undefined && !dead ? (Math.floor(u * 24) % 2 ? .1 : -.1) : 0));
+  const open = sg.type === 'chest' ? v > .5 : tl > tC; lid.rotation.x = open ? 1.15 : (sg.type === 'chest' && v > .3 ? .5 : 0); gold.visible = open;
+  post.uniforms.uInv.value = hitP !== undefined && u < hitP + .1 ? 1 : 0;
+  // ステータス枠と文字
+  g.clearRect(0, 0, lowW, lowH);
+  if (inF) { if (u < .5) msg('SKELETON!', MG); else if (hitP !== undefined) { msg(dead ? 'DEFEATED!' : 'HIT ' + (12 + Math.round(hitP * 2)), CY); if (u < hitP + .2) { g.fillStyle = WH; const cx = lowW / 2, cy = viewH * .5; for (let i = -22; i < 22; i++) g.fillRect(Math.round(cx + i * 1.4), Math.round(cy - i), 4, 2); } } else if (hitE) { msg('OUCH -3', MG); g.fillStyle = MG; g.fillRect(0, 0, lowW, 3); g.fillRect(0, viewH - 3, lowW, 3); g.fillRect(0, 0, 3, viewH); g.fillRect(lowW - 3, 0, 3, viewH); } }
+  if (sg.type === 'chest' && v > .5) msg('GOLD +50', CY);
+  const y0 = viewH, hp = tl > tF + 1.2 ? 27 : 30, gd = lap * 50 + (tl > tC + .5 ? 50 : 0);
+  g.fillStyle = BK; g.fillRect(0, y0, lowW, lowH - y0); g.fillStyle = MG; g.fillRect(0, y0, lowW, statH); g.fillStyle = WH; g.fillRect(2, y0 + 2, lowW - 4, statH - 4); g.fillStyle = BK; g.fillRect(3, y0 + 3, lowW - 6, statH - 6);
+  let hx = txt('HP', 7, y0 + 6, WH) + 2; for (let i = 0; i < 10; i++) { g.fillStyle = i < hp / 3 ? CY : MG; g.fillRect(hx + i * 5, y0 + 6 + (i < hp / 3 ? 0 : 6), 4, i < hp / 3 ? 10 : 4); } txt(hp + '/30', hx + 54, y0 + 6, hitE ? MG : WH);
+  txt('B3F', lowW - 31, y0 + 6, CY);
+  hx = txt('DIR ', 7, y0 + 19, CY); hx = txt('ESWN'[Math.round(ang / (Math.PI / 2)) % 4] + ' ', hx, y0 + 19, WH); hx = txt('GOLD ', hx, y0 + 19, MG); txt(String(gd).padStart(4, '0'), hx, y0 + 19, WH);
+  ovT.needsUpdate = true;
+  renderer.setRenderTarget(rt); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(pScene, pCam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

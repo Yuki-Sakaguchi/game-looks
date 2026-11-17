@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 38 玉とり 染付の大皿</title>
+<style>
+html,body{margin:0;height:100%;background:#5a3d26;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e6d2;background:#3a2616cc;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 38 ─ 玉とり / 染付の大皿（白磁に呉須の青）　｜　見るだけ（自動で竜が玉を追う）</div>
+<script>
+// 木の机に置いた染付の大皿を、真上から見る。色は磁器の白と、呉須の青のこい・うすいだけ。
+// 線は「筆の入りが太く、抜きが細い帯」で描いて、終わりに白いかすれを入れる。面は、うすい青の「だみ」をむらを残してぬる。
+// 竜は体の節をつなげた帯で、皿のふちの内がわを回る。絵の上に、動かない釉薬のつや（円いハイライト）と、ふちの立ち上がりの影を重ねる
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const HAKU = '#eef2f0', GOSU = '#17296e', GOSU2 = '#34509f', DAMI = '#8ea8da', DAMI2 = '#d6e0f1';
+let W, H, S, R, u, cx, cy, base, gloss;
+
+// 筆の線: 点の列を、入りが太く抜きが細い帯にしてぬる。終わりの方に白いかすれを数本入れる
+function brush(x, P, w, seed, col, dry = 1) {
+  const n = P.length; if (n < 2) return; const A = [], B = [];
+  for (let i = 0; i < n; i++) { const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, f = i / (n - 1), pr = w * .5 * ((.5 + .5 * Math.sin(Math.min(1, f * 5) * 1.57)) * (1 - Math.pow(f, 2.5) * .85) + (hash(seed, i) - .5) * .22); A.push([P[i][0] - dy / l * pr, P[i][1] + dx / l * pr]); B.push([P[i][0] + dy / l * pr, P[i][1] - dx / l * pr]); }
+  x.beginPath(); A.forEach((p, i) => x[i ? 'lineTo' : 'moveTo'](p[0], p[1])); for (let i = n - 1; i >= 0; i--) x.lineTo(B[i][0], B[i][1]); x.closePath(); x.fillStyle = col || GOSU; x.fill();
+  if (!dry) return; x.strokeStyle = HAKU; x.lineWidth = Math.max(.5, w * .11); x.globalAlpha = .75;
+  for (let k = 0; k < 3; k++) { const f0 = .4 + hash(seed, k + 60) * .35, o = (hash(seed, k + 70) - .5) * .55; x.beginPath(); for (let i = Math.floor(f0 * (n - 1)); i < n; i++) { const px = P[i][0] + (A[i][0] - P[i][0]) * o * 2, py = P[i][1] + (A[i][1] - P[i][1]) * o * 2; x[i === Math.floor(f0 * (n - 1)) ? 'moveTo' : 'lineTo'](px, py); } x.stroke(); }
+  x.globalAlpha = 1;
+}
+const arcPts = (r, a0, a1, n, f) => [...Array(n + 1)].map((_, i) => { const a = a0 + (a1 - a0) * i / n, rr = f ? f(a) : r; return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
+// だみ: うすい青を、むらを残して重ねぬりする（ふちに色がたまる）
+function dami(x, path, seed, bx, by, br) {
+  x.save(); x.beginPath(); path(x); x.clip(); x.fillStyle = 'rgba(70,105,190,.3)'; x.fillRect(bx - br, by - br, br * 2, br * 2);
+  for (let i = 0; i < 9; i++) { const px = bx + (hash(seed, i) - .5) * br * 1.6, py = by + (hash(seed, i + 9) - .5) * br * 1.6, r = br * (.25 + hash(seed, i + 20) * .5), gr = x.createRadialGradient(px, py, r * .5, px, py, r); gr.addColorStop(0, 'rgba(50,85,175,0)'); gr.addColorStop(.85, 'rgba(50,85,175,.2)'); gr.addColorStop(1, 'rgba(50,85,175,0)'); x.fillStyle = gr; x.fillRect(px - r, py - r, r * 2, r * 2); }
+  x.restore();
+}
+// 雲（うずまき 3 つと尾）
+function cloud(x, px, py, sc, rot, seed) {
+  const T = (lx, ly) => [px + (lx * Math.cos(rot) - ly * Math.sin(rot)) * sc, py + (lx * Math.sin(rot) + ly * Math.cos(rot)) * sc];
+  dami(x, c => { for (const [ox, oy, r] of [[-1, 0, .75], [0, -.45, .85], [1, 0, .75]]) { const p = T(ox, oy); c.moveTo(p[0] + r * sc, p[1]); c.arc(p[0], p[1], r * sc, 0, 7); } }, seed, px, py, sc * 2);
+  [[-1, 0, .75, 1], [0, -.45, .85, 1], [1, 0, .75, -1]].forEach(([ox, oy, r, d], k) => brush(x, [...Array(22)].map((_, i) => { const f = i / 21, a = (d > 0 ? Math.PI * .1 : Math.PI * .9) - d * f * 5.4, rr = r * (1 - f * .75); return T(ox + Math.cos(a) * rr, oy + Math.sin(a) * rr); }), sc * .2, seed + k));
+  brush(x, [...Array(14)].map((_, i) => { const f = i / 13; return T(-1.7 + f * 4.6, .75 + Math.sin(f * 5) * .16 - f * f * .3); }), sc * .2, seed + 5);
+}
+
+function build() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; R = Math.min(W * .485, H * .465); u = R / 380; cx = W / 2; cy = H * .495;
+  cv.width = W * S; cv.height = H * S;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W * S; c.height = H * S; const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); return [c, x]; };
+  let x;[base, x] = mk();
+  // 木の机: 板の合わせ目と木目
+  x.fillStyle = '#6e4a2c'; x.fillRect(0, 0, W, H);
+  const pw = Math.max(W, H) / 5; for (let i = 0; i * pw < H + pw; i++) { x.fillStyle = `rgba(${hash(i, 1) > .5 ? '255,220,170' : '30,10,0'},${.05 + hash(i, 2) * .08})`; x.fillRect(0, i * pw, W, pw); x.fillStyle = 'rgba(30,14,4,.55)'; x.fillRect(0, i * pw - 1, W, 2); }
+  for (let i = 0; i < 260; i++) { const y0 = hash(i, 3) * H, a = 4 + hash(i, 4) * 10, ph = hash(i, 5) * 9, f = .004 + hash(i, 6) * .006; x.strokeStyle = `rgba(${hash(i, 7) > .4 ? '40,18,4' : '255,214,160'},${.06 + hash(i, 8) * .16})`; x.lineWidth = .6 + hash(i, 9) * 1.6; x.beginPath(); for (let px = 0; px <= W; px += 16) x[px ? 'lineTo' : 'moveTo'](px, y0 + Math.sin(px * f + ph) * a); x.stroke(); }
+  // 皿の影と、白い磁器の地
+  let gr = x.createRadialGradient(cx + 14 * u, cy + 20 * u, R * .9, cx + 14 * u, cy + 20 * u, R * 1.13); gr.addColorStop(0, 'rgba(20,8,0,.75)'); gr.addColorStop(1, 'rgba(20,8,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  x.beginPath(); x.arc(cx, cy, R, 0, 7); gr = x.createRadialGradient(cx - R * .2, cy - R * .25, R * .1, cx, cy, R); gr.addColorStop(0, '#f6f8f6'); gr.addColorStop(.8, HAKU); gr.addColorStop(1, '#d9e0e2'); x.fillStyle = gr; x.fill();
+  x.save(); x.beginPath(); x.arc(cx, cy, R, 0, 7); x.clip();
+  // ふちの帯: うすいだみの上に、唐草（波うつつる・うずまき・葉）
+  dami(x, c => { c.arc(cx, cy, R * .955, 0, 7); c.arc(cx, cy, R * .775, 0, 7, true); }, 5, cx, cy, R);
+  const rm = R * .865, NV = 12;
+  for (let k = 0; k < NV; k++) {
+    const a0 = k / NV * 6.283, a1 = (k + 1) / NV * 6.283, vine = a => rm + Math.sin(a * NV / 2 * 2) * R * .035 * (k & 1 ? 1 : 1);
+    brush(x, arcPts(0, a0 - .02, a1 + .02, 18, a => rm + Math.sin(a * NV) * R * .04), 5 * u, 100 + k);
+    for (const s of [0, 1]) { // 山と谷に、うずまきと葉
+      const am = a0 + (s ? .75 : .25) / NV * 6.283, d = s ? -1 : 1, rc = rm + d * R * .04, sc = R * .042, bx = cx + Math.cos(am) * (rc - d * sc * .9), by = cy + Math.sin(am) * (rc - d * sc * .9);
+      brush(x, [...Array(20)].map((_, i) => { const f = i / 19, a = am + (d > 0 ? 0 : Math.PI) + f * 6.2 * d, r = sc * (1 - f * .8); return [bx + Math.cos(a) * r, by + Math.sin(a) * r]; }), 3.6 * u, 200 + k * 2 + s);
+      for (const o of [-.13, .13]) { const la = am + o, lr = rc + d * R * .012, lx = cx + Math.cos(la) * lr, ly = cy + Math.sin(la) * lr; x.save(); x.translate(lx, ly); x.rotate(la + o * 9); x.beginPath(); x.ellipse(0, 0, R * .03, R * .013, 0, 0, 7); x.fillStyle = hash(k, s + o) > .5 ? GOSU2 : 'rgba(40,70,160,.7)'; x.fill(); x.restore(); }
+    }
+  }
+  [[.975, 4.5], [.945, 1.6], [.785, 1.6], [.755, 3.4], [.735, 1.3]].forEach(([r, w], i) => { for (let k = 0; k < 4; k++) brush(x, arcPts(R * r, k * 1.571 + i, k * 1.571 + i + 1.6, 40), w * u, 300 + i * 4 + k); });
+  // 内がわの雲
+  [[.3, .33, 0], [2.4, .335, .3], [4.5, .33, -.2]].forEach(([a, r, rot], i) => cloud(x, cx + Math.cos(a) * R * r, cy + Math.sin(a) * R * r, 19 * u, a + 1.57 + rot, 400 + i * 10));
+  [[1.2, .68], [2.9, .685], [4.3, .68], [5.6, .685]].forEach(([a, r], i) => cloud(x, cx + Math.cos(a) * R * r, cy + Math.sin(a) * R * r, 11 * u, a + 1.57, 500 + i * 10));
+  // まん中の丸わく
+  for (let k = 0; k < 2; k++) { brush(x, arcPts(R * .2, k * 3.2 + 1, k * 3.2 + 4.25, 40), 3.4 * u, 600 + k); brush(x, arcPts(R * .178, k * 3.2 + 2, k * 3.2 + 5.25, 40), 1.4 * u, 610 + k); }
+  // 磁器の小さな黒点（鉄粉）
+  for (let i = 0; i < 40; i++) { const a = hash(i, 30) * 6.283, r = Math.sqrt(hash(i, 31)) * R; x.fillStyle = 'rgba(60,70,90,.35)'; x.beginPath(); x.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, (.4 + hash(i, 32)) * u, 0, 7); x.fill(); }
+  x.restore();
+  // 上に重ねる絵: かすれ（筆のとぎれ。白い地の上では見えない）、ふちの立ち上がりの影、釉薬のつや
+  [gloss, x] = mk(); x.save(); x.beginPath(); x.arc(cx, cy, R, 0, 7); x.clip();
+  x.strokeStyle = HAKU; for (let i = 0; i < 900; i++) { const a = hash(i, 40) * 6.283, r = (.22 + hash(i, 41) * .56) * R, l = .02 + hash(i, 42) * .07; x.globalAlpha = .25 + hash(i, 43) * .4; x.lineWidth = (.5 + hash(i, 44) * .9) * u; x.beginPath(); x.arc(cx, cy, r, a, a + l); x.stroke(); } x.globalAlpha = 1;
+  gr = x.createLinearGradient(cx - R * .7, cy - R * .7, cx + R * .7, cy + R * .7); gr.addColorStop(0, 'rgba(30,45,80,.3)'); gr.addColorStop(.5, 'rgba(30,45,80,.04)'); gr.addColorStop(1, 'rgba(255,255,255,.35)'); x.strokeStyle = gr; x.lineWidth = R * .05; x.beginPath(); x.arc(cx, cy, R * .745, 0, 7); x.stroke();
+  gr = x.createLinearGradient(cx - R * .7, cy - R * .7, cx + R * .7, cy + R * .7); gr.addColorStop(0, 'rgba(255,255,255,.5)'); gr.addColorStop(.5, 'rgba(30,45,80,.02)'); gr.addColorStop(1, 'rgba(30,45,80,.3)'); x.strokeStyle = gr; x.lineWidth = R * .035; x.beginPath(); x.arc(cx, cy, R * .983, 0, 7); x.stroke();
+  const hl = (px, py, rx, ry, rot, a) => { x.save(); x.translate(px, py); x.rotate(rot); x.scale(1, ry / rx); const q = x.createRadialGradient(0, 0, 0, 0, 0, rx); q.addColorStop(0, `rgba(255,255,255,${a})`); q.addColorStop(.55, `rgba(255,255,255,${a * .55})`); q.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = q; x.fillRect(-rx, -rx, rx * 2, rx * 2); x.restore(); };
+  hl(cx - R * .34, cy - R * .36, R * .3, R * .17, -.75, .75); hl(cx - R * .62, cy - R * .6, R * .22, R * .045, -.78, .9); hl(cx + R * .5, cy + R * .52, R * .2, R * .05, -.78, .35);
+  x.restore();
+}
+
+const bodyR = a => R * (.5 + .062 * Math.sin(5 * a)), bp = a => { const r = bodyR(a); return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; };
+const KAN = n => n < 11 ? '〇一二三四五六七八九十'[n] : (n < 20 ? '十' : '〇一二三四五六七八九'[n / 10 | 0] + '十') + (n % 10 ? '〇一二三四五六七八九'[n % 10] : '');
+let t = 0, last = performance.now(), th = -1.2, score = 0, caught = -9, cyc = 0, catchP = [0, 0];
+const LEN = 3.5, N = 72, CYC = 14;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 追いかけっこ: 14 秒で一巡。玉は竜の少し先を逃げ、10 秒めから竜がつめて、12 秒めにつかまえる。つかまると次の玉が先に出る
+  const p = t % CYC, c = Math.floor(t / CYC);
+  let gap = 1.15 + .2 * Math.sin(p * 1.9) + .06 * Math.sin(p * 4.3), speed = .62 + .16 * Math.sin(t * .8), pearlOn = 1, pop = 1;
+  if (p > 10 && p <= 12) { const f = (p - 10) / 2, e = f * f * (3 - 2 * f); gap = gap * (1 - e) + .42 * e; speed += e * .5; }
+  else if (p > 12) { const f = (p - 12) / 2; if (c >= cyc) { cyc = c + 1; score++; caught = t; catchP = [cx + Math.cos(th + .42) * R * .5, cy + Math.sin(th + .42) * R * .5]; } if (f < .25) pearlOn = 0; gap = 1.6 + (gap - 1.6) * Math.max(0, (f - .4) / .6); pop = Math.min(1, Math.max(0, (f - .25) * 5)); speed -= .25 * (1 - f); }
+  th += speed * dt; const thp = th + gap, pr = R * (.5 + .05 * Math.sin(t * 2.6)), PX = cx + Math.cos(thp) * pr, PY = cy + Math.sin(thp) * pr;
+
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(base, 0, 0, W, H);
+  g.lineCap = g.lineJoin = 'round';
+  // まん中の字（とった玉の数）
+  const pk = 1 + Math.max(0, 1 - (t - caught) * 2) * .25; g.fillStyle = GOSU; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `600 ${26 * u}px "Hiragino Mincho ProN","Yu Mincho","Noto Serif CJK JP",serif`; g.fillText('玉', cx, cy - 36 * u); const ks = KAN(score % 100); g.font = `700 ${(ks.length > 2 ? 44 : ks.length > 1 ? 58 : 76) * u * pk}px "Hiragino Mincho ProN","Yu Mincho","Noto Serif CJK JP",serif`; g.fillText(ks, cx, cy + 18 * u);
+
+  // 竜の体: 頭から尾まで N 節。節ごとに中心・進む向き・外向きを出す
+  const P = [], T = [], Nn = [], Wd = [];
+  for (let i = 0; i < N; i++) { const s = i / (N - 1), a = th - .1 - s * LEN, p0 = bp(a), p1 = bp(a + .01); let tx = p1[0] - p0[0], ty = p1[1] - p0[1]; const l = Math.hypot(tx, ty); tx /= l; ty /= l; let nx = ty, ny = -tx; if (nx * Math.cos(a) + ny * Math.sin(a) < 0) { nx = -nx; ny = -ny; } P.push(p0); T.push([tx, ty]); Nn.push([nx, ny]); Wd.push(u * 34 * Math.pow(1 - s, .5) * (.72 + .28 * Math.sin(Math.min(1, s * 5) * 1.57)) + u * .5); }
+  const E = (i, k) => [P[i][0] + Nn[i][0] * Wd[i] * k, P[i][1] + Nn[i][1] * Wd[i] * k];
+  // 尾の毛
+  for (const k of [-.5, 0, .5]) { const e = P[N - 1], tt = T[N - 1], nn = Nn[N - 1], wv = Math.sin(t * 5 + k * 3) * 6 * u; brush(g, [...Array(8)].map((_, i) => { const f = i / 7; return [e[0] - tt[0] * f * 46 * u + nn[0] * (k * f * 40 * u + wv * f), e[1] - tt[1] * f * 46 * u + nn[1] * (k * f * 40 * u + wv * f)]; }), 6 * u, 20 + k * 4, GOSU2, 0); }
+  // 足（4 本。つけ根から外へ出て、ひじで前へ曲がり、つめを開く）
+  [[10, 1, 0], [15, -1, 3.1], [40, 1, 1.5], [46, -1, 4.6]].forEach(([i, side, ph]) => {
+    const sw = Math.sin(t * 5 + ph), b = E(i, side * .8), nn = Nn[i], tt = T[i], k1 = [b[0] + (nn[0] * side * 32 - tt[0] * (6 + sw * 9)) * u, b[1] + (nn[1] * side * 32 - tt[1] * (6 + sw * 9)) * u], k2 = [k1[0] + (nn[0] * side * 10 + tt[0] * (22 + sw * 12)) * u, k1[1] + (nn[1] * side * 10 + tt[1] * (22 + sw * 12)) * u];
+    g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(k1[0], k1[1]); g.lineTo(k2[0], k2[1]); g.lineWidth = 17 * u; g.strokeStyle = GOSU; g.stroke(); g.lineWidth = 11.5 * u; g.strokeStyle = DAMI; g.stroke();
+    const fa = Math.atan2(k2[1] - k1[1], k2[0] - k1[0]); for (const q of [-.8, -.27, .27, .8]) brush(g, [...Array(6)].map((_, j) => { const f = j / 5, a = fa + q + f * q * .6; return [k2[0] + Math.cos(a) * f * 22 * u, k2[1] + Math.sin(a) * f * 22 * u]; }), 7 * u, i + q, GOSU, 0);
+  });
+  // 背びれ（外がわに、うしろへなびく三角）
+  g.fillStyle = GOSU2; g.beginPath(); for (let i = 3; i < N - 4; i += 2) { const a = E(i, .95), b = E(i + 2, .95), h = Wd[i] * .85 + 3 * u; g.moveTo(a[0], a[1]); g.lineTo(b[0] + Nn[i][0] * h - T[i][0] * h * .5, b[1] + Nn[i][1] * h - T[i][1] * h * .5); g.lineTo(b[0], b[1]); } g.fill();
+  // 胴: 背はうすい青のだみ、腹は白く残して節の線。背に筆がきのうろこ
+  g.beginPath(); for (let i = 0; i < N; i++) { const e = E(i, 1); g[i ? 'lineTo' : 'moveTo'](e[0], e[1]); } for (let i = N - 1; i >= 0; i--) { const e = E(i, -1); g.lineTo(e[0], e[1]); } g.closePath(); g.fillStyle = DAMI; g.fill();
+  g.beginPath(); for (let i = 0; i < N; i++) { const e = E(i, -.3); g[i ? 'lineTo' : 'moveTo'](e[0], e[1]); } for (let i = N - 1; i >= 0; i--) { const e = E(i, -1); g.lineTo(e[0], e[1]); } g.closePath(); g.fillStyle = DAMI2; g.fill();
+  for (let i = 4; i < N - 6; i += 7) { const e = E(i, .35 + hash(i, 1) * .3); g.fillStyle = 'rgba(52,80,159,.28)'; g.beginPath(); g.arc(e[0], e[1], Wd[i] * (.5 + hash(i, 2) * .3), 0, 7); g.fill(); } // だみのむら
+  g.beginPath(); for (let i = 1; i < N - 3; i++) { const ang = Math.atan2(T[i][1], T[i][0]) + Math.PI, r = Wd[i] * .3; if (r < 1.2 * u) break; for (let j = 0; j < 3; j++) { const e = E(i, -.08 + (j + (i & 1) * .5) * .36); g.moveTo(e[0] + Math.cos(ang - 1.25) * r, e[1] + Math.sin(ang - 1.25) * r); g.arc(e[0], e[1], r, ang - 1.25, ang + 1.25); } const a = E(i, -.3), b = E(i, -1); if (i % 2) { g.moveTo(a[0], a[1]); g.lineTo(b[0] - T[i][0] * 3 * u, b[1] - T[i][1] * 3 * u); } } g.lineWidth = 1.9 * u; g.strokeStyle = GOSU; g.stroke();
+  brush(g, P.map((_, i) => E(i, 1)), 6 * u, 7, GOSU, 0); brush(g, P.map((_, i) => E(i, -1)), 5 * u, 8, GOSU, 0); brush(g, P.map((_, i) => E(i, -.3)), 2 * u, 9, GOSU2, 0);
+
+  // 玉（火えんをうしろへ引く）
+  if (pearlOn) {
+    const pt = [-Math.sin(thp), Math.cos(thp)], pr0 = 17 * u * pop;
+    for (const k of [-1, 0, 1]) { const wv = Math.sin(t * 9 + k * 2); g.beginPath(); const bx = PX - pt[0] * pr0 * .3, by = PY - pt[1] * pr0 * .3, ox = -pt[1], oy = pt[0], L = (k ? 40 : 58) * u * pop, sx = k * pr0 * .9; g.moveTo(bx + ox * (sx - pr0 * .55), by + oy * (sx - pr0 * .55)); g.quadraticCurveTo(bx - pt[0] * L * .5 + ox * (sx * 1.6 + wv * 7 * u - pr0 * .4), by - pt[1] * L * .5 + oy * (sx * 1.6 + wv * 7 * u - pr0 * .4), bx - pt[0] * L + ox * (sx * 1.7 - wv * 9 * u), by - pt[1] * L + oy * (sx * 1.7 - wv * 9 * u)); g.quadraticCurveTo(bx - pt[0] * L * .5 + ox * (sx * 1.6 + wv * 7 * u + pr0 * .5), by - pt[1] * L * .5 + oy * (sx * 1.6 + wv * 7 * u + pr0 * .5), bx + ox * (sx + pr0 * .55), by + oy * (sx + pr0 * .55)); g.fillStyle = k ? DAMI : GOSU2; g.fill(); g.lineWidth = 1.8 * u; g.strokeStyle = GOSU; g.stroke(); }
+    g.beginPath(); g.arc(PX, PY, pr0, 0, 7); g.fillStyle = HAKU; g.fill(); g.lineWidth = 3 * u; g.strokeStyle = GOSU; g.stroke();
+    brush(g, [...Array(16)].map((_, i) => { const f = i / 15, a = t * 3 + f * 7, r = pr0 * (.72 - f * .6); return [PX + Math.cos(a) * r, PY + Math.sin(a) * r]; }), 3 * u * pop, 3, GOSU2, 0);
+  }
+  // つかまえた所から、筆の点が散る
+  const ct = t - caught; if (ct < .7) for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283 + .2, r0 = (22 + ct * 90) * u, r1 = r0 + (26 - ct * 30) * u; brush(g, [[catchP[0] + Math.cos(a) * r0, catchP[1] + Math.sin(a) * r0], [catchP[0] + Math.cos(a) * (r0 + r1) / 2, catchP[1] + Math.sin(a) * (r0 + r1) / 2], [catchP[0] + Math.cos(a) * r1, catchP[1] + Math.sin(a) * r1]], 7 * u * (1 - ct / .7), i, GOSU, 0); }
+
+  // 頭（横顔。x が前、-y が外がわ＝頭の上）
+  const hs = 66 * u, jaw = pearlOn ? .16 + .12 * Math.sin(t * 6) + (p > 10 && p <= 12 ? (p - 10) * .12 : 0) : .02, hx = P[0][0] + T[0][0] * hs * .35, hy = P[0][1] + T[0][1] * hs * .35;
+  g.save(); g.transform(T[0][0], T[0][1], -Nn[0][0], -Nn[0][1], hx, hy); g.scale(hs, hs); g.lineWidth = .055; g.strokeStyle = GOSU;
+  // たてがみ
+  for (let k = 0; k < 6; k++) { const y0 = -.5 + k * .19, wv = Math.sin(t * 6 + k * 1.3) * .1, tx = -1.25 - (k % 2) * .35, ty = y0 * 2 + wv; g.beginPath(); g.moveTo(-.3, y0 - .1); g.quadraticCurveTo(-.85, y0 * 1.4 - .16 + wv, tx, ty); g.quadraticCurveTo(-.8, y0 * 1.4 + .12 + wv, -.3, y0 + .1); g.fillStyle = k % 2 ? DAMI : GOSU2; g.fill(); g.stroke(); }
+  // つの
+  g.lineWidth = .1; g.beginPath(); g.moveTo(-.1, -.5); g.quadraticCurveTo(-.5, -.75, -1.05, -1.0); g.moveTo(-.55, -.78); g.quadraticCurveTo(-.6, -1.0, -.82, -1.22); g.moveTo(.05, -.5); g.quadraticCurveTo(-.2, -.9, -.55, -1.3); g.stroke(); g.lineWidth = .055;
+  // 下あご（開いたり閉じたりする）と、ひげ
+  g.save(); g.translate(-.15, .08); g.rotate(jaw);
+  g.beginPath(); g.moveTo(0, -.04); g.lineTo(1.05, .06); g.quadraticCurveTo(1.2, .2, 1.0, .3); g.quadraticCurveTo(.4, .46, -.45, .36); g.lineTo(-.45, -.04); g.closePath(); g.fillStyle = DAMI; g.fill(); g.stroke();
+  g.beginPath(); for (let k = 0; k < 4; k++) { g.moveTo(.3 + k * .2, -.02 + k * .02); g.lineTo(.4 + k * .2, -.2 + k * .02); g.lineTo(.5 + k * .2, 0 + k * .02); } g.fillStyle = HAKU; g.fill(); g.stroke();
+  g.beginPath(); for (let k = 0; k < 4; k++) { g.moveTo(-.2 + k * .25, .38); g.quadraticCurveTo(-.3 + k * .25, .62, -.5 + k * .25, .78 + Math.sin(t * 5 + k) * .05); } g.stroke();
+  g.restore();
+  // 上あご・ひたい
+  g.beginPath(); g.moveTo(-.6, -.5); g.quadraticCurveTo(-.2, -.66, .2, -.52); g.quadraticCurveTo(.7, -.36, .98, -.34); g.quadraticCurveTo(1.22, -.6, 1.4, -.34); g.quadraticCurveTo(1.44, -.1, 1.2, .0); g.lineTo(-.1, .06); g.lineTo(-.6, .3); g.closePath(); g.fillStyle = DAMI; g.fill(); g.stroke();
+  g.beginPath(); for (let k = 0; k < 4; k++) { g.moveTo(.3 + k * .2, .04 - k * .01); g.lineTo(.4 + k * .2, .22 - k * .01); g.lineTo(.5 + k * .2, .02 - k * .01); } g.fillStyle = HAKU; g.fill(); g.stroke();
+  g.beginPath(); g.arc(1.2, -.3, .07, 0, 5); g.stroke();                                           // 鼻
+  g.beginPath(); g.arc(.3, -.3, .15, 0, 7); g.fillStyle = HAKU; g.fill(); g.stroke(); g.beginPath(); g.arc(.34, -.29, .065, 0, 7); g.fillStyle = GOSU; g.fill(); // 目
+  g.lineWidth = .11; g.beginPath(); g.moveTo(.02, -.42); g.quadraticCurveTo(.3, -.62, .58, -.4); g.stroke();   // まゆ
+  // 長いひげ 2 本
+  g.lineWidth = .05; for (const k of [0, 1]) { const wv = Math.sin(t * 4 + k * 2) * .25; g.beginPath(); g.moveTo(1.3, -.22 + k * .12); g.bezierCurveTo(1.8, -.7 + k * 1.3, 1.3 + wv, -1.1 + k * 2.1, .7 - wv, -1.3 + k * 2.5 + wv); g.stroke(); }
+  g.restore();
+
+  g.drawImage(gloss, 0, 0, W, H);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', build); build(); requestAnimationFrame(frame);
+</script>
+</html>
