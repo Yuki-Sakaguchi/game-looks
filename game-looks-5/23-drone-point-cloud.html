@@ -54,7 +54,7 @@ function hit(p, n, own) {
   if (best < 1e9 && rnd() < 1.5 - bd / R * 1.25) { P.push(p[0], p[1], p[2]); TR.push(best % T); IN.push(rnd()); }
 }
 for (const b of boxes) {
-  const w = b.x1 - b.x0, d = b.z1 - b.z0, h = b.y1 - b.y0, sx = .17, sy = .3; // 横に細かく、たてに粗い（走査のすじ）
+  const w = b.x1 - b.x0, d = b.z1 - b.z0, h = b.y1 - b.y0, sx = .22, sy = .38; // 横に細かく、たてに粗い（走査のすじ）
   if (b.cyl) { for (let y = b.y0 + sy * .5; y < b.y1; y += sy) for (let a = 0, da = sx / b.cyl; a < TAU; a += da) { const aa = a + rnd() * da * .4, n = [Math.cos(aa), 0, Math.sin(aa)]; hit([b.cx + n[0] * b.cyl, y + rnd() * .05, b.cz + n[2] * b.cyl], n, b); }
     for (let r = sy; r < b.cyl; r += sy) for (let a = 0; a < TAU; a += sx / r) hit([b.cx + Math.cos(a) * r, b.y1, b.cz + Math.sin(a) * r], [0, 1, 0], b); continue; }
   for (let y = b.y0 + sy * .5; y < b.y1; y += sy) {
@@ -63,7 +63,7 @@ for (const b of boxes) {
   for (let x = b.x0 + .15; x < b.x1; x += sy * .8) for (let z = b.z0 + .15; z < b.z1; z += sy * .8) { hit([x, b.y1, z], [0, 1, 0], b); if (b.y0 > 0) hit([x, b.y0, z], [0, -1, 0], b); }
 }
 // 地面の点: 輪ごとに、ドローンの真下を中心にした同心円でならぶ（外ほど間が広い）
-pulses.forEach((c, k) => { for (let r = 1.2; r < 29; r = r * 1.075 + .05) { const d = Math.hypot(r, c[1]); if (d > R) break; const n = Math.min(360, Math.floor(TAU * r / .36)), a0 = rnd() * 6;
+pulses.forEach((c, k) => { for (let r = 1.2; r < 29; r = r * 1.09 + .06) { const d = Math.hypot(r, c[1]); if (d > R) break; const n = Math.min(300, Math.floor(TAU * r / .5)), a0 = rnd() * 6;
   for (let i = 0; i < n; i++) { const a = a0 + i / n * TAU, p = [c[0] + Math.cos(a) * r, 0, c[2] + Math.sin(a) * r]; if (Math.abs(p[0]) > 34 || Math.abs(p[2]) > 23) continue; if (boxes.some(q => !q.y0 && p[0] > q.x0 && p[0] < q.x1 && p[2] > q.z0 && p[2] < q.z1) || blocked(c, p)) continue; P.push(p[0], (rnd() - .5) * .04, p[2]); TR.push((k + d / WAVE) % T); IN.push(rnd() * .6); } } });
 const N = TR.length, geo = new THREE.BufferGeometry();
 geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('aT', new THREE.Float32BufferAttribute(TR, 1)); geo.setAttribute('aI', new THREE.Float32BufferAttribute(IN, 1));
@@ -75,8 +75,8 @@ const pm = new THREE.ShaderMaterial({
   void main(){
     float age=mod(uTime-aT,${T}.);                      // 輪が届いてからの時間
     float vis=1.-smoothstep(10.,12.6,age),fl=exp(-age*4.5);   // 一周する前に消え、また測りなおす
-    vC=mix(ramp(clamp(position.y/12.,0.,1.))*(.9+.25*aI),vec3(1.),fl*.85)*vis*(.8+fl);
-    vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;
+    vC=mix(ramp(clamp(position.y/12.,0.,1.))*(.95+.1*aI),vec3(1.),fl*.85)*vis*(.8+fl);
+    vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;vC*=1.-smoothstep(30.,52.,-mv.z);  // 遠い点は暗く
     gl_PointSize=uSize*(1.+fl*1.8)*clamp(20./-mv.z,.8,2.3);
     if(vis<=0.)gl_Position=vec4(2.,2.,2.,1.);}`,
   fragmentShader: 'varying vec3 vC;void main(){vec2 q=gl_PointCoord-.5;if(dot(q,q)>.25)discard;gl_FragColor=vec4(vC,1.);}' });
@@ -90,7 +90,7 @@ const TN = 150, trailG = new THREE.BufferGeometry(); trailG.setAttribute('positi
 const trail = new THREE.Line(trailG, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 })); trail.frustumCulled = false; scene.add(trail);
 const beam = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, -1, 0], 3)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35 })); scene.add(beam);
 let tall = false;
-const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 80 : 52; cam.updateProjectionMatrix(); pm.uniforms.uSize.value = 2.1 * renderer.getPixelRatio() * (tall ? .8 : 1); };
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 80 : 52; cam.updateProjectionMatrix(); pm.uniforms.uSize.value = 2.4 * renderer.getPixelRatio() * (tall ? .8 : 1); };
 addEventListener('resize', resize); resize();
 const hud = document.getElementById('hud'), sorted = Float32Array.from(TR).sort(); let last = performance.now(), t = 0, hudT = -1;
 function frame(now) {

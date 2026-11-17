@@ -55,7 +55,7 @@ function resize() {
 
 // 切手 1 枚（わく、線だけの絵、額面）
 function stamp(x, i) {
-  const { cw, ch, gx, gy, ib, pw, ph, cols } = G, c = i % cols, r = Math.floor(i / cols), X = gx + c * cw + ib, Y = gy + r * ch + ib, ink = INKS[(i * 3 + r) % INKS.length], kind = (i * 5 + r * 2) % 6;
+  const { cw, ch, gx, gy, ib, pw, ph, cols } = G, c = i % cols, r = Math.floor(i / cols), X = gx + c * cw + ib, Y = gy + r * ch + ib, ink = INKS[(i * 3 + r) % INKS.length], kind = (i * 5 + 2) % 6;
   const u = ph / 100, sp = Math.max(1.9, ph * .0125), lw = Math.max(.55, ph * .004);
   const hor = Y + ph * .56, road = Y + ph * .79, band = Y + ph * .86;
   x.save(); x.beginPath(); x.rect(X, Y, pw, ph); x.clip(); x.strokeStyle = x.fillStyle = ink; x.lineCap = 'butt';
@@ -136,7 +136,7 @@ function frame(now) {
   // 配達員（今いる切手のインクの色。線と小さなべただけ）
   if (pause <= 0 || pause > 1.2) {
     const inside = inRow >= 0 && inRow < cols, ci = Math.max(0, Math.min(cols - 1, Math.floor(inRow))) + row * cols, ink = inside ? INKS[(ci * 3 + row) % INKS.length] : '#4a4a50';
-    const u = ph * .085, sp = prog * cw / u, bob = Math.sin(sp * .5) * u * .06, P = (a, b) => [X + a * u, Y + b * u + bob];
+    const u = ph * .1, sp = prog * cw / u, bob = Math.sin(sp * .5) * u * .06, P = (a, b) => [X + a * u, Y + b * u + bob];
     g.strokeStyle = g.fillStyle = PAPER; g.lineCap = g.lineJoin = 'round'; g.lineWidth = u * .5;
     const body = () => { g.beginPath();
       for (const wx of [-1.5, 1.5]) { const [cx, cy] = P(wx, -1); g.moveTo(cx + u, cy); g.arc(cx, cy, u, 0, 6.2832); for (let k = 0; k < 4; k++) { const a = sp + k * .785; g.moveTo(cx - Math.cos(a) * u, cy - Math.sin(a) * u); g.lineTo(cx + Math.cos(a) * u, cy + Math.sin(a) * u); } }

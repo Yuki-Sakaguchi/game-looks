@@ -29,7 +29,7 @@ Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, n
 
 let seed = 17; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
 const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
-function tex(w, h, draw, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; }
+function tex(w, h, draw, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
 // 砂粒: 色のつぶつぶと、ざらつき（法線をゆらす高さの絵）
 const speck = tex(256, 256, (x) => { x.fillStyle = '#fff'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 9000; i++) { const v = rnd(); x.fillStyle = v < .5 ? `rgba(90,60,30,${.1 + rnd() * .22})` : v < .9 ? `rgba(255,250,235,${.2 + rnd() * .5})` : 'rgba(60,40,30,.5)'; x.fillRect(rnd() * 256, rnd() * 256, 1 + (rnd() * 2 | 0), 1 + (rnd() * 2 | 0)); } });
 const rough = tex(256, 256, (x) => { const d = x.createImageData(256, 256); for (let i = 0; i < d.data.length; i += 4) { const v = 80 + rnd() * 175 | 0; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); }, false);
@@ -139,10 +139,10 @@ const NP = 60, pp = new Float32Array(NP * 3).fill(-9), pv = new Float32Array(NP 
 const puff = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0xd9b672, size: .14 })); puff.frustumCulled = false; scene.add(puff); let pi = 0;
 function burst(x, y, z) { for (let i = 0; i < 9; i++) { const j = (pi++ % NP) * 3; pp[j] = x; pp[j + 1] = y; pp[j + 2] = z; pv[j] = (rnd() - .5) * 2.4; pv[j + 1] = 1.5 + rnd() * 2; pv[j + 2] = (rnd() - .5) * 2.4; pl[j / 3] = .5; } }
 
-const tgt = new THREE.Vector3(0, 0, .9); let tallyZ = 5.6;
+const tgt = new THREE.Vector3(0, 0, -.7); let tallyZ = 5.6;
 function resize() {
   const a = innerWidth / innerHeight, tall = a < 1; renderer.setSize(innerWidth, innerHeight, false); cam.aspect = a; cam.updateProjectionMatrix();
-  const k = Math.max(1, .7 / a); cam.position.set(0, 15.5 * k, .9 + 10 * k); cam.lookAt(tgt);
+  const k = Math.max(1, .7 / a); cam.position.set(0, 17 * k, -.7 + 11 * k); cam.lookAt(tgt);
   if (tall) { bucket.position.set(3.6, 0, -9.6); shovel.position.set(-3.4, 0, -9.8); shovel.rotation.y = .5; tally.position.set(-4.3, 0, 6.2); tallyZ = 6.2; }
   else { bucket.position.set(7.2, 0, -1.6); shovel.position.set(-7.3, 0, -1.2); shovel.rotation.y = 1.9; tally.position.set(5.2, 0, 2.2); tallyZ = 2.2; }
 }

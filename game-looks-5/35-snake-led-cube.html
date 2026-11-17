@@ -21,14 +21,14 @@ const cam = new THREE.PerspectiveCamera(34, 1, .1, 200);
 const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
 const gc = mkc(64, 64); { const c = gc.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.18, 'rgba(255,255,255,.7)'); gr.addColorStop(.45, 'rgba(255,255,255,.16)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 64, 64); }
 const glowT = new THREE.CanvasTexture(gc);
-const glowM = new THREE.PointsMaterial({ size: 1.5, map: glowT, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight, T = Math.tan(17 * Math.PI / 180); cam.aspect = a; cam.fov = a >= 1.25 ? 34 : Math.min(84, 2 * Math.atan(T * 1.25 / a) * 180 / Math.PI); cam.updateProjectionMatrix(); glowM.size = 1.5 * T / Math.tan(cam.fov * Math.PI / 360); }; addEventListener('resize', resize); resize();
+const glowM = new THREE.PointsMaterial({ size: 2.1, map: glowT, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true });
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight, T = Math.tan(17 * Math.PI / 180); cam.aspect = a; cam.fov = a >= 1.25 ? 34 : Math.min(84, 2 * Math.atan(T * 1.25 / a) * 180 / Math.PI); cam.updateProjectionMatrix(); glowM.size = 2.1 * T / Math.tan(cam.fov * Math.PI / 360); }; addEventListener('resize', resize); resize();
 scene.add(new THREE.HemisphereLight(0x8090b0, 0x101010, .5)); const dl = new THREE.DirectionalLight(0xfff0e0, .9); dl.position.set(4, 10, 6); scene.add(dl);
 const cubeLight = new THREE.PointLight(0xffffff, 0, 0, 2); cubeLight.position.set(0, 4, 0); scene.add(cubeLight);
 
 // ── キューブ本体: LED の粒（InstancedMesh）、針金、にじみ（Points）
 const N = 8, NN = 512, Y0 = 1.3, cube = new THREE.Group(); scene.add(cube);
-const led = new THREE.InstancedMesh(new THREE.SphereGeometry(.13, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: .62 }), NN); cube.add(led);
+const led = new THREE.InstancedMesh(new THREE.SphereGeometry(.1, 8, 6), new THREE.MeshBasicMaterial({ transparent: true, opacity: .5, depthWrite: false }), NN); cube.add(led);
 const gp = new Float32Array(NN * 3), gcol = new Float32Array(NN * 3), O = new THREE.Object3D(), C = new THREE.Color();
 for (let i = 0; i < NN; i++) { const x = i % 8, y = (i >> 3) % 8, z = i >> 6; O.position.set(x - 3.5, y + Y0, z - 3.5); O.scale.set(1, 1.3, 1); O.updateMatrix(); led.setMatrixAt(i, O.matrix); led.setColorAt(i, C.setRGB(.1, .11, .14)); gp.set([x - 3.5, y + Y0, z - 3.5], i * 3); }
 const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(gp, 3)); gg.setAttribute('color', new THREE.BufferAttribute(gcol, 3)); const glow = new THREE.Points(gg, glowM); glow.frustumCulled = false; cube.add(glow);
@@ -85,10 +85,10 @@ function frame(now) {
   }
   let ar = 0, ag = 0, ab = 0; const kd = Math.exp(-dt * 9);
   for (let i = 0; i < NN; i++) { const a = i * 3; for (let c = 0; c < 3; c++) cur[a + c] = Math.max(tgt[a + c], cur[a + c] * kd); const r = cur[a], g = cur[a + 1], b = cur[a + 2], l = Math.max(r, g, b); ar += r; ag += g; ab += b;
-    gcol[a] = r; gcol[a + 1] = g; gcol[a + 2] = b; led.setColorAt(i, C.setRGB(.1 + r + l * .5, .11 + g + l * .5, .14 + b + l * .5)); }
+    gcol[a] = r; gcol[a + 1] = g; gcol[a + 2] = b; led.setColorAt(i, C.setRGB(.05 + r * 2 + l * .6, .055 + g * 2 + l * .6, .07 + b * 2 + l * .6)); }
   gg.attributes.color.needsUpdate = true; led.instanceColor.needsUpdate = true;
   const tot = Math.max(1, ar + ag + ab); cubeLight.color.setRGB(ar / tot + .1, ag / tot + .1, ab / tot + .1); cubeLight.intensity = Math.min(90, tot * 4); pool.material.color.copy(cubeLight.color); pool.material.opacity = Math.min(.5, .08 + tot * .012);
-  cube.rotation.y = t * .28 + .5; cam.position.set(0, 9.8 + Math.sin(t * .4) * 1.2, 21.5); cam.lookAt(0, 4.3, 0);
+  cube.rotation.y = t * .28 + .5; cam.position.set(0, 9.4 + Math.sin(t * .4) * 1.2, 24); cam.lookAt(0, 3.9, 0);
   renderer.render(scene, cam); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

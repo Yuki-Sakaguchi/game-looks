@@ -20,7 +20,7 @@ canvas{display:block}
 // 背景は黒、遠くまでピントが合い、表面には細かいぶつぶつ。走査線の横じまと、下に倍率やスケールバーの黒い帯
 import * as THREE from 'three';
 const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
-const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(50, 1, .1, 200);
 // 表面のぶつぶつ用の、くり返す乱数の模様
 const nc = document.createElement('canvas'); nc.width = nc.height = 64; { const c = nc.getContext('2d'), d = c.createImageData(64, 64); for (let i = 0; i < 4096; i++) { d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = Math.random() * 255; d.data[i * 4 + 3] = 255; } c.putImageData(d, 0, 0); }
@@ -41,15 +41,15 @@ void main(){
   float nz=n3(vP*uBump),nz2=n3(vP.zxy*uBump*3.3+9.);
   float e=clamp(1.-abs(dot(n,v))+(nz-.5)*.34,0.,1.);   // 視線に対する傾き（ぶつぶつで少しゆらす）
   float b=.12+1.08*e*sqrt(e);                          // 傾いた所ほど明るい＝ふちが白い
-  b*=.8+.4*nz2;b-=smoothstep(.62,.8,nz)*.1;
+  b*=.87+.26*nz2;b-=smoothstep(.62,.8,nz)*.1;
   b*=mix(1.,.1,smoothstep(12.,52.,-vV.z))*uGain;
   vec2 fc=gl_FragCoord.xy;
-  b*=.9+.1*sin(fc.y*2.0944);                            // 走査線の横じま
+  b*=.94+.06*sin(fc.y*2.0944);                            // 走査線の横じま
   b*=1.+.22*smoothstep(.03,0.,abs(gl_FragCoord.y/uRes.y-(1.-fract(uTime*.21)))); // ゆっくり下りる走査の帯
-  b+=(texture2D(tN,fc/64.+floor(uTime*4.)*.37).r-.5)*.07;                // フィルムの粒
+  b+=(texture2D(tN,fc/64.+floor(uTime*1.5)*.37).r-.5)*.04;                // フィルムの粒
   gl_FragColor=vec4(vec3(b),1.);}`;
 const mat = (bump, gain = 1, flat = 0) => new THREE.ShaderMaterial({ uniforms: { ...U, uBump: { value: bump }, uGain: { value: gain }, uFlat: { value: flat } }, vertexShader: VS, fragmentShader: FS });
-const L = 60, K = Math.PI * 2 / L, SPEED = 4;
+const L = 60, K = Math.PI * 2 / L, SPEED = 3;
 const hgt = (x, z) => Math.sin(x * .33 + Math.sin(z * K * 2) * 1.2) * .5 + Math.sin(z * K * 3 + x * .21) * .6 + Math.sin(x * 1.3 + z * K * 9) * .12 + x * x * .014 - .6;
 // 地面（でこぼこの面。進む向きに L でくり返す）
 const gg = new THREE.PlaneGeometry(64, L * 3, 40, 100); gg.rotateX(-Math.PI / 2); gg.translate(0, 0, -L);
@@ -84,9 +84,9 @@ const probe = new THREE.Group();
 { const pm = mat(20, 1.55), b = new THREE.Mesh(sphG, pm); b.scale.set(.55, .45, .75); const ring = new THREE.Mesh(new THREE.TorusGeometry(.86, .07, 8, 28), pm); ring.rotation.x = Math.PI / 2; const eye = new THREE.Mesh(sphG, pm); eye.scale.setScalar(.2); eye.position.set(0, -.05, -.74); probe.add(b, ring, eye);
   for (let i = 0; i < 3; i++) { const a = i * 2.094 + .52, pod = new THREE.Mesh(sphG, pm); pod.scale.setScalar(.17); pod.position.set(Math.cos(a) * .86, 0, Math.sin(a) * .86); probe.add(pod); }
   for (const sx of [-1, 1]) { const an = new THREE.Mesh(hairG, pm); an.scale.set(.03, 1.1, .03); an.position.set(sx * .25, .3, .35); an.rotation.set(.5, 0, -sx * .3); probe.add(an); } probe.scale.setScalar(1.35); scene.add(probe); }
-let tall = false;
+let tall = false; const cap = document.getElementById('cap');
 // 走査の細かさは画面によらず約 42 万画素に決め、それを画面いっぱいに引きのばす（少しやわらかい、走査像らしい絵になる）
-const resize = () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2, Math.sqrt(420000 / (innerWidth * innerHeight)))); renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 74 : 50; cam.updateProjectionMatrix(); renderer.getDrawingBufferSize(U.uRes.value); };
+const resize = () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2, Math.sqrt(420000 / (innerWidth * innerHeight)))); renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 74 : 50; cam.updateProjectionMatrix(); renderer.getDrawingBufferSize(U.uRes.value); document.getElementById('bar').style.paddingBottom = cap.offsetHeight + 12 + 'px'; };
 addEventListener('resize', resize); resize();
 const smp = document.getElementById('smp'); let last = performance.now(), t = 0, shown = -1;
 function frame(now) {
@@ -94,9 +94,9 @@ function frame(now) {
   const s = t * SPEED; ground.position.z = s % L;
   for (const g of things) { const zr = (((g.userData.z - s + 14) % L) + L) % L - 14; g.position.z = -zr; if (g.userData.spin) g.rotation.y += dt * g.userData.spin; }
   for (const lg of legs) lg.rotation.y = lg.userData.y + Math.sin(t * 3 + lg.userData.ph) * .22; mite.position.y = hgt(-6.2, -21) + Math.sin(t * 3) * .05;
-  const w = t * Math.PI * 2 / 15, px = Math.sin(w * 2) * 1.5, py = 2.3 + Math.sin(w * 5) * .25;
+  const w = t * Math.PI * 2 / 20, px = Math.sin(w * 2) * 1.5, py = 2.3 + Math.sin(w * 5) * .25;
   probe.position.set(px, py, 0); probe.rotation.set(Math.sin(w * 5) * .08, -Math.cos(w * 2) * .3, -Math.cos(w * 2) * .35); probe.children[1].rotation.z = t * 2.2;
-  cam.position.set(px * .5, tall ? 5.2 : 4.3, tall ? 8.6 : 7.4); cam.lookAt(px * .8, 2.3, -6);
+  cam.position.set(px * .5, tall ? 5.2 : 4.3, tall ? 8.6 : 7.4); cam.lookAt(px * .8, tall ? 4.4 : 2.3, -6);
   const n = Math.floor(s / 10); if (n !== shown) { shown = n; smp.textContent = 'SAMPLE ' + String(n % 1000).padStart(3, '0'); }
   renderer.render(scene, cam); requestAnimationFrame(frame);
 }

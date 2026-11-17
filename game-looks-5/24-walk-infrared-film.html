@@ -16,15 +16,15 @@ canvas{display:block}
 // 仕上げに四すみの落ちこみと、少しの粒子。形はローポリ
 import * as THREE from 'three';
 const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
-const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog('#f6e6ec', 26, 84);
 const skyC = document.createElement('canvas'); skyC.width = 4; skyC.height = 256; { const c = skyC.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#01020a'); gr.addColorStop(.4, '#06143a'); gr.addColorStop(.62, '#163872'); gr.addColorStop(1, '#2a4c88'); c.fillStyle = gr; c.fillRect(0, 0, 4, 256); }
 const skyT = new THREE.CanvasTexture(skyC); skyT.colorSpace = THREE.SRGBColorSpace; scene.background = skyT;
-const cam = new THREE.PerspectiveCamera(60, 1, .1, 900);
-scene.add(new THREE.HemisphereLight(0xb0b6d4, 0xfff0f4, 2.3));
-const sun = new THREE.DirectionalLight(0xffffff, 3.7); sun.position.set(30, 40, -30); scene.add(sun, sun.target);
+const cam = new THREE.PerspectiveCamera(60, 1, .6, 700);
+scene.add(new THREE.HemisphereLight(0xc4c8dc, 0xffffff, 1.8));
+const sun = new THREE.DirectionalLight(0xffffff, 3.3); sun.position.set(30, 40, -30); scene.add(sun, sun.target);
 const lam = (c, o = {}) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, ...o }), bas = (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o });
-const LEAF = lam('#f6e4ea'), TRUNK = lam('#0d0b13'), SHADOW = bas('#06050d', { transparent: true, opacity: .97, depthWrite: false });
+const LEAF = lam('#fff6f8'), TRUNK = lam('#0d0b13'), SHADOW = bas('#06050d', { transparent: true, opacity: .97, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
 // でこぼこの葉のかたまり（ローポリ）
 const blobG = new THREE.IcosahedronGeometry(1, 1); { const p = blobG.attributes.position, seen = {}; for (let i = 0; i < p.count; i++) { const k = [p.getX(i), p.getY(i), p.getZ(i)].map(v => v.toFixed(2)).join(), s = seen[k] ??= .8 + hash(i, 3) * .4; p.setXYZ(i, p.getX(i) * s, p.getY(i) * s, p.getZ(i) * s); } blobG.computeVertexNormals(); }
 const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -37,13 +37,13 @@ const SD = 1.06 * Math.SQRT1_2; // 影がのびる向き（太陽の反対がわ
 const tree = (x, z, h, r, id) => {
   trunks.push([V(x, h * .4, z), [0, hash(id, 1) * 6, (hash(id, 2) - .5) * .12], V(.7 + r * .12, h * .8, .7 + r * .12)]);
   const cs = [[0, h, 0, r], [(hash(id, 3) - .5) * 2, h - r * .45, (hash(id, 4) - .5) * 2.4, r * .72], [(hash(id, 5) - .5) * 1.4, h + r * .62, (hash(id, 6) - .5) * 1.4, r * .62]];
-  for (const [dx, y, dz, rr] of cs) { leaves.push([V(x + dx, y, z + dz), [hash(id, y) * 6, hash(id, dx) * 6, 0], V(rr, rr * .8, rr)]); shB.push([V(x + dx - y * SD, .03, z + dz + y * SD), [0, Math.PI / 4, 0], V(rr * 1.45, 1, rr * .98)]); }
-  shT.push([V(x - h * SD * .5, .03, z + h * SD * .5), [0, Math.PI / 4, 0], V(h * 1.06, 1, .34)]);
+  for (const [dx, y, dz, rr] of cs) { leaves.push([V(x + dx, y, z + dz), [hash(id, y) * 6, hash(id, dx) * 6, 0], V(rr, rr * .8, rr)]); shB.push([V(x + dx - y * SD, .06, z + dz + y * SD), [0, Math.PI / 4, 0], V(rr * 1.45, 1, rr * .98)]); }
+  shT.push([V(x - h * SD * .5, .06, z + h * SD * .5), [0, Math.PI / 4, 0], V(h * 1.06, 1, .34)]);
 };
 for (let k = 0; k < 4; k++) { const z0 = (1 - k) * L;
   for (let i = 0; i < 5; i++) { const z = z0 - i * 6 - 3; tree(3.8 + (hash(i, 11) - .5) * .5, z + (hash(i, 12) - .5), 5.3 + hash(i, 13) * .9, 2 + hash(i, 14) * .5, i + 10); tree(-3.8 + (hash(i, 15) - .5) * .5, z + (hash(i, 16) - .5), 5.3 + hash(i, 17) * .9, 2 + hash(i, 18) * .5, i + 30); }
-  for (let i = 0; i < 7; i++) { const x = -9 - hash(i, 21) * 34, z = z0 - hash(i, 22) * L, r = 1 + hash(i, 23) * 1.6; if (i < 2) tree(x - 4, z, 5.5 + hash(i, 24) * 2, 2.8, i + 50); else { leaves.push([V(x, r * .5, z), [0, hash(i, 25) * 6, 0], V(r * 1.3, r * .75, r * 1.2)]); shB.push([V(x - r * .9, .03, z + r * .9), [0, Math.PI / 4, 0], V(r * 1.6, 1, r * 1.1)]); } }
-  lamps.push([V(-1.95, 1.6, z0 - 15), [0, 0, 0], V(1, 3.2, 1)]); heads.push([V(-1.95, 3.3, z0 - 15), [0, 0, 0], V(.22, .3, .22)]); shT.push([V(-1.95 - 1.7 * SD, .03, z0 - 15 + 1.7 * SD), [0, Math.PI / 4, 0], V(3.6, 1, .1)]);
+  for (let i = 0; i < 7; i++) { const x = -9 - hash(i, 21) * 34, z = z0 - hash(i, 22) * L, r = 1 + hash(i, 23) * 1.6; if (i < 2) tree(x - 4, z, 5.5 + hash(i, 24) * 2, 2.8, i + 50); else { leaves.push([V(x, r * .5, z), [0, hash(i, 25) * 6, 0], V(r * 1.3, r * .75, r * 1.2)]); shB.push([V(x - r * .9, .06, z + r * .9), [0, Math.PI / 4, 0], V(r * 1.6, 1, r * 1.1)]); } }
+  lamps.push([V(-1.95, 1.6, z0 - 15), [0, 0, 0], V(1, 3.2, 1)]); heads.push([V(-1.95, 3.3, z0 - 15), [0, 0, 0], V(.22, .3, .22)]); shT.push([V(-1.95 - 1.7 * SD, .06, z0 - 15 + 1.7 * SD), [0, Math.PI / 4, 0], V(3.6, 1, .1)]);
 }
 inst(blobG, LEAF, leaves, near); inst(new THREE.CylinderGeometry(.13, .22, 1, 6), TRUNK, trunks, near);
 const flatG = g => { g.rotateX(-Math.PI / 2); return g; };
@@ -64,28 +64,31 @@ slab(7.2, 420, -.25, bas('#020309', { fog: false })); slab(98, 500, .05, bas('#e
 const clouds = new THREE.Group(), CM = new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#a6a6b4', flatShading: true, fog: false }); far.add(clouds);
 { const l = [];[[70, 62, -210, 1.3], [-95, 78, -240, 1.5], [165, 50, -170, 1], [5, 100, -270, 1.9], [240, 70, -70, 1.4], [-190, 56, -130, 1.1], [120, 112, -250, 1.4], [-35, 46, -265, .9], [40, 150, -150, 1.6]].forEach(([x, y, z, s], c) => { for (let i = 0; i < 6; i++) { const r = (9 + hash(c, i) * 9) * s * (i > 3 ? .6 : 1); l.push([V(x + (i - 2.5) * 9 * s + hash(i, c) * 5, y + hash(c + 5, i) * 4 * s + (i % 2) * 3 * s, z + hash(c, i + 9) * 12), [0, hash(i, c + 3) * 6, 0], V(r * 1.25, r * .58, r)]); } }); inst(blobG, CM, l, clouds); }
 
-// ── ハレーション: 小さく描いた絵の明るい所だけを横・たてにぼかし、最後に上から足す
-let rtS, rtA, rtB;
+// ── ハレーション: 描いた絵の明るい所だけを 1/4 の大きさでまるくぼかし、最後に上から足す
+let rtS, rtA;
 const fsq = new THREE.PlaneGeometry(2, 2), pCam = new THREE.Camera(), VS = 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
-const blur = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, uDir: { value: new THREE.Vector2() }, uThr: { value: 0 } }, vertexShader: VS, depthTest: false,
-  fragmentShader: `uniform sampler2D tD;uniform vec2 uDir;uniform float uThr;varying vec2 vUv;
-  void main(){vec3 a=vec3(0.);float w[5];w[0]=.18;w[1]=.15;w[2]=.12;w[3]=.09;w[4]=.05;
-    for(int i=-4;i<=4;i++){vec3 c=texture2D(tD,vUv+uDir*float(i)).rgb;if(uThr>0.)c=max(c-uThr,0.)*2.4;a+=c*w[i<0?-i:i];}
-    gl_FragColor=vec4(a,1.);}` });
-const comp = new THREE.ShaderMaterial({ uniforms: { tB: { value: null }, uSeed: { value: 0 }, uAsp: { value: 1 } }, vertexShader: VS, depthTest: false, transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-  fragmentShader: `uniform sampler2D tB;uniform float uSeed,uAsp;varying vec2 vUv;
-  void main(){vec3 b=texture2D(tB,vUv).rgb;
-    vec3 add=sqrt(b)*vec3(1.,.84,.9)*.75;                                   // にじみは少し桃色
-    vec2 q=(vUv-.5)*vec2(min(uAsp,1.),min(1./uAsp,1.));float vig=smoothstep(.3,.78,length(q))*.45; // 四すみの落ちこみ
-    float gr=fract(sin(dot(floor(gl_FragCoord.xy/1.5)+uSeed,vec2(12.9898,78.233)))*43758.5453)-.5; // 粒子
-    gl_FragColor=vec4(add+max(gr,0.)*.035,vig+max(-gr,0.)*.07);}` });
+const blur = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, uPx: { value: new THREE.Vector2() } }, vertexShader: VS, depthTest: false,
+  fragmentShader: `uniform sampler2D tD;uniform vec2 uPx;varying vec2 vUv;
+  vec3 tap(float a,float r){return max(texture2D(tD,vUv+vec2(cos(a),sin(a))*r*uPx).rgb-.7,0.);}
+  void main(){vec3 a=tap(0.,0.)*2.;                    // 中心と、内・外 2 つの輪の点を足す
+    for(int i=0;i<5;i++)a+=tap(float(i)*1.2566,2.6)*1.4;
+    for(int i=0;i<8;i++)a+=tap(float(i)*.7854+.39,6.);
+    gl_FragColor=vec4(a*.14,1.);}` });
+const comp = new THREE.ShaderMaterial({ uniforms: { tS: { value: null }, tB: { value: null }, uPx: blur.uniforms.uPx, uSeed: { value: 0 }, uAsp: { value: 1 } }, vertexShader: VS, depthTest: false,
+  fragmentShader: `uniform sampler2D tS,tB;uniform vec2 uPx;uniform float uSeed,uAsp;varying vec2 vUv;
+  void main(){vec3 c=sqrt(texture2D(tS,vUv).rgb);
+    vec2 d=uPx*1.2;vec3 b=(texture2D(tB,vUv+d).rgb+texture2D(tB,vUv-d).rgb+texture2D(tB,vUv+vec2(d.x,-d.y)).rgb+texture2D(tB,vUv-vec2(d.x,-d.y)).rgb)*.25;
+    c+=sqrt(b)*vec3(1.,.86,.92)*.62;                             // にじみは少し桃色
+    vec2 q=(vUv-.5)*vec2(min(uAsp,1.),min(1./uAsp,1.));c*=1.-smoothstep(.3,.78,length(q))*.45; // 四すみの落ちこみ
+    c+=(fract(sin(dot(floor(gl_FragCoord.xy/1.5)+uSeed,vec2(12.9898,78.233)))*43758.5453)-.5)*.05; // 粒子
+    gl_FragColor=vec4(c,1.);}` });
 const pScene = new THREE.Scene(), pQuad = new THREE.Mesh(fsq, blur); pScene.add(pQuad);
 let tall = false;
 function resize() {
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2, Math.sqrt(640000 / (innerWidth * innerHeight)))); // フィルムらしく少しやわらかい絵にする（約 64 万画素）
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2, Math.sqrt(420000 / (innerWidth * innerHeight)))); // フィルムらしく少しやわらかい絵にする（約 42 万画素）
   renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 84 : 60; cam.updateProjectionMatrix();
-  const w = Math.max(64, Math.round(innerWidth / 4)), h = Math.max(64, Math.round(innerHeight / 4));
-  for (const r of [rtS, rtA, rtB]) if (r) r.dispose(); rtS = new THREE.WebGLRenderTarget(w, h, { depthBuffer: true }); rtA = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false }); rtB = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false });
+  const sz = renderer.getDrawingBufferSize(new THREE.Vector2()), w = Math.max(64, Math.round(sz.x / 4)), h = Math.max(64, Math.round(sz.y / 4));
+  for (const r of [rtS, rtA]) if (r) r.dispose(); rtS = new THREE.WebGLRenderTarget(sz.x, sz.y, { depthBuffer: true, depthTexture: new THREE.DepthTexture(sz.x, sz.y, THREE.UnsignedIntType) }); rtA = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false }); blur.uniforms.uPx.value.set(1 / w, 1 / h);
   comp.uniforms.uAsp.value = cam.aspect;
 }
 addEventListener('resize', resize); resize();
@@ -100,10 +103,8 @@ function frame(now) {
   cam.lookAt(cam.position.x + Math.sin(yaw) * 10, 1.62 + (tall ? 1.6 : 1.9) + Math.sin(w * 2) * .5, z - Math.cos(yaw) * 10);
   sun.position.set(30, 40, z - 30); sun.target.position.set(0, 0, z);
   renderer.setRenderTarget(rtS); renderer.render(scene, cam);
-  blur.uniforms.tD.value = rtS.texture; blur.uniforms.uDir.value.set(1.7 / rtS.width, 0); blur.uniforms.uThr.value = .6; pass(blur, rtA);
-  blur.uniforms.tD.value = rtA.texture; blur.uniforms.uDir.value.set(0, 1.7 / rtS.height); blur.uniforms.uThr.value = 0; pass(blur, rtB);
-  renderer.setRenderTarget(null); renderer.render(scene, cam);
-  comp.uniforms.tB.value = rtB.texture; comp.uniforms.uSeed.value = Math.floor(t * 4) * 7.3; renderer.autoClear = false; pass(comp, null); renderer.autoClear = true;
+  blur.uniforms.tD.value = rtS.texture; pass(blur, rtA);
+  comp.uniforms.tS.value = rtS.texture; comp.uniforms.tB.value = rtA.texture; comp.uniforms.uSeed.value = Math.floor(t * 4) * 7.3; pass(comp, null);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

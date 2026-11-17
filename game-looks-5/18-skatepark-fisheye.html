@@ -20,7 +20,7 @@ const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5
 const DPR = Math.min(devicePixelRatio || 1, 2);
 const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(DPR); document.body.prepend(renderer.domElement);
 const hud = document.getElementById('hud'), g = hud.getContext('2d');
-const cubeRT = new THREE.WebGLCubeRenderTarget(512), cubeCam = new THREE.CubeCamera(.05, 500, cubeRT);
+const cubeRT = new THREE.WebGLCubeRenderTarget(320), cubeCam = new THREE.CubeCamera(.05, 500, cubeRT);
 const scene = new THREE.Scene(), SUN = new THREE.Vector3(.5, .62, -.6).normalize();
 scene.add(new THREE.HemisphereLight(0xcfe6ff, 0xb8a080, 1.5)); const sun = new THREE.DirectionalLight(0xfff0d0, 2.6); sun.position.copy(SUN).multiplyScalar(50); scene.add(sun);
 const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), bas = c => new THREE.MeshBasicMaterial({ color: c });

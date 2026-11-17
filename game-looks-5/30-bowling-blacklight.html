@@ -117,7 +117,7 @@ const brightM = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, px: 
 const blurM = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, dir: { value: new THREE.Vector2() } }, vertexShader: VS, depthTest: false,
   fragmentShader: 'uniform sampler2D tD; uniform vec2 dir; varying vec2 vU; void main(){ vec3 c = texture2D(tD, vU).rgb * .227; c += (texture2D(tD, vU + dir * 1.385).rgb + texture2D(tD, vU - dir * 1.385).rgb) * .316; c += (texture2D(tD, vU + dir * 3.231).rgb + texture2D(tD, vU - dir * 3.231).rgb) * .0703; gl_FragColor = vec4(c, 1.); }' });
 const finalM = new THREE.ShaderMaterial({ uniforms: { tD: { value: rtS.texture }, tG: { value: rtA.texture } }, vertexShader: VS, depthTest: false,
-  fragmentShader: `uniform sampler2D tD, tG; varying vec2 vU; void main(){ vec3 c = texture2D(tD, vU).rgb, g = texture2D(tG, vU).rgb; c += g * 1.5 + vec3(.012, .002, .03) + vec3(.02, .0, .05) * dot(g, vec3(.4));
+  fragmentShader: `uniform sampler2D tD, tG; varying vec2 vU; void main(){ vec3 c = texture2D(tD, vU).rgb, g = texture2D(tG, vU).rgb; c += g * 1.05 + vec3(.012, .002, .03) + vec3(.02, .0, .05) * dot(g, vec3(.4));
     vec2 q = vU - .5; c *= 1. - .9 * dot(q, q); gl_FragColor = vec4(c, 1.);
     #include <colorspace_fragment>
   }` });

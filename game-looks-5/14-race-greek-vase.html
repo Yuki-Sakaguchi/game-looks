@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 14 戦車競走 古代の壺絵（黒絵式）</title>
+<style>
+html,body{margin:0;height:100%;background:#14100d;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e9c9a0;background:#14100d;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 14 ─ 戦車競走 / 古代の壺絵（黒絵式）　｜　見るだけ（自動で壺が回る）</div>
+<script>
+// 古代の黒絵式の壺に見立てる。色は素焼きのだいだいの地・つやのある黒・白と紫がかった赤を少しだけ。
+// 人も馬も真横向きの黒いシルエットで、細部は「ひっかいた細い線」（地の色の細線）で入れる。上下に雷文・舌の形・つた・光線の飾り帯。
+// 絵はまず平らな帯に描き、それを細いたての短冊に切って円筒に巻きつける（はしほど縮んで暗くなる）。壺の輪郭に合わせて横幅を変え、つやの光の筋を重ねる。壺が回って帯が横へ進む
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const CLAY = '#cf6a30', BLK = '#17110e', WHT = '#efe4d2', PUR = '#7a2338', INC = '#e08a4c';
+const R0 = 300, BW = Math.round(2 * Math.PI * R0), ARC = Math.PI * R0;      // 単位 u: 壺のいちばん太い所の半径が 300
+let W, H, S, U, Hu, yc, bs, ps, flat, fx, cyl, cx2, tileS, tileO, SP, shadeC, Rpx;
+const P = (x, ...p) => { x.beginPath(); for (let i = 0; i < p.length; i += 2) x.lineTo(p[i], p[i + 1]); x.closePath(); };
+function mk(w, h, draw) { const c = document.createElement('canvas'); c.width = Math.ceil(w * bs); c.height = Math.ceil(h * bs); const x = c.getContext('2d'); x.setTransform(bs, 0, 0, bs, 0, 0); x.lineJoin = x.lineCap = 'round'; draw(x); return { c, w, h }; }
+// 壺の輪郭: 高さ v（胴のまん中が 0、単位は半径）での半径
+const PROF = [[-2.7, 150], [-2.55, 118], [-1.95, 110], [-1.5, 200], [-.9, 276], [0, 300], [.9, 264], [1.6, 152], [1.98, 98], [2.06, 150], [2.4, 156]];
+function prof(v) { if (v < PROF[0][0] || v > 2.4) return 0; for (let i = 1; i < PROF.length; i++) if (v <= PROF[i][0]) { const a = PROF[i - 1], b = PROF[i], f = (v - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * (.5 - .5 * Math.cos(f * Math.PI)); } return 0; }
+// 馬（左向きに描く。使うときに左右を返す）。黒いべた＋ひっかき線
+const LEG = [[[.7, 1.7], [-.7, .3]], [[-.9, -.4], [.5, 1.0]], [[-1.25, -.95], [1.0, 1.35]], [[-.1, .25], [-.3, .9]]];
+function horse(x, f, col, far) {
+  const inc = col === WHT ? '#6a4630' : INC;
+  const leg = (sx, sy, a, b) => { const kx = sx + 27 * Math.sin(a), ky = sy + 27 * Math.cos(a), ex = kx + 30 * Math.sin(b), ey = ky + 30 * Math.cos(b); x.strokeStyle = col; x.lineWidth = 5.4; x.beginPath(); x.moveTo(sx, sy); x.lineTo(kx, ky); x.stroke(); x.lineWidth = 3.8; x.beginPath(); x.moveTo(kx, ky); x.lineTo(ex, ey); x.stroke(); P(x, ex - 4, ey - 1, ex + 3, ey - 2, ex + 4, ey + 4, ex - 5, ey + 4); x.fillStyle = col; x.fill(); x.strokeStyle = inc; x.lineWidth = .8; x.beginPath(); x.moveTo(kx - 3, ky); x.lineTo(kx + 3, ky); x.stroke(); };
+  const [[fa, fb], [ha, hb]] = LEG[f];
+  leg(60, 78, fa + .3, fb + .3); leg(124, 76, ha + .28, hb + .2); leg(54, 78, fa, fb); leg(118, 76, ha, hb);
+  x.beginPath(); x.moveTo(144, 56); x.bezierCurveTo(168, 44 + f * 3, 182, 60 - f * 2, 176, 96 + f * 2); x.bezierCurveTo(170, 74, 160, 66, 142, 68); x.fillStyle = far ? col : PUR; x.fill();     // 尾（紫がかった赤）
+  x.beginPath(); x.moveTo(44, 58); x.bezierCurveTo(46, 40, 76, 42, 96, 46); x.bezierCurveTo(118, 42, 142, 44, 146, 62); x.bezierCurveTo(148, 82, 124, 86, 110, 82); x.bezierCurveTo(94, 76, 72, 84, 58, 86); x.bezierCurveTo(46, 84, 42, 72, 44, 58);
+  x.moveTo(64, 46); x.quadraticCurveTo(52, 22, 34, 10); x.lineTo(30, 2); x.lineTo(25, 12); x.lineTo(8, 36); x.lineTo(11, 44); x.lineTo(22, 40); x.quadraticCurveTo(34, 44, 42, 72); x.closePath(); x.fillStyle = col; x.fill();
+  x.strokeStyle = inc; x.lineWidth = 1; x.stroke();                                              // 輪郭もひっかき線（重なった馬を分ける）
+  x.strokeStyle = far ? col : PUR; x.lineWidth = 5; x.beginPath(); x.moveTo(36, 10); x.quadraticCurveTo(54, 22, 66, 44); x.stroke();     // たてがみ
+  x.strokeStyle = inc; x.lineWidth = 1; x.beginPath(); for (let i = 0; i < 7; i++) { x.moveTo(38 + i * 4, 10 + i * 4.6); x.lineTo(42 + i * 4, 8 + i * 4.6); }
+  x.moveTo(60, 52); x.quadraticCurveTo(50, 66, 60, 82); x.moveTo(112, 48); x.quadraticCurveTo(128, 60, 116, 80); x.moveTo(72, 78); x.lineTo(100, 74); x.moveTo(12, 38); x.lineTo(20, 34); x.moveTo(24, 22); x.lineTo(14, 36); x.moveTo(40, 50); x.lineTo(62, 44); x.stroke();
+  x.beginPath(); x.arc(24, 18, 2, 0, 7); x.stroke();
+}
+// 戦車と御者（右向き。箱は 170×170、地面は y=160）
+function car(x, f, robe) {
+  x.strokeStyle = BLK; x.lineWidth = 3.4; x.beginPath(); x.moveTo(104, 116); x.lineTo(170, 104); x.stroke();                                          // ながえ
+  x.lineWidth = 1.3; x.beginPath(); x.moveTo(112, 66); x.lineTo(170, 74); x.moveTo(112, 70); x.lineTo(170, 80); x.stroke();                            // たづな
+  x.beginPath(); x.moveTo(52, 118); x.lineTo(110, 118); x.quadraticCurveTo(118, 96, 112, 76); x.quadraticCurveTo(98, 84, 96, 108); x.lineTo(52, 110); x.closePath(); x.fillStyle = BLK; x.fill();
+  x.strokeStyle = INC; x.lineWidth = 1; x.beginPath(); for (let i = 0; i < 4; i++) { x.moveTo(98 + i * 4, 112 - i * 3); x.lineTo(108 + i * 1.5, 84 + i * 7); } x.moveTo(56, 114); x.lineTo(104, 114); x.stroke();
+  P(x, 66, 52, 88, 50, 96, 112, 60, 112); x.fillStyle = robe; x.fill(); x.strokeStyle = robe === WHT ? '#6a4630' : INC; x.lineWidth = 1; x.beginPath(); for (let i = 0; i < 4; i++) { x.moveTo(70 + i * 5, 58); x.lineTo(66 + i * 8, 110); } x.moveTo(64, 78); x.lineTo(92, 76); x.stroke();   // 御者の長い衣
+  x.strokeStyle = BLK; x.lineWidth = 5; x.beginPath(); x.moveTo(84, 58); x.lineTo(100, 70); x.lineTo(114, 68); x.stroke(); x.lineWidth = 1.6; x.beginPath(); x.moveTo(108, 66); x.lineTo(60 - f * 4, 20 + f * 6); x.stroke();   // 腕と、むち
+  x.fillStyle = BLK; x.beginPath(); x.arc(80, 40, 9.5, 0, 7); x.fill(); P(x, 84, 42, 94, 50, 82, 52); x.fill(); P(x, 87, 36, 93, 39, 87, 42); x.fill();
+  x.strokeStyle = PUR; x.lineWidth = 2.6; x.beginPath(); x.arc(80, 40, 9, 3.5, 5.6); x.stroke(); x.strokeStyle = INC; x.lineWidth = 1; x.beginPath(); x.arc(84, 39, 1.6, 0, 7); x.moveTo(78, 46); x.lineTo(88, 44); x.stroke();
+  x.strokeStyle = BLK; x.lineWidth = 5; x.beginPath(); x.arc(78, 132, 26, 0, 7); x.stroke(); x.lineWidth = 3.6; x.beginPath(); for (let i = 0; i < 4; i++) { const a = i * .785 + f * .39; x.moveTo(78 + Math.cos(a) * 26, 132 + Math.sin(a) * 26); x.lineTo(78 - Math.cos(a) * 26, 132 - Math.sin(a) * 26); } x.stroke();   // 車輪
+  x.fillStyle = WHT; x.beginPath(); x.arc(78, 132, 3.4, 0, 7); x.fill();
+}
+// 見物人（黒い衣に紫の帯、ひっかき線のひだ）
+function man(x, px, gy, flip, k) {
+  x.save(); x.translate(px, gy); x.scale(flip ? -1 : 1, 1);
+  P(x, -14, -112, 12, -112, 20, 0, -20, 0); x.fillStyle = BLK; x.fill(); P(x, -14, -112, 12, -112, 16, -78, -16, -40); x.fillStyle = PUR; x.fill();
+  x.strokeStyle = INC; x.lineWidth = 1; x.beginPath(); for (let i = 0; i < 5; i++) { x.moveTo(-10 + i * 5, -70 + i * 6); x.lineTo(-14 + i * 8, -2); } x.moveTo(-18, -4); x.lineTo(18, -4); x.stroke();
+  x.strokeStyle = BLK; x.lineWidth = 5; x.beginPath(); x.moveTo(8, -104); x.lineTo(26, k ? -124 : -92); x.lineTo(40, k ? -140 : -96); x.stroke(); x.lineWidth = 2; x.beginPath(); x.moveTo(-24, 0); x.lineTo(-22, -150); x.stroke();
+  x.fillStyle = BLK; x.beginPath(); x.arc(0, -124, 10, 0, 7); x.fill(); P(x, 4, -122, 14, -112, 2, -112); x.fill(); x.strokeStyle = INC; x.lineWidth = 1; x.beginPath(); x.arc(4, -126, 1.6, 0, 7); x.stroke(); x.strokeStyle = WHT; x.lineWidth = 2; x.beginPath(); x.arc(0, -124, 9.4, 3.6, 5.6); x.stroke();
+  x.restore();
+}
+function build() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * S; cv.height = H * S;
+  Rpx = W > H ? Math.min(W * .46, H * .85) : Math.min(W * .46, H * .2); U = Rpx / R0; Hu = H / U; yc = Hu * (W > H ? .49 : .5); ps = U * S; bs = Math.min(ps, 2.2);
+  flat = document.createElement('canvas'); flat.width = Math.round(ARC * bs); flat.height = Math.round(Hu * bs); fx = flat.getContext('2d');
+  cyl = document.createElement('canvas'); cyl.width = Math.round(2 * Rpx * S); cyl.height = H * S; cx2 = cyl.getContext('2d');
+  const tile = draw => { const c = document.createElement('canvas'); c.width = Math.round(BW * bs); c.height = flat.height; const x = c.getContext('2d'); x.lineJoin = x.lineCap = 'round'; for (const o of [-BW, 0, BW]) { x.setTransform(c.width / BW, 0, 0, bs, o * c.width / BW, 0); draw(x); } const f = document.createElement('canvas'); f.width = c.width; f.height = c.height; f.getContext('2d').drawImage(c, 0, 0); return f; };
+  const T = yc - 115, B = yc + 115, GY = yc + 100;
+  // 壺の地と飾り帯、動かない絵
+  tileS = tile(x => {
+    x.fillStyle = CLAY; x.fillRect(0, 0, BW, Hu);
+    for (let i = 0; i < 120; i++) { const px = hash(i, 1) * BW, py = hash(i, 2) * Hu, r = 30 + hash(i, 3) * 110, gr = x.createRadialGradient(px, py, 0, px, py, r), c = hash(i, 4) < .5 ? '120,40,10' : '240,150,80'; gr.addColorStop(0, `rgba(${c},.07)`); gr.addColorStop(1, `rgba(${c},0)`); x.fillStyle = gr; x.fillRect(px - r, py - r, r * 2, r * 2); }
+    x.fillStyle = BLK; x.fillRect(0, 0, BW, T - 92); x.fillRect(0, T - 40, BW, 4); x.fillRect(0, T - 4, BW, 4); x.fillRect(0, GY, BW, 4); x.fillRect(0, B, BW, 3); x.fillRect(0, B + 36, BW, 46); x.fillRect(0, B + 215, BW, Hu);
+    x.fillStyle = PUR; x.fillRect(0, B + 46, BW, 3); x.fillRect(0, B + 70, BW, 3); x.fillRect(0, T - 100, BW, 3);
+    // 肩の舌の形（黒と紫を交互に）
+    for (let i = 0; i < BW / 20.5 - .5; i++) { x.beginPath(); x.roundRect(i * 20.5 + 3, T - 100, 14.5, 52, [0, 0, 7, 7]); x.fillStyle = i % 2 ? PUR : BLK; x.fill(); }
+    // 雷文（メアンダー）
+    x.strokeStyle = BLK; x.lineWidth = 3.4; x.lineCap = 'butt'; x.lineJoin = 'miter'; x.beginPath(); for (let i = 0; i < BW / 29 - .5; i++) { const o = i * 29, y = T - 34; x.moveTo(o, y + 26); x.lineTo(o, y + 3); x.lineTo(o + 23, y + 3); x.lineTo(o + 23, y + 20); x.lineTo(o + 8, y + 20); x.lineTo(o + 8, y + 11); x.lineTo(o + 16, y + 11); } x.stroke(); x.lineCap = x.lineJoin = 'round';
+    // つた（波うつ茎と、心臓形の葉、白い実）
+    x.strokeStyle = BLK; x.lineWidth = 1.6; x.beginPath(); for (let i = 0; i <= BW; i += 4) x.lineTo(i, B + 19 + Math.sin(i / BW * 6.283 * 36) * 4); x.stroke();
+    for (let i = 0; i < 72; i++) { const px = (i + .5) * BW / 72, up = i % 2 ? 1 : -1, py = B + 19 + up * 3; x.fillStyle = BLK; x.beginPath(); x.moveTo(px, py); x.bezierCurveTo(px - 12, py + up * 2, px - 7, py + up * 15, px, py + up * 13); x.bezierCurveTo(px + 7, py + up * 15, px + 12, py + up * 2, px, py); x.fill(); x.fillStyle = WHT; x.beginPath(); x.arc(px + BW / 144, B + 19 - up * 8, 1.8, 0, 7); x.fill(); }
+    // 底からの光線の形
+    x.fillStyle = BLK; for (let i = 0; i < 46; i++) { const px = (i + .5) * BW / 46; P(x, px - 9, B + 215, px, B + 92, px + 9, B + 215); x.fill(); }
+    // 折り返しの柱、賞品の三脚、見物人、鳥、銘
+    for (const px of [220, 1180]) { x.fillStyle = WHT; x.fillRect(px - 9, GY - 150, 18, 150); x.fillStyle = BLK; x.fillRect(px - 17, GY - 162, 34, 13); x.fillRect(px - 15, GY - 8, 30, 8); x.strokeStyle = '#6a4630'; x.lineWidth = .9; x.beginPath(); for (let i = -1; i <= 1; i++) { x.moveTo(px + i * 5, GY - 148); x.lineTo(px + i * 5, GY - 10); } x.stroke(); }
+    for (const px of [660, 1620]) { x.strokeStyle = BLK; x.lineWidth = 5; x.beginPath(); for (const d of [-30, 0, 30]) { x.moveTo(px + d * .5, GY - 88); x.lineTo(px + d, GY); } x.stroke(); x.fillStyle = BLK; x.beginPath(); x.ellipse(px, GY - 92, 36, 20, 0, 0, 3.1416); x.fill(); x.fillRect(px - 40, GY - 98, 80, 7); x.lineWidth = 4; x.beginPath(); x.arc(px - 26, GY - 108, 9, 0, 7); x.arc(px + 26, GY - 108, 9, 0, 7); x.stroke(); x.strokeStyle = INC; x.lineWidth = 1; x.beginPath(); x.moveTo(px - 30, GY - 84); x.lineTo(px + 30, GY - 84); x.stroke(); }
+    [[430, 0, 1], [820, 1, 0], [1010, 0, 0], [1400, 1, 1], [1790, 0, 1]].forEach(([px, f, k]) => man(x, px, GY, f, k));
+    for (const [px, py] of [[320, T + 34], [920, T + 28], [1500, T + 36], [1280, T + 30]]) { x.fillStyle = BLK; x.beginPath(); x.ellipse(px, py, 15, 5.5, -.1, 0, 7); x.fill(); P(x, px - 4, py - 3, px - 16, py - 22, px + 8, py - 4); x.fill(); P(x, px - 12, py, px - 30, py + 5, px - 28, py - 4); x.fill(); P(x, px + 12, py - 3, px + 23, py - 1, px + 13, py + 2); x.fill(); }
+    x.fillStyle = BLK; x.font = '15px Georgia,serif'; 'ΝΙΚΕ'.split('').forEach((ch, i) => x.fillText(ch, 545 + i * 4, T + 30 + i * 17));
+    for (const [px, py] of [[120, T + 60], [760, T + 40], [1110, T + 52], [1700, T + 44]]) for (let i = 0; i < 7; i++) { x.beginPath(); x.arc(px + Math.cos(i * .9) * (i ? 8 : 0), py + Math.sin(i * .9) * (i ? 8 : 0), 2.4, 0, 7); x.fill(); }
+  });
+  // 上にかぶせる層: ろくろ目、黒の焼きむら、つぎ合わせたわれ目と欠け
+  tileO = tile(x => {
+    for (let i = 0; i < Hu / 3; i++) { x.fillStyle = hash(i, 11) < .5 ? 'rgba(255,200,150,.02)' : 'rgba(40,10,0,.025)'; x.fillRect(0, i * 3 + hash(i, 12) * 2, BW, .6 + hash(i, 13) * 1.4); }
+    for (let i = 0; i < 9; i++) { const px = hash(i, 14) * BW, py = hash(i, 15) * Hu, r = 50 + hash(i, 16) * 90, gr = x.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, 'rgba(170,70,24,.3)'); gr.addColorStop(1, 'rgba(170,70,24,0)'); x.fillStyle = gr; x.fillRect(px - r, py - r, r * 2, r * 2); }
+    for (let k = 0; k < 7; k++) { let px = (k + .3) * BW / 7, py = 0; const pts = [[px, py]]; while (py < Hu) { px += (hash(k * 31 + pts.length, 17) - .5) * 60; py += 30 + hash(k, pts.length) * 50; pts.push([px, py]); } x.strokeStyle = 'rgba(20,10,6,.75)'; x.lineWidth = 1.1; x.beginPath(); pts.forEach(p => x.lineTo(p[0], p[1])); x.stroke(); x.strokeStyle = 'rgba(240,190,140,.3)'; x.lineWidth = .7; x.beginPath(); pts.forEach(p => x.lineTo(p[0] + 1.2, p[1])); x.stroke(); const c = pts[2 + k % 3]; if (c) { x.beginPath(); for (let i = 0; i < 6; i++) x.lineTo(c[0] + Math.cos(i * 1.05 + k) * (7 + hash(k, i) * 12), c[1] + Math.sin(i * 1.05 + k) * (6 + hash(i, k) * 9)); x.closePath(); x.fillStyle = '#d99a6c'; x.fill(); x.strokeStyle = 'rgba(20,10,6,.6)'; x.lineWidth = .8; x.stroke(); } }
+  });
+  // 馬 2 頭の組（奥の馬を少し前へずらす）と戦車
+  const pair = (far) => [0, 1, 2, 3].map(f => mk(250, 175, x => { x.translate(246, 8); x.scale(-1.2, 1.2); x.save(); x.translate(-18, -5); horse(x, (f + 1) % 4, far, true); x.restore(); horse(x, f, BLK, false); }));
+  SP = { pair: [pair(BLK), pair(WHT), pair(BLK)], car: [WHT, PUR, WHT].map(r => [0, 1].map(f => mk(170, 170, x => car(x, f, r)))) };
+  // 円筒の陰とつや（はしは暗く、左よりに細く強い光の筋）
+  shadeC = document.createElement('canvas'); shadeC.width = cyl.width; shadeC.height = 4; { const x = shadeC.getContext('2d'), w = cyl.width; let gr = x.createLinearGradient(0, 0, w, 0); for (let i = 0; i <= 20; i++) { const n = i / 10 - 1; gr.addColorStop(i / 20, `rgba(8,4,2,${Math.min(.92, Math.pow(Math.abs(n), 2.6) * (n > 0 ? 1 : .8) + (n > 0 ? n * .22 : 0))})`); } x.fillStyle = gr; x.fillRect(0, 0, w, 4);
+    x.globalCompositeOperation = 'lighter'; gr = x.createLinearGradient(0, 0, w, 0); for (const [p, a] of [[.14, 0], [.25, .1], [.285, .2], [.3, .62], [.315, .2], [.35, .1], [.47, 0], [.76, 0], [.82, .1], [.86, 0]]) gr.addColorStop(p, `rgba(255,236,206,${a})`); x.fillStyle = gr; x.fillRect(0, 0, w, 4); }
+}
+build(); addEventListener('resize', build);
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const cam = 140 * t, GY = yc + 100, fr = Math.floor(t * 9);
+  // 1) 平らな帯に描く
+  fx.setTransform(bs, 0, 0, bs, 0, 0); const off = -(cam % BW); fx.drawImage(tileS, off, 0, BW, Hu); if (off + BW < ARC) fx.drawImage(tileS, off + BW, 0, BW, Hu);
+  [[-330, 60, .5, 0], [20, 110, .37, 2.1], [370, 70, .44, 4]].forEach(([o, a, w, p], i) => { const x0 = ARC / 2 + o + a * Math.sin(t * w + p) - 190, f = (fr + i) % 4, bob = [0, -2, -4, -1][f]; fx.drawImage(SP.car[i][fr % 2].c, x0, GY - 158, 170, 170); fx.drawImage(SP.pair[i][f].c, x0 + 150, GY - 163 + bob, 250, 175); });
+  fx.drawImage(tileO, off, 0, BW, Hu); if (off + BW < ARC) fx.drawImage(tileO, off + BW, 0, BW, Hu);
+  const lap = Math.floor((cam + ARC / 2 - 220) / BW) % 8; for (let i = 0; i < 7; i++) { fx.beginPath(); fx.arc(ARC / 2 + (i - 3) * 20, yc - 100, 5.5, 0, 7); fx.fillStyle = i < lap ? WHT : BLK; fx.fill(); }   // 周回の印（白い玉）
+  // 2) たての短冊に切って円筒に巻く
+  const cw = cyl.width, ch = cyl.height, sw = 2 * S, fh = flat.height, bend = 12 * ps;
+  cx2.globalCompositeOperation = 'source-over'; cx2.fillStyle = BLK; cx2.fillRect(0, 0, cw, ch);
+  for (let x0 = 0; x0 < cw; x0 += sw) { const n = Math.max(-.999, Math.min(.999, (x0 + sw / 2) / (cw / 2) - 1)), th = Math.asin(n), c = Math.cos(th), du = sw / (cw / 2) / c * R0 * bs, u = (th + Math.PI / 2) * R0 * bs; cx2.drawImage(flat, Math.max(0, u - du / 2), 0, Math.max(.5, du), fh, x0, bend * (c - .75), sw + .6, ch); }
+  cx2.drawImage(shadeC, 0, 0, cw, ch);
+  // 3) 壺の輪郭に合わせて、横の帯ごとに幅を変えて画面へ
+  g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#14100d'; g.fillRect(0, 0, cv.width, cv.height);
+  const gr = g.createRadialGradient(cv.width / 2, cv.height * .45, 0, cv.width / 2, cv.height * .45, Math.max(cv.width, cv.height) * .6); gr.addColorStop(0, '#4a3a2c'); gr.addColorStop(1, '#14100d'); g.fillStyle = gr; g.fillRect(0, 0, cv.width, cv.height);
+  if (W <= H) { const hy = (yc - 1.75 * R0) * ps; g.strokeStyle = '#0d0907'; g.lineWidth = 26 * ps; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(cv.width / 2 + s * 112 * ps, hy - 150 * ps); g.bezierCurveTo(cv.width / 2 + s * 270 * ps, hy - 190 * ps, cv.width / 2 + s * 290 * ps, hy + 40 * ps, cv.width / 2 + s * 215 * ps, hy + 110 * ps); g.stroke(); } }   // 取っ手
+  const sh = (W > H ? 3 : 1) * S; for (let y = 0; y < ch; y += sh) { const r = prof((y / ps - yc) / R0) / R0; if (r > 0) g.drawImage(cyl, 0, y, cw, sh, cv.width / 2 - Rpx * S * r, y, 2 * Rpx * S * r, sh + .5); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

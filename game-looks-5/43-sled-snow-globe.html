@@ -62,7 +62,7 @@ const glass = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 40), new THREE.Shad
     vec2 uv=gl_FragCoord.xy/res, d=(uv-cen)/rad; float r=min(1.,length(d));
     // 屈折のまね: まん中は大きく見え、ふちは外がわの景色がちぢんで回りこむ。色ごとに少しずらす
     float g=.80+.42*pow(r,4.);
-    vec4 a=texture2D(tIn,cen+d*rad*g), b=texture2D(tIn,cen+d*rad*(g+.035*r*r)), c=texture2D(tIn,cen+d*rad*(g-.035*r*r));
+    vec4 a=texture2D(tIn,cen+d*rad*g), b=texture2D(tIn,cen+d*rad*(g+.02*r*r)), c=texture2D(tIn,cen+d*rad*(g-.02*r*r));
     vec3 col=vec3(b.r,a.g,c.b); float al=a.a;
     // 球ごしの部屋は上下がさかさ: 上に机の茶色、下は暗い
     vec3 room=mix(vec3(.035,.03,.04),vec3(.30,.16,.08),smoothstep(-.2,1.,d.y))*.9+vec3(.02,.03,.05);
@@ -91,7 +91,7 @@ const add = (geo, mat, x, y, z, p = inn) => { const m = new THREE.Mesh(geo, mat)
 const snowM = L(0xf4f8ff), HR = 2.25, HH = 2.05;
 const hillY = r => FLOOR + HH * Math.pow(Math.cos(Math.min(1, r / HR) * Math.PI / 2), 1.5);
 add(new THREE.CylinderGeometry(2.52, 2.3, .5, 48), snowM, 0, FLOOR - .25, 0);
-add(new THREE.LatheGeometry(Array.from({ length: 25 }, (_, i) => new THREE.Vector2(i / 24 * HR, hillY(i / 24 * HR))), 48), snowM, 0, 0, 0);
+add(new THREE.LatheGeometry(Array.from({ length: 25 }, (_, i) => new THREE.Vector2((1 - i / 24) * HR, hillY((1 - i / 24) * HR))), 48), snowM, 0, 0, 0);
 function house(x, y, z, s, wall, roof, ry) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(s); g.rotation.y = ry; inn.add(g);
   add(new THREE.BoxGeometry(.8, .5, .62), L(wall), 0, .25, 0, g);

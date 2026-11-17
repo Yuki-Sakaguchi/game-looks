@@ -82,12 +82,12 @@ void main(){vec2 g0=(gl_FragCoord.xy-uFc)/uFs;vec2 q=g0+uJ;                 // g
  c+=((n-.5)*.15+vec3(n2-.5,0.,.5-n2)*.05)*(1.1-l*.5);                        // 粗い粒子
  float sx=abs(q.x-uSc.x-.004*sin(q.y*9.+uSeed));c+=uSc.z*.3*smoothstep(.0022,.0004,sx);
  float sx2=abs(q.x-uSc.y);c*=1.-.45*smoothstep(.0018,.0004,sx2)*step(.3,uSc.z);   // たてのきず（白と黒）
- for(int i=0;i<3;i++){vec2 d=(q-uDu[i].xy)*asp;c*=1.-.85*smoothstep(uDu[i].z,uDu[i].z*.35,length(d*vec2(1.,.6+.8*h(uDu[i].xy))));}  // ほこり
+ for(int i=0;i<3;i++){vec2 d=(q-uDu[i].xy)*asp;c*=1.-.85*step(.0005,uDu[i].z)*(1.-smoothstep(uDu[i].z*.35,uDu[i].z+.0001,length(d*vec2(1.,.6+.8*h(uDu[i].xy)))));}  // ほこり
  float lk=uLeak*smoothstep(-.05,.55,q.x+.12*sin(q.y*4.+uSeed*.3));c=1.-(1.-c)*(1.-vec3(1.,.45,.08)*lk);c+=vec3(.5,.1,0.)*lk*lk;   // 光もれ
  c*=uFl*gate;
  gl_FragColor=vec4(c,1.);}` }));
 const pScene = new THREE.Scene(); pScene.add(post); const pCam = new THREE.Camera();
-const resize = () => { const W = innerWidth, H = innerHeight; renderer.setSize(W, H); const u = post.material.uniforms; let fw, fh, cx; if (H > W) { fw = W * 1.5; fh = fw * .75; cx = W / 2; } else { fh = Math.min(H * .94, W * .9 / (4 / 3 * 1.19)); fw = fh * 4 / 3; cx = W / 2 + fw * .095; } u.uFc.value.set(cx * DPR, H / 2 * DPR); u.uFs.value.set(fw * DPR, fh * DPR); u.uCell.value = Math.max(2, Math.round(fh * DPR / 150)); };
+const resize = () => { const W = innerWidth, H = innerHeight; renderer.setSize(W, H); const u = post.material.uniforms; let fw, fh, cx; if (H > W) { fw = W * 1.35; fh = fw * .75; cx = W / 2 - fw * .03; } else { fh = Math.min(H * .94, W * .9 / (4 / 3 * 1.19)); fw = fh * 4 / 3; cx = W / 2 + fw * .095; } u.uFc.value.set(cx * DPR, H / 2 * DPR); u.uFs.value.set(fw * DPR, fh * DPR); u.uCell.value = Math.max(2, Math.round(fh * DPR / 150)); };
 addEventListener('resize', resize); resize();
 const v = new THREE.Vector3();
 function film(fi) {                                    // フィルム 1 コマぶんを描く

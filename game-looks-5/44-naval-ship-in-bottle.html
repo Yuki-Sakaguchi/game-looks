@@ -27,7 +27,7 @@ const cam = new THREE.PerspectiveCamera(32, 1, .1, 120);
 const rt = new THREE.WebGLRenderTarget(4, 4, { samples: 4 });
 
 let seed = 21; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
 const grain = (x, w, h, base, n) => { x.fillStyle = base; x.fillRect(0, 0, w, h); for (let i = 0; i < n; i++) { x.strokeStyle = `rgba(${rnd() < .5 ? '40,20,8' : '200,150,100'},${.06 + rnd() * .12})`; x.lineWidth = 1 + rnd() * 2; const y = rnd() * h; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(w / 3, y + rnd() * 12 - 6, w * 2 / 3, y + rnd() * 12 - 6, w, y + rnd() * 6 - 3); x.stroke(); } };
 
 // ── 棚と壁、窓からの光
@@ -120,7 +120,7 @@ const SEA = -.85, waveH = (x, z) => .085 * Math.sin(x * 3.1 + Math.sin(z * 2.1) 
   g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
   const sea = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 120, specular: 0xbbccdd })); sea.position.set(-.5, SEA, 0); sea.receiveShadow = true; inn.add(sea);
   const fg = new THREE.CylinderGeometry(2.1, 2.1, 6.0, 48, 1, false); fg.rotateZ(Math.PI / 2);
-  const fill = new THREE.Mesh(fg, new THREE.MeshPhongMaterial({ color: 0x124a86, shininess: 60, clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, -1, 0), YC + SEA - .02)] })); fill.position.x = -.5; inn.add(fill);
+  const fill = new THREE.Mesh(fg, new THREE.MeshPhongMaterial({ color: 0x1d62a8, shininess: 60, clippingPlanes: [new THREE.Plane(new THREE.Vector3(0, -1, 0), YC + SEA - .02)] })); fill.position.x = -.5; inn.add(fill);
 }
 const woodM = new THREE.MeshLambertMaterial({ color: 0x5a3320 }), deckM = new THREE.MeshLambertMaterial({ color: 0xc09058 }), sailM = new THREE.MeshLambertMaterial({ color: 0xf3e9cf, side: THREE.DoubleSide }), threadM = new THREE.LineBasicMaterial({ color: 0xe6d6a8 });
 function ship(flagCol, stripe) {
@@ -151,7 +151,7 @@ const A = ship(0xd83a2e, 0xc8a23a), B = ship(0x2f62c8, 0x2a2a30);
 A.base = new THREE.Vector3(-2.0, SEA + .02, .15); A.ry = -1.12; B.base = new THREE.Vector3(.75, SEA + .02, -.1); B.ry = -Math.PI + 1.12; B.g.scale.setScalar(.95);
 // 綿の煙、砲弾、水しぶき、当たりの火花
 const cottonG = (() => { const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + Math.sin(x * 9 + y * 4) * .07 + Math.sin(y * 11 + z * 6) * .07 + Math.sin(z * 13 + x * 5) * .06; p.setXYZ(i, x * k, y * k, z * k); } g.computeVertexNormals(); return g; })();
-const cottonM = new THREE.MeshLambertMaterial({ color: 0xfbf8f0 });
+const cottonM = new THREE.MeshLambertMaterial({ color: 0xfbf8f0, emissive: 0x4a4844 });
 const puffs = Array.from({ length: 7 }, () => { const g = new THREE.Group(); for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(cottonG, cottonM); m.position.set((rnd() - .5) * .22, (rnd() - .3) * .2, (rnd() - .5) * .2); m.scale.setScalar(.1 + rnd() * .08); m.rotation.set(rnd() * 6, rnd() * 6, 0); g.add(m); } g.visible = false; inn.add(g); return { g, t0: -99, vx: 0 }; });
 const ball = new THREE.Mesh(new THREE.SphereGeometry(.045, 8, 6), new THREE.MeshPhongMaterial({ color: 0x15151a, shininess: 80 })); ball.visible = false; inn.add(ball);
 const splash = new THREE.Mesh(new THREE.ConeGeometry(.14, .5, 7), new THREE.MeshLambertMaterial({ color: 0xf4fbff })); splash.visible = false; inn.add(splash);
