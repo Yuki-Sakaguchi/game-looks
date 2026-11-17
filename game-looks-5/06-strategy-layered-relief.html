@@ -29,6 +29,7 @@ const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = i
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8b8f9c, 1.25));
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.7); sun.position.set(-9, 4.6, 3.5); sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 30 }); sun.shadow.bias = -.0004; sun.shadow.normalBias = .015; scene.add(sun);
+renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;   // 影は、旗がささった時だけ描き直す（軽くするため）
 
 // 紙の地（細かいむら）、段ボールの切り口、カッターマットの方眼
 const tex = (w, h, draw, rx = 1, ry = 1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8; return t; };
@@ -85,10 +86,10 @@ function frame(now) {
   const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; round += dt; tick += dt;
   if (round > 17) { round = 0; reset(t); for (const s of sites) if (s.own) s.at = t - hash(s.x, 9) * .4 + .4; }
   else if (round < 15.6 && tick > .42) { tick = 0; take(1 + turn++ % 2, t); }
-  const leave = Math.max(0, (round - 16.2) / .8); let n1 = 0, n2 = 0;
+  const leave = Math.max(0, (round - 16.2) / .8); let n1 = 0, n2 = 0; if (leave > 0 || round < .1) renderer.shadowMap.needsUpdate = true;
   for (const s of sites) {
     const on = s.own > 0; s.gp.visible = s.dot.visible = on; if (!on) continue; s.own === 1 ? n1++ : n2++;
-    const a = Math.min(1, Math.max(0, (t - s.at) / .32)), b = Math.max(0, t - s.at - .32);   // 上から落ちてきて、ささって少しゆれる
+    const a = Math.min(1, Math.max(0, (t - s.at) / .32)), b = Math.max(0, t - s.at - .32); if (b > 0 && b < .7) renderer.shadowMap.needsUpdate = b - dt <= 0 || b > .62 || renderer.shadowMap.needsUpdate; s.flag.castShadow = b > 0;   // 上から落ちてきて、ささって少しゆれる
     s.flag.material = s.dot.material = flagM[s.own]; s.dot.visible = a > .9; s.dot.scale.setScalar(Math.min(1, .5 + b * 5));
     s.gp.position.set(s.x, s.y - .1 + (1 - a * a) * 2.6 + (s.base ? 0 : leave * leave * 5), s.z); s.gp.rotation.z = Math.exp(-b * 6) * Math.sin(b * 34) * .16; s.gp.visible = a > 0;
     if (leave > 0 && !s.base) s.dot.scale.setScalar(Math.max(.001, 1 - leave * 1.6));

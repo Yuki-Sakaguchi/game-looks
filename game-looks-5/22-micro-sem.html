@@ -96,7 +96,7 @@ function frame(now) {
   for (const lg of legs) lg.rotation.y = lg.userData.y + Math.sin(t * 3 + lg.userData.ph) * .22; mite.position.y = hgt(-6.2, -21) + Math.sin(t * 3) * .05;
   const w = t * Math.PI * 2 / 20, px = Math.sin(w * 2) * 1.5, py = 2.3 + Math.sin(w * 5) * .25;
   probe.position.set(px, py, 0); probe.rotation.set(Math.sin(w * 5) * .08, -Math.cos(w * 2) * .3, -Math.cos(w * 2) * .35); probe.children[1].rotation.z = t * 2.2;
-  cam.position.set(px * .5, tall ? 5.2 : 4.3, tall ? 8.6 : 7.4); cam.lookAt(px * .8, tall ? 4.4 : 2.3, -6);
+  cam.position.set(px * .5, tall ? 5.2 : 4.3, tall ? 8.6 : 7.4); cam.lookAt(px * .8, tall ? .4 : 2.3, -6);
   const n = Math.floor(s / 10); if (n !== shown) { shown = n; smp.textContent = 'SAMPLE ' + String(n % 1000).padStart(3, '0'); }
   renderer.render(scene, cam); requestAnimationFrame(frame);
 }

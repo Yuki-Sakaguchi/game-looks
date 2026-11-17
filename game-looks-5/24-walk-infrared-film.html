@@ -6,7 +6,7 @@
 <style>
 html,body{margin:0;height:100%;background:#03050f;overflow:hidden}
 canvas{display:block}
-#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f3e6ea;opacity:.8;text-shadow:0 0 4px #000}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f3e6ea;background:rgba(3,5,15,.6);padding:0 5px}
 </style>
 <div id="cap">LOOK 24 ─ 散歩 / 赤外線写真　｜　見るだけ（並木道をゆっくり歩く）</div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
@@ -98,7 +98,7 @@ function frame(now) {
   const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
   const s = t * 1.8, w = t * Math.PI * 2 / (L / 1.8), z = -s;          // 30 m で一巡（約 17 秒）
   near.position.z = -Math.floor(s / L) * L; far.position.z = z; clouds.position.x = Math.sin(w) * 14;
-  const yaw = .24 + .22 * Math.sin(w - .4), step = t * 2.7;
+  const yaw = (tall ? .1 : .24) + .22 * Math.sin(w - .4), step = t * 2.7;
   cam.position.set(Math.sin(step) * .05, 1.62 + Math.abs(Math.sin(step)) * .05, z);
   cam.lookAt(cam.position.x + Math.sin(yaw) * 10, 1.62 + (tall ? 1.6 : 1.9) + Math.sin(w * 2) * .5, z - Math.cos(yaw) * 10);
   sun.position.set(30, 40, z - 30); sun.target.position.set(0, 0, z);
