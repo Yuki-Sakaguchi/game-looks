@@ -11,7 +11,7 @@ canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
 <div id="cap">LOOK 19 ─ 湖のボート釣り / 8 ミリフィルムのホームムービー　｜　見るだけ（自動で魚がかかる）</div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
-// 夏休みを写した 8 ミリフィルムを映写したものに見立てる。場面は 4:3 の小さな絵に 1 秒 18 コマで描き（動きがかくつく）、
+// 夏休みを写した 8 ミリフィルムを映写したものに見立てる。場面は 4:3 の小さな絵に 1 秒 18 コマで描き（動きがかくつく。粒子は 6 コマに 1 回入れ替える）、
 // 全画面のシェーダーで色あせた暖色（黄と赤にかたより、黒がうく）にする。そこへ粗い粒子、たてのきず、ほこり、ときどきのだいだいの光もれをのせ、
 // コマごとに上下のゆれと明るさのちらつきを入れる。左には送り穴（パーフォレーション）が見え、カメラは手持ちでゆれる
 import * as THREE from 'three';
@@ -79,7 +79,7 @@ void main(){vec2 g0=(gl_FragCoord.xy-uFc)/uFs;vec2 q=g0+uJ;                 // g
  base=mix(base,vec3(1.,.96,.84),hole)+vec3(1.,.8,.5)*.25*exp(-max(box((q-vec2(-.59,0.))*asp,vec2(.052,.125)*asp,.018),0.)*26.);
  c=mix(base,c,inF);
  float n=h(floor(gl_FragCoord.xy/uCell)+uGs),n2=h(floor(gl_FragCoord.xy/uCell)*1.7+uGs+3.);
- c+=((n-.5)*.15+vec3(n2-.5,0.,.5-n2)*.05)*(1.1-l*.5);                        // 粗い粒子
+ c+=((n-.5)*.1+vec3(n2-.5,0.,.5-n2)*.03)*(1.1-l*.5);                        // 粗い粒子
  float sx=abs(q.x-uSc.x-.004*sin(q.y*9.+uSeed));c+=uSc.z*.3*smoothstep(.0022,.0004,sx);
  float sx2=abs(q.x-uSc.y);c*=1.-.45*smoothstep(.0018,.0004,sx2)*step(.3,uSc.z);   // たてのきず（白と黒）
  for(int i=0;i<3;i++){vec2 d=(q-uDu[i].xy)*asp;c*=1.-.85*step(.0005,uDu[i].z)*(1.-smoothstep(uDu[i].z*.35,uDu[i].z+.0001,length(d*vec2(1.,.6+.8*h(uDu[i].xy)))));}  // ほこり
@@ -119,7 +119,7 @@ function film(fi) {                                    // フィルム 1 コマ�
   cam.position.set(.8 + Math.sin(t * .6) * .1, 1.4 + Math.sin(t * .9) * .05, 7.7); cam.lookAt(lx, ly, 0); cam.rotation.z += Math.sin(t * .7) * .012;
   renderer.setRenderTarget(RT); renderer.render(scene, cam); renderer.setRenderTarget(null);
   const u = post.material.uniforms; u.uJ.value.set((hash(fi, 3) - .5) * .004, (hash(fi, 2) - .5) * .014 + Math.sin(t * 2.1) * .004); u.uFl.value = .93 + hash(fi, 5) * .13 + Math.sin(t * 1.7) * .03;
-  u.uLeak.value = (Math.pow(Math.sin(Math.PI * ss(4.1, 5.5, tt)), 1) * .75 + Math.sin(Math.PI * ss(11, 12.6, tt)) * .55) * (.8 + hash(fi, 6) * .3); u.uSeed.value = fi; u.uGs.value = Math.floor(fi / 3) * 3.7;
+  u.uLeak.value = (Math.pow(Math.sin(Math.PI * ss(4.1, 5.5, tt)), 1) * .75 + Math.sin(Math.PI * ss(11, 12.6, tt)) * .55) * (.8 + hash(fi, 6) * .3); u.uSeed.value = fi; u.uGs.value = Math.floor(fi / 6) * 3.7;
   const sk = Math.floor(t * 1.3); u.uSc.value.set(hash(sk, 11) - .5 + (hash(fi, 12) - .5) * .004, hash(sk, 13) - .5, hash(sk, 14) > .35 ? .6 + hash(fi, 15) * .4 : 0);
   u.uDu.value.forEach((d, i) => d.set(hash(fi, 20 + i) * 1.1 - .55, hash(fi, 30 + i) - .5, hash(fi, 40 + i) < .45 ? .004 + hash(fi, 50 + i) * .012 : 0));
 }

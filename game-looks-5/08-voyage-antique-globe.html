@@ -35,9 +35,9 @@ const TINT = [[166, 186, 128], [226, 160, 96], [224, 150, 140], [226, 200, 110]]
     if (h > SEA) {
       const wx = a + (n3(a * 5 + 3, b * 5, c * 5) - .5) * .22, wy = b + (n3(a * 5, b * 5 + 7, c * 5) - .5) * .22, wz = c + (n3(a * 5, b * 5, c * 5 + 9) - .5) * .22; let m1 = -9, m2 = -9, k = 0;
       for (const s of seeds) { const dd = wx * s[0] + wy * s[1] + wz * s[2]; if (dd > m1) { m2 = m1; m1 = dd; k = s[3]; } else if (dd > m2) m2 = dd; }
-      const T = TINT[k], edge = Math.max(m1 - m2 < .022 ? 1 : 0, 1 - (h - SEA) / .02), w = .3 + .5 * Math.max(0, Math.min(1, edge));   // 国ざかいと岸だけ濃くぬる（手彩色）
+      const T = TINT[k], edge = Math.max(m1 - m2 < .022 ? 1 : 0, 1 - (h - SEA) / .02), w = .46 + .44 * Math.max(0, Math.min(1, edge));   // 国ざかいと岸だけ濃くぬる（手彩色）
       r += (T[0] * st - r) * w; g += (T[1] * st - g) * w; bl += (T[2] * st - bl) * w; if (m1 - m2 < .004) { r *= .6; g *= .55; bl *= .5; }
-    } else { r += (170 - r) * .3; g += (188 - g) * .3; bl += (160 - bl) * .3; if (h > SEA - .03 && py % 3 === 0) { r *= .72; g *= .72; bl *= .72; } }   // 岸の近くの海は細い横線
+    } else { r += (150 - r) * .4; g += (184 - g) * .4; bl += (164 - bl) * .4; if (h > SEA - .03 && py % 3 === 0) { r *= .72; g *= .72; bl *= .72; } }   // 岸の近くの海は細い横線
     if (Math.abs(h - SEA) < .0035) { r = 70; g = 48; bl = 28; }
     const i = (py * FW + px) * 4; d[i] = r; d[i + 1] = g; d[i + 2] = bl; d[i + 3] = 255;
   } x.putImageData(im, 0, 0); }
@@ -94,7 +94,7 @@ const lamp = new THREE.PointLight(0xffb36b, 95, 0, 2); lamp.position.set(-3.2, 2
 const tilt = new THREE.Group(); tilt.rotation.z = -.41; scene.add(tilt); const spin = new THREE.Group(); tilt.add(spin);
 const mapT = new THREE.CanvasTexture(mc); mapT.colorSpace = THREE.SRGBColorSpace; mapT.anisotropy = 8;
 spin.add(new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhysicalMaterial({ map: mapT, roughness: .62, clearcoat: 1, clearcoatRoughness: .1, envMapIntensity: 1.3 })));
-const brass = new THREE.MeshStandardMaterial({ color: '#c79a3e', metalness: 1, roughness: .3, envMapIntensity: 2.2 }), woodM = new THREE.MeshStandardMaterial({ color: '#4a2412', roughness: .45, envMapIntensity: .8 });
+const brass = new THREE.MeshStandardMaterial({ color: '#c79a3e', metalness: 1, roughness: .3, envMapIntensity: 2.2 }), woodM = new THREE.MeshStandardMaterial({ color: '#8a4a26', roughness: .45, envMapIntensity: .8 });
 const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, .036, 10, 120), brass); ring.scale.z = 1.7; tilt.add(ring);
 for (const s of [1, -1]) { const pin = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .16, 10), brass); pin.position.y = s * 1.04; const knob = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 10), brass); knob.position.y = s * 1.16; tilt.add(pin, knob); }
 const col = new THREE.Mesh(new THREE.LatheGeometry([[.05, 0], [.09, .03], [.05, .1], [.07, .22], [.045, .3], [.1, .4], [.12, .42]].map(p => new THREE.Vector2(...p)), 24), brass); col.position.y = -1.56; scene.add(col);
@@ -119,7 +119,7 @@ function sim(dt) {
   if (f >= 1) { f = 0; leg++; wait = .7; calls++; pT = 0; pulse.position.copy(b).multiplyScalar(1.006); pulse.quaternion.setFromUnitVectors(Z, b); hud.textContent = `寄港 ${(calls - 1) % 6 + 1} ／ 航海 ${Math.floor((calls - 1) / 6) + 1}`; return; }
   slerp(a, b, f, pos); slerp(a, b, Math.min(1, f + .02), nxt); X.copy(nxt).sub(pos).normalize(); Zv.crossVectors(X, pos).normalize(); X.crossVectors(pos, Zv);
   ship.position.copy(pos); ship.quaternion.setFromRotationMatrix(M.makeBasis(X, pos, Zv)); inner.rotation.x = Math.sin(t * 2.6) * .16; inner.rotation.z = Math.sin(t * 1.9) * .07; inner.position.y = .004 + Math.sin(t * 2.6) * .003;
-  const tg = .2 - Math.atan2(pos.x, pos.z); if (ang === null) ang = tg; let da = (tg - ang) % (Math.PI * 2); if (da > Math.PI) da -= Math.PI * 2; if (da < -Math.PI) da += Math.PI * 2; ang += da * Math.min(1, dt * 1.1);   // 船がこちらを向くように球がゆっくり回る
+  const tg = -.05 - Math.atan2(pos.x, pos.z); if (ang === null) ang = tg; let da = (tg - ang) % (Math.PI * 2); if (da > Math.PI) da -= Math.PI * 2; if (da < -Math.PI) da += Math.PI * 2; ang += da * Math.min(1, dt * 2.6);   // 船がこちらを向くように球がゆっくり回る
 }
 for (let i = 0; i < 150; i++) sim(.05);
 let last = performance.now();

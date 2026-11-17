@@ -21,7 +21,7 @@ const INK = '#15120e', D1 = '#3a342b', D2 = '#6b6252', M = '#9a8f7a', L = '#c9be
 let W = 1, H = 1, K = 1, OX = 0, OY = 0;
 const resize = () => { W = innerWidth; H = innerHeight; cv.width = W * D; cv.height = H * D; const fw = H > W ? W * 1.42 : Math.min(W, H * .97 * 4 / 3); K = fw / 800; OX = (W - fw) / 2; OY = (H - fw * .75) / 2; lastK = -1; };
 // 粒子の板（粗い粒を 1 枚作っておき、ずらして使う）
-const grain = document.createElement('canvas'); grain.width = grain.height = 128; { const x = grain.getContext('2d'); for (let i = 0; i < 128 * 128; i++) { const r = Math.random(); x.fillStyle = r < .5 ? `rgba(0,0,0,${r * .3})` : `rgba(255,240,210,${(r - .5) * .26})`; x.fillRect(i % 128, i >> 7, 1, 1); } }
+const grain = document.createElement('canvas'); grain.width = grain.height = 128; { const x = grain.getContext('2d'); for (let i = 0; i < 128 * 128; i++) { const r = Math.random(); x.fillStyle = r < .5 ? `rgba(0,0,0,${r * .16})` : `rgba(255,240,210,${(r - .5) * .14})`; x.fillRect(i % 128, i >> 7, 1, 1); } }
 const V = 340, HX = 540, GY = 510, T = 17.5, BAN = 3.6, BAR = 10.4;
 const COPS = [{ x: 330, ev: BAN + (HX - 330) / V, dir: -1 }, { x: 235, ev: BAR + (HX - 235) / V, dir: 1 }, { x: 140, ev: 99, dir: 0 }];
 const line = (pts, w, col) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.stroke(); };
@@ -119,8 +119,8 @@ function film(fk) {                                   // フィルム 1 コマ�
   // ほこり、毛
   for (let i = 0; i < 5; i++) { if (hash(fk, 70 + i) < .55) continue; const x = hash(fk, 80 + i) * 800, y = hash(fk, 90 + i) * 600, r = 1 + hash(fk, 100 + i) * 3.5; g.fillStyle = g.strokeStyle = hash(fk, 110 + i) < .7 ? 'rgba(10,8,6,.85)' : 'rgba(255,246,222,.8)'; if (hash(fk, 120 + i) < .3) { g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 14, y - 12, x + 22 * hash(fk, 130), y + 16); g.stroke(); } else { g.beginPath(); g.ellipse(x, y, r, r * .6, hash(fk, 140) * 3, 0, 7); g.fill(); } }
   g.restore();
-  // 粒子（3 コマに 1 回だけ入れ替える）
-  g.save(); g.beginPath(); g.rect(Math.max(0, OX), Math.max(0, OY), Math.min(W, fw), Math.min(H, fh)); g.clip(); g.imageSmoothingEnabled = false; const gk = Math.floor(fk / 3), cs = Math.max(2, Math.round(K * 2.6)) * 128, gx = -hash(gk, 5) * cs, gy = -hash(gk, 6) * cs; for (let y = gy + Math.max(0, OY); y < H; y += cs) for (let x = gx + Math.max(0, OX); x < W; x += cs) g.drawImage(grain, x, y, cs, cs); g.restore();
+  // 粒子（5 コマに 1 回だけ入れ替える）
+  g.save(); g.beginPath(); g.rect(Math.max(0, OX), Math.max(0, OY), Math.min(W, fw), Math.min(H, fh)); g.clip(); g.imageSmoothingEnabled = false; const gk = Math.floor(fk / 5), cs = Math.max(2, Math.round(K * 2.6)) * 128, gx = -hash(gk, 5) * cs, gy = -hash(gk, 6) * cs; for (let y = gy + Math.max(0, OY); y < H; y += cs) for (let x = gx + Math.max(0, OX); x < W; x += cs) g.drawImage(grain, x, y, cs, cs); g.restore();
 }
 let last = performance.now(), acc = 0, lastK = -1;
 addEventListener('resize', resize); resize();
