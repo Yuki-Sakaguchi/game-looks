@@ -22,7 +22,7 @@ const scene = new THREE.Scene(); scene.background = new THREE.Color('#ffe6cf'); 
 const cam = new THREE.PerspectiveCamera(28, 1, .1, 200);
 const resize = () => {
   renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
-  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(4.0 / th, 3.9 / (th * cam.aspect));
+  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(4.0 / th, 3.6 / (th * cam.aspect));
   cam.position.set(d * .16, 1.6 + d * .4, d * .9); cam.lookAt(0, 1.45, .3); scene.fog.near = d + 9; scene.fog.far = d + 48;
 }; addEventListener('resize', resize); resize();
 // つやのうつりこみ用の明るい部屋

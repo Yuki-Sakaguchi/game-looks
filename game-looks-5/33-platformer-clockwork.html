@@ -28,7 +28,7 @@ const hc = mkc(256, 256); { const c = hc.getContext('2d'); c.fillStyle = '#b0b0b
 const hair = new THREE.CanvasTexture(hc); hair.wrapS = hair.wrapT = THREE.RepeatWrapping; hair.repeat.set(.5, .5);
 // 金属は「色 × 環境の映りこみ」をまぜるだけの軽い材質（粗いほど映りこみを弱く）
 const metal = (color, rough, o = {}) => new THREE.MeshPhongMaterial({ color, envMap: envT, combine: THREE.MixOperation, reflectivity: .92 - rough * .7, shininess: 90, specular: '#ffe6b0', ...o });
-const brass = metal('#e2ab48', .5, { map: hair }), brassD = metal('#8a6428', .7, { map: hair }), gold = metal('#ffd27a', .22), steel = metal('#c2c8d0', .32, { map: hair }), blued = metal('#2244c8', .3);
+const brass = metal('#e2ab48', .5, { map: hair }), brassD = metal('#4e3814', .95, { map: hair }), gold = metal('#ffd27a', .22), steel = metal('#c2c8d0', .32, { map: hair }), blued = metal('#2244c8', .3);
 const ruby = new THREE.MeshPhongMaterial({ color: '#e0103a', emissive: '#80001c', shininess: 200, specular: '#ffffff', envMap: envT, reflectivity: .25 });
 scene.add(new THREE.HemisphereLight(0xfff0d0, 0x201008, .5)); const key = new THREE.DirectionalLight(0xffe2b0, 2.2); key.position.set(-6, 9, 12); scene.add(key);
 
@@ -80,9 +80,9 @@ const man = new THREE.Group(), enamel = new THREE.MeshPhongMaterial({ color: '#d
 const body = new THREE.Mesh(new THREE.CylinderGeometry(.17, .24, .5, 12), enamel); body.position.y = .5; const head = new THREE.Mesh(new THREE.SphereGeometry(.19, 14, 10), gold); head.position.y = .93; const hat = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 10), enamel); hat.position.y = 1.2;
 const legL = new THREE.Mesh(new THREE.BoxGeometry(.1, .28, .1), steel), legR = legL.clone(); legL.position.set(0, .14, .1); legR.position.set(0, .14, -.1);
 const wind = new THREE.Group(); { const st = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .2, 6), gold); st.rotation.z = Math.PI / 2; const lp = new THREE.Mesh(new THREE.TorusGeometry(.1, .035, 6, 14), gold); lp.position.x = -.18; lp.rotation.y = Math.PI / 2; wind.add(st, lp); wind.position.set(-.3, .55, 0); }
-man.add(body, head, hat, legL, legR, wind); man.scale.setScalar(1.25); scene.add(man);
+man.add(body, head, hat, legL, legR, wind); man.scale.setScalar(1.9); scene.add(man);
 // とびうつる途中で取る小さなルビー
-const gems = [0, 1, 2, 3].map(i => { const a = plat[i], b = plat[i + 1], m = new THREE.Mesh(new THREE.OctahedronGeometry(.24), ruby); m.position.set((a.x + b.x) / 2, Math.max(a.top, b.top) + 1.75, 0); m.userData.hide = 0; scene.add(m); return m; });
+const gems = [0, 1, 2, 3].map(i => { const a = plat[i], b = plat[i + 1], m = new THREE.Mesh(new THREE.OctahedronGeometry(.24), ruby); m.position.set((a.x + b.x) / 2, (a.top + b.top) / 2 + 1.75, 0); m.userData.hide = 0; scene.add(m); return m; });
 
 const SEQ = [4, 3, 2, 1, 0, 1, 2, 3], STAY = 1.25, HOP = .75;
 let last = performance.now(), t = 0, camX = P4[0], camY = 3;
@@ -99,13 +99,13 @@ function frame(now) {
   const u = t % (SEQ.length * (STAY + HOP)), si = Math.floor(u / (STAY + HOP)), su = u - si * (STAY + HOP), a = plat[SEQ[si]], b = plat[SEQ[(si + 1) % SEQ.length]], dir = b.x > a.x ? 1 : -1;
   let px = a.x, py = a.top, air = 0;
   if (su > STAY) { const f = (su - STAY) / HOP; px = a.x + (b.x - a.x) * f; py = a.top + (b.top - a.top) * f + Math.sin(f * Math.PI) * 1.9; air = 1; if (f > .45) gems[Math.min(SEQ[si], SEQ[(si + 1) % SEQ.length])].userData.hide = 3.2; }
-  else { const sq = su > STAY - .18 ? (su - STAY + .18) / .18 : 0; py -= sq * .08; man.scale.y = 1.25 * (1 - sq * .18); }
-  if (air) man.scale.y = 1.25 * 1.08;
+  else { const sq = su > STAY - .18 ? (su - STAY + .18) / .18 : 0; py -= sq * .08; man.scale.y = 1.9 * (1 - sq * .18); }
+  if (air) man.scale.y = 1.9 * 1.08;
   man.position.set(px, py, 0); man.rotation.y = dir > 0 ? 0 : Math.PI; man.rotation.z = air ? -.25 * dir * Math.cos((su - STAY) / HOP * Math.PI) : 0;
   const st = t * 14; legL.rotation.z = air ? .7 : Math.sin(st) * .6; legR.rotation.z = air ? -.5 : -Math.sin(st) * .6; wind.rotation.x = t * 6;
   for (const g of gems) { g.userData.hide -= dt; g.visible = g.userData.hide <= 0; g.rotation.y = t * 2.5; }
   const k = tall ? .9 : .25, tx = CX + (px - CX) * k, ty = tall ? py + 1.6 : CY + .4 + (py - CY) * .12; camX += (tx - camX) * Math.min(1, dt * 2.5); camY += (ty - camY) * Math.min(1, dt * 2.5);
-  cam.position.set(camX - 2.6, camY - 1.2, 20); cam.lookAt(camX, camY, 0);
+  cam.position.set(camX - 2.6, camY - 1.2, tall ? 20 : 23.5); cam.lookAt(camX, camY, 0);
   renderer.render(scene, cam); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
