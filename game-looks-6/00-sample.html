@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-00 見本 丘の村の散歩 輪郭線と 3 段の色</title>
+<style>
+html,body{margin:0;height:100%;background:#f4efe2;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a4a5a;background:#f4efe2;padding:0 6px}
+</style>
+<div id="cap">6-00 ─ 見本 / 丘の村の散歩を、輪郭線と少ない色で描く　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 第 6 集の書き方の見本（一覧には入れない）。ローポリの村をふつうに描いてから、仕上げで
+// 明るさを 3 段に丸め、法線と奥行きの差から輪郭線を引き、紙の色に重ねる。主役はうしろから追うカメラで歩く
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40 }), { add, box, hash } = K;
+scene.background = K.sky([[0, '#9ad0e8'], [.6, '#e8f0e0'], [1, '#f4efe2']]); scene.fog = new THREE.Fog('#e8f0e0', 60, 180);
+const { sun } = K.lights(scene, renderer, { range: 30 });
+const H = (x, z) => Math.sin(x * .05) * Math.cos(z * .04) * 3 + Math.sin(x * .013 + z * .02) * 4;
+const C = K.colors('#8ac87a', '#7abc70', '#e8d8a0');
+const road = x => Math.sin(x * .06) * 8;                      // 道は x の方向へのびる
+const land = K.terrain(H, 80, 80, 3, (y, x, z) => Math.abs(z - road(x)) < 2.2 ? C[2] : C[hash(Math.round(x * .2), Math.round(z * .2)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+for (let i = 0; i < 90; i++) { const x = (hash(i, 1) - .5) * 400, z = road(x) + (hash(i, 2) < .5 ? -1 : 1) * (6 + hash(i, 3) * 40), t = i % 4 ? K.tree(3 + hash(i, 4) * 3, '#4a9a68', '#6a4a34', '#6ab878') : K.shadow(K.house(4, 2.6, 5, '#f8f0dc', ['#d8604a', '#4a7a9a'][i % 2])); t.position.set(x, H(x, z), z); t.rotation.y = hash(i, 5) * 6; scene.add(t); }
+for (let i = 0; i < 6; i++) { const c = K.cloud(1.6); c.position.set((hash(i, 6) - .5) * 300, 40 + hash(i, 7) * 14, -60 - hash(i, 8) * 60); scene.add(c); }
+const hero = K.person({ top: '#e8503a', hat: '#f2c84a' }); scene.add(hero);
+const post = K.post(renderer, `void main(){vec3 c=src(vUv);float l=luma(c);float q=floor(l*3.+.5)/3.;c=c*(q+.12)/(l+.12);
+float e=edge(vUv,1.6,.5,.06);vec3 paper=vec3(.96,.94,.89);c=mix(c,vec3(.16,.2,.28),e*.9)*(.96+.06*fbm(vUv*res*.02));gl_FragColor=vec4(mix(paper,c,.94),1.);}`, {}, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const x = (t * 3) % 300 - 150 + 60, z = road(x); hero.position.set(x, H(x, z), z); hero.rotation.y = Math.atan2(1, Math.cos(x * .06) * .48); K.walk(hero, t * 8);
+  land.follow(x, z); sun.position.set(x - 30, 40, z + 20); sun.target.position.set(x, 0, z);
+  cam.position.set(x - 9, H(x, z) + 4.5, z + 3 + Math.sin(t * .2) * 2); cam.lookAt(x + 4, H(x, z) + 1.4, z);
+  post.render(scene, cam, t);
+});
+</script>
+</html>
