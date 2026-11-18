@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-48 夏休みの島 インスタント写真の中で動く</title>
+<style>
+html,body{margin:0;height:100%;background:#a8744a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4e0;background:#7a5030;padding:0 6px}
+</style>
+<div id="cap">6-48 ─ 夏休みの島 / 机に置いたインスタント写真の中で、島の夏が動く　｜　見るだけ（自動で飛びこむ・写真がめくれる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：ローポリの島を正方形の絵に描き、仕上げで「白いふちのインスタント写真」として木の机の上に置く。
+// 写真の中は、あせた暖色（青が緑がかり、影が茶色）・四すみが暗い・やわらかいピント。下の余白に手書きふうの日付。
+// 6 秒ごとに写真がめくれて、同じ島の別の 1 枚（飛びこみ → うきわ → 島の全景）に入れかわる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, renderer, onResize } = K.stage({}), { add, box, hash } = K, cam = new THREE.PerspectiveCamera(46, 1, .1, 700);
+scene.background = K.sky([[0, '#3a9ae8'], [.5, '#a8dcf4'], [1, '#e8f8fc']]);
+K.lights(scene, renderer, { pos: [30, 45, 28], range: 34, power: 2.8, amb: 1.4, sky: '#dff4ff', ground: '#f0e0b0' });
+const flatX = m => { m.rotation.x = -Math.PI / 2; return m; }, IX = -10, IZ = -8;
+flatX(add(scene, new THREE.CircleGeometry(600, 24), '#2eb4c8', 0, 0, 0)).receiveShadow = true;                    // 海
+flatX(add(scene, new THREE.CircleGeometry(17.5, 20), '#6fdccf', IX, .03, IZ)).receiveShadow = true;              // 浅瀬
+add(scene, new THREE.CylinderGeometry(12.5, 13.6, .8, 14), '#f4e0a8', IX, .2, IZ).receiveShadow = true;          // 砂浜
+const hill = add(scene, new THREE.IcosahedronGeometry(8, 1), '#5cc070', IX, .5, IZ); hill.scale.y = .6; hill.receiveShadow = hill.castShadow = true;
+for (let i = 0; i < 10; i++) { const a = i * 2.4, r = 1.5 + hash(i, 1) * 5, t = K.tree(2.6 + hash(i, 2) * 2, '#3fa860', '#8a6040', '#62c470'); t.position.set(IX + Math.cos(a) * r, .5 + 4.8 * Math.sqrt(1 - (r / 8) ** 2) - .2, IZ + Math.sin(a) * r); scene.add(t); }
+const hs = K.shadow(K.house(3, 2.2, 3.6, '#fff4e0', '#e8604a')); hs.position.set(-3.6, .6, -3); hs.rotation.y = .9; scene.add(hs);
+// 桟橋
+box(scene, 10, .18, 1.9, '#c89a64', 3.5, 1, 0).castShadow = true; for (let i = 0; i < 5; i++) for (const s of [-1, 1]) add(scene, new THREE.CylinderGeometry(.13, .13, 1.6, 6), '#a07848', -.5 + i * 2.2, .3, s * .8);
+// 入道雲（雲を積み上げる）と、遠くのヨット
+for (const [x, z, s] of [[-75, -95, 5.5], [-25, -120, 4.5], [-130, -40, 5], [-45, 95, 5.5], [15, 120, 4.5], [70, 60, 4]]) for (let k = 0; k < 3; k++) { const c = K.cloud(s * (1 - k * .25)); c.position.set(x + k * s * .8, 7 + s * 1.2 + k * s * 2.6, z); scene.add(c); }
+const yacht = K.shadow(K.boat('#e8503a')); yacht.scale.setScalar(1.8); yacht.position.set(1, 0, 24); yacht.rotation.y = 1.2; scene.add(yacht);
+// 子どもたち：飛びこむ子、桟橋で見ている子、うきわの子
+const kid = c => K.shadow(K.person({ top: '#f2c8a0', bottom: c, hat: '#4a3020', s: .9 }));
+const jumper = kid('#3a7ad8'), JP = jumper.userData.P; jumper.rotation.y = Math.PI / 2; scene.add(jumper);
+const fan = kid('#e8503a'); fan.position.set(5.2, 1.09, -.55); fan.rotation.y = 1.2; scene.add(fan);
+const ring = new THREE.Group(), rk = kid('#f2c84a'); rk.position.y = -.75; ring.add(rk); add(ring, new THREE.TorusGeometry(.72, .3, 6, 12), '#ff5a4a', 0, .12, 0).rotation.x = Math.PI / 2; ring.position.set(11.5, 0, 3.5); scene.add(ring);
+const fx = K.fx(scene, 80);
+// 下の余白の日付：数字を折れ線で書く（手書きふう）
+const GL = { 1: '0,1 1,0 1,4', 2: '0,.9 1,0 2,.9 0,4 2.1,4', 4: '1.7,4 1.7,0 0,2.8 2.3,2.8', 5: '2,0 .3,0 .2,1.8 1.4,1.6 2,2.8 1.2,4 0,3.5', 6: '1.8,0 .4,1.6 0,3 1,4 2,3 1,2 .1,2.8', 8: '1,2 0,.9 1,0 2,.9 1,2 0,3.1 1,4 2,3.1 1,2', '.': '1,3.8 1.1,4' };
+const tc = document.createElement('canvas'); tc.width = 512; tc.height = 128; const tx = tc.getContext('2d'), tT = new THREE.CanvasTexture(tc);
+function note(s) { tx.clearRect(0, 0, 512, 128); tx.lineWidth = 7; tx.lineCap = tx.lineJoin = 'round'; tx.strokeStyle = '#000'; let ox = 256 - [...s].reduce((a, c) => a + (c === '.' ? 34 : 52), 0) / 2;
+  for (const ch of s) { tx.beginPath(); GL[ch].split(' ').map(p => p.split(',').map(Number)).forEach(([x, y], i) => { const X = ox + x * 15 + (hash(i, x + y) - .5) * 4 - y * 2.5, Y = 30 + y * 17 + (hash(y, i) - .5) * 4; i ? tx.lineTo(X, Y) : tx.moveTo(X, Y); }); tx.stroke(); ox += ch === '.' ? 34 : 52; } tT.needsUpdate = true; }
+const post = K.post(renderer, `uniform vec2 scr;uniform float flip;uniform sampler2D tT;
+vec3 photo(vec2 p){vec3 c=src(p)*.4;for(int i=0;i<6;i++){float a=float(i)*1.047;c+=src(p+vec2(cos(a),sin(a))*.0045)*.1;}   // やわらかいピント
+c=c*.84+.09;c.g+=c.b*.07;c.b*=.86;float l=luma(c);c=mix(c,vec3(.42,.27,.16),(1.-l)*(1.-l)*.3)*vec3(1.05,1.,.93);          // あせた暖色、影は茶色
+vec2 v=p-.5;return c*(1.-.45*smoothstep(.16,.5,dot(v,v)))+(h(p*size)-.5)*.012;}
+void main(){vec2 q=(vUv-.5)*scr;float W=min(scr.x*.84,scr.y*.8/1.2),m=min(scr.x,scr.y);vec2 d=vUv*scr/m;float pl=floor(d.y*4.);
+vec3 c=mix(vec3(.58,.39,.24),vec3(.68,.48,.3),fbm(vec2(d.x*2.5+pl*5.3,d.y*46.)))*(.93+.07*h(vec2(pl,3.)))*(1.-.3*smoothstep(.965,1.,fract(d.y*4.)));   // 木の机
+q=mat2(.9994,-.035,.035,.9994)*q;vec2 k=q/W;float fl=max(flip,.02);
+c*=1.-.42*(1.-smoothstep(-.01,.05,max(abs(k.x-.012)/fl-.5,abs(k.y+.02)-.6)));k.x/=fl;                                    // 写真の影
+if(abs(k.x)<.5&&abs(k.y)<.6){c=vec3(.965,.955,.93)*(1.-.04*fbm(k*6.))*(.86+.14*flip);vec2 p=(k-vec2(0.,.085))/.86+.5;
+if(p.x>0.&&p.x<1.&&p.y>0.&&p.y<1.)c=photo(p)*(.86+.14*flip);
+vec2 tu=vec2(k.x/.8+.5,(k.y+.47)/.2+.5);if(tu.x>0.&&tu.x<1.&&tu.y>0.&&tu.y<1.)c=mix(c,vec3(.2,.26,.45),texture2D(tT,tu).a*.9);}
+gl_FragColor=vec4(c,1.);}`, { scr: { value: new THREE.Vector2() }, flip: { value: 1 }, tT: { value: tT } });
+onResize((w, h) => { const s = Math.round(Math.min(w * .84, h * .8 / 1.2) * .86); post.resize(s, s); post.u.scr.value.set(w, h); });   // 写真の中だけを正方形に描く
+const VIEWS = [[[14.5, 1.9, 9], [6, 2.3, -1.5], '26.8.14'], [[15.5, 1, -2.5], [10.5, 1.2, 5], '26.8.15'], [[26, 13, 20], [-3, 1, -5], '26.8.16']];
+let cur = -1, sT = 0, was = 0;
+K.loop((dt, t) => {
+  const ph = t % 6, vi = Math.floor(t / 6) % 3; post.u.flip.value = ph > 5.75 ? Math.cos((ph - 5.75) / .25 * 1.571) : ph < .25 ? Math.sin(ph / .25 * 1.571) : 1;   // めくれる
+  if (vi !== cur) { cur = vi; cam.position.set(...VIEWS[vi][0]); cam.lookAt(...VIEWS[vi][1]); note(VIEWS[vi][2]); }
+  const u = (t + 1.8) % 3 / 3, air = u >= .3 && u < .62;                              // 走る → 飛ぶ → しぶき、を 3 秒でくり返す
+  if (u < .3) { jumper.visible = true; jumper.position.set(2 + u / .3 * 6, 1.09, 0); jumper.rotation.z = 0; K.walk(jumper, t * 14, .9); }
+  else if (air) { const s = (u - .3) / .32; jumper.position.set(8 + s * 3.4, 1.09 + 5.5 * s - 7.6 * s * s, 0); JP.armL.rotation.x = JP.armR.rotation.x = Math.PI; JP.legL.rotation.x = JP.legR.rotation.x = -1.1 * Math.sin(s * 3.14); }
+  else jumper.visible = false;
+  if (was && !air) for (let i = 0; i < 12; i++) fx.emit('splash', 11.4, .3, 0, { vy: 4 + Math.random() * 3, spread: 3, grav: -9, life: .9, size: .8 + Math.random() }); was = air;
+  fan.userData.P.armL.rotation.x = fan.userData.P.armR.rotation.x = Math.PI + Math.sin(t * 9) * .3; fan.position.y = 1.09 + Math.abs(Math.sin(t * 4.5)) * .15;
+  ring.position.y = Math.sin(t * 2) * .08; ring.rotation.set(Math.sin(t * 1.6) * .08, t * .3, Math.cos(t * 1.3) * .08); rk.userData.P.armL.rotation.x = Math.PI + Math.sin(t * 5) * .5;
+  yacht.position.x = 1 + Math.sin(t * .1) * 6; yacht.rotation.z = Math.sin(t * 1.2) * .05;
+  if ((sT -= dt) < 0) { sT = .12; fx.emit('spark', -5 + Math.random() * 30, .15, -12 + Math.random() * 34, { life: .7, size: .5, fade: false }); }
+  fx.update(dt); post.render(scene, cam, t);
+});
+</script>
+</html>

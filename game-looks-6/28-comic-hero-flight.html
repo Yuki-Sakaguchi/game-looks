@@ -34,7 +34,7 @@ for (let i = 0; i < 5; i++) { const c = K.cloud(3 + hash(i, 4) * 2); c.position.
 const hero = new THREE.Group(), BL = '#2f6bff', RD = '#ff3a2e', SK = '#ffd2a8', YL = '#ffe14a', cape = [];
 box(hero, .9, .5, 1.5, BL, 0, 0, 0); box(hero, .94, .54, .22, YL, 0, 0, .62); box(hero, .5, .5, .5, SK, 0, .14, -1.05); box(hero, .54, .16, .4, YL, 0, .44, -.95);
 for (const s of [-1, 1]) { box(hero, .24, .24, 1.2, BL, s * .5, 0, -1.3); box(hero, .3, .3, .34, YL, s * .5, 0, -2.05); box(hero, .34, .34, 1.3, BL, s * .24, 0, 1.4); box(hero, .38, .38, .5, YL, s * .24, 0, 2.25); }
-{ let par = hero; for (let i = 0; i < 3; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .34, i ? 1.1 : -.5); box(g, 1 + i * .5, .08, 1.14, RD, 0, 0, .55); par.add(g); cape.push(g); par = g; } }
+{ let par = hero; for (let i = 0; i < 3; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .34, i ? .8 : -.5); box(g, 1.1 + i * .3, .08, .84, RD, 0, 0, .4); par.add(g); cape.push(g); par = g; } }
 hero.traverse(m => { if (m.isMesh) m.castShadow = true; }); hero.scale.setScalar(1.25); scene.add(hero);
 const post = K.post(renderer, `uniform vec3 L;mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 void main(){vec2 p=vUv*res;vec3 c=src(vUv),col=c,ink=vec3(.07,.06,.1);float d=dep(vUv);
@@ -48,10 +48,10 @@ float sl=step(.93,h(vec2(floor(a),floor(time*10.))))*step(abs(fract(a)-.5),.22*s
 col=mix(col,ink,max(sl,edge(vUv,2.4,.5,.06)*smoothstep(205.,150.,d)));gl_FragColor=vec4(col,1.);}`, { L: { value: new THREE.Vector3() } }, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = -((t * 14) % P), x = Math.sin(t * .7) * 2.6, y = 27 + Math.sin(t * .9) * 2, k = innerHeight > innerWidth ? .7 : 1;
-  hero.position.set(x, y, z); hero.rotation.set(.2 + Math.cos(t * .9) * .1, 0, -Math.cos(t * .7) * .4); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 10 - i * 1.3) * (.1 + i * .08) - (i ? 0 : .12));
+  hero.position.set(x, y, z); hero.rotation.set(.12 + Math.cos(t * .9) * .08, 0, -Math.cos(t * .7) * .4); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 10 - i * 1.3) * (.1 + i * .08) - (i ? 0 : .12));
   scene.children.forEach(o => { if (o.userData.cl) o.position.z = z - 196; });
   sun.target.position.set(0, 10, z - 45); sun.position.copy(sun.target.position).add(O);
-  cam.position.set(x * .6, y + 2.4, z + 9 * k); cam.lookAt(x * .8, y - .2, z - 14);
+  cam.position.set(x * .6, y + 4.6 * k, z + 10 * k); cam.lookAt(x * .8, y - 2.4, z - 14);
   cam.updateMatrixWorld(); post.u.L.value.copy(O).transformDirection(cam.matrixWorldInverse);
   post.render(scene, cam, t);
 });

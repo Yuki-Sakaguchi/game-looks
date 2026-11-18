@@ -46,7 +46,7 @@ K.loop((dt, t) => {
   train.position.set(0, .4 + Math.sin(t * 18) * .02, z); land.follow(0, z); lake.position.z = bed.position.z = rail.position.z = far.position.z = z;
   bridges.forEach((b, i) => b.position.z = (n - i) * P + 100); woods.forEach((w, i) => w.position.z = (n - i) * P);
   for (const p of poles) p.position.z = p.userData.z + Math.round((z - 70 - p.userData.z) / 240) * 240;
-  cam.position.set(20 * k, 10 * k + 1, z + 15 * k); cam.lookAt(-7, -3, z - 20); cam.updateMatrixWorld(); L.set(.7, .6, -.25).normalize().transformDirection(cam.matrixWorldInverse);
+  cam.position.set(20 * k, 9 * k + 1, z + 15 * k); cam.lookAt(-7, tall ? -2 : 3.5, z - 20); cam.updateMatrixWorld(); L.set(.7, .6, -.25).normalize().transformDirection(cam.matrixWorldInverse);
   post.render(scene, cam, t);
 });
 </script>

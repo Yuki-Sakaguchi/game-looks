@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-14 RPG 黒い輪郭と明るい 16 色のドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#1b1b2e;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f8f4e8;background:#1b1b2e;padding:0 6px}
+</style>
+<div id="cap">6-14 ─ RPG / 草原の冒険を、黒い 1 ドットの輪郭と明るい 16 色のべた塗りで描く　｜　見るだけ（自動で歩いて敵をたおす）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ローポリの草原を横 280 ドットで粗く描き、明るい 16 色のいちばん近い色に丸める（点の並びはほとんど使わず、日なた・かげの 2〜3 段のべた塗りにする）。
+// そのうえで、面の向きと奥行きの差から、すべての物のふちに黒い 1 ドットの輪郭線を引く
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 500 }), { add, box, hash, flat } = K;
+cam.near = .5; cam.updateProjectionMatrix();
+const PAL = ['#1b1b2e', '#f8f4e8', '#8fe06a', '#4cb85a', '#2a8060', '#f6d65a', '#f09a3c', '#e2504a', '#f49ac0', '#8a5ad0', '#3a5ad8', '#5ac0f4', '#a8ecf4', '#b08058', '#9aa4b8', '#5a6480'];
+scene.background = K.sky([[0, '#5ac0f4'], [.34, '#a8ecf4'], [1, '#a8ecf4']]); scene.fog = new THREE.Fog('#a8ecf4', 80, 135);
+const { sun } = K.lights(scene, renderer, { range: 42, ground: 0x8a9ac0 });
+const CX = 80, CZ = -4, H = (x, z) => Math.sin(x * .07) * Math.cos(z * .06) * 1.2 + Math.sin(z * .03 + x * .02) * 1.5 + 7 * Math.exp(-((x - CX) ** 2 + (z - CZ) ** 2) / 520);
+const road = x => Math.sin(x * .07) * 4 * Math.min(1, Math.max(0, (CX - 14 - x) / 20)) + CZ * Math.min(1, Math.max(0, x / 50));
+const C = K.colors('#8fe06a', '#4cb85a');
+const land = K.terrain(H, 76, 76, 3, (y, x, z) => C[hash(Math.round(x / 9), Math.round(z / 9)) > .62 ? 1 : 0]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+{ const p = [], ix = []; let n = 0; for (let x = -30; x <= CX - 6; x += 1.5, n++) { p.push(x, H(x, road(x) - 1.4) + .1, road(x) - 1.4, x, H(x, road(x) + 1.4) + .1, road(x) + 1.4); if (n) ix.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setIndex(ix); g.computeVertexNormals(); add(scene, g, flat('#f6d65a', { side: THREE.DoubleSide })).receiveShadow = true; }
+// 木、岩、花（花は輪郭なしの色の点）、遠くの山
+for (let i = 0; i < 34; i++) { const x = -20 + hash(i, 1) * 120, z = road(x) + (i % 2 ? 1 : -1) * (6 + hash(i, 2) * 38); if (Math.hypot(x - CX, z - CZ) < 16) continue; const t = i % 5 ? K.tree(3.4 + hash(i, 3) * 2.4, '#4cb85a', '#b08058', '#2a8060') : K.rock(.8 + hash(i, 3), '#9aa4b8'); K.shadow(t); t.position.set(x, H(x, z), z); scene.add(t); }
+{ const N = 150, m = new THREE.InstancedMesh(new THREE.BoxGeometry(.28, .28, .28), new THREE.MeshBasicMaterial(), N), o = new THREE.Object3D(), FC = K.colors('#f8f4e8', '#f49ac0', '#f6d65a'); for (let i = 0; i < N; i++) { const x = -10 + hash(i, 4) * 70, z = road(x) + (i % 2 ? 1 : -1) * (2.2 + hash(i, 5) * 16); o.position.set(x, H(x, z) + .2, z); o.updateMatrix(); m.setMatrixAt(i, o.matrix); m.setColorAt(i, FC[i % 3]); } m.userData.noEdge = true; scene.add(m); }
+for (let i = 0; i < 6; i++) { const r = 34 + hash(i, 6) * 26, m = add(scene, new THREE.ConeGeometry(r, r * 1.1, 5), flat(i % 2 ? '#3a5ad8' : '#8a5ad0', { fog: false }), 190 + hash(i, 7) * 40, r * .3, -190 + i * 76); m.rotation.y = i; add(scene, new THREE.ConeGeometry(r * .36, r * .4, 5), flat('#f8f4e8', { fog: false }), m.position.x, r * .3 + r * .36, m.position.z).rotation.y = i; }
+for (let i = 0; i < 5; i++) { const c = K.cloud(2.2, '#f8f4e8'); c.position.set(150 + hash(i, 8) * 60, 50 + hash(i, 9) * 40, -160 + i * 80); scene.add(c); }
+// 城：石のかべ、塔、赤い屋根、旗。門は道のほう（−x）を向く
+const castle = new THREE.Group(); castle.position.set(CX, H(CX, CZ) - .6, CZ); { const ST = '#9aa4b8', RD = '#e2504a';
+  box(castle, 9, 9, 9, ST, 2, 4.5, 0); const kr = add(castle, new THREE.ConeGeometry(7.4, 5, 4), RD, 2, 11.5, 0); kr.rotation.y = Math.PI / 4; box(castle, 2, 6, 15, ST, -5, 3, 0); box(castle, .3, 3.4, 2.6, '#5a6480', -6.05, 1.7, 0);
+  for (const z of [-8, 8]) { add(castle, new THREE.CylinderGeometry(2.3, 2.3, 10, 8), ST, -5, 5, z); add(castle, new THREE.ConeGeometry(3, 4.4, 8), RD, -5, 12.2, z); }
+  for (let k = -3; k <= 3; k += 2) box(castle, 2.1, 1, 1.4, ST, -5, 6.5, k * 1.5); box(castle, .2, 5, .2, '#5a6480', 2, 16, 0); castle.userData.flag = box(castle, .1, 1.4, 2.4, '#f6d65a', 2, 17.8, 1.3); K.shadow(castle); scene.add(castle); }
+// 主人公：赤い服、青いマント、剣と盾
+const hero = K.person({ s: 1.3, top: '#e2504a', bottom: '#5a6480', hat: '#f6d65a' }), HP = hero.userData.P; scene.add(hero);
+box(HP.body, .7, .95, .08, '#3a5ad8', 0, .42, -.26); box(HP.armR, .13, 1.5, .06, '#f8f4e8', 0, -1.5, 0); box(HP.armR, .5, .1, .12, '#f6d65a', 0, -.78, 0); box(HP.armL, .1, .8, .7, '#3a5ad8', -.16, -.6, 0); box(HP.armL, .06, .34, .3, '#f6d65a', -.24, -.6, 0); K.shadow(hero, true, false);
+// スライム：なめらかな丸い体に目。道の上ではねていて、主人公が来ると剣でたおされる
+const slimes = [[12.5, '#5ac0f4'], [23, '#f49ac0'], [33.5, '#f09a3c']].map(([x, col], i) => { const g = new THREE.Group(), b = add(g, new THREE.SphereGeometry(1, 12, 8), flat(col, { flatShading: false }), 0, .78, 0); b.scale.set(1, .8, 1); b.castShadow = true; for (const s of [-1, 1]) { box(g, .3, .36, .1, '#f8f4e8', s * .34, .95, .9); box(g, .14, .2, .1, '#1b1b2e', s * .34, .93, .96); } g.rotation.y = -Math.PI / 2; g.userData = { x, i }; scene.add(g); return g; });
+const fx = K.fx(scene, 60);
+const post = K.post(renderer, K.PALETTE(PAL, .025, `float e=edge(uv+px*.5,1.,.8,.08)*(1.-smoothstep(95.,125.,dep(uv)));c=mix(c,vec3(.106,.106,.18),e);`), {}, { width: 280, gbuf: 'smooth' }); onResize(post.resize);
+K.loop((dt, t) => {
+  const tt = t % 16, x = tt * 2.6, z = road(x), y = H(x, z); let arm = -1.9;
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(1, (road(x + .5) - road(x - .5))); K.walk(hero, t * 8, .6);
+  slimes.forEach(s => { const u = s.userData, k = (x - (u.x - 1.8)) / 2.6, sz = road(u.x) + Math.sin(t * 1.3 + u.i * 2) * .5, hop = Math.abs(Math.sin(t * 3.4 + u.i * 1.7));   // k は当たってからの秒数
+    if (k > -.7 && k <= 0) arm = -1.9 - (k + .7) / .7 * 1.1; else if (k > 0 && k < .3) arm = -3 + k / .3 * 2.4;
+    if (k > 0 && !u.hit) { u.hit = true; for (let j = 0; j < 5; j++) fx.emit('spark', u.x, y + 1.2, sz, { vy: 3, spread: 5, life: .6, size: 1.1, grav: -6 }); fx.emit('puff', u.x, y + .8, sz, { vy: 1, life: .6, size: 1.6, grow: 1.4 }); } if (k < 0) u.hit = false;
+    const a = k > 0 ? Math.max(0, 1 - k * 5) : 1; s.visible = a > 0; s.position.set(u.x, H(u.x, sz) + hop * 1.1, sz); s.scale.set((1.15 - hop * .2) * a, (.8 + hop * .3) * a, (1.15 - hop * .2) * a); });
+  HP.armR.rotation.x = arm; HP.armL.rotation.x = -.5; castle.userData.flag.rotation.y = Math.sin(t * 4) * .3; fx.update(dt);
+  land.follow(x, z); sun.position.set(x - 30, y + 40, z + 20); sun.target.position.set(x, y, z);
+  const q = cam.aspect < 1 ? .62 : 1; cam.position.set(x - 9 * q, y + 7 * q, z + 1.6 * q); cam.lookAt(x + 5.3 * q, y + (1 - q) * 3, z - .4);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

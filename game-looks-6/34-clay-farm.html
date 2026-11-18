@@ -15,7 +15,7 @@ canvas{display:block}
 // 粘土のコマ撮りの決まり：形は球・カプセル・角を丸めた箱だけ。表面には指でおしたような浅いでこぼこ（凹凸の模様）をつけ、
 // つやは少なく、光はやわらかく、影はうすい。絵は 1 秒に 12 回しか描きかえず、コマごとに形がほんの少しふるえる。背景は 1 色の紙
 import * as THREE from 'three';
-const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 34, fitAspect: 1.25 }), { add, hash } = K;
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 34, fitAspect: 1.35, maxFov: 100 }), { add, hash } = K;
 scene.background = new THREE.Color('#f2d6a4');
 K.lights(scene, renderer, { range: 15, amb: 1.7, power: 1.9, pos: [-12, 24, 10], sky: 0xfff6ea, ground: 0xe8c8a0 });
 // 指のあと：やわらかい丸いへこみを散らした凹凸の模様
@@ -58,7 +58,7 @@ K.loop((dt, t) => {
   const a = ts * .5 + 1.2, tx = 4.2 + Math.cos(a) * 4.7, tz = -2.2 + Math.sin(a) * 5.4; tr.position.set(tx, G - .02 + hash(f, 7) * .04, tz); tr.rotation.y = Math.atan2(-Math.sin(a) * 4.7, Math.cos(a) * 5.4); wheels.forEach(w => w.rotation.x = ts * 3); tr.scale.set(1 + (hash(f, 8) - .5) * .03, 1 + (hash(f, 9) - .5) * .04, 1);
   puffs.forEach((p, i) => { const k = (ts * .9 + i / 3) % 1; p.position.set(tx + Math.sin(tr.rotation.y) * .8 + .35 * Math.cos(tr.rotation.y), G + 2.9 + k * 1.6, tz + Math.cos(tr.rotation.y) * .8 - .35 * Math.sin(tr.rotation.y)); p.scale.setScalar((.5 + k) * (1 - k * k) + .01); });
   hens.forEach((h, i) => { const u = h.userData, ph = ts * .7 + i * 1.3, hop = Math.max(0, Math.sin(ph * 2)); u.a += Math.sin(ph) * .08; h.position.set(u.x + Math.sin(ph) * .9, G + hop * .12, u.z + Math.cos(ph * .8) * .7); h.rotation.y = u.a; u.hd.rotation.x = Math.max(0, Math.sin(ts * 3 + i * 2)) * 1.1; h.scale.setScalar(1 + (hash(f, 10 + i) - .5) * .05); });
-  const ca = ts * .14 + .7; cam.position.set(Math.sin(ca) * 29, 18.5, Math.cos(ca) * 29); cam.lookAt(0, .2, 0);
+  const ca = ts * .14 + .7; cam.position.set(Math.sin(ca) * 31, 20, Math.cos(ca) * 31); cam.lookAt(0, .2, 0);
   renderer.render(scene, cam);
 });
 </script>
