@@ -18,18 +18,21 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 44 }), { add, box, hash } = K;
 scene.background = new THREE.Color('#000000'); scene.fog = new THREE.Fog('#000000', 90, 175);
-const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 3, range: 34 });
+const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 3.8, range: 36 });
 const H = (x, z) => z * .2 + Math.sin(x * .05) * Math.cos(z * .04) * 2.5 + Math.sin(z * .021 + x * .03) * 3, pathX = z => Math.sin(z * .025) * 9;   // −z へ下る雪の丘
 const W = new THREE.Color('#ffffff'), land = K.terrain(H, 70, 70, 3, () => W); land.mesh.receiveShadow = true; scene.add(land.mesh);
-const INK = '#1a1a1a', WALL = '#d4d4d4', P = 150, things = [];
+const INK = '#1a1a1a', WALL = '#d4d4d4', P = 100, things = [];
 const bare = h => { const g = new THREE.Group(); add(g, new THREE.CylinderGeometry(h * .03, h * .06, h, 5), INK, 0, h / 2, 0); for (let k = 0; k < 5; k++) { const b = add(g, new THREE.CylinderGeometry(h * .012, h * .026, h * .45, 4), INK, 0, h * (.42 + k * .11), 0); b.geometry.translate(0, h * .225, 0); b.rotation.set(0, k * 2.4, .7 + (k % 2) * .3); } return g; };
 const church = () => { const g = K.house(5, 4, 9, WALL, '#ffffff', '#ffffff', true); box(g, 2.8, 9, 2.8, WALL, 0, 4.5, -5.6); add(g, new THREE.ConeGeometry(2.3, 4.5, 4), '#ffffff', 0, 11.2, -5.6).rotation.y = Math.PI / 4; box(g, .16, 1.5, .16, INK, 0, 14, -5.6); box(g, .8, .16, .16, INK, 0, 14.2, -5.6); return g; };
 for (let i = 0; i < 44; i++) { const side = i % 2 ? 1 : -1, g = i === 5 ? church() : i % 5 === 0 ? K.house(4, 2.8, 5, WALL, '#ffffff', '#ffffff', true) : i % 3 === 0 ? K.pine(5 + hash(i, 4) * 3, '#5a5a5a', INK, '#ffffff') : bare(5 + hash(i, 4) * 3);
-  g.rotation.y = i === 5 ? -.5 : hash(i, 5) * 6; scene.add(K.shadow(g)); things.push({ g, off: i === 5 ? 13 : side * (5.5 + hash(i, 1) * 30), z0: i === 5 ? -112 : hash(i, 2) * P }); }
+  g.rotation.y = i === 5 ? -.5 : hash(i, 5) * 6; scene.add(K.shadow(g)); things.push({ g, off: i === 5 ? 11 : side * ((i % 5 ? 4 : 8) + hash(i, 1) * 15), z0: i === 5 ? -62 : hash(i, 2) * P }); }
 // 主役：そりに乗った子ども（前は −z）
-const sled = new THREE.Group(); for (const s of [-1, 1]) box(sled, .08, .12, 2, INK, s * .36, .06, 0); box(sled, .86, .08, 1.4, '#8a8a8a', 0, .3, 0);
-const kid = K.person({ top: INK, bottom: '#4a4a4a', skin: '#ffffff', hat: '#ffffff', s: .9 }); kid.position.set(0, -.3, .2); kid.userData.P.legL.rotation.x = kid.userData.P.legR.rotation.x = 1.4; kid.userData.P.armL.rotation.x = kid.userData.P.armR.rotation.x = .5; sled.add(kid);
-const scarf = box(sled, .14, .06, .6, '#ffffff', 0, 1.02, 0); scarf.geometry.translate(0, 0, .3); scarf.position.z = .3; sled.scale.setScalar(1.6); sled.rotation.order = 'YXZ'; K.shadow(sled, true, false); scene.add(sled);
+const WH = K.glow('#ffffff'), sled = new THREE.Group();   // 白い所は光に関係なく白、上着と足は黒
+for (const s of [-1, 1]) { box(sled, .08, .1, 2.2, INK, s * .42, .05, 0); box(sled, .08, .1, .5, INK, s * .42, .2, -1.28).rotation.x = .7; for (const zz of [-.6, .6]) box(sled, .07, .3, .07, INK, s * .42, .22, zz); box(sled, .07, .75, .07, INK, s * .42, .72, .85);
+  box(sled, .2, .2, .8, INK, s * .16, .55, -.45); box(sled, .22, .26, .3, WH, s * .16, .56, -.92); box(sled, .16, .5, .18, INK, s * .4, .85, .02).rotation.x = .5; box(sled, .19, .19, .19, WH, s * .42, .6, -.2); }
+for (const xx of [-.3, 0, .3]) box(sled, .24, .07, 1.7, WH, xx, .4, 0); box(sled, .98, .1, .08, WH, 0, 1.1, .85);                       // そりの板 3 枚と、うしろの手すり
+box(sled, .6, .75, .42, INK, 0, .85, .15); box(sled, .5, .14, .5, WH, 0, 1.27, .15); box(sled, .42, .2, .42, INK, 0, 1.44, .15); box(sled, .48, .26, .48, WH, 0, 1.66, .15); box(sled, .17, .17, .17, WH, 0, 1.87, .15);   // 上着・マフラー・かみ・ぼうし
+const scarf = box(sled, .16, .06, .7, WH, 0, 0, 0); scarf.geometry.translate(0, 0, .35); scarf.position.set(.14, 1.27, .38); sled.scale.setScalar(1.3); sled.rotation.order = 'YXZ'; K.shadow(sled, true, false); scene.add(sled);
 let cy = null;
 const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 void main(){vec2 p=vUv*res;vec3 n=nrm(vUv);float d=dep(vUv),l=luma(src(vUv)),f=smoothstep(.93,.5,l);            // f＝黒インクの量
@@ -40,11 +43,11 @@ if(edge(vUv,2.,.5,.05)>.5){if(min(min(a,b),min(c,e))>.6)v=0.;else if(max(max(a,b
 {vec2 g=p/38.+vec2(time*.3,time*1.4);vec2 ce=floor(g);if(length(fract(g)-.2-.6*vec2(h(ce),h(ce+9.)))<.075*step(.45,h(ce+3.)))v=1.;}   // 雪
 gl_FragColor=vec4(mix(vec3(.07,.07,.08),vec3(.96,.95,.91),v),1.);}`, {}, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
-  const z = -t * 12, x = pathX(z), y = H(x, z), k = innerHeight > innerWidth ? .7 : 1; cy = cy === null ? y : cy + (y - cy) * Math.min(1, dt * 6);
+  const z = -t * 10, x = pathX(z), y = H(x, z), k = innerHeight > innerWidth ? .8 : 1; cy = cy === null ? y : cy + (y - cy) * Math.min(1, dt * 6);
   sled.position.set(x, cy + .05, z); sled.rotation.set(-Math.atan((H(x, z + 1.5) - H(x, z - 1.5)) / 3), Math.atan(Math.cos(z * .025) * .225), Math.sin(t * 9) * .03); scarf.rotation.set(Math.sin(t * 11) * .2 + .15, Math.sin(t * 7) * .3, 0);
   for (const o of things) { const oz = z + 22 - (((z + 22 - o.z0) % P) + P) % P, ox = pathX(oz) + o.off; o.g.position.set(ox, H(ox, oz) - .1, oz); }
-  land.follow(x, z, -60); sun.position.set(x - 30, cy + 30, z + 6); sun.target.position.set(x, cy, z - 8);
-  cam.position.set(x + .8, cy + 4.6, z + 9 * k); cam.lookAt(x, cy - .4, z - 8);
+  land.follow(x, z, -60); sun.position.set(x - 30, cy + 14, z + 6); sun.target.position.set(x, cy, z - 8);
+  cam.position.set(x + .8, cy + 3.4, z + 6.5 * k); cam.lookAt(x, cy - 1.5, z - 8);
   post.render(scene, cam, t);
 });
 </script>

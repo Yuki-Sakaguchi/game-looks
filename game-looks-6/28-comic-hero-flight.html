@@ -13,29 +13,30 @@ canvas{display:block}
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 // コミックの印刷の決まり：太い黒の輪郭線。日のあたる面は、べたの原色（赤・黄・青・水色・肌色・白）。
-// 日にそむいた面は、同じ色に丸い網点（ベン・デイのドット）。日なたの面に落ちた影と、窓の帯は黒べた。
+// 日にそむいた面は、同じ色に丸い網点（ベン・デイのドット）。黒べたは、日なたの面に落ちた影だけ。
 // 空は黄のべた。画面のふちにスピード線
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 210 }), { add, box, hash } = K;
 scene.background = new THREE.Color('#ffd23a');
 const { sun } = K.lights(scene, renderer, { amb: .4 * Math.PI, ground: 0xffffff, sun: 0xffffff, power: .6 * Math.PI, range: 75 });   // 明るさの合計が 1 をこえないようにして、仕上げで「色」と「光の量」を分ける
-const P = 160, city = new THREE.Group(), O = new THREE.Vector3(-30, 50, -18); scene.add(city);
+const P = 160, city = new THREE.Group(), O = new THREE.Vector3(-20, 60, -12); scene.add(city);
 box(city, 260, 1, 700, '#ffeeb8', 0, -.5, -200).receiveShadow = true;
-// ビル：6 列 × 24 行（10 行で一巡）。窓は黒い帯
+// ビル：6 列 × 24 行（10 行で一巡）。窓は水色の帯
 const COL = K.colors('#3a80ff', '#80c8ff', '#fffae8', '#80c8ff', '#ff5038', '#fffae8'), N = 6 * 24, dm = new THREE.Object3D();
-const bld = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), K.flat('#ffffff'), N * 2), band = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), K.flat('#16141e'), 700); let bi = 0, wi = 0;
+const bld = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), K.flat('#ffffff'), N * 2), band = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), K.flat('#80c8ff'), 700); let bi = 0, wi = 0;
 const put = (m, i, x, y, z, w, h, d) => { dm.position.set(x, y, z); dm.scale.set(w, h, d); dm.updateMatrix(); m.setMatrixAt(i, dm.matrix); };
-for (let r = 0; r < 24; r++) [-48, -32, -16, 16, 32, 48].forEach((x, c) => { const k = r % 10, z = 16 - r * 16, inner = Math.abs(x) < 20, h = (inner ? 22 : 12) + Math.floor(hash(k, c) * 5) * 6, col = COL[Math.floor(hash(k * 7 + c, 2) * 6)];
+for (let r = 0; r < 24; r++) [-48, -32, -16, 16, 32, 48].forEach((x, c) => { const k = r % 10, z = 16 - r * 16, inner = Math.abs(x) < 20, h = hash(k, c + 5) > .82 ? 42 : (inner ? 14 : 9) + Math.floor(hash(k, c) * 4) * 4, col = COL[Math.floor(hash(k * 7 + c, 2) * 6)];
   put(bld, bi, x, h / 2, z, 11, h, 12); bld.setColorAt(bi++, col); put(bld, bi, x + (hash(k, c + 9) - .5) * 5, h + 1.2, z + 2, 3.4, 2.4, 3.4); bld.setColorAt(bi++, col);
   if ((k + c) % 2 === 0) for (let y = 6; y < h - 2; y += 7) put(band, wi++, x, y, z, 11.2, 2.2, 12.2); });
 band.count = wi; bld.castShadow = bld.receiveShadow = true; band.receiveShadow = true; city.add(bld, band);
 for (let i = 0; i < 5; i++) { const c = K.cloud(3 + hash(i, 4) * 2); c.position.set((i - 2) * 46 + hash(i, 5) * 10, 78 + hash(i, 6) * 30, -196); c.userData.cl = 1; scene.add(c); }
 // 主役：マントのヒーロー（−z へ飛ぶ）
 const hero = new THREE.Group(), BL = '#2f6bff', RD = '#ff3a2e', SK = '#ffd2a8', YL = '#ffe14a', cape = [];
-box(hero, .9, .5, 1.5, BL, 0, 0, 0); box(hero, .94, .54, .22, YL, 0, 0, .62); box(hero, .5, .5, .5, SK, 0, .14, -1.05); box(hero, .54, .16, .4, YL, 0, .44, -.95);
-for (const s of [-1, 1]) { box(hero, .24, .24, 1.2, BL, s * .5, 0, -1.3); box(hero, .3, .3, .34, YL, s * .5, 0, -2.05); box(hero, .34, .34, 1.3, BL, s * .24, 0, 1.4); box(hero, .38, .38, .5, YL, s * .24, 0, 2.25); }
-{ let par = hero; for (let i = 0; i < 3; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .34, i ? .8 : -.5); box(g, 1.1 + i * .3, .08, .84, RD, 0, 0, .4); par.add(g); cape.push(g); par = g; } }
-hero.traverse(m => { if (m.isMesh) m.castShadow = true; }); hero.scale.setScalar(1.25); scene.add(hero);
+box(hero, .8, .46, 1.3, BL, 0, 0, 0); box(hero, .84, .5, .16, YL, 0, 0, .58); box(hero, .82, .48, .36, RD, 0, 0, .84);                       // 胴・ベルト・パンツ
+box(hero, .46, .46, .46, SK, 0, .12, -.98); box(hero, .5, .2, .5, '#16141e', 0, .38, -.94);                                                   // 頭とかみ
+for (const s of [-1, 1]) { box(hero, .22, .22, 1.5, BL, s * .46, .02, -1.4); box(hero, .28, .28, .32, RD, s * .46, .02, -2.3); box(hero, .32, .32, 1.5, BL, s * .18, 0, 1.75); box(hero, .36, .36, .56, RD, s * .18, 0, 2.75); }   // のばした両うで、そろえた足
+{ let par = hero; for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .27, i ? .8 : -.55); box(g, 1.1 + i * .45, .07, .84, RD, 0, 0, .4).castShadow = false; par.add(g); cape.push(g); par = g; } }   // 体から浮いてなびくマント
+hero.scale.setScalar(1.2); scene.add(hero);
 const post = K.post(renderer, `uniform vec3 L;mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 void main(){vec2 p=vUv*res;vec3 c=src(vUv),col=c,ink=vec3(.07,.06,.1);float d=dep(vUv);
 if(d<nf.y*.95){float V=max(c.r,max(c.g,c.b)),F=pow(V,2.2),ndl=dot(nrm(vUv),L);vec3 base=c/max(V,.05);   // 色（base）と光の量（F）に分ける
@@ -47,11 +48,11 @@ vec2 r=(vUv-.5)*vec2(res.x/res.y,1.);float a=atan(r.y,r.x)*36.,rr=length(r);    
 float sl=step(.93,h(vec2(floor(a),floor(time*10.))))*step(abs(fract(a)-.5),.22*smoothstep(.42,.8,rr));
 col=mix(col,ink,max(sl,edge(vUv,2.4,.5,.06)*smoothstep(205.,150.,d)));gl_FragColor=vec4(col,1.);}`, { L: { value: new THREE.Vector3() } }, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
-  const z = -((t * 14) % P), x = Math.sin(t * .7) * 2.6, y = 27 + Math.sin(t * .9) * 2, k = innerHeight > innerWidth ? .7 : 1;
-  hero.position.set(x, y, z); hero.rotation.set(.12 + Math.cos(t * .9) * .08, 0, -Math.cos(t * .7) * .4); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 10 - i * 1.3) * (.1 + i * .08) - (i ? 0 : .12));
+  const z = -((t * 14) % P), x = Math.sin(t * .7) * 2.6, y = 30 + Math.sin(t * .9) * 1.5, tall = innerHeight > innerWidth, k = tall ? .85 : 1;
+  hero.position.set(x, y, z); hero.rotation.set(.05 + Math.cos(t * .9) * .05, 0, -Math.cos(t * .7) * .25); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 9 - i * 1.4) * (.08 + i * .07) + (i ? .16 : -.5));
   scene.children.forEach(o => { if (o.userData.cl) o.position.z = z - 196; });
   sun.target.position.set(0, 10, z - 45); sun.position.copy(sun.target.position).add(O);
-  cam.position.set(x * .6, y + 4.6 * k, z + 10 * k); cam.lookAt(x * .8, y - 2.4, z - 14);
+  cam.position.set(x + 5.5 * k, y + 3 * k, z + 7 * k); cam.lookAt(x - (tall ? 1 : 2.5), y + .9, z - 8);   // 斜めうしろ上から。体が横に長く見える
   cam.updateMatrixWorld(); post.u.L.value.copy(O).transformDirection(cam.matrixWorldInverse);
   post.render(scene, cam, t);
 });

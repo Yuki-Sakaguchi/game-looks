@@ -4,44 +4,45 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>6-24 森の探検 重ね切り絵</title>
 <style>
-html,body{margin:0;height:100%;background:#f4f5e2;overflow:hidden}
+html,body{margin:0;height:100%;background:#f8f2d8;overflow:hidden}
 canvas{display:block}
-#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1f4a3a;background:#f4f5e2;padding:0 6px}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1f4a3a;background:#f8f2d8;padding:0 6px}
 </style>
-<div id="cap">6-24 ─ 森の探検 / 重ね切り絵（奥行きの層ごとに 1 色の色紙・白いふちと影）　｜　見るだけ（自動で歩く）</div>
+<div id="cap">6-24 ─ 森の探検 / 重ね切り絵（奥行きの層ごとに 1 色の色紙・下の層へ落ちる影）　｜　見るだけ（自動で歩く）</div>
 <script src="kit.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
-// 重ね切り絵の決まり：景色はぜんぶ同じ色で描いておき、仕上げで奥行きを 10 ごとの層に切って、層ごとに 1 色の色紙に置きかえる
-// （手前ほど こい緑、奥ほど淡い青緑）。層の境目には、紙の厚みの白いふちと、下の層へ落ちるやわらかい影をつける。
-// 探検家と、赤いきのこ・黄色い鳥だけは別の色の紙。層は世界に固定してあるので、歩くと色紙が 1 枚ずつ手前へ寄ってくる
+// 重ね切り絵の決まり：景色はぜんぶ同じ色で描いておき、仕上げで奥行きを 12 ごとの層に切って、手前から 5 枚の色紙に置きかえる
+// （こい緑 → 緑 → 青緑 → 淡い水色、その奥はクリーム色の空）。上の紙は下の紙へ やわらかい影を落とす。ふちの白はごく細く。
+// 木は丸い大きなかたまりにして、紙の形を大きくなめらかに。探検家と、赤いきのこ・黄色い鳥だけは別の色の紙
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 45, far: 300 }), { add, box, hash } = K;
 scene.background = new THREE.Color('#00ff00'); const KEY = K.glow('#00ff00'), RED = '#e8402a', YEL = '#ffd23a', SHIRO = '#fff1dc';
 const P = 120, TAU = Math.PI * 2, path = z => Math.sin(z * TAU / P) * 5, sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
-const H = (x, z) => sm(2, 14, Math.abs(x - path(z))) * (2.4 + 2 * Math.sin(x * .21 + z * TAU / P * 2));
+const H = (x, z) => sm(3, 20, Math.abs(x - path(z))) * (3 + 2.5 * Math.sin(x * .12 + z * TAU / P * 2));
 const land = K.terrain(H, 60, 60, 2.5, () => KEY.color); land.mesh.material = KEY; scene.add(land.mesh);
 const W = [], put = (o, x, z) => { o.position.set(x, H(x, z), z); scene.add(o); W.push([o, z]); return o; };
-// 木は層のまん中に立てる（1 本の木が 2 枚の紙に分かれないように）
-for (let b = 0; b < 12; b++) for (let j = 0; j < 8; j++) { const z = -(b + .5) * 10 + (hash(b, j) - .5) * 2, x = path(z) + (j % 2 ? 1 : -1) * (3.4 + Math.pow(hash(j, b + 20), 1.6) * 28), h = 6 + hash(b * 9 + j, 3) * 4; if (j % 3 == 0) put(new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 0), KEY), x, z).scale.y = .7; else put(j % 3 == 1 ? K.tree(h, KEY, KEY) : K.pine(h * 1.2, KEY, KEY), x, z); }
-for (let i = 0; i < 16; i++) { const g = new THREE.Group(), z = -i * 7.5 - 2, s = 1 + hash(i, 5) * .7; add(g, new THREE.CylinderGeometry(.12, .16, .5, 6), K.glow(SHIRO), 0, .25, 0); add(g, new THREE.SphereGeometry(.42, 8, 4, 0, TAU, 0, Math.PI / 2), K.glow(RED), 0, .4, 0); g.scale.setScalar(s); put(g, path(z) + (i % 2 ? 1 : -1) * (1.7 + hash(i, 6) * 1.6), z); }
+// 木：太い幹と、丸い葉のかたまり 2 つ。層のまん中に立てる（1 本の木が 2 枚の紙に分かれないように）
+const blob = h => { const g = new THREE.Group(), r = h * .34; add(g, new THREE.CylinderGeometry(h * .05, h * .08, h * .6, 8), KEY, 0, h * .3, 0); add(g, new THREE.SphereGeometry(r, 16, 10), KEY, 0, h * .78, 0); add(g, new THREE.SphereGeometry(r * .7, 14, 8), KEY, r * .8, h * .62, 0); return g; };
+for (let b = 0; b < 10; b++) for (let j = 0; j < 6; j++) { const z = -(b + .5) * 12 + (hash(b, j) - .5) * 3, x = path(z) + (j % 2 ? 1 : -1) * (5 + Math.pow(hash(j, b + 20), 1.4) * 30), h = 7 + hash(b * 9 + j, 3) * 5; if (j > 3) put(new THREE.Mesh(new THREE.SphereGeometry(2, 14, 8), KEY), x, z).scale.y = .7; else put(blob(h), x, z).rotation.y = j % 2 ? 0 : Math.PI; }
+for (let i = 0; i < 12; i++) { const g = new THREE.Group(), z = -i * 10 - 3, s = 1.2 + hash(i, 5) * .7; add(g, new THREE.CylinderGeometry(.12, .16, .5, 8), K.glow(SHIRO), 0, .25, 0); add(g, new THREE.SphereGeometry(.42, 12, 5, 0, TAU, 0, Math.PI / 2), K.glow(RED), 0, .4, 0); g.scale.setScalar(s); put(g, path(z) + (i % 2 ? 1 : -1) * (1.8 + hash(i, 6) * 1.4), z); }
 const hero = K.person({ s: 1.3, top: '#e8642a', bottom: '#6a4630', skin: '#f4c8a0', hat: SHIRO }); box(hero.userData.P.body, .5, .6, .3, '#6a4630', 0, .5, -.4); box(hero.userData.P.head, .9, .06, .9, SHIRO, 0, .48, 0); scene.add(hero);
 hero.traverse(m => { if (m.isMesh) m.material = K.glow(m.material.color); });
-const bird = new THREE.Group(); box(bird, .28, .26, .5, K.glow(YEL), 0, 0, 0); box(bird, .1, .08, .16, K.glow('#e8642a'), 0, 0, -.32); const wings = [-1, 1].map(s => { const w = new THREE.Group(); box(w, .5, .05, .3, K.glow(YEL), s * .25, 0, 0); w.position.x = s * .14; bird.add(w); return w; }); scene.add(bird);
+const bird = new THREE.Group(); add(bird, new THREE.SphereGeometry(.3, 10, 8), K.glow(YEL)).scale.z = 1.5; add(bird, new THREE.ConeGeometry(.1, .25, 6), K.glow('#e8642a'), 0, 0, -.5).rotation.x = -Math.PI / 2; const wings = [-1, 1].map(s => { const w = new THREE.Group(); box(w, .6, .05, .36, K.glow(YEL), s * .3, 0, 0); w.position.x = s * .14; bird.add(w); return w; }); scene.add(bird);
 const post = K.post(renderer, `uniform mat4 camW;uniform vec2 tf;uniform float zc;
 float acc(vec2 uv){vec3 a=src(uv);return 1.-step(.5,a.g-max(a.r,a.b));}                                   // 別の色の紙（主人公・きのこ・鳥）なら 1
-float band(vec2 uv){float d=dep(uv);if(d>nf.y*.9)return 99.;vec4 w=camW*vec4((uv*2.-1.)*tf*d,-d,1.);return floor(-w.z/10.)-acc(uv)*.5;}   // 何枚目の層か
-vec3 ramp(float q){q*=4.;vec3 c0=vec3(.1,.29,.24),c1=vec3(.2,.45,.35),c2=vec3(.36,.61,.47),c3=vec3(.62,.79,.68),c4=vec3(.83,.91,.84);return q<1.?mix(c0,c1,q):q<2.?mix(c1,c2,q-1.):q<3.?mix(c2,c3,q-2.):mix(c3,c4,q-3.);}
+float band(vec2 uv){float d=dep(uv);if(d>nf.y*.9)return 99.;vec4 w=camW*vec4((uv*2.-1.)*tf*d,-d,1.);return min(floor(-w.z/12.),floor(zc/12.)+4.)-acc(uv)*.5;}   // 何枚目の紙か（奥は 5 枚目にまとめる）
+vec3 ramp(float q){q*=3.;vec3 c0=vec3(.15,.42,.31),c1=vec3(.33,.63,.42),c2=vec3(.45,.75,.68),c3=vec3(.74,.89,.9);return q<1.?mix(c0,c1,q):q<2.?mix(c1,c2,q-1.):mix(c2,c3,q-2.);}
 void main(){float b=band(vUv),s=size.y/500.,rim=0.,sh=0.;
-for(int i=0;i<8;i++){float an=float(i)*.7854;vec2 o=vec2(cos(an),sin(an));rim=max(rim,step(b+.4,band(vUv+o*px*1.7*s)));sh+=step(band(vUv+(o*(mod(float(i),2.)<.5?4.:8.)+vec2(-2.5,3.5))*px*s)+.4,b);}
-vec3 c=b>90.?vec3(.96,.96,.88):ramp(clamp(((ceil(b)+.5)*10.-zc)/60.,0.,1.));c=mix(c,src(vUv),acc(vUv));
-c*=1.-.42*smoothstep(0.,1.,sh/8.);c=mix(c,vec3(.99,.985,.95),rim*.92);gl_FragColor=vec4(c,1.);}`, { camW: { value: cam.matrixWorld }, tf: { value: new THREE.Vector2() }, zc: { value: 0 } }, { gbuf: true }); onResize(post.resize);
+for(int i=0;i<12;i++){float an=float(i)*.5236;vec2 o=vec2(cos(an),sin(an));if(i<4)rim=max(rim,step(b+.4,band(vUv+o.yx*px*s)));sh+=step(band(vUv+(o*(mod(float(i),3.)*4.+3.)+vec2(-3.,7.))*px*s)+.4,b);}
+vec3 c=b>90.?vec3(.98,.95,.84):ramp(clamp(((ceil(b)+.5)*12.-zc-6.)/48.,0.,1.));c=mix(c,src(vUv),acc(vUv));
+c*=mix(vec3(1.),vec3(.5,.58,.66),smoothstep(0.,.8,sh/12.)*.8);c=mix(c,vec3(1.,.99,.95),rim*.3);gl_FragColor=vec4(c,1.);}`, { camW: { value: cam.matrixWorld }, tf: { value: new THREE.Vector2() }, zc: { value: 0 } }, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = -t * 3 - 6, x = path(z), tall = innerHeight > innerWidth; hero.position.set(x, 0, z); hero.rotation.y = Math.atan2(-(path(z - 1) - x), 1) + Math.PI; K.walk(hero, t * 8);
-  for (const [o, bz] of W) o.position.z = bz + Math.round((z - 52 - bz) / P) * P;
+  for (const [o, bz] of W) o.position.z = bz + Math.round((z - 50 - bz) / P) * P;
   land.follow(x, z, -55);
-  bird.position.set(x + Math.sin(t * .8) * 3, 2.8 + Math.sin(t * 1.7) * .5, z - 5 + Math.cos(t * .8) * 2); bird.rotation.y = -t * .8 + 1.57; wings.forEach((w, i) => w.rotation.z = Math.sin(t * 16) * .8 * (i ? 1 : -1));
-  cam.position.set(path(z + 6) * .9 + Math.sin(t * .3) * .6, tall ? 3.8 : 3.4, z + (tall ? 6.5 : 8.5)); cam.lookAt(path(z - 8), tall ? 2.4 : 1.1, z - 8);
+  bird.position.set(x + Math.sin(t * .8) * 2.5, 3 + Math.sin(t * 1.7) * .4, z - 3 + Math.cos(t * .8) * 1.5); bird.rotation.y = -t * .8 + 1.57; wings.forEach((w, i) => w.rotation.z = Math.sin(t * 16) * .8 * (i ? 1 : -1));
+  cam.position.set(path(z + 6) * .9 + Math.sin(t * .3) * .6, tall ? 4.6 : 4.4, z + (tall ? 7 : 9)); cam.lookAt(path(z - 8), tall ? 3 : 2.6, z - 8);
   const tf = Math.tan(cam.fov * Math.PI / 360); post.u.tf.value.set(tf * cam.aspect, tf); post.u.zc.value = -cam.position.z;
   post.render(scene, cam, t);
 });

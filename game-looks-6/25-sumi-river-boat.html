@@ -22,30 +22,29 @@ const ROCK = '#e2e2e2', INK = '#2a2a2a', SHU = '#e03a20', P = 220, W = [];
 box(scene, 2000, .1, 2000, K.glow('#ffffff'), 0, -.05, 0).userData.keep = 1;
 // 切り立った岩山：先の細い柱の頂点を少しずつずらして、ごつごつさせる。いくつかは上に松をのせる
 const peak = (r, h) => { const g = new THREE.Group(), geo = new THREE.CylinderGeometry(r * .2, r, h, 7, 5), p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const k = .75 + .5 * hash(Math.round(p.getX(i) * 5 + p.getY(i) * 3), Math.round(p.getZ(i) * 5)); p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); } add(g, geo, ROCK, 0, h / 2 - 1, 0); add(g, new THREE.DodecahedronGeometry(r * .3, 0), ROCK, 0, h - 1, 0); return g; };
-for (let i = 0; i < 24; i++) { const r = 4 + hash(i, 1) * 4.5, h = 18 + hash(i, 2) * 36, g = peak(r, h), s = i % 2 ? 1 : -1; if (i % 3 != 1) { const t = K.pine(3.5 + hash(i, 5) * 3, INK, INK); t.position.set(r * .08, h - 1 + r * .22, 0); g.add(t); } g.position.set(s * (r + 11 + hash(i, 3) * 40), 0, -i * 9.2 - hash(i, 4) * 5); g.rotation.y = i; scene.add(g); W.push(g); }
-for (let i = 0; i < 8; i++) { const g = K.rock(1.2 + hash(i, 6) * 1.4, '#9a9a9a'), s = i % 2 ? 1 : -1; if (i % 2) { const t = K.pine(3 + hash(i, 7) * 2, INK, INK); t.position.y = 1; g.add(t); } g.position.set(s * (8 + hash(i, 8) * 5), -.2, -i * 27.5 - 9); scene.add(g); W.push(g); }
+for (let i = 0; i < 36; i++) { const r = 3 + hash(i, 1) * 2.4, h = 24 + hash(i, 2) * 38, g = peak(r, h), s = i % 2 ? 1 : -1; if (i % 3 != 1) { const t = K.pine(3.5 + hash(i, 5) * 3, INK, INK); t.position.set(r * .08, h - 1 + r * .22, 0); g.add(t); } g.position.set(s * (19 + hash(i, 3) * 36), 0, -i * 6.1 - hash(i, 4) * 4); g.rotation.y = i; scene.add(g); W.push(g); }
 for (let i = 0; i < 14; i++) { const m = box(scene, 2 + hash(i, 9) * 4, .02, .1, K.glow('#9a9a9a'), (hash(i, 10) - .5) * 14, .02, -i * 15.7); W.push(m); }      // 水面のうすい線
 for (const g of W) g.userData.z = g.position.z;
 // 小舟と、かさをかぶって さおをさす人（上着だけが朱）
-const boat = new THREE.Group(), hull = K.boat('#5a5a5a', null); hull.scale.setScalar(1.5); hull.rotation.y = Math.PI; boat.add(hull);
+const boat = new THREE.Group(), hull = K.boat('#5a5a5a', null); hull.scale.setScalar(1.5); hull.rotation.y = Math.PI; boat.add(hull); add(boat, new THREE.CircleGeometry(1, 20), K.glow('#b0b0b0'), .4, .02, .2).rotation.x = -Math.PI / 2; boat.children[1].scale.set(1.5, 3.1, 1);      // 舟の下のうすい影
 const man = K.person({ s: 1.15, top: '#4a4a4a', bottom: '#3a3a3a', skin: '#b8b8b8' }); man.userData.P.body.children[0].material = K.glow(SHU); add(man.userData.P.head, new THREE.ConeGeometry(.6, .3, 8), '#4a4a4a', 0, .55, 0); box(man.userData.P.armR, .07, 5, .07, INK, 0, -.2, -.5).rotation.x = .5; man.userData.P.armR.rotation.x = -.6; man.userData.P.armL.rotation.x = -.4;
 man.position.set(0, .5, 1.3); man.rotation.y = Math.PI; boat.add(man); scene.add(boat);
 const wake = [-1, 1].map(s => { const w = box(boat, 5, .02, .12, K.glow('#8a8a8a'), s * 1.5, .03, 5); w.rotation.y = s * 1.25; return w; });
 const post = K.post(renderer, `uniform mat4 camW;uniform vec2 tf;
 float wash(vec2 uv){float d=dep(uv);if(d>nf.y*.9)return 0.;float t=1.-luma(src(uv)),k=smoothstep(.2,.32,t)*.18+smoothstep(.46,.58,t)*.3+smoothstep(.72,.84,t)*.38;   // 墨の面：3 段
-float wy=(camW*vec4((uv*2.-1.)*tf*d,-d,1.)).y;return k*(1.-smoothstep(50.,250.,d)*.94)*(1.-smoothstep(16.,1.,wy)*smoothstep(22.,80.,d));}       // 遠くはうすく、山すそは霧に
+float wy=(camW*vec4((uv*2.-1.)*tf*d,-d,1.)).y;float far=1.-.26*smoothstep(52.,62.,d)-.22*smoothstep(100.,112.,d)-.18*smoothstep(155.,172.,d)-.14*smoothstep(220.,240.,d);return k*far*(1.-smoothstep(13.,1.,wy)*smoothstep(26.,70.,d));}       // 遠くはうすく、山すそは霧に
 void main(){vec2 p=vUv*res;float s=size.y/600.,k=wash(vUv),bl=0.;vec3 a=src(vUv);
 for(int i=0;i<6;i++){float an=float(i)*1.047+fbm(p*.02)*6.;bl+=wash(vUv+vec2(cos(an),sin(an))*px*s*(4.+7.*vn(p*.05)));}
 k=mix(k,bl/6.,smoothstep(.15,.6,max(k,bl/6.))*.75);                                                                            // こい所ほど にじむ
 vec2 wv=(vec2(fbm(p*.03),fbm(p*.03+9.))-.5)*px*3.*s;float w=(.6+2.6*fbm(p*.012))*s,dm=min(min(dep(vUv+px*w),dep(vUv-px*w)),min(dep(vUv+px*w*vec2(1.,-1.)),dep(vUv+px*w*vec2(-1.,1.))));
-float e=edge(vUv+wv,w,.6,.08)*(1.-step(.97,luma(a))*step(.8,nrm(vUv).y))*smoothstep(.28,.5,fbm(p*vec2(.02,.08)+3.)+.22)*(1.-smoothstep(40.,230.,dm));                  // かすれた線。遠くは消える
+float e=edge(vUv+wv,w,.6,.08)*(1.-step(.97,luma(a))*step(.8,nrm(vUv).y))*smoothstep(.28,.5,fbm(p*vec2(.02,.08)+3.)+.22)*(1.-smoothstep(40.,230.,dm))*(1.-smoothstep(11.,1.,(camW*vec4((vUv*2.-1.)*tf*dm,-dm,1.)).y)*smoothstep(26.,70.,dm));                  // かすれた線。遠くは消える
 k=max(k,e*.86);vec3 c=mix(vec3(.96,.945,.9)*(.985+.02*fbm(p*.006)),vec3(.09,.09,.11),k);
 c=mix(c,vec3(.86,.2,.1),smoothstep(.2,.34,a.r-a.g));gl_FragColor=vec4(c,1.);}`, { camW: { value: cam.matrixWorld }, tf: { value: new THREE.Vector2() } }, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = -t * 2.6 - 10, x = Math.sin(z * .03) * 2.5, tall = innerHeight > innerWidth; boat.position.set(x, Math.sin(t * 1.2) * .04, z); boat.rotation.set(0, -Math.cos(z * .03) * .07, Math.sin(t * .9) * .03);
   man.userData.P.armR.rotation.x = -.6 + Math.sin(t * 1.5) * .25; wake.forEach((w, i) => w.scale.x = .8 + .2 * Math.sin(t * 2 + i));
   for (const g of W) g.position.z = g.userData.z + Math.round((z - 95 - g.userData.z) / P) * P;
-  cam.position.set(x * .4 + (tall ? 1 : 3), tall ? 5.5 : 4, z + (tall ? 11 : 17)); cam.lookAt(x * .6 - (tall ? 0 : 2), tall ? 4.5 : 1, z - 30);
+  cam.position.set(x * .4 + (tall ? 1 : 2.5), tall ? 5.5 : 4.5, z + (tall ? 10.5 : 13)); cam.lookAt(x * .6 - (tall ? 0 : 2.5), tall ? 4.5 : 2.2, z - 30);
   const tf = Math.tan(cam.fov * Math.PI / 360); post.u.tf.value.set(tf * cam.aspect, tf);
   post.render(scene, cam, t);
 });

@@ -14,43 +14,45 @@ canvas{display:block;image-rendering:pixelated}
 <script type="module">
 // ローポリの海の底をふつうに描いてから、横 240 ドットの粗い絵にして、決めた 12 色（青〜青緑 8 段＋もも・だいだい・黄・赤紫）だけに丸める。
 // 色の境目は 4×4 の点の並びで混ぜる。遠くは水の青にとけるので、青の 8 段がそのまま奥行きになる。
-// 上からさす光のすじは半透明の板。ダイバーをうしろ斜めから追う
+// 上からさす光のすじは半透明の板。横になって泳ぐダイバーを、斜めうしろの少し横から追う
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 46 }), { add, box, hash, flat, glow } = K;
 const PAL = ['#061a3a', '#0a2e5a', '#0e4a7a', '#12688e', '#1a8aa0', '#3ab0b0', '#7ad8c8', '#d0f4e8', '#f07a9a', '#f4a04a', '#f8e078', '#b84a7a'];
-scene.background = K.sky([[0, '#3ab0b0'], [.3, '#12688e'], [.62, '#0a2e5a'], [1, '#061a3a']]); scene.fog = new THREE.Fog('#0e4a7a', 7, 52);
-const { sun } = K.lights(scene, renderer, { range: 26, sky: '#bfeaff', ground: '#0e4a7a', amb: 1.2, power: 2.2, pos: [-6, 40, 10] });
-const H = (x, z) => Math.sin(x * .16) * Math.cos(z * .13) * 1.3 + Math.sin(x * .05 + z * .07) * 2 - Math.exp(-x * x * .012) * 1.6;   // まん中が浅い谷
-const C = K.colors('#7ad8c8', '#5cc6bc', '#2a9aa6');
-const land = K.terrain(H, 70, 70, 1.6, (y, x, z) => y > 1.6 ? C[2] : C[hash(Math.round(x * .3), Math.round(z * .3)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
-// さんご（枝・まる・テーブル）、海草、岩。96 の長さでくり返し、主役の前へ送りなおす
-const L = 96, things = [], weeds = [], CC = ['#f07a9a', '#f4a04a', '#f8e078', '#b84a7a'];
-for (let i = 0; i < 84; i++) { const g = new THREE.Group(), s = .8 + hash(i, 3) * 1.3, c = CC[(i * 3 + (i >> 2)) % 4], k = i % 5;
-  if (k === 0) for (let j = 0; j < 5; j++) add(g, new THREE.CylinderGeometry(.1 * s, .2 * s, 1.7 * s, 5).translate(0, .85 * s, 0), c).rotation.set((hash(i, j) - .5) * 1.5, 0, (hash(j, i + 7) - .5) * 1.5);
-  if (k === 1) add(g, new THREE.IcosahedronGeometry(.8 * s, 0), c, 0, .4 * s, 0).scale.y = .7;
-  if (k === 2) { add(g, new THREE.CylinderGeometry(.16 * s, .26 * s, .9 * s, 5), c, 0, .45 * s, 0); add(g, new THREE.CylinderGeometry(1.1 * s, .7 * s, .22 * s, 7), c, 0, .95 * s, 0); }
-  if (k === 3) for (let j = 0; j < 3; j++) weeds.push(add(g, new THREE.ConeGeometry(.2, 3.2 * s, 4).translate(0, 1.6 * s, 0), j % 2 ? '#1a8aa0' : '#3ab0b0', (j - 1) * .5, 0, hash(i, j) * .6));
-  if (k === 4) g.add(K.rock(s * 1.2, '#12688e'));
-  g.position.x = (hash(i, 1) < .5 ? -1 : 1) * (5 + hash(i, 2) * 14); g.rotation.y = hash(i, 5) * 6; g.userData.z0 = hash(i, 4) * L; K.shadow(g, true, false); scene.add(g); things.push(g); }
-// 光のすじ：ななめの半透明の板
-const shafts = [...Array(7)].map((_, i) => { const m = add(scene, new THREE.PlaneGeometry(1.2 + hash(i, 8) * 1.8, 30), glow('#3ab0b0', { side: THREE.DoubleSide, transparent: true, opacity: .14, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), (hash(i, 9) - .5) * 34, 13, 0); m.rotation.z = .32; m.userData.z0 = i * 7.1; return m; });
-// 魚の群れ（黄とだいだい）
-const NF = 54, fish = new THREE.InstancedMesh(new THREE.ConeGeometry(.16, .6, 4).rotateX(Math.PI / 2), flat('#ffffff'), NF), dm = new THREE.Object3D(); for (let i = 0; i < NF; i++) fish.setColorAt(i, new THREE.Color(i % 3 ? '#f8e078' : '#f4a04a')); scene.add(fish);
-// ダイバー：kit の人を横にねかせ、タンクと足ひれと水中めがねを足す
-const hero = new THREE.Group(), body = K.person({ top: '#f4a04a', bottom: '#f4a04a', skin: '#0a2e5a', s: 1.3 }), P = body.userData.P; body.rotation.x = Math.PI / 2; body.position.z = -1; hero.add(body);
-box(P.body, .34, .7, .3, '#f8e078', 0, .42, -.36); box(P.head, .5, .24, .1, '#d0f4e8', 0, .28, .3); for (const l of [P.legL, P.legR]) box(l, .4, .7, .07, '#f07a9a', 0, -1.35, 0); K.shadow(hero); scene.add(hero);
+scene.background = K.sky([[0, '#061a3a'], [.3, '#0a2e5a'], [.55, '#0e4a7a'], [1, '#12688e']]); scene.fog = new THREE.Fog('#0e4a7a', 7, 46);
+const { sun } = K.lights(scene, renderer, { range: 26, sky: '#bfeaff', ground: '#0e4a7a', amb: 1.1, power: 2.1, pos: [-6, 40, 10] });
+const H = (x, z) => Math.sin(x * .16) * Math.cos(z * .13) * 1.1 + Math.sin(x * .05 + z * .07) * 1.6 - Math.exp(-x * x * .012) * 1.6;   // まん中が浅い谷
+const C = K.colors('#5cc6bc', '#3ab0b0', '#1a8aa0');
+const land = K.terrain(H, 70, 70, 1.6, (y, x, z) => y > 1.4 ? C[2] : C[hash(Math.round(x * .3), Math.round(z * .3)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+// さんご礁：岩の台の上に、丸いさんご 3 つ・枝さんご・海草をまとめて 1 かたまりにする。もも と だいだいを主に、黄は小さく。96 の長さでくり返す
+const L = 96, reefs = [], weeds = [], PINK = '#f07a9a', ORA = '#f4a04a';
+for (let i = 0; i < 26; i++) { const g = new THREE.Group(), s = 1 + hash(i, 3) * 1.1, c1 = i % 2 ? PINK : ORA, c2 = i % 2 ? ORA : PINK, side = i % 2 ? 1 : -1;
+  const r = K.rock(1.5 * s, '#12688e'); r.scale.set(1.3, .7, 1.3); g.add(r);
+  for (const [x, y, z, q, c] of [[0, .9, 0, .85, c1], [1, .6, .5, .6, c2], [-.9, .55, -.6, .65, c1], [.2, .5, -1.1, .4, '#f8e078']]) add(g, new THREE.IcosahedronGeometry(q * s, 1), c, x * s, y * s, z * s).scale.y = .78;
+  for (let j = 0; j < 5; j++) { const b = add(g, new THREE.CylinderGeometry(.08 * s, .17 * s, 1.5 * s, 5).translate(0, .75 * s, 0), j % 2 ? c2 : '#b84a7a', (-.7 + hash(i, j) * .5) * s, .5 * s, (.9 + hash(j, i) * .4) * s); b.rotation.set((hash(i, j + 5) - .5) * .9, 0, (hash(j, i + 7) - .5) * .9); }
+  for (let j = 0; j < 2; j++) weeds.push(add(g, new THREE.ConeGeometry(.16, 2.6 * s, 4).translate(0, 1.3 * s, 0), '#1a8aa0', (1.3 + j * .4) * s, .2, -.6 * s));
+  g.position.x = side * ((side > 0 ? 8.5 : 4.2) + hash(i, 2) * 10); g.rotation.y = hash(i, 5) * 6; g.userData.z0 = i * L / 26 + hash(i, 4) * 2; K.shadow(g, true, false); scene.add(g); reefs.push(g); }
+// 光のすじ：ななめの半透明の板（主役の前だけに立てる）
+const shafts = [...Array(7)].map((_, i) => { const m = add(scene, new THREE.PlaneGeometry(1 + hash(i, 8) * 1.6, 34), glow('#3ab0b0', { side: THREE.DoubleSide, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), -13 + i * 3.4 + hash(i, 9) * 2, 14, 0); m.rotation.z = .3; m.userData.z0 = hash(i, 10) * 36; return m; });
+// 魚の群れ（黄とだいだい。体は たてに平たいひし形）
+const NF = 40, fish = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.5).scale(.3, .62, 1.1), flat('#ffffff'), NF), dm = new THREE.Object3D(); for (let i = 0; i < NF; i++) fish.setColorAt(i, new THREE.Color(i % 3 ? '#f8e078' : '#f4a04a')); scene.add(fish);
+// ダイバー：前は +z。頭と水中めがね、だいだいの胴、背中の黄色いタンク、うしろへのびた足ともものフィン、うで
+const hero = new THREE.Group(), D = new THREE.Group(), SUIT = '#f4a04a', NAVY = '#0a2e5a'; D.scale.setScalar(1.3); hero.add(D);
+box(D, .56, .36, 1, SUIT, 0, 0, 0); box(D, .44, .44, .44, NAVY, 0, .08, .76); box(D, .5, .18, .2, '#d0f4e8', 0, .12, .9); add(D, new THREE.CylinderGeometry(.17, .17, .8, 7).rotateX(Math.PI / 2), '#f8e078', 0, .33, -.05); box(D, .1, .1, .16, NAVY, 0, .36, .42);
+const limb = (x, z, len, fin) => { const pv = new THREE.Group(); pv.position.set(x, 0, z); box(pv, fin ? .2 : .16, fin ? .2 : .16, len, SUIT, 0, 0, -len / 2); if (fin) box(pv, .38, .06, .62, '#f07a9a', 0, 0, -len - .28); else box(pv, .18, .18, .16, NAVY, 0, 0, -len - .06); D.add(pv); return pv; };
+const legs = [limb(-.16, -.5, 1, 1), limb(.16, -.5, 1, 1)], arms = [limb(-.37, .36, .68, 0), limb(.37, .36, .68, 0)]; K.shadow(hero); scene.add(hero);
 const fx = K.fx(scene, 40); let bT = 0;
 const post = K.post(renderer, K.PALETTE(PAL, .1, 'c=mix(c,vec3(.02,.1,.23),edge(uv,1.,9.,.2)*.6);'), {}, { width: 240, gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
-  const z = t * 2.6, x = Math.sin(t * .35) * 1.6, y = 3.4 + Math.sin(t * .9) * .3; hero.position.set(x, y, z); hero.rotation.set(Math.cos(t * .9) * .08, Math.cos(t * .35) * .2, -Math.cos(t * .35) * .16); K.walk(body, t * 5, .4);
-  for (const g of things) { const gz = g.userData.z0 + Math.round((z + 22 - g.userData.z0) / L) * L; if (gz !== g.position.z || !g.userData.set) { g.userData.set = 1; g.position.z = gz; g.position.y = H(g.position.x, gz) - .1; } }
+  const z = t * 2.6, x = Math.sin(t * .35) * 1.4, y = 3.6 + Math.sin(t * .9) * .3; hero.position.set(x, y, z); hero.rotation.set(-.1 + Math.cos(t * .9) * .06, Math.cos(t * .35) * .18, -Math.cos(t * .35) * .12);
+  legs.forEach((l, i) => { l.rotation.x = Math.sin(t * 5 + i * Math.PI) * .38; }); arms.forEach((a, i) => { a.rotation.y = (i ? 1 : -1) * (.3 + Math.sin(t * 2.5) * .12); a.rotation.x = Math.sin(t * 2.5 + i) * .15; });
+  for (const g of reefs) { const gz = g.userData.z0 + Math.round((z + 18 - g.userData.z0) / L) * L; if (gz !== g.position.z) { g.position.z = gz; g.position.y = H(g.position.x, gz) - .2; } }
   weeds.forEach((w, i) => { w.rotation.z = Math.sin(t * 1.2 + i) * .18; });
-  for (const m of shafts) { m.position.z = m.userData.z0 + Math.round((z + 20 - m.userData.z0) / 50) * 50; m.material.opacity = .13 + .05 * Math.sin(t * .8 + m.userData.z0); }
-  const fxc = x - 3 + Math.sin(t * .3) * 4, fzc = z + 7 + Math.sin(t * .23) * 2.5;   // 魚の群れは主役の少し前を行ったり来たり
-  for (let i = 0; i < NF; i++) { const a = hash(i, 11) * 6.283 + t * .4; dm.position.set(fxc + Math.cos(a) * (1 + hash(i, 12) * 3.2), y + .6 + (hash(i, 13) - .5) * 3 + Math.sin(t * 2 + i) * .15, fzc + Math.sin(a) * (1 + hash(i, 14) * 2.4)); dm.rotation.y = -a + Math.sin(t * 6 + i) * .2; dm.updateMatrix(); fish.setMatrixAt(i, dm.matrix); } fish.instanceMatrix.needsUpdate = true;
-  if ((bT -= dt) < 0) { bT = .28; fx.emit('bubble', x, y + .5, z + 1, { vy: 1.5, spread: .5, life: 2.4, size: .28, grow: .9 }); } fx.update(dt);
+  for (const m of shafts) { m.position.z = m.userData.z0 + Math.round((z + 22 - m.userData.z0) / 36) * 36; m.material.opacity = .26 + .08 * Math.sin(t * .8 + m.userData.z0); }
+  const fxc = x - 2 + Math.sin(t * .3) * 1.5, fzc = z + 4.5 + Math.sin(t * .23) * 1.5;   // 魚の群れは主役の少し前をまわる
+  for (let i = 0; i < NF; i++) { const a = hash(i, 11) * 6.283 + t * .5; dm.position.set(fxc + Math.cos(a) * (1 + hash(i, 12) * 2.6), y + .9 + (hash(i, 13) - .5) * 2.6 + Math.sin(t * 2 + i) * .15, fzc + Math.sin(a) * (1 + hash(i, 14) * 2)); dm.rotation.y = -a + Math.sin(t * 6 + i) * .2; dm.updateMatrix(); fish.setMatrixAt(i, dm.matrix); } fish.instanceMatrix.needsUpdate = true;
+  if ((bT -= dt) < 0) { bT = .3; fx.emit('bubble', x, y + .5, z + 1.2, { vy: 1.5, spread: .5, life: 2.2, size: .28, grow: .9 }); } fx.update(dt);
   land.follow(x, z, 14); sun.position.set(x - 6, 40, z + 10); sun.target.position.set(x, 0, z);
-  cam.position.set(x + 2.5, y + 1.9, z - 4.3); cam.lookAt(x - .5, y, z + 3);
+  const k = cam.aspect < 1 ? .72 : 1; cam.position.set(x + 3.6 * k, y + 2.8 * k, z - .4 - 3.8 * k); cam.lookAt(x - .3, y, z - .4);   // たて長では近づく
   post.render(scene, cam, t);
 });
 </script>
