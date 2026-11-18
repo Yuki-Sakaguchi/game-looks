@@ -50,7 +50,7 @@ K.loop((dt, t) => {
     if (p.x < -9.1 && p.y > 4.5) lift = p.y; u.px = p.x; b.position.copy(p); u.sw.rotation.set(t * 6 + u.off, t * 4, 0); });
   cupY = lift || Math.max(4.5, cupY - dt * 14); cupL.position.set(-9.2, cupY, 0); ring *= Math.exp(-dt * 1.6); bell.rotation.z = Math.sin(t * 14) * ring * .5; fx.update(dt);
   const h = balls[0].position; look.lerp(h, first ? 1 : Math.min(1, dt * 5)); first = false;
-  cam.position.set(look.x * .6 + 5, look.y + 2.8, 10.2); cam.lookAt(look.x, look.y - .3, 0); sun.position.set(look.x - 10, look.y + 14, 22); sun.target.position.set(look.x, look.y, 0);
+  cam.position.set(look.x * .7 + 3, look.y + 1.9, 6.4); cam.lookAt(look.x, look.y - .3, 0); sun.position.set(look.x - 10, look.y + 14, 22); sun.target.position.set(look.x, look.y, 0);
   post.render(scene, cam, t);
 });
 </script>
