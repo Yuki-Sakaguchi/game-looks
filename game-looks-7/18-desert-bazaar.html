@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-18 砂の町のバザール 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d0;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">7-18 ─ 砂の町のバザール / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script src="retro.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 B。面の少ない形（平屋根の家・屋台・人）に、その場で打ったドット絵（日干しれんが・しっくい・しまの布・砂）をはり、横 320 ドットほどの粗い絵に描く。
+// 色数を落としたディザとブラウン管（横のにじみ・走査線・わずかな丸み）で、ドットと面の粗さをとかす。色は砂の黄土と空の青、布の赤・青緑だけ。
+// 真昼の強い日ざしと こい影。ターバンの主人公がバザールの通りをひと回りし、うしろからカメラが追う。部品はぜんぶ retro.js（R.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 900, aa: false, fitAspect: .9, maxFov: 74 });
+scene.add(R.skyDome([[0, '#2f6fc8'], [.5, '#58a0e0'], [.86, '#8cc6ee'], [1, '#e4e4c8']], { r: 380 })); scene.fog = new THREE.Fog('#ecd8ac', 46, 210);
+const { sun } = K.lights(scene, renderer, { sky: 0xa8c4ff, ground: 0xd8b078, amb: 1.05, sun: 0xfff0cc, power: 3.1, range: 30 }), SUN = new THREE.Vector3(-.5, .72, .42).normalize();
+
+// ---- 地面：砂（下地）＋ふみ固めた土の通り＋井戸のまわりの石だたみ ----
+const dPath = (x, z) => Math.abs(Math.abs(x) < 20 ? Math.abs(z) - 5 : Math.hypot(Math.abs(x) - 20, z) - 5);   // 通りのまん中からの遠さ
+const land = R.ground({ w: 150, d: 110, cell: 2, layers: [T.sand(), T.dirt({ c: '#d6b078' }), T.cobble({ kind: 'slab', c: '#c8b08a' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, .5 + (2.5 - dPath(x, z)) / 2)), Math.hypot(x, z) < 3.6 ? 1 : 0], shade: (x, z) => .9 + hash(Math.round(x / 6), Math.round(z / 6)) * .1 });
+scene.add(land.mesh);
+
+// ---- 家：日干しれんが・しっくいの平屋根（黄土色）。布のひさしと、屋根の丸い屋根かざり ----
+const ocher = T.plaster({ c: '#e2b878' }), pale = T.plaster({ c: '#f0dcb4' }), adobe = T.brick({ c: '#c89458', mortar: '#a87a4c' }), trim = T.planks({ c: '#8a6238' }), base = T.brick({ c: '#b07e48', mortar: '#8e6238' });
+const winA = T.window({ h: 48, arch: 1, bars: 'grid', frame: '#7a5232', curtain: false }), winS = T.window({ shutters: 1, frame: '#3f8f8a', curtain: '#f0e4c8' });
+const RED = '#d2492f', TEAL = '#2f9a8e', BLUE = '#3f6ab8', GOLD = '#e8a83a', CREAM = '#f4ead2';
+const KIND = [
+  { w: 6.6, d: 6, h: 3.3, wall: ocher, roof: ocher, win: winA, door: T.door({ arch: 1, c: '#3f8f8a' }), awning: T.fabric({ c: RED, c2: CREAM, scallop: 1 }), awningW: 3 },
+  { w: 6, d: 5.6, h: 3, h2: 2.5, jut: 0, wall: adobe, wall2: ocher, roof: adobe, win: winS, door: T.door({ c: '#7a4a2a' }), awning: T.fabric({ c: TEAL, c2: CREAM, scallop: 1 }) },
+  { w: 7.2, d: 6, h: 3.5, wall: pale, roof: pale, win: winA, door: T.door({ arch: 1, c: '#b8552f' }), awning: T.fabric({ c: BLUE, c2: GOLD, scallop: 1 }), awningW: 3.4, dome: TEAL },
+  { w: 5.6, d: 5.4, h: 2.9, h2: 2.2, jut: 0, wall: ocher, wall2: adobe, roof: ocher, win: winS, door: T.door({ style: 'panel', c: '#3f6ab8' }), sign: T.sign({ kind: 'potion' }) },
+  { w: 6.4, d: 6, h: 3.2, wall: adobe, roof: adobe, win: winA, door: T.door({ arch: 1 }), awning: T.fabric({ c: GOLD, c2: RED, scallop: 1 }), dome: '#f0e2c4' }];
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const domeOf = (r, c) => R.geo().smooth(2).loft(8, [[0, r, r, 0, .78], [r * .5, r * .9, r * .9, .35, 1], [r * .86, r * .5, r * .5, .7, 1.08], [r * 1.02, .05, .05, 1, 1.14]], { ur: 3 }).mesh(T.plaster({ c }));
+const addHouse = (k, x, z, ry, i) => { const o = KIND[k], h = R.house({ ...o, roofKind: 'flat', trim, base, seed: i }); if (o.dome) { const dm = domeOf(1.7, o.dome); dm.position.set(-o.w * .12, h.userData.top, -.4); h.add(dm); } put(h, x, z, ry); };
+[-24, -16, -8, 0, 8, 16, 24].forEach((x, i) => { const a = [0, 1, 2, 3, 4, 0, 3][i], b = [2, 4, 1, 0, 3, 2, 1][i]; addHouse(a, x, 9 + KIND[a].d / 2, Math.PI, i); addHouse(b, x + 1, -9 - KIND[b].d / 2, 0, 10 + i); });
+addHouse(2, 34, -5, -Math.PI / 2, 20); addHouse(1, 34.5, 4, -Math.PI / 2, 21); addHouse(0, -34, 4.5, Math.PI / 2, 22); addHouse(4, -34, -4, Math.PI / 2, 23);
+// 見はりの塔（黄土のつつ＋青緑の丸屋根）
+const tower = (h = 10) => { const B = R.parts(); B.g(ocher).smooth(1).loft(8, [[0, 1.6, 1.6, 0, .72], [h * .74, 1.25, 1.25, h * .25, 1], [h * .77, 1.6, 1.6, h * .26, 1.06], [h * .9, 1.6, 1.6, h * .3, 1]], { ur: 3 }); const g = B.group(), d = domeOf(1.5, TEAL); d.position.y = h * .9; g.add(d); return g; };
+put(tower(11), 30.5, 10.5); put(tower(8), -30, -10.5);
+
+// ---- 通りのまん中の島：屋台・井戸・つぼ代わりのたる。通りの上に日よけの布 ----
+const SC = [[RED, CREAM], [TEAL, CREAM], [GOLD, RED], [BLUE, CREAM], [RED, GOLD], [TEAL, GOLD]];
+[-15, -9, 9, 15].forEach((x, i) => { put(R.stall({ c: SC[i][0], c2: SC[i][1], seed: i, w: 2.6 }), x, 1.5, 0); put(R.stall({ c: SC[i + 2][0], c2: SC[i + 2][1], seed: i + 3, w: 2.6, fc: ['#e8a84a', '#c07a30', '#8ab84a'] }), x + 1, -1.5, Math.PI); });
+put(R.well({ stone: T.stone({ c: '#c8b08a' }), roof: T.fabric({ c: TEAL, c2: CREAM }) }), 0, 0, .5);
+const pole = () => R.geo().smooth(1).loft(5, [[0, .08, .08, 0, .75], [4.3, .05, .05, 3, 1]], { cap: 'top' }).mesh(trim);
+const shade = (x, s, c, c2) => { const G = R.geo().normal([0, 1, 0]), w = 1.9, z0 = s * 2.7, z1 = s * 8.2, zm = s * 5.4; G.quad([x - w, 4.2, z0], [x + w, 4.2, z0], [x + w, 3.75, zm], [x - w, 3.75, zm], [0, 0, 4, 2.8], [1, 1, .82, .82]).quad([x - w, 3.75, zm], [x + w, 3.75, zm], [x + w, 4.2, z1], [x - w, 4.2, z1], [0, 2.8, 4, 5.6], [.82, .82, 1, 1]);
+  fixed.push(G.mesh(T.fabric({ c, c2 }), { side: true })); for (const [px, pz] of [[x - w, z0], [x + w, z0], [x - w, z1], [x + w, z1]]) put(pole(), px, pz); };
+[[-4.5, 1, RED, CREAM], [-4, -1, TEAL, CREAM], [5, 1, BLUE, GOLD], [12.5, -1, RED, CREAM], [19, 1, TEAL, GOLD], [-19, -1, GOLD, RED]].forEach(a => shade(...a));
+const pot = (x, z, h = .8, c = '#b8683c') => put(R.barrel({ h, r: h * .42, c }), x, z, x);
+for (const [x, z] of [[-12, 2.6], [-11.2, 2.9], [-6.2, 1.2], [-5.4, .6], [6, -1], [6.8, -.4], [12, -2.7], [17.6, 1], [3, 8.2], [3.8, 8.4], [-13, 8.3], [11, -8.3], [-4.5, -8.4], [-3.7, -8.2], [20.5, 8.3]]) pot(x, z, .7 + hash(x, z) * .4, hash(x, 3) > .5 ? '#b8683c' : '#8a5a3a');
+put(R.crate({ s: .7 }), -6, -.6, .4); put(R.crate({ s: .55, kind: 'x' }), -5.9, -.5, 1, .7); put(R.crate(), 5.2, .8, .2); put(R.cart({ load: 'crates' }), 19.5, -1.2, 2.6); put(R.bench(), 2.6, -1.6, Math.PI); put(R.bench(), -2.6, 1.6, 0);
+const catBox = put(R.crate({ s: .7, kind: 'plain' }), 4.2, 2.3, .5);
+// 岩・かわいた草・ほそい木（町の外と家のあいだ）
+for (let i = 0; i < 30; i++) { const a = hash(i, 1) * 6.283, r = 24 + hash(i, 2) * 30, x = Math.cos(a) * r * 1.3, z = Math.sin(a) * r * .8; if (Math.abs(x) < 39 && Math.abs(z) < 17) continue; put(R.rock({ s: .7 + hash(i, 3) * 1.8, c: '#c09a6a', seed: i }), x, z, i); }
+for (let i = 0; i < 40; i++) { const a = hash(i, 5) * 6.283, r = 20 + hash(i, 6) * 26, x = Math.cos(a) * r * 1.3, z = Math.sin(a) * r * .8; if (Math.abs(x) < 38 && Math.abs(z) < 16) continue; put(R.tuft({ kind: i % 3 ? 'grass' : 'bush', c: '#a8a04e', s: .6 + hash(i, 7) * .5, seed: i % 3 }), x, z, i); }
+for (const [x, z, h] of [[-3.4, -2.2, 6.5], [3.2, 2.4, 7.5], [-21.5, 0, 7], [21.5, .5, 6], [28, -11, 8], [-27, 11, 8], [-12, 16.5, 9], [10, -17, 9]]) put(R.tree({ kind: 'tall', h, c: '#4f8a4a', seed: x }), x, z, x);
+put(R.rock({ s: .8, c: '#c09a6a', seed: 4 }), 22.5, -1.2); put(R.rock({ s: .5, c: '#c09a6a', seed: 6 }), -22.6, 1.4);
+scene.add(R.merge(fixed));
+
+// ---- 空：遠くの砂丘・雲・太陽 ----
+scene.add(R.backdrop({ c: '#d8a860', haze: '#f2e0b4', r: 240, h: 30, y: -3, seed: 3 }), R.backdrop({ c: '#e6c080', haze: '#f2e0b4', r: 250, h: 52, y: -4, rep: 3, seed: 7 }));
+for (let i = 0; i < 5; i++) { const c = R.cloud({ s: 30 + hash(i, 8) * 20, c: '#ffffff', shade: '#c8dcf0', seed: i }), a = i * 1.3 + .4; c.position.set(Math.cos(a) * 210, 60 + hash(i, 9) * 30, Math.sin(a) * 210); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 人：ターバン（頭にまいた布）は、人の頭の関節に足す ----
+const turban = (p, c) => { const m = R.geo().smooth(1).loft(8, [[.27, .175, .185, 0, .78], [.33, .225, .235, .3, 1], [.42, .215, .225, .65, 1.06], [.48, .12, .13, 1, 1.12]], { cap: 'top', ur: 3 }).mesh(T.fabric({ c, c2: R.mix(c, '#ffffff', .25), w: 4 })); m.rotation.x = .12; p.userData.J.head.add(m); return p; };
+const hero = turban(R.person({ face: 0, cloth: 'tunic', top: '#f2e8d2', top2: RED, bottom: '#6a4a36', boots: true, cape: TEAL, hair: '#3a2a22', skin: '#d8a070', s: 1.05 }), CREAM); scene.add(hero);
+const npc = (o, x, z, ry, tc) => { const p = R.person({ skin: '#cf9a68', ...o }); if (tc) turban(p, tc); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const sellers = [[-15, .9, 0, RED, 'vest', '#8a5a3a'], [-9, .9, 0, GOLD, 'robe', '#f0e4c8'], [9, .9, 0, BLUE, 'robe', '#b8552f'], [15, .9, 0, null, 'vest', TEAL], [-8, -.9, Math.PI, TEAL, 'robe', '#e8d8b0'], [10, -.9, Math.PI, RED, 'tunic', '#f0e4c8']].map(([x, z, ry, tc, cloth, top], i) => npc({ face: [4, 6, 7, 2, 4, 6][i], cloth, top, skirt: cloth === 'robe' ? 1 : 0, hair: '#2a2228', mouth: i % 2 ? 'mustache' : 'beard' }, x, z, ry, tc));
+const buyers = [[-9.3, 3.2, 3.3, { face: 3, cloth: 'robe', skirt: 1, top: '#b8552f', hairStyle: 'long', hair: '#3a2a22' }], [9.4, 3.1, 2.9, { face: 5, cloth: 'apron', skirt: .8, top: TEAL, hair: '#5a3a28', hat: 'straw' }], [10.4, -3.3, .2, { face: 1, cloth: 'robe', skirt: 1, top: '#f0e4c8', top2: BLUE }, BLUE]].map(([x, z, ry, o, tc]) => npc(o, x, z, ry, tc));
+const walkers = [[.38, 1.5, { face: 2, cloth: 'robe', skirt: 1, top: '#e8d8b0', top2: RED, pack: true }, RED], [.2, 1.7, { face: 7, cloth: 'vest', top: '#c89a3a', bottom: '#4a3a5a', hair: '#2a2228' }, null], [.72, 1.4, { face: 5, cloth: 'stripe', top: BLUE, shorts: 1, sleeve: 'short', s: .78, head: 1.15 }, GOLD]].map(([u0, off, o, tc]) => Object.assign(npc(o, 0, 0, 0, tc), { u0, off }));
+const cat = R.cat({ c: '#d8a860' }); cat.position.set(4.2, .7, 2.3); cat.rotation.y = 1; scene.add(cat);
+
+// ---- 主人公の道（バザールの通りをひと回り） ----
+const path = new THREE.CatmullRomCurve3([[-20, 5], [-10, 5.3], [0, 4.7], [10, 5.2], [20, 5], [23.6, 3.5], [25, 0], [23.6, -3.5], [20, -5], [10, -5.3], [0, -4.7], [-10, -5.2], [-20, -5], [-23.6, -3.5], [-25, 0], [-23.6, 3.5]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.9, S0 = 2.5 / LEN, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);   // ざらつきは切る（ほかは既定の強さ）
+let first = true, du = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
+  // うしろから追うカメラ（向きはゆっくり追いつく。たて長では近づく）
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
+  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.4, p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 商人と客（その場で身ぶり）、向こうから来てすれちがう人
+  sellers.forEach((s, i) => { R.idle(s, t + i, Math.sin(t * .5 + i) * .3); if (i % 2 === 0) { s.userData.J.armR.rotation.x = -.9 - Math.max(0, Math.sin(t * 2 + i)) * .5; s.userData.J.foreR.rotation.x = -1; } });
+  buyers.forEach((b, i) => R.idle(b, t + i * 2, Math.sin(t * .4 + i) * .2));
+  for (const w of walkers) { const uu = (((w.u0 - dist * (w.s ? 1.5 : .8) / LEN) % 1) + 1) % 1, q = path.getPointAt(uu), g = path.getTangentAt(uu); w.position.set(q.x + g.z * w.off, 0, q.z - g.x * w.off); w.rotation.y = Math.atan2(-g.x, -g.z); R.walk(w, t * 6.4 + w.u0 * 9, .9); }
+  R.catPose(cat, 'sit', t);
+  if ((du += dt) > .32) { du = 0; fx.emit('puff', p.x - tg.x * .2, .12, p.z - tg.z * .2, { size: .16, life: .6, vy: .2, grow: 1.4, tint: '#d8b888' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
