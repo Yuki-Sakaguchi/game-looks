@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-45 潜水艇 水槽の中の海底の町</title>
+<style>
+html,body{margin:0;height:100%;background:#10161c;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#bfe9e4;background:#10161c;padding:0 6px}
+</style>
+<div id="cap">6-45 ─ 潜水艇 / 暗い部屋の水槽の中の、小さな海底の町　｜　見るだけ（自動でめぐって真珠を集める）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：水槽の中だけが明るい。水は青緑 1 色の霧で、奥ほど水の色にとける。上から光のすじ、あわはドット絵。
+// 町は「砂のクリーム・さんご色・白」、主役の潜水艇だけ黄色。ガラスは、ふちの明るい線と、ななめの映りこみで表す。
+// 仕上げは軽く：光っている所を少しにじませ、画面のすみを少し暗くする
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 36, fitAspect: 1 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#10161c'); scene.fog = new THREE.Fog('#2aa0a4', 22, 58);
+K.lights(scene, renderer, { pos: [-5, 30, 9], range: 14, sky: 0xd8fff8, ground: 0x4ab0b0, amb: 1.7, power: 2.4, sun: 0xf4fff0 });
+const W = 24, HH = 14, D = 12, SAND = '#f0e0b0', CORAL = '#f28a74', WHITE = '#fff8ec', YEL = '#f6c63a', S = m => { m.castShadow = m.receiveShadow = true; return m; };
+const gl = (c, o) => glow(c, { transparent: true, opacity: o, depthWrite: false, fog: false });
+// 水槽：水の色の内がわ、砂の底、水面、ガラスのふちと映りこみ、暗い台
+add(scene, new THREE.BoxGeometry(W, HH, D), glow('#ffffff', { map: K.sky([[0, '#7adcd0'], [.5, '#2f9aa6'], [1, '#17667c']]), side: THREE.BackSide, fog: false }), 0, HH / 2, 0);
+box(scene, W - .1, .7, D - .1, SAND, 0, .3, 0).receiveShadow = true; for (let i = 0; i < 7; i++) { const d = add(scene, new THREE.SphereGeometry(2 + hash(i, 1) * 1.2, 10, 5), SAND, -8 + i * 2.7, .3, -2 + hash(i, 2) * 4); d.scale.y = .22; d.receiveShadow = true; }
+add(scene, new THREE.PlaneGeometry(W, D), gl('#d8fff4', .55), 0, HH - .8, 0).rotation.x = Math.PI / 2;
+for (const x of [-1, 1]) for (const z of [-1, 1]) add(scene, new THREE.BoxGeometry(.14, HH, .14), gl('#e8fffa', z > 0 ? .9 : .3), x * W / 2, HH / 2, z * D / 2);
+for (const y of [0, HH]) for (const z of [-1, 1]) add(scene, new THREE.BoxGeometry(W, .14, .14), gl('#e8fffa', z > 0 ? .9 : .3), 0, y, z * D / 2); for (const y of [0, HH]) for (const x of [-1, 1]) add(scene, new THREE.BoxGeometry(.14, .14, D), gl('#e8fffa', .5), x * W / 2, y, 0);
+for (const [x, w, o] of [[-7.5, 2.2, .07], [-5.3, .7, .05], [8, 1.2, .04]]) { const g = new THREE.PlaneGeometry(w, HH - .4); g.applyMatrix4(new THREE.Matrix4().makeShear(0, 0, .35, 0, 0, 0)); add(scene, g, gl('#ffffff', o), x, HH / 2, D / 2 + .02); }
+box(scene, W + 3, 1.2, D + 2.5, flat('#3a2c2a', { fog: false }), 0, -.62, 0); box(scene, 90, .4, 50, flat('#1c2026', { fog: false }), 0, -1.4, 0);
+add(scene, new THREE.PlaneGeometry(W + 8, 7), gl('#2aa0a4', .16), 0, -1.18, D / 2 + 4.6).rotation.x = -Math.PI / 2;
+// 上からの光のすじ（下へいくほど消える）
+const rayTex = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = 8; c.height = 64; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 8, 64); return c; })());
+const rays = [...Array(6)].map((_, i) => { const r = add(scene, new THREE.PlaneGeometry(1.4 + hash(i, 3) * 2, 13), glow('#e8fff0', { map: rayTex, transparent: true, opacity: .2, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }), -10 + i * 4 + hash(i, 4) * 2, 6.7, -4 + hash(i, 5) * 7); r.rotation.z = -.28; return r; });
+// 町：ドームの家、貝の塔、海草の並木
+for (const [x, z, r, c] of [[-5.5, -1.2, 1.9, WHITE], [-2.6, .6, 1.3, CORAL], [.2, -1.6, 1.6, CORAL], [5.6, .4, 1.5, WHITE], [7.6, -2, 1.1, CORAL], [-8.4, 1.2, 1, CORAL]]) { S(add(scene, new THREE.SphereGeometry(r, 14, 7, 0, 6.283, 0, 1.57), c, x, .6, z)); add(scene, new THREE.SphereGeometry(r * .22, 8, 6), c === WHITE ? CORAL : WHITE, x, .6 + r, z);
+  box(scene, r * .5, r * .6, .1, '#3a6a7a', x, .6 + r * .3, z + r * .97); for (const s of [-1, 1]) add(scene, new THREE.SphereGeometry(r * .17, 8, 6), glow('#fff2a0', { fog: false }), x + s * r * .62, .6 + r * .5, z + r * .7); }
+for (let k = 0; k < 7; k++) { const r = 1.5 * (1 - k / 8.5), m = S(add(scene, new THREE.CylinderGeometry(r * .72, r, .8, 9), k % 2 ? WHITE : '#f8c4b4', 2.9 + Math.cos(k * .9) * .16, 1 + k * .68, -.4 + Math.sin(k * .9) * .16)); m.rotation.set(.12, k * .5, .1); } add(scene, new THREE.SphereGeometry(.3, 8, 6), glow('#fff2a0', { fog: false }), 2.9, 6, -.4);
+const weeds = [...Array(18)].map((_, i) => { const back = i % 2, h = back ? 4 + hash(i, 6) * 3.5 : 1.6 + hash(i, 6) * 1.6, g = new THREE.ConeGeometry(.42, h, 4); g.translate(0, h / 2, 0); g.scale(1, 1, .4); return S(add(scene, g, i % 3 ? '#3fb07a' : '#6ac88a', -11 + i * 1.3 + hash(i, 7), .5, back ? -4.6 + hash(i, 8) : 4.3 + hash(i, 8) * .9)); });
+// 潜水艇（前は +z）、真珠、大きな魚、小さな魚のむれ
+const sub = new THREE.Group(); { const b = new THREE.CapsuleGeometry(1.05, 2.3, 4, 12); b.rotateX(Math.PI / 2); add(sub, b, new THREE.MeshStandardMaterial({ color: YEL, roughness: .35 })); add(sub, new THREE.CylinderGeometry(.5, .6, .8, 10), YEL, 0, 1.15, .2); add(sub, new THREE.CylinderGeometry(.07, .07, .9, 5), WHITE, 0, 1.8, .3); box(sub, .1, .12, .4, WHITE, 0, 2.2, .45);
+  for (const s of [-1, 1]) { for (const z of [-.6, .5]) add(sub, new THREE.CylinderGeometry(.34, .34, .1, 12), glow('#c8fff8', { fog: false }), s * 1.02, .1, z).rotation.z = Math.PI / 2; box(sub, 1, .1, .7, CORAL, s * 1.1, -.3, -1.5); } box(sub, .1, 1, .7, CORAL, 0, .9, -1.6);
+  add(sub, new THREE.SphereGeometry(.42, 10, 8), glow('#fffbe0', { fog: false }), 0, 0, 2.05); const lt = new THREE.ConeGeometry(1.5, 5, 12, 1, true); lt.rotateX(-Math.PI / 2); lt.translate(0, 0, 4.5); add(sub, lt, glow('#fffbd0', { transparent: true, opacity: .1, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+  sub.userData.prop = new THREE.Group(); sub.userData.prop.position.z = -2.35; box(sub.userData.prop, 1.4, .22, .08, WHITE); box(sub.userData.prop, .22, 1.4, .08, WHITE); sub.add(sub.userData.prop); sub.traverse(m => { if (m.isMesh && !m.material.transparent) m.castShadow = true; }); scene.add(sub); }
+const path = (a, v) => v.set(Math.cos(a) * 8.4, 6 + Math.sin(a * 2) * 1.5, Math.sin(a) * 3.3), v = new THREE.Vector3(), v2 = new THREE.Vector3();
+const pearls = [...Array(8)].map((_, i) => { const a = i * .785 + .35, m = add(scene, new THREE.SphereGeometry(.34, 10, 8), glow('#fff6d8', { fog: false })); path(a, m.position); m.userData = { a, since: 9 }; return m; });
+const fish = new THREE.Group(); { const m = flat('#f47c4a'), b = add(fish, new THREE.IcosahedronGeometry(1.5, 1), m); b.scale.set(1.5, 1, .42); const tl = add(fish, new THREE.ConeGeometry(1.1, 1.6, 4), m, -2.6, 0, 0); tl.rotation.z = -Math.PI / 2; tl.scale.z = .25; fish.userData.tail = tl; box(fish, 1.3, .5, .1, WHITE, .2, 0, .58); box(fish, 1.3, .5, .1, WHITE, .2, 0, -.58); add(fish, new THREE.SphereGeometry(.2, 8, 6), '#2a3440', 1.5, .3, .42); add(fish, new THREE.ConeGeometry(.6, 1, 4), m, .1, 1.5, 0).scale.z = .25; scene.add(K.shadow(fish, true, false)); }
+const school = [...Array(7)].map((_, i) => { const g = add(scene, new THREE.ConeGeometry(.2, .8, 4), flat('#ffffff', { emissive: '#5ac0c0' })); g.rotation.z = Math.PI / 2; g.scale.z = .4; return g; });
+const fx = K.fx(scene, 90); let bT = 0;
+const post = K.post(renderer, `void main(){vec3 c=src(vUv),g=vec3(0.);for(int i=0;i<10;i++){float a=float(i)*2.4,r=sqrt(float(i)+.5)*.3;g+=max(src(vUv+vec2(cos(a)*res.y/res.x,sin(a))*r*.018)-.72,0.);}c+=g*.22;
+c=mix(vec3(luma(c)),c,1.1);c*=1.-.45*dot(vUv-.5,vUv-.5);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const a = t * .39; path(a, sub.position); path(a + .05, v); sub.rotation.y = Math.atan2(v.x - sub.position.x, v.z - sub.position.z); sub.rotation.x = -(v.y - sub.position.y) * .8; sub.userData.prop.rotation.z = t * 16;
+  pearls.forEach(p => { const u = p.userData, s = ((a - u.a) % 6.283 + 6.283) % 6.283; if (s < u.since && t > .2) for (let k = 0; k < 6; k++) fx.emit('spark', p.position.x, p.position.y, p.position.z, { spread: 3, life: .6, size: .7, add: true, fog: false }); u.since = s; p.scale.setScalar(s > 3.4 ? Math.min(1, (s - 3.4) * 3) * (1 + .12 * Math.sin(t * 4 + u.a)) : .001); });
+  if ((bT -= dt) < 0) { bT = .13; path(a - .2, v2); fx.emit('bubble', v2.x, v2.y + .3, v2.z, { vy: 1.6, spread: .7, life: 2.2, size: .5, grow: .8, fog: false }); const i = Math.floor(hash(t, 1) * 3); fx.emit('bubble', [-5.5, 2.9, 7.6][i], [2.8, 6.2, 1.9][i], [-1.2, -.4, -2][i], { vy: 2.2, spread: .5, life: 3, size: .35, grow: 1, fog: false }); } fx.update(dt);
+  const fa = (t - 4) * .33; fish.position.set(Math.sin(fa) * 8.2, 10.6 + Math.sin(t * .8) * .5, 4.6); fish.rotation.y = (1 - Math.max(-1, Math.min(1, Math.cos(fa) * 5))) * 1.5708 + Math.sin(t * 5) * .08; fish.userData.tail.rotation.y = Math.sin(t * 7) * .5;
+  school.forEach((f, i) => f.position.set(16 - (t * 2 + i * 1.1 + hash(i, 9) * 3) % 32, 9 + Math.sin(i * 2.1) * 1.4 + Math.sin(t + i) * .2, -3.6 + hash(i, 10) * 2));
+  weeds.forEach((w, i) => w.rotation.z = Math.sin(t * 1.1 + i) * .14); rays.forEach((r, i) => r.material.opacity = .14 + .08 * Math.sin(t * .9 + i * 1.7));
+  const tall = cam.aspect < 1, cx = tall ? sub.position.x * .75 : 0; cam.position.set(cx + Math.sin(t * .2 + .6) * (tall ? 2 : 6), 8.2 + Math.sin(t * .15) * 1, 32); cam.lookAt(cx + Math.sin(t * .2 + .6) * (tall ? .5 : 1.5), 6.8, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

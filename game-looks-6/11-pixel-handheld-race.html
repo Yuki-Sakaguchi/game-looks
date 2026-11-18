@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-11 レース 黄緑 4 階調のドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#17361f;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#17361f;background:#dbe97c;padding:0 6px}
+</style>
+<div id="cap">6-11 ─ レース / 峠道を「昔の携帯ゲーム機」ふうの黄緑 4 階調で描く　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ローポリの峠道を横 200 ドットで粗く描き、色は捨てて明るさだけを取り出し、黄緑がかった 4 階調（暗い緑〜明るい黄緑）に丸める。
+// 段の境目は点の並び（ディザ）で混ぜる。近くの物のふちには、いちばん暗い色で 1 ドットの線を引く。場面は灰色の濃さだけで組んである
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 45, far: 700 }), { add, box, hash, flat } = K;
+cam.near = 1; cam.updateProjectionMatrix();
+scene.background = K.sky([[0, '#b4b4b4'], [.22, '#dcdcdc'], [.4, '#f8f8f8'], [1, '#f8f8f8']]); scene.fog = new THREE.Fog('#f2f2f2', 45, 135);
+const { sun } = K.lights(scene, renderer, { range: 34 });
+// 道は x の方向へのびる。L ごとに同じ形がくり返すので、走り続けてもつなぎ目が見えない
+const L = 402, w = Math.PI * 2 / L;
+const road = x => Math.sin(x * w * 3) * 11 + Math.sin(x * w * 5 + 1) * 4, dr = x => Math.cos(x * w * 3) * 33 * w + Math.cos(x * w * 5 + 1) * 20 * w;
+const base = x => Math.sin(x * w * 2) * 5 + Math.sin(x * w) * 4;
+const H = (x, z) => { const d = z - road(x), m = Math.max(0, -d - 12), v = Math.max(0, d - 12); return base(x) + Math.min(36, m * .95) + Math.sin(x * w * 23) * Math.cos(z * .21) * Math.min(2.4, m * .3) - Math.min(34, v * .7); };
+const P = (x, o, y = 0) => { const s = dr(x), l = Math.hypot(1, s), ax = x - o * s / l; return [ax, base(ax) + y, road(x) + o / l]; };   // 道の中心から横へ o はなれた点
+const C = K.colors('#a8a8a8', '#8c8c8c', '#787878', '#9c9c9c');
+const land = K.terrain(H, 80, 80, 3, (y, x, z) => { const d = z - road(x); return Math.abs(d) < 12 ? C[0] : d < 0 ? C[1 + (hash(Math.round(z * .2), Math.round(((x % L) + L) % L * .2)) > .5)] : C[3]; });
+land.mesh.receiveShadow = true; scene.add(land.mesh);
+// 帯：道の面、白線、ガードレールの板
+const strip = (st, fa, fb, mat) => { const p = [], ix = []; let n = 0; for (let x = -150; x <= L + 170; x += st, n++) { p.push(...fa(x), ...fb(x)); if (n) ix.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setIndex(ix); g.computeVertexNormals(); mat.side = THREE.DoubleSide; return add(scene, g, mat); };
+strip(2, x => P(x, -4.4, .12), x => P(x, 4.4, .12), flat('#6c6c6c')).receiveShadow = true;
+for (const o of [-3.9, 3.6]) strip(2, x => P(x, o, .17), x => P(x, o + .3, .17), K.glow('#f4f4f4'));
+strip(2, x => P(x, 5.4, .55), x => P(x, 5.4, 1.05), K.glow('#f4f4f4'));
+// たくさん並ぶ物（中央線、ガードレールの柱、杉）はまとめて描く
+const dm = new THREE.Object3D(), inst = (geo, mat, list) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((f, i) => { dm.rotation.set(0, 0, 0); dm.scale.setScalar(1); f(dm); dm.updateMatrix(); m.setMatrixAt(i, dm.matrix); }); m.castShadow = true; scene.add(m); return m; };
+const along = st => { const a = []; for (let x = -150; x < L + 170; x += st) a.push(x); return a; };
+inst(new THREE.BoxGeometry(2.6, .04, .3), K.glow('#f4f4f4'), along(7).map(x => o => { o.position.set(...P(x, 0, .18)); o.rotation.y = -Math.atan(dr(x)); })).castShadow = false;
+inst(new THREE.BoxGeometry(.3, 1.1, .3), flat('#4a4a4a'), along(4).map(x => o => o.position.set(...P(x, 5.5, .55))));
+const cedar = []; for (let i = 0; i < 70; i++) for (const k of [-1, 0, 1]) { const x = hash(i, 1) * L + k * L, d = i % 4 ? -(7.5 + hash(i, 2) * hash(i, 2) * 34) : 9 + hash(i, 2) * 24; if (x > -150 && x < L + 170) cedar.push([x, road(x) + d, .8 + hash(i, 3) * .8]); }
+const cone = new THREE.ConeGeometry(1.5, 5, 6); cone.translate(0, 2.5, 0);
+inst(cone, flat('#383838'), cedar.flatMap(([x, z, s]) => [o => { o.position.set(x, H(x, z) + 1.2 * s, z); o.scale.setScalar(s); }, o => { o.position.set(x, H(x, z) + 3.6 * s, z); o.scale.setScalar(s * .7); o.rotation.y = .5; }]));
+inst(new THREE.CylinderGeometry(.25, .3, 2, 5), flat('#1c1c1c'), cedar.map(([x, z, s]) => o => { o.position.set(x, H(x, z) + .6, z); o.scale.setScalar(s); }));
+// 遠くの山なみ（車といっしょに動く）
+const far = new THREE.Group(); scene.add(far); for (let i = 0; i < 7; i++) { const r = 60 + hash(i, 5) * 50, m = add(far, new THREE.ConeGeometry(r, r * .8, 5), flat('#b2b2b2', { fog: false }), 150 + i * 45 + hash(i, 6) * 30, -24 + r * .4, 130 + hash(i, 7) * 220 - i * 28); m.rotation.y = i; m.userData.noEdge = true; }
+// 自分の車（白）と、前を走るライバル車
+const mk = (body, top, wing) => { const g = K.shadow(K.car(body, top)); if (wing) { box(g, 1.9, .1, .45, '#2c2c2c', 0, 1.3, -1.6); for (const x of [-.7, .7]) box(g, .1, .3, .1, '#2c2c2c', x, 1.12, -1.6); box(g, .5, .04, 3.42, '#5a5a5a', 0, 1.02, 0); } g.scale.setScalar(1.25); scene.add(g); return g; };
+const me = mk('#f6f6f6', '#9a9a9a', true), rival = mk('#c2c2c2', '#3a3a3a', false);
+const fx = K.fx(scene, 50); let pT = 0;
+const G = ['#17361f', '#3d6e3a', '#8eb43c', '#dbe97c'], V = c => { const q = new THREE.Color(c).convertLinearToSRGB(); return `vec3(${q.r.toFixed(3)},${q.g.toFixed(3)},${q.b.toFixed(3)})`; };
+const post = K.post(renderer, K.PALETTE(G, .1, `float l=clamp(luma(c)*1.04,0.,1.)*3.;float e=edge(uv+px*.5,1.,1.,.09)*(1.-smoothstep(30.,46.,dep(uv)));l=mix(l,0.,e);
+c=l<1.?mix(${V(G[0])},${V(G[1])},l):l<2.?mix(${V(G[1])},${V(G[2])},l-1.):mix(${V(G[2])},${V(G[3])},l-2.);`), {}, { width: 200, gbuf: true }); onResize(post.resize);
+const place = (g, x, o, t) => { g.position.set(...P(x, o)); g.rotation.y = Math.atan2(1, dr(x)); g.rotation.z = (dr(x + 2) - dr(x - 2)) * .5; g.position.y += Math.abs(Math.sin(t * 31)) * .03; g.userData.wheels.forEach(q => q.rotation.x = t * 30); };
+K.loop((dt, t) => {
+  const x = (t * 26) % L, o = Math.sin(t * .5) * 1.4 + .8, xr = x + 15 + Math.sin(t * .37) * 4;
+  place(me, x, o, t); place(rival, xr, Math.cos(t * .45) * 2.2 - .4, t + 1);
+  if ((pT -= dt) < 0) { pT = .07; const p = P(x - 2.2, o + (Math.random() < .5 ? -1 : 1), .3); fx.emit('puff', ...p, { vy: .8, spread: .8, life: .5, size: .6, grow: 1.4 }); } fx.update(dt);
+  land.follow(x, road(x)); far.position.x = x; sun.position.set(me.position.x - 22, me.position.y + 40, me.position.z + 24); sun.target.position.copy(me.position);
+  const tall = cam.aspect < 1, D = tall ? 6.4 : 8.6;
+  cam.position.set(...P(x - D, tall ? o : o * .6, tall ? 3 : 3.5)); cam.lookAt(...P(x + 9, tall ? o : o * .4, 1.3));
+  post.render(scene, cam, t);
+});
+</script>
+</html>

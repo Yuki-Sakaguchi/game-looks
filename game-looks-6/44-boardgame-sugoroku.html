@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-44 すごろく 厚紙の盤と木のこま</title>
+<style>
+html,body{margin:0;height:100%;background:#b08460;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a3a2a;background:#f6ecd4;padding:0 6px}
+</style>
+<div id="cap">6-44 ─ すごろく / 机の上の厚紙の盤と、木のこま・さいころ　｜　見るだけ（自動でさいころをふって進む）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：盤は厚紙のクリーム色、ますは「白・さんご色・青緑」の 3 色だけ。山・家・木は紙工作のような単純な立体。
+// こまとさいころは、つやのある塗りの木。影はやわらかく、机は茶色 1 色。
+// 仕上げは軽く：画面の上下を少しぼかして卓上の小さな物に見せ、色を少しだけ濃くする
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#b08460'); scene.fog = new THREE.Fog('#b08460', 40, 90);
+const { sun } = K.lights(scene, renderer, { pos: [-12, 30, 10], range: 20, sky: 0xffffff, ground: 0xe8c8a0, amb: 1.7, power: 2.4 });
+const CARD = '#f6ecd4', CORAL = '#f29c84', TEAL = '#5ab8a8', WHITE = '#fffaf0', GREEN = '#6ab070', S = m => { m.castShadow = m.receiveShadow = true; return m; };
+const wood = c => new THREE.MeshStandardMaterial({ color: c, roughness: .32 });
+// 机と盤（ふちは青緑の帯）
+const desk = add(scene, new THREE.PlaneGeometry(240, 240), flat('#b08460'), 0, -.7, 0); desk.rotation.x = -Math.PI / 2; desk.receiveShadow = true; for (let i = -5; i <= 5; i++) box(scene, 240, .02, .14, '#9c7250', 0, -.69, i * 9 + 3);
+S(box(scene, 31, .7, 23, TEAL, 0, -.36, 0)); S(box(scene, 29.6, .7, 21.6, CARD, 0, -.35, 0)).position.y = -.34;
+// ますの道：外まわりに 24 ます。1 つは川にかかる橋
+const SQ = []; for (let i = 0; i < 8; i++) SQ.push([-10.5 + i * 3, 7.5]); for (let i = 1; i <= 4; i++) SQ.push([10.5, 7.5 - i * 3]); for (let i = 0; i < 8; i++) SQ.push([10.5 - i * 3, -7.5]); for (let i = 1; i <= 4; i++) SQ.push([-10.5, -7.5 + i * 3]);
+const BR = 5, hY = i => i === BR ? .5 : .1;
+SQ.forEach(([x, z], i) => { if (i === BR) { S(box(scene, 2.9, .3, 2.6, '#c89868', x, .36, z)); for (const s of [-1, 1]) S(box(scene, 2.9, .5, .16, '#a87850', x, .7, z + s * 1.3)); return; }
+  const sp = i % 6 === 0, m = S(box(scene, 2.6, .12, 2.6, sp ? TEAL : i % 2 ? CORAL : WHITE, x, .05, z)); if (sp) { const st = add(scene, new THREE.CylinderGeometry(.7, .7, .04, 5), glow('#fff2a0'), x, .13, z); st.rotation.y = i; } else add(scene, new THREE.CylinderGeometry(.42, .42, .04, 12), flat(i % 2 ? WHITE : CORAL), x, .12, z); });
+box(scene, 1.3, .06, 7.4, '#7ac8e0', SQ[BR][0], .02, 7.1); { const p = add(scene, new THREE.CylinderGeometry(2.3, 2.3, .06, 14), flat('#7ac8e0'), 4.2, .02, 2.2); p.scale.z = .7; }
+// まん中の立体：山、家、木
+for (const [x, z, r, h] of [[-4.4, -.4, 2.6, 3.6], [-2.3, .9, 1.7, 2.2]]) { S(add(scene, new THREE.ConeGeometry(r, h, 6), GREEN, x, h / 2, z)); add(scene, new THREE.ConeGeometry(r * .36, h * .36, 6), WHITE, x, h * .83, z); }
+for (const [x, z, ry, c] of [[1.2, -2.2, .3, CORAL], [4.6, -1.6, -.4, TEAL], [6.4, 1.2, 1.2, CORAL]]) { const h = K.shadow(K.house(1.5, 1, 1.9, WHITE, c, '#6a8aa0')); h.position.set(x, 0, z); h.rotation.y = ry; scene.add(h); }
+for (let i = 0; i < 9; i++) { const x = -6.6 + hash(i, 1) * 13.6, z = -3.4 + hash(i, 2) * 2.2 + (i % 2) * 4.2; if (Math.hypot(x - 4.2, (z - 2.2) / .7) < 2.6 || Math.hypot(x + 3.8, z) < 2.9) continue; const tr = K.shadow(i % 3 ? K.tree(1.5, GREEN, '#8a6040', '#84c07a') : K.pine(1.7, '#4f9a68', '#8a6040')); tr.position.set(x, 0, z); scene.add(tr); }
+// こま 3 つ、さいころ、光るます
+const pawns = ['#e8503a', '#3a6ab8', '#f2b83a'].map((c, i) => { const g = new THREE.Group(), m = wood(c); add(g, new THREE.CylinderGeometry(.6, .66, .24, 16), m, 0, .12, 0); add(g, new THREE.CylinderGeometry(.2, .52, 1.25, 16), m, 0, .8, 0); add(g, new THREE.SphereGeometry(.42, 16, 12), m, 0, 1.6, 0); g.userData = { at: [3, 1, 0][i], off: [(i - 1) * .75, (i - 1) * .35] }; scene.add(K.shadow(g, true, false)); return g; });
+const PIP = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] }, face = n => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#fffaf0'; x.fillRect(0, 0, 64, 64); x.fillStyle = n === 1 ? '#e8503a' : '#3a3440'; for (const k of PIP[n]) { x.beginPath(); x.arc(14 + (k % 3) * 18, 14 + (k / 3 | 0) * 18, n === 1 ? 9 : 6, 0, 7); x.fill(); } const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return new THREE.MeshStandardMaterial({ map: t, roughness: .3 }); };
+const dice = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), [3, 4, 1, 6, 2, 5].map(face)); dice.castShadow = true; scene.add(dice); const TOP = { 1: [0, 0], 6: [Math.PI, 0], 2: [-Math.PI / 2, 0], 5: [Math.PI / 2, 0], 3: [0, Math.PI / 2], 4: [0, -Math.PI / 2] };
+const lit = add(scene, new THREE.BoxGeometry(2.7, .1, 2.7), glow('#fff6b0', { transparent: true, opacity: 0, depthWrite: false }), 0, .16, 0);
+const fx = K.fx(scene, 40), TURN = 4.2, look = new THREE.Vector3(), v = new THREE.Vector3(), N = SQ.length; let turn = -1, who = 0, n = 0, from = 0, done = true;
+const spot = (p, k, out) => { const i = Math.floor(k) % N, j = (i + 1) % N, f = k - Math.floor(k), e = f * f * (3 - 2 * f), o = p.userData.off; return out.set(SQ[i][0] + (SQ[j][0] - SQ[i][0]) * e + o[0], hY(i) + (hY(j) - hY(i)) * e + Math.sin(f * Math.PI) * 1.2, SQ[i][1] + (SQ[j][1] - SQ[i][1]) * e + o[1]); };
+const post = K.post(renderer, `void main(){float b=smoothstep(.2,.52,abs(vUv.y-.47));vec3 c=vec3(0.);for(int i=0;i<12;i++){float a=float(i)*2.4,r=sqrt(float(i)+.5)*.29;c+=src(vUv+vec2(cos(a)*res.y/res.x,sin(a))*r*b*.012);}c/=12.;
+c=mix(vec3(luma(c)),c,1.14);c*=1.-.35*dot(vUv-.5,vUv-.5);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+pawns.forEach(p => p.position.copy(spot(p, p.userData.at, v)));
+K.loop((dt, t) => {
+  const tt = t + TURN - 1, tn = Math.floor(tt / TURN), s = tt - tn * TURN;
+  if (tn !== turn) { if (turn >= 0) pawns[who].userData.at = (from + n) % N; turn = tn; who = tn % 3; n = 3 + Math.floor(hash(tn, 9) * 4); from = pawns[who].userData.at; done = false; }
+  const p = pawns[who], here = SQ[from], k = Math.min(1, s / 1.3), q = 1 - k, ix = Math.max(-7.4, Math.min(7.4, here[0] * .78)), iz = Math.max(-4.6, Math.min(4.6, here[1] * .62));   // さいころは、こまの近くの内がわへころがる
+  dice.position.set(ix + q * 5, .65 + Math.abs(Math.sin(k * 9.42)) * q * 2.6, iz + q * 2); dice.rotation.set(TOP[n][0] + q * q * 14, q * q * 9, TOP[n][1] + q * q * 11);
+  const m = Math.max(0, Math.min(n, (s - 1.4) / .3)); p.position.copy(spot(p, from + m, v)); p.scale.y = 1 + Math.sin((m % 1) * Math.PI) * .12;
+  const end = SQ[(from + n) % N], g = s - 1.4 - n * .3; if (g > 0 && !done) { done = true; for (let i = 0; i < 7; i++) fx.emit('spark', end[0], 1, end[1], { spread: 3, vy: 1.6, life: .7, size: .7, add: true, fog: false }); }
+  lit.position.set(end[0], hY((from + n) % N) + .07, end[1]); lit.material.opacity = g > 0 ? Math.max(0, .85 * Math.exp(-g * 1.6) * (.7 + .3 * Math.sin(g * 14))) : 0; fx.update(dt);
+  look.lerp(v.set(p.position.x * .8 + dice.position.x * .2, 0, p.position.z * .8 + dice.position.z * .2), t > .1 ? Math.min(1, dt * 2.5) : 1); const tall = cam.aspect < 1;
+  cam.position.set(look.x * .82, tall ? 13 : 9.2, look.z + (tall ? 8 : 10.4)); cam.lookAt(look.x, .8, look.z - (tall ? 2.4 : 0)); sun.position.set(look.x - 12, 30, look.z + 10); sun.target.position.copy(look);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

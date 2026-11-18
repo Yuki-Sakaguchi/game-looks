@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-02 配達 棚田の朝霧</title>
+<style>
+html,body{margin:0;height:100%;background:#fff0e4;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#8a5a50;background:#fff0e4;padding:0 6px}
+</style>
+<div id="cap">6-02 ─ 配達 / 棚田の朝を、空を映す水のもも色と あぜの黄緑、白い霧の層で描く　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 仕上げの加工は使わない。段々の田んぼは「平らで大きな 1 色の面」（水＝空のもも色）と、あぜの黄緑だけ。
+// 谷には、白くうすい水平の板を何枚か重ねて霧の層にする。低い朝日の長い影と、遠くほど もも色にとける霧で朝の空気を出す。
+// 差し色は配達バイクの赤 1 つ
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 54, maxFov: 80 }), { add, box, hash, glow, flat } = K;
+scene.background = K.sky([[0, '#b8d4f0'], [.3, '#ffd4c4'], [.48, '#fff0d0'], [1, '#fff4ea']]); scene.fog = new THREE.Fog('#ffe6d8', 30, 150);
+const { sun } = K.lights(scene, renderer, { sky: '#fff0e8', ground: '#d8c8a8', amb: 2.3, sun: '#ffb890', power: 2.4, range: 26 });
+// 地面：まっすぐなあぜ道にそって段が並ぶ。g は道からの横のずれ（遠い段だけ少しうねる）、k は何段めか（右へ行くほど低い）。
+// 段の境目をマス目にそろえ、色もマスごとに決めて、面をすっきりさせる
+const W = 10, CELL = 2.5, R = x => 0, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const G = (x, z) => z + Math.sin(x * .03 + z * .02) * 5 * clamp((Math.abs(z) - 26) / 20, 0, 1);
+const step = g => Math.floor((g + 2.5) / W);
+const H = (x, z) => { const g = G(x, z), k = step(g); return k < -3 ? 5.4 + (-32.5 - g) * .5 + Math.sin(x * .09 + z * .07) * 1.2 : -k * 1.8; };
+const C = K.colors('#fff3ec', '#ffe2da', '#eaf1fa', '#b6d95a', '#9ccb4c', '#ecc79c', '#6fae52');
+const land = K.terrain(H, 110, 80, CELL, (y, x, z) => {
+  const xc = (Math.floor(x / CELL) + .5) * CELL, zc = (Math.floor(z / CELL) + .5) * CELL, g = G(xc, zc), k = step(g), v = g + 2.5 - k * W, cx = xc + k * 7.5;
+  if (k < -3) return C[6]; if (Math.abs(y - H(x, z)) > .05) return C[3];                 // 山の林／段と段の間の斜面（あぜ）
+  if (k === 0) return C[v < 5 ? 5 : 4]; if (((cx % 20) + 20) % 20 < CELL) return C[4];   // 道と路肩／田を仕切るあぜ
+  return C[Math.floor(hash(k, Math.floor(cx / 20)) * 3)];                               // 水（空を映す明るい面）
+}); land.mesh.receiveShadow = true; scene.add(land.mesh);
+// 霧の層：白くうすい水平の板。低い段ほど何枚もの下になって白くとける
+const mist = [0, 1, 2, 3].map(i => { const m = add(scene, new THREE.PlaneGeometry(700, 700).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#fff6ee', transparent: true, opacity: .34, depthWrite: false, fog: false }), 0, -4.4 - i * 1.7, 0); m.renderOrder = 2; return m; });
+// 遠くの山なみと朝日（主役といっしょに動く、空の一部）
+const far = new THREE.Group(); scene.add(far);
+for (let i = 0; i < 9; i++) { const r = 50 + hash(i, 1) * 40, m = add(far, new THREE.ConeGeometry(r, 30 + hash(i, 2) * 24, 5), glow(['#f0bcc8', '#e2aac8', '#d49cc6'][i % 3], { fog: false }), 150 + i * 34 - (i % 3) * 30, -8, 250 - i * 42 + (i % 3) * 40); m.rotation.y = i; }
+add(far, new THREE.SphereGeometry(11, 16, 10), glow('#fff6d0', { fog: false }), 300, 30, 120); add(far, new THREE.SphereGeometry(20, 16, 10), new THREE.MeshBasicMaterial({ color: '#ffe8b0', transparent: true, opacity: .35, fog: false, depthWrite: false }), 300, 30, 120);
+// あぜの木と電柱、山ぎわの家（主役の前へ送りなおす）
+const zOf = (x, g) => { let z = g + R(x); for (let n = 0; n < 4; n++) z += g - G(x, z); return z; };
+const N = 24, SP = 9, props = [];
+for (let i = 0; i < N; i++) {
+  let g, gg;
+  if (i % 4 === 0) { g = new THREE.Group(); box(g, .22, 6.4, .22, '#7a5a4a', 0, 3.2, 0).castShadow = true; box(g, 2, .16, .16, '#7a5a4a', 0, 5.8, 0); gg = 3.7; }
+  else if (i % 8 === 3) { g = K.shadow(K.house(4, 2.6, 5, '#fff4e4', '#d8705a')); g.rotation.y = 1.2; gg = -44; }
+  else { g = K.tree(3 + hash(i, 3) * 2.4, '#7fb850', '#7a5a4a', '#9ccc5c'); gg = [-2, 1, 0, -1, 2, -3][i % 6] * W + 6.2; }
+  g.userData = { i, gg }; scene.add(g); props.push(g);
+}
+// 配達バイク：赤い車体、白い荷箱、ヘルメットの人。前は +z
+const bike = new THREE.Group(), RED = '#e8503a', wheels = []; scene.add(bike); bike.scale.setScalar(1.5);
+for (const z of [.85, -.85]) { const w = add(bike, new THREE.CylinderGeometry(.42, .42, .2, 10), '#3a3440', 0, .42, z); w.rotation.z = Math.PI / 2; wheels.push(w); }
+box(bike, .5, .46, 1.5, RED, 0, .72, -.05); box(bike, .56, .95, .16, RED, 0, 1, .72).rotation.x = -.2; box(bike, .95, .08, .08, '#3a3440', 0, 1.5, .64); box(bike, .2, .2, .08, glow('#fff6c0'), 0, 1.2, .86);
+box(bike, .46, .14, .7, '#3a3440', 0, 1.02, -.2); box(bike, .76, .62, .66, '#fff8ec', 0, 1.36, -.86); box(bike, .78, .16, .68, RED, 0, 1.36, -.86);
+box(bike, .5, .68, .34, '#fff8ec', 0, 1.46, -.12).rotation.x = .18; box(bike, .4, .4, .4, '#f2c8a0', 0, 2.02, .0); box(bike, .46, .26, .46, RED, 0, 2.18, -.02);
+for (const s of [-1, 1]) { box(bike, .15, .15, .7, '#fff8ec', s * .32, 1.56, .3).rotation.x = .3; box(bike, .18, .6, .2, '#4a5a7a', s * .3, .86, .14).rotation.x = -.5; }
+K.shadow(bike, true, false);
+const fx = K.fx(scene, 40); let pT = 0;
+K.loop((dt, t) => {
+  const x = t * 8 + 30, z = R(x), dz = 0; bike.position.set(x, Math.sin(t * 22) * .02, z); bike.rotation.y = Math.atan2(1, dz); for (const w of wheels) w.rotation.x = t * 16;
+  land.follow(x + 20, z + 12); for (const m of mist) m.position.set(x, m.position.y, z); far.position.set(x, 0, z);
+  for (const g of props) { const u = g.userData, per = N * SP, gx = u.i * SP + Math.round((x + 60 - u.i * SP) / per) * per, gz = zOf(gx, u.gg); g.position.set(gx, H(gx, gz), gz); }
+  if ((pT -= dt) < 0) { pT = .1; fx.emit('puff', x - 1.6, .3, z - dz * 1.6, { vy: .6, spread: .5, life: .9, size: .5, grow: 1.8, tint: '#fff0e0' }); } fx.update(dt);
+  sun.position.set(x + 36, 17, z + 22); sun.target.position.set(x, 0, z);
+  const tall = innerWidth < innerHeight; cam.position.set(x - 10, 8.5, z - 6 + Math.sin(t * .2) * .6); cam.lookAt(x + (tall ? 6 : 10), 0, z + (tall ? 2 : 5));
+  renderer.render(scene, cam);
+});
+</script>
+</html>

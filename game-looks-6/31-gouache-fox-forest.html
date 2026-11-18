@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-31 きつねの森 絵本のガッシュ</title>
+<style>
+html,body{margin:0;height:100%;background:#f3e7c9;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#43362f;background:#f3e7c9;padding:0 6px}
+</style>
+<div id="cap">6-31 ─ きつねの森 / 立体の森を、つやのないガッシュの色面と筆のあとで描く　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本のガッシュの決まり：ローポリの森をふつうに描いてから、仕上げで色を 8 色の絵の具だけに丸める（光の当たる面と影の面が、となりの色に落ちる）。
+// 色面のふちは少しゆらしてざらつかせ、面の中には色ごとに向きの違う太い筆の筋を明るさのむらとして入れる。輪郭線は引かない
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .7 }), { add, box, hash } = K;
+const DEEP = '#27503f', GREEN = '#5f8f58', MUST = '#d9a63a', BRICK = '#b5502f', CREAM = '#f3e7c9', DARK = '#43362f', RED = '#e8402e', SAGE = '#c9d3ac', LIST = [DEEP, GREEN, MUST, BRICK, CREAM, DARK, RED, SAGE];
+scene.background = new THREE.Color(CREAM); scene.fog = new THREE.Fog(SAGE, 34, 80);
+const { sun } = K.lights(scene, renderer, { range: 26, amb: 1.5, power: 2.2, ground: 0x9aa890 });
+const H = (x, z) => Math.sin(x * .07) * Math.cos(z * .06) * 1.1, road = x => Math.sin(x * .08) * 4;
+const C = K.colors(GREEN, DEEP, CREAM, MUST);
+const land = K.terrain(H, 90, 70, 1.4, (y, x, z) => { const v = Math.sin(x * .16 + Math.sin(z * .12) * 2.4) + Math.cos(z * .21); return v > 1.55 ? C[3] : v < -1.5 ? C[1] : C[0]; }); land.mesh.receiveShadow = true; scene.add(land.mesh);
+{ const v = [], ix = []; for (let i = 0; i <= 280; i++) { const x = i - 140, w = 1.5 + Math.sin(x * .9) * .12; v.push(x, H(x, road(x) - w) + .07, road(x) - w, x, H(x, road(x) + w) + .07, road(x) + w); if (i) ix.push(i * 2 - 2, i * 2 - 1, i * 2, i * 2, i * 2 - 1, i * 2 + 1); }   // 道はクリーム色の帯
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.setIndex(ix); g.computeVertexNormals(); add(scene, g, K.flat(CREAM)).receiveShadow = true; }
+// 大きな木（太い幹と丸い葉のかたまり）。道の向こう側に並べ、手前は開けておく
+for (let i = 0; i < 70; i++) { const x = (hash(i, 1) - .5) * 300, far = hash(i, 2) < .8, z = road(x) + (far ? -(6 + hash(i, 3) * 30) : 20 + hash(i, 3) * 10), h = 5 + hash(i, 4) * 5, g = new THREE.Group(), leaf = [DEEP, GREEN, DEEP, MUST, GREEN, BRICK][i % 6];
+  add(g, new THREE.CylinderGeometry(h * .07, h * .11, h, 7), DARK, 0, h / 2, 0); for (const [dx, dy, dz, r] of [[0, 0, 0, .42], [.3, -.14, .12, .3], [-.28, -.1, -.14, .32]]) add(g, new THREE.IcosahedronGeometry(h * r, 1), leaf, dx * h, h + dy * h, dz * h).rotation.y = i + dx * 9;
+  g.position.set(x, H(x, z) - .2, z); scene.add(K.shadow(g, true, false)); }
+// きのこ（柄と半球のかさ、クリーム色の点）。道のそばに大小
+const capG = new THREE.SphereGeometry(1, 9, 5, 0, 6.3, 0, 1.6), dotG = new THREE.IcosahedronGeometry(.16, 0);
+for (let i = 0; i < 60; i++) { const x = (hash(i, 5) - .5) * 300, z = road(x) + (i % 2 ? 1 : -1) * (2.6 + hash(i, 6) * 5), r = (.45 + hash(i, 7) * hash(i, 8) * 1.5) * (i % 2 ? .55 : 1), g = new THREE.Group();
+  add(g, new THREE.CylinderGeometry(r * .3, r * .4, r * 1.3, 7), CREAM, 0, r * .65, 0); const c = add(g, capG, i % 3 ? BRICK : MUST, 0, r * 1.2, 0); c.scale.set(r, r * .75, r);
+  for (let k = 0; k < 4; k++) { const a = k * 1.7 + i, d = add(g, dotG, CREAM, Math.cos(a) * r * .6, r * 1.2 + r * .55, Math.sin(a) * r * .6); d.scale.setScalar(r * 1.2); }
+  g.position.set(x, H(x, z), z); g.rotation.z = (hash(i, 9) - .5) * .2; scene.add(K.shadow(g, true, false)); }
+// きつね：箱だけで作る。前は +z。赤いマフラーの端が後ろへなびく
+const fox = new THREE.Group(), body = new THREE.Group(); fox.add(body); fox.scale.setScalar(1.25);
+box(body, .7, .62, 1.5, BRICK, 0, .88, 0); box(body, .5, .2, 1.3, CREAM, 0, .6, .05); box(body, .74, .6, .7, BRICK, 0, 1.3, .98); box(body, .34, .26, .42, CREAM, 0, 1.14, 1.5); box(body, .14, .12, .1, DARK, 0, 1.24, 1.73);
+for (const s of [-1, 1]) { add(body, new THREE.ConeGeometry(.17, .42, 4), DARK, s * .23, 1.8, .85).rotation.y = .785; box(body, .08, .1, .04, DARK, s * .2, 1.42, 1.34); }
+const tail = new THREE.Group(); tail.position.set(0, 1, -.7); box(tail, .44, .44, .9, BRICK, 0, 0, -.45); box(tail, .36, .36, .46, CREAM, 0, 0, -1.05); tail.rotation.x = -.5; body.add(tail);
+const RM = K.glow(RED); box(body, .9, .34, .56, RM, 0, 1.02, .56); const scarf = new THREE.Group(); scarf.position.set(.36, 1.04, .4); box(scarf, .14, .3, 1.1, RM, 0, 0, -.55); body.add(scarf);
+const legs = [[-.24, .5], [.24, .5], [-.24, -.55], [.24, -.55]].map(([x, z]) => { const l = new THREE.Group(); l.position.set(x, .6, z); box(l, .2, .62, .2, DARK, 0, -.3, 0); fox.add(l); return l; });
+scene.add(K.shadow(fox, true, false));
+const pal = LIST.map(c => { const p = new THREE.Color(c).convertLinearToSRGB(); return `{vec3 p=vec3(${p.r.toFixed(3)},${p.g.toFixed(3)},${p.b.toFixed(3)}),d=(c-p)*vec3(.9,1.2,.7);float dd=dot(d,d);if(dd<bd){bd=dd;b=p;}}`; }).join('');
+const post = K.post(renderer, `vec3 pal(vec3 c){vec3 b=vec3(0.);float bd=9.;${pal}return b;}
+vec3 tap(vec2 uv){return pal(src((floor(uv*size)+.5)/size));}
+void main(){vec2 p=vUv*res;
+vec2 w=(vec2(vn(p*.45),vn(p*.45+31.))-.5)*2.6+(vec2(vn(p*.07+5.),vn(p*.07+77.))-.5)*5.;   // ふちのざらつき：色を取る場所を少しゆらす
+vec2 uv=vUv+w/res;vec3 c=(tap(uv+px*vec2(-.5,-.5))+tap(uv+px*vec2(.5,-.5))+tap(uv+px*vec2(-.5,.5))+tap(uv+px*vec2(.5,.5)))*.25;
+float a=dot(c,vec3(3.,7.,11.)),cs=cos(a),sn=sin(a);vec2 q=mat2(cs,-sn,sn,cs)*p;               // 筆の筋：色ごとに向きを変える
+float st=vn(q*vec2(.011,.2))*.6+vn(q*vec2(.03,.55)+9.)*.4;c*=.92+.14*st;
+gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const x = (t * 3.4) % 240 - 120, z = road(x), y = H(x, z), ph = t * 9;
+  fox.position.set(x, y, z); fox.rotation.y = Math.atan2(1, Math.cos(x * .08) * .32); body.position.y = Math.abs(Math.sin(ph)) * .07;
+  legs.forEach((l, i) => l.rotation.x = Math.sin(ph + (i % 3 ? Math.PI : 0)) * .7); tail.rotation.set(-.5 + Math.sin(ph) * .08, Math.sin(ph * .5) * .3, 0); scarf.rotation.set(Math.sin(ph * .7) * .25 + .2, Math.sin(ph * .5 + 1) * .3, 0);
+  land.follow(x, z); sun.position.set(x - 10, 32, z + 30); sun.target.position.set(x, 0, z);
+  cam.position.set(x + 2 + Math.sin(t * .15) * 2, y + 5.6, z + 11.5); cam.lookAt(x + .6, y + 1.3, z);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

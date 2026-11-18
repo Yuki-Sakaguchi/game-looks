@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-06 航海 嵐の海と灯台のローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#1f4450;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8f0ec;background:#1f4450;padding:0 6px}
+</style>
+<div id="cap">6-06 ─ 航海 / 嵐の海を、うねるローポリの波と灯台の光だけで描く　｜　見るだけ（自動で灯台へ向かう）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：仕上げの加工は使わない。海は 1 枚のローポリの面で、頂点の高さを毎コマ動かし、三角ごとに高さで 4 段の色（暗い青緑〜白い波頭）をぬる。
+// 色は青緑と白だけ。差し色は灯台の黄（回る光の帯＝半透明の円すい）。稲妻のときだけ空を明るい空に入れかえる。雨はカメラについてくる線
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 45 }), { add, box, flat, glow, hash } = K;
+const skyA = K.sky([[0, '#1f4450'], [.45, '#3a6e74'], [.6, '#4f8a88'], [1, '#4f8a88']]), skyB = K.sky([[0, '#8fc4c4'], [.5, '#dff4ee'], [1, '#dff4ee']]);
+const fogA = new THREE.Color('#4f8a88'), fogB = new THREE.Color('#dff4ee'); scene.background = skyA; scene.fog = new THREE.Fog(fogA.clone(), 35, 165);
+const { hemi, sun } = K.lights(scene, renderer, { sky: 0xc8f0ec, ground: 0x1a4a52, amb: .95, sun: 0xeafff6, power: 3.4, pos: [-30, 15, -10], range: 24 });
+// 海：波の高さの式 W と、毎コマ作りなおす面
+const W = (x, z, t) => Math.sin(x * .09 + t * .9) * 1.5 + Math.sin(z * .11 - t * 1.2 + x * .04) * 1.3 + Math.sin((x - z) * .27 + t * 2.1) * .55;
+const N = 80, CELL = 3, sg = new THREE.PlaneGeometry(N * CELL, N * CELL, N, N).toNonIndexed(); sg.rotateX(-Math.PI / 2);
+const base = sg.attributes.position.array.slice(), col = new Float32Array(base.length); sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+const sea = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: .6 })); sea.frustumCulled = false; sea.receiveShadow = true; scene.add(sea);
+const SC = K.colors('#175058', '#23757c', '#58aaa4', '#f2fff8');
+function waves(cx, cz, t) {
+  const sx = Math.round(cx / CELL) * CELL, sz = Math.round(cz / CELL) * CELL, p = sg.attributes.position.array;
+  for (let i = 0; i < p.length; i += 9) { let hy = 0; for (let k = 0; k < 3; k++) { const y = W(base[i + k * 3] + sx, base[i + k * 3 + 2] + sz, t); p[i + k * 3 + 1] = y; hy += y / 3; }
+    const c = SC[hy > 2.35 ? 3 : hy > 1.5 ? 2 : hy > -.6 ? 1 : 0]; for (let k = 0; k < 3; k++) { col[i + k * 3] = c.r; col[i + k * 3 + 1] = c.g; col[i + k * 3 + 2] = c.b; } }
+  sg.attributes.position.needsUpdate = true; sg.attributes.color.needsUpdate = true; sea.position.set(sx, 0, sz);
+}
+// 岩と灯台（原点）。光の帯は、先のとがった半透明の円すいを 2 本、あかりの所で回す
+for (const [r, x, z, y] of [[10, 0, 0, 1], [6, -9, 4, 0], [5, 8, -5, 0], [3.5, -4, -10, 0]]) { const m = add(scene, new THREE.DodecahedronGeometry(r, 0), '#2b4a50', x, y, z); m.scale.set(1.25, .62, 1.1); m.rotation.y = r; }
+add(scene, new THREE.CylinderGeometry(1.6, 2.4, 13, 8), '#eef4ec', 0, 12.5, 0); add(scene, new THREE.CylinderGeometry(2.05, 2.25, 2.6, 8), '#2f6a70', 0, 11, 0);
+add(scene, new THREE.CylinderGeometry(2.5, 2.5, .5, 8), '#2b4a50', 0, 19.2, 0); add(scene, new THREE.CylinderGeometry(1.25, 1.25, 2, 8), glow('#ffe27a', { fog: false }), 0, 20.4, 0); add(scene, new THREE.ConeGeometry(2, 1.8, 8), '#2b4a50', 0, 22.3, 0);
+const beam = new THREE.Group(); beam.position.set(0, 20.4, 0); scene.add(beam);
+{ const bg = new THREE.ConeGeometry(9, 80, 12, 1, true); bg.translate(0, -40, 0); bg.rotateX(Math.PI / 2); const bm = glow('#ffe060', { transparent: true, opacity: .3, depthWrite: false, side: THREE.DoubleSide, fog: false }); add(beam, bg, bm); add(beam, bg, bm).rotation.y = Math.PI; }
+// 暗い雲、稲妻（白い箱のジグザグ）、雨（カメラについてくる線）
+for (let i = 0; i < 9; i++) { const c = K.cloud(4 + hash(i, 1) * 3, i % 2 ? '#2f5a62' : '#3d6c72'); c.position.set((hash(i, 2) - .5) * 260, 46 + hash(i, 3) * 18, 60 - hash(i, 4) * 150); scene.add(c); }
+const bolt = new THREE.Group(); { let x = 0; for (let k = 0; k < 8; k++) { const nx = x + (hash(k, 5) - .5) * 9, len = Math.hypot(nx - x, 6); box(bolt, .7, len, .7, glow('#ffffff', { fog: false }), (x + nx) / 2, 57 - k * 6, 0).rotation.z = Math.atan2(nx - x, 6); x = nx; } } scene.add(bolt);
+const RN = 420, rp = new Float32Array(RN * 6), rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+const rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: '#d4f2ee', transparent: true, opacity: .5, fog: false })); rain.frustumCulled = false; cam.add(rain); scene.add(cam);
+// 船：白い小舟に黄のランタン
+const ship = K.shadow(K.boat('#f0ead8', '#fbf6e8')); ship.scale.setScalar(1.7); add(ship, new THREE.BoxGeometry(.28, .34, .28), glow('#ffd860'), 0, .95, -1.5); scene.add(ship);
+const fx = K.fx(scene, 80); let sT = 0; const T = 18, pulse = d => d > 0 ? Math.exp(-d * 4.5) * (.65 + .35 * Math.sin(d * 46)) : 0;
+K.loop((dt, t) => {
+  const tt = t % T, bx = 7 + Math.sin(t * .4) * 1.2, bz = -78 + tt * 2.6, y = W(bx, bz, t);
+  ship.position.set(bx, y + .25, bz); ship.rotation.x = -Math.atan((W(bx, bz + 2, t) - W(bx, bz - 2, t)) / 4) * .9; ship.rotation.z = Math.atan((W(bx + 1.5, bz, t) - W(bx - 1.5, bz, t)) / 3) * .9;
+  waves(bx, bz + 40, t); beam.rotation.y = t * .8;
+  if ((sT -= dt) < 0) { sT = .1; fx.emit('splash', bx + (Math.random() - .5) * 2, y + .6, bz + 2.4, { vy: 2.5, vz: -1.5, spread: 1.6, grav: -6, life: .7, size: 1.3, grow: .8 }); }
+  fx.update(dt);
+  // 稲妻：一巡のうち 2 回と、くり返しのつなぎ目で光る
+  const fl = Math.min(1, pulse(tt - 3.3) + pulse(tt - 10.6) + pulse(tt - 17.75) + pulse(tt + .25)), on = fl > .3;
+  scene.background = on ? skyB : skyA; scene.fog.color.lerpColors(fogA, fogB, fl * .7); hemi.intensity = .95 + fl * 3.5; bolt.visible = on; bolt.position.set(tt > 6 && tt < 14 ? 46 : -44, 0, 50);
+  for (let i = 0; i < RN; i++) { const x = (hash(i, 6) - .5) * 34, z = -3 - hash(i, 7) * 30, yy = 12 - ((hash(i, 8) * 24 + t * 30) % 24); rp.set([x - yy * .28, yy, z, x - (yy + 1.3) * .28, yy + 1.3, z], i * 6); } rg.attributes.position.needsUpdate = true;
+  sun.position.set(bx - 30, 15, bz - 10); sun.target.position.set(bx, 0, bz);
+  cam.position.set(bx - 5, 6 + y * .8, bz - 17); cam.lookAt(bx - 2, 4.1 + y * .8, bz + 18);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

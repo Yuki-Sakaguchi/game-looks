@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-17 月面バギー 7 色のドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0e0e0;background:#000;padding:0 6px}
+</style>
+<div id="cap">6-17 ─ 月面バギー / クレーターの月面を、黒と灰 4 段・地球の青・だいだいだけのドット絵に描き直す　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ローポリの月面をふつうに描いてから、横 256 ドットの粗い絵にして、7 色（黒・灰 4 段・地球の青・バギーのだいだい）だけに丸める。
+// 空気がないので空の光はほとんどなく、低い太陽の影はまっ黒でくっきり（影のふちをぼかさない）。灰色の境目は点の並びで混ぜる。
+// 6 輪のバギーは重力の弱い月ではねながら進み、低いカメラがうしろから追う
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700 }), { add, box, hash } = K;
+const PAL = ['#000000', '#2a2a30', '#5a5a62', '#9a9aa0', '#e0e0e0', '#2a6ad8', '#f08a2a'];
+scene.background = new THREE.Color('#000000');
+const { sun } = K.lights(scene, renderer, { range: 30, amb: 0, power: 3.6, sun: 0xffffff, pos: [-24, 15, -14] }); renderer.shadowMap.type = THREE.BasicShadowMap;
+// クレーター：16 ごとのますに 1 つずつ。中はくぼみ、ふちは少し高い
+const G = 16, H = (x, z) => { let y = Math.sin(x * .04) * Math.cos(z * .05) * 1.4; const ci = Math.floor(x / G), cj = Math.floor(z / G);
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const i = ci + a, j = cj + b, r = 2 + hash(i, j) * 4.6, d = Math.hypot(x - (i + .2 + hash(i, j + 9) * .6) * G, z - (j + .2 + hash(j, i + 5) * .6) * G) / r; if (d < 1.5) y += d < 1 ? (d * d - 1) * r * .3 + r * .1 : (1.5 - d) * r * .2; } return y; };
+const C = K.colors('#b4b4b8', '#a4a4aa');
+const land = K.terrain(H, 84, 84, 1.5, (y, x, z) => C[hash(Math.round(x * .25), Math.round(z * .25)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; land.mesh.castShadow = true; scene.add(land.mesh);
+const rocks = [...Array(40)].map((_, i) => { const r = K.rock(.4 + hash(i, 1) * 1.1, '#b0b0b4'); r.position.x = (hash(i, 2) - .5) * 60; r.userData.z0 = hash(i, 3) * 120; scene.add(r); return r; });
+// 地球（青と白の面。太陽の当たらない側は黒く欠ける）と星
+const eg = new THREE.IcosahedronGeometry(24, 2), ec = new Float32Array(eg.attributes.position.count * 3), cb = new THREE.Color('#2a6ad8'), cw = new THREE.Color('#ffffff');
+for (let f = 0; f < ec.length / 9; f++) { const y = eg.attributes.position.getY(f * 3), c = hash(f, 1) + Math.sin(y * .35 + f * .02) * .3 < .26 || Math.abs(y) > 21 ? cw : cb; for (let k = 0; k < 3; k++) ec.set([c.r, c.g, c.b], f * 9 + k * 3); }
+eg.setAttribute('color', new THREE.BufferAttribute(ec, 3)); const earth = add(scene, eg, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 })), stars = K.stars(240, 420, 1); scene.add(stars);
+// バギー：だいだいの車体、6 輪、白い宇宙服の人、アンテナ、わく
+const bug = new THREE.Group(), wheels = []; box(bug, 2.2, .4, 3.8, '#f08a2a', 0, .95, 0); box(bug, 1.7, .6, 1.1, '#e0e0e0', 0, 1.45, -1.2); box(bug, 1.5, .08, .9, '#5a5a62', 0, 1.8, -1.2);
+for (const x of [-1.35, 1.35]) for (const z of [-1.45, 0, 1.45]) { const w = add(bug, new THREE.CylinderGeometry(.58, .58, .46, 8), '#5a5a62', x, .58, z); w.rotation.z = Math.PI / 2; wheels.push(w); box(bug, .5, .12, .9, '#f08a2a', x, 1.26, z); }
+box(bug, .74, .8, .5, '#e0e0e0', 0, 1.6, .5); box(bug, .54, .5, .54, '#e0e0e0', 0, 2.26, .5); box(bug, .4, .3, .08, '#f08a2a', 0, 2.28, .8);
+box(bug, 2, .09, .09, '#f08a2a', 0, 2.8, -.3); for (const x of [-1, 1]) box(bug, .09, 1.7, .09, '#f08a2a', x, 1.98, -.3);
+box(bug, .06, 1.8, .06, '#9a9aa0', .8, 2.6, -1.4); add(bug, new THREE.ConeGeometry(.34, .2, 8), '#e0e0e0', .8, 3.5, -1.4).rotation.x = -1; K.shadow(bug); scene.add(bug);
+const fx = K.fx(scene, 60), post = K.post(renderer, K.PALETTE(PAL, .07), {}, { width: 256 }); onResize(post.resize);
+let by = H(0, 0), vy = 0, pg = by, cy = by, pitch = 0, dT = 0;
+K.loop((dt, t) => {
+  const z = t * 9, x = Math.sin(t * .25) * 5, g = H(x, z); vy -= 3 * dt; by += vy * dt;     // 弱い重力。ふちをこえると ふわりと はねる
+  const on = by <= g + .02; if (by <= g) { vy = Math.max(vy, Math.min(3.6, (g - pg) / Math.max(dt, .004) * .85)); by = g; } pg = g;
+  pitch += ((on ? -Math.atan2(H(x, z + 1.6) - H(x, z - 1.6), 3.2) : -vy * .07) - pitch) * Math.min(1, dt * 7);
+  bug.position.set(x, by, z); bug.rotation.set(pitch, Math.cos(t * .25) * .14, 0); wheels.forEach(w => { w.rotation.x = t * 14; });
+  if (on && (dT -= dt) < 0) { dT = .07; for (const s of [-1.35, 1.35]) fx.emit('puff', x + s, by + .25, z - 2, { vy: .9, vz: 2, spread: 1.1, life: 1, size: .55, grow: 1.6, tint: '#9a9aa0', fade: false }); } fx.update(dt);
+  for (const r of rocks) { const rz = r.userData.z0 + Math.round((z + 46 - r.userData.z0) / 120) * 120; if (rz !== r.position.z) { r.position.z = rz; r.position.y = H(r.position.x, rz) - .1; } }
+  land.follow(x, z, 42); sun.position.set(x - 24, by + 15, z - 14); sun.target.position.set(x, by, z);
+  cy += (by - cy) * Math.min(1, dt * 3); cam.position.set(x * .8 + 1.6, cy + 2.7, z - 7.6); cam.lookAt(x, cy + 1.5, z + 6);
+  earth.position.set(cam.position.x - 44, cy + 44, z + 230); earth.rotation.y = t * .02; stars.position.copy(cam.position);
+  post.render(scene, cam, t);
+});
+</script>
+</html>
