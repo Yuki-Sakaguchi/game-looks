@@ -45,7 +45,7 @@ for (let i = 0; i < NT * 2; i++) { const j = i % NT, x = hash(j, 1) * 400 + (i >
 for (const m of [trunkI, leafI]) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
 const mt = new THREE.Group(); for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283; add(mt, new THREE.ConeGeometry(170 + hash(i, 5) * 60, 70 + hash(i, 6) * 60, 7), K.glow(['#a9d2dc', '#93c4d0'][i % 2], { fog: false }), Math.cos(a) * 420, 20, Math.sin(a) * 420).rotation.y = i; } scene.add(mt);   // 遠くの山
 const cars = ['#e8503a', '#f2c84a'].map(c => { const g = K.shadow(K.car(c)); scene.add(g); return g; });
-scene.add(cam); const bon = box(cam, 2.4, .5, 2.2, '#2f62a8', 0, -1.3, -2.3); bon.rotation.x = .06; bon.receiveShadow = true; onResize(() => bon.position.y = -1.3 - (cam.fov - 72) * .02);   // ボンネットの先
+scene.add(cam); const bon = box(cam, 2.4, .5, 2.2, '#2f62a8', 0, -1.3, -2.3); bon.rotation.x = .06; bon.receiveShadow = true; onResize(() => bon.position.z = -2.3 + (cam.fov - 72) * .04);   // たて長では手前に寄せて、見える量をそろえる   // ボンネットの先
 const hud = Object.assign(document.createElement('canvas'), { id: 'hud' }), hx = hud.getContext('2d'); document.body.append(hud); onResize((w, h) => { hud.width = w; hud.height = h; });
 function drawHud(t, kmh) { const w = hud.width, h = hud.height, f = Math.max(13, Math.min(w, h) * .036), n = 10 * 3600 + 24 * 60 + 30 + t, p = v => String(v | 0).padStart(2, '0'); hx.clearRect(0, 0, w, h);
   hx.font = `600 ${f}px ui-monospace,Menlo,monospace`; hx.fillStyle = '#fff'; hx.strokeStyle = 'rgba(20,40,60,.75)'; hx.lineWidth = f * .16; hx.lineJoin = 'round'; hx.textBaseline = 'top';
