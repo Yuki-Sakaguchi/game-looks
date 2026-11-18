@@ -44,7 +44,7 @@ K.loop((dt, t) => {
   const z = -t * 2.6 - 10, x = Math.sin(z * .03) * 2.5, tall = innerHeight > innerWidth; boat.position.set(x, Math.sin(t * 1.2) * .04, z); boat.rotation.set(0, -Math.cos(z * .03) * .07, Math.sin(t * .9) * .03);
   man.userData.P.armR.rotation.x = -.6 + Math.sin(t * 1.5) * .25; wake.forEach((w, i) => w.scale.x = .8 + .2 * Math.sin(t * 2 + i));
   for (const g of W) g.position.z = g.userData.z + Math.round((z - 95 - g.userData.z) / P) * P;
-  cam.position.set(x * .4 + (tall ? 1 : 2.5), tall ? 5.5 : 4.5, z + (tall ? 10.5 : 13)); cam.lookAt(x * .6 - (tall ? 0 : 2.5), tall ? 4.5 : 2.2, z - 30);
+  cam.position.set(x * .4 + (tall ? 1 : 2.5), tall ? 5.5 : 4.5, z + (tall ? 10.5 : 13)); cam.lookAt(x * .6 - (tall ? 0 : 2.5), tall ? 4.5 : 1.5, z - 30);
   const tf = Math.tan(cam.fov * Math.PI / 360); post.u.tf.value.set(tf * cam.aspect, tf);
   post.render(scene, cam, t);
 });

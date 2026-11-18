@@ -34,25 +34,25 @@ for (let i = 0; i < 26; i++) { const g = new THREE.Group(), s = 1 + hash(i, 3) *
 // 光のすじ：ななめの半透明の板（主役の前だけに立てる）
 const shafts = [...Array(7)].map((_, i) => { const m = add(scene, new THREE.PlaneGeometry(1 + hash(i, 8) * 1.6, 34), glow('#3ab0b0', { side: THREE.DoubleSide, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), -13 + i * 3.4 + hash(i, 9) * 2, 14, 0); m.rotation.z = .3; m.userData.z0 = hash(i, 10) * 36; return m; });
 // 魚の群れ（黄とだいだい。体は たてに平たいひし形）
-const NF = 40, fish = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.5).scale(.3, .62, 1.1), flat('#ffffff'), NF), dm = new THREE.Object3D(); for (let i = 0; i < NF; i++) fish.setColorAt(i, new THREE.Color(i % 3 ? '#f8e078' : '#f4a04a')); scene.add(fish);
+const NF = 40, fish = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.4).scale(.3, .62, 1.1), glow('#ffffff'), NF), dm = new THREE.Object3D(); for (let i = 0; i < NF; i++) fish.setColorAt(i, new THREE.Color(i % 3 ? '#f8e078' : '#f4a04a')); scene.add(fish);
 // ダイバー：前は +z。頭と水中めがね、だいだいの胴、背中の黄色いタンク、うしろへのびた足ともものフィン、うで
 const hero = new THREE.Group(), D = new THREE.Group(), SUIT = '#f4a04a', NAVY = '#0a2e5a'; D.scale.setScalar(1.3); hero.add(D);
-box(D, .56, .36, 1, SUIT, 0, 0, 0); box(D, .44, .44, .44, NAVY, 0, .08, .76); box(D, .5, .18, .2, '#d0f4e8', 0, .12, .9); add(D, new THREE.CylinderGeometry(.17, .17, .8, 7).rotateX(Math.PI / 2), '#f8e078', 0, .33, -.05); box(D, .1, .1, .16, NAVY, 0, .36, .42);
+box(D, .56, .36, 1, SUIT, 0, 0, 0); box(D, .5, .5, .5, '#d0f4e8', 0, .1, .8); box(D, .54, .2, .3, NAVY, 0, .14, .92); add(D, new THREE.CylinderGeometry(.17, .17, .8, 7).rotateX(Math.PI / 2), '#f8e078', 0, .33, -.05); box(D, .1, .1, .16, NAVY, 0, .36, .42);
 const limb = (x, z, len, fin) => { const pv = new THREE.Group(); pv.position.set(x, 0, z); box(pv, fin ? .2 : .16, fin ? .2 : .16, len, SUIT, 0, 0, -len / 2); if (fin) box(pv, .38, .06, .62, '#f07a9a', 0, 0, -len - .28); else box(pv, .18, .18, .16, NAVY, 0, 0, -len - .06); D.add(pv); return pv; };
-const legs = [limb(-.16, -.5, 1, 1), limb(.16, -.5, 1, 1)], arms = [limb(-.37, .36, .68, 0), limb(.37, .36, .68, 0)]; K.shadow(hero); scene.add(hero);
+const legs = [limb(-.16, -.5, .82, 1), limb(.16, -.5, .82, 1)], arms = [limb(-.37, .36, .62, 0), limb(.37, .36, .62, 0)]; K.shadow(hero); scene.add(hero);
 const fx = K.fx(scene, 40); let bT = 0;
 const post = K.post(renderer, K.PALETTE(PAL, .1, 'c=mix(c,vec3(.02,.1,.23),edge(uv,1.,9.,.2)*.6);'), {}, { width: 240, gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = t * 2.6, x = Math.sin(t * .35) * 1.4, y = 3.6 + Math.sin(t * .9) * .3; hero.position.set(x, y, z); hero.rotation.set(-.1 + Math.cos(t * .9) * .06, Math.cos(t * .35) * .18, -Math.cos(t * .35) * .12);
-  legs.forEach((l, i) => { l.rotation.x = Math.sin(t * 5 + i * Math.PI) * .38; }); arms.forEach((a, i) => { a.rotation.y = (i ? 1 : -1) * (.3 + Math.sin(t * 2.5) * .12); a.rotation.x = Math.sin(t * 2.5 + i) * .15; });
+  legs.forEach((l, i) => { l.rotation.x = Math.sin(t * 5 + i * Math.PI) * .38; }); arms.forEach((a, i) => { a.rotation.y = (i ? -1 : 1) * (.75 + Math.sin(t * 2.5) * .2); a.rotation.x = Math.sin(t * 2.5 + i) * .15; });
   for (const g of reefs) { const gz = g.userData.z0 + Math.round((z + 18 - g.userData.z0) / L) * L; if (gz !== g.position.z) { g.position.z = gz; g.position.y = H(g.position.x, gz) - .2; } }
   weeds.forEach((w, i) => { w.rotation.z = Math.sin(t * 1.2 + i) * .18; });
   for (const m of shafts) { m.position.z = m.userData.z0 + Math.round((z + 22 - m.userData.z0) / 36) * 36; m.material.opacity = .26 + .08 * Math.sin(t * .8 + m.userData.z0); }
-  const fxc = x - 2 + Math.sin(t * .3) * 1.5, fzc = z + 4.5 + Math.sin(t * .23) * 1.5;   // 魚の群れは主役の少し前をまわる
-  for (let i = 0; i < NF; i++) { const a = hash(i, 11) * 6.283 + t * .5; dm.position.set(fxc + Math.cos(a) * (1 + hash(i, 12) * 2.6), y + .9 + (hash(i, 13) - .5) * 2.6 + Math.sin(t * 2 + i) * .15, fzc + Math.sin(a) * (1 + hash(i, 14) * 2)); dm.rotation.y = -a + Math.sin(t * 6 + i) * .2; dm.updateMatrix(); fish.setMatrixAt(i, dm.matrix); } fish.instanceMatrix.needsUpdate = true;
+  const fxc = x - 2.6 + Math.sin(t * .3) * 1.2, fzc = z + 3.6 + Math.sin(t * .23) * 1.2;   // 魚の群れは主役の少し前をまわる
+  for (let i = 0; i < NF; i++) { const a = hash(i, 11) * 6.283 + t * .5; dm.position.set(fxc + Math.cos(a) * (1 + hash(i, 12) * 2.6), y + 1.1 + (hash(i, 13) - .5) * 2.2 + Math.sin(t * 2 + i) * .15, fzc + Math.sin(a) * (1 + hash(i, 14) * 2)); dm.rotation.y = -a + Math.sin(t * 6 + i) * .2; dm.updateMatrix(); fish.setMatrixAt(i, dm.matrix); } fish.instanceMatrix.needsUpdate = true;
   if ((bT -= dt) < 0) { bT = .3; fx.emit('bubble', x, y + .5, z + 1.2, { vy: 1.5, spread: .5, life: 2.2, size: .28, grow: .9 }); } fx.update(dt);
   land.follow(x, z, 14); sun.position.set(x - 6, 40, z + 10); sun.target.position.set(x, 0, z);
-  const k = cam.aspect < 1 ? .72 : 1; cam.position.set(x + 3.6 * k, y + 2.8 * k, z - .4 - 3.8 * k); cam.lookAt(x - .3, y, z - .4);   // たて長では近づく
+  const k = cam.aspect < 1 ? .86 : 1; cam.position.set(x + 4 * k, y + 1.9 * k, z - .4 - 3.4 * k); cam.lookAt(x - .8, y + .5, z + 1.2);   // たて長では近づく
   post.render(scene, cam, t);
 });
 </script>

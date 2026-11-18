@@ -48,11 +48,11 @@ vec2 r=(vUv-.5)*vec2(res.x/res.y,1.);float a=atan(r.y,r.x)*36.,rr=length(r);    
 float sl=step(.93,h(vec2(floor(a),floor(time*10.))))*step(abs(fract(a)-.5),.22*smoothstep(.42,.8,rr));
 col=mix(col,ink,max(sl,edge(vUv,2.4,.5,.06)*smoothstep(205.,150.,d)));gl_FragColor=vec4(col,1.);}`, { L: { value: new THREE.Vector3() } }, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
-  const z = -((t * 14) % P), x = Math.sin(t * .7) * 2.6, y = 30 + Math.sin(t * .9) * 1.5, tall = innerHeight > innerWidth, k = tall ? .85 : 1;
+  const z = -((t * 14) % P), x = Math.sin(t * .7) * 2.6, y = 30 + Math.sin(t * .9) * 1.5, tall = innerHeight > innerWidth, k = tall ? .9 : .85;
   hero.position.set(x, y, z); hero.rotation.set(.05 + Math.cos(t * .9) * .05, 0, -Math.cos(t * .7) * .25); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 9 - i * 1.4) * (.08 + i * .07) + (i ? .16 : -.5));
   scene.children.forEach(o => { if (o.userData.cl) o.position.z = z - 196; });
   sun.target.position.set(0, 10, z - 45); sun.position.copy(sun.target.position).add(O);
-  cam.position.set(x + 5.5 * k, y + 3 * k, z + 7 * k); cam.lookAt(x - (tall ? 1 : 2.5), y + .9, z - 8);   // 斜めうしろ上から。体が横に長く見える
+  cam.position.set(x + 5.5 * k, y + 3 * k, z + 7 * k); cam.lookAt(x - (tall ? .5 : 1.8), y + .7, z - (tall ? 2.5 : 6));   // 斜めうしろ上から。体が横に長く見える
   cam.updateMatrixWorld(); post.u.L.value.copy(O).transformDirection(cam.matrixWorldInverse);
   post.render(scene, cam, t);
 });

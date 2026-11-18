@@ -40,7 +40,7 @@ vec2 q=rot(-atan(n.y,n.x+.001))*p;float ln=abs(fract(q.x/7.)-.5)*2.,nick=step(.2
 float v=1.-step(ln,f*1.15-.08)*mix(1.,nick,step(f,.75));if(d>nf.y*.9)v=0.;
 vec2 o=px*2.5;float a=luma(src(vUv+vec2(o.x,0.))),b=luma(src(vUv-vec2(o.x,0.))),c=luma(src(vUv+vec2(0.,o.y))),e=luma(src(vUv-vec2(0.,o.y)));
 if(edge(vUv,2.,.5,.05)>.5){if(min(min(a,b),min(c,e))>.6)v=0.;else if(max(max(a,b),max(c,e))<.5)v=1.;}            // 白どうしの境は黒い線、黒どうしは白い線
-{vec2 g=p/38.+vec2(time*.3,time*1.4);vec2 ce=floor(g);if(length(fract(g)-.2-.6*vec2(h(ce),h(ce+9.)))<.075*step(.45,h(ce+3.)))v=1.;}   // 雪
+{vec2 g=p/38.+vec2(time*.3,time*1.4);vec2 ce=floor(g);if(length(fract(g)-.2-.6*vec2(h(ce),h(ce+9.)))<.075*step(.45,h(ce+3.))&&d>70.)v=1.;}   // 雪（空と遠くにだけ）
 gl_FragColor=vec4(mix(vec3(.07,.07,.08),vec3(.96,.95,.91),v),1.);}`, {}, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = -t * 10, x = pathX(z), y = H(x, z), k = innerHeight > innerWidth ? .8 : 1; cy = cy === null ? y : cy + (y - cy) * Math.min(1, dt * 6);
