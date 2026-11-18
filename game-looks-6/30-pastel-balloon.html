@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-30 草原の気球 ソフトパステル</title>
+<style>
+html,body{margin:0;height:100%;background:#ccdae2;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#4a5a6a;background:#e8eef0;padding:0 6px}
+</style>
+<div id="cap">6-30 ─ 草原の気球 / 水色の色紙にソフトパステル　｜　見るだけ（自動で飛ぶ）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ソフトパステルの決まり：輪郭線は引かない。淡くて明るい色を、なめらかなグラデーションで置く。
+// 面のふちは指でこすったように少しぼけて、となりの色と混ざる（まわりの色を、粉っぽくばらつかせて集める）。
+// 色紙の地（うすい灰色がかった水色）が、こすった向きの筋になって、ところどころ透ける
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 42 }), { add, box, hash } = K;
+scene.background = K.sky([[0, '#a4c6e8'], [.45, '#cfe0ee'], [.7, '#f8e6d8'], [1, '#f6efdc']]); scene.fog = new THREE.Fog('#ece6e0', 90, 340);
+const { sun } = K.lights(scene, renderer, { amb: 1.9, ground: 0xdfe6cf, power: 1.8, range: 90 });
+const H = (x, z) => Math.sin(x * .03) * Math.cos(z * .035) * 6 + Math.sin(x * .011 + z * .017) * 7;
+const C = K.colors('#b6dea6', '#cbe6aa', '#f2e6a6', '#a6d6ba', '#f4cfc0');
+const land = K.terrain(H, 80, 80, 5, (y, x, z) => C[Math.floor(hash(Math.round(x / 26 + Math.sin(z * .02)), Math.round(z / 26)) * 4.6)]); land.mesh.receiveShadow = true; scene.add(land.mesh);   // 色ちがいの畑のつぎはぎ
+// 気球：しまの袋（たてに 16 枚）、かご、つな
+function balloon(R, cols) { const g = new THREE.Group(); for (let i = 0; i < 16; i++) { const gm = new THREE.SphereGeometry(R, 2, 12, i * Math.PI / 8, Math.PI / 8), p = gm.attributes.position;
+    for (let j = 0; j < p.count; j++) { const y = p.getY(j); if (y < 0) { const s = 1 + y / R * .62; p.setX(j, p.getX(j) * s); p.setZ(j, p.getZ(j) * s); p.setY(j, y * 1.25); } } gm.computeVertexNormals(); add(g, gm, new THREE.MeshStandardMaterial({ color: cols[i % cols.length], roughness: 1 })).castShadow = true; }
+  add(g, new THREE.CylinderGeometry(R * .17, R * .13, R * .14, 10), cols[0], 0, -R * 1.2, 0); box(g, R * .24, R * .18, R * .24, '#d8b08a', 0, -R * 1.62, 0); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(g, R * .012, R * .4, R * .012, '#b89a80', a * R * .11, -R * 1.42, b * R * .11); return g; }
+const bal = balloon(7, ['#f4a4b4', '#fdf6e8', '#f8d880', '#fdf6e8', '#9cd4c6', '#fdf6e8', '#b8aee4', '#fdf6e8']); scene.add(bal);
+const others = [[62, 16, -95, 5, ['#f8d880', '#f4a4b4']], [-75, 2, -150, 5, ['#9cd4c6', '#fdf6e8']], [20, 26, -210, 5, ['#b8aee4', '#f8d880']]].map(([x, y, z, R, c]) => { const b = balloon(R, c); b.userData = { x, y, z }; scene.add(b); return b; });
+// 村と木（気球のまわりへ送りなおす）
+const things = [], P = 400;
+for (let i = 0; i < 70; i++) { const v = i % 5, cx = v * 80 + 20, cz = -75 - hash(v, 1) * 70, hs = i < 30, x0 = hs ? cx + (hash(i, 2) - .5) * 44 : hash(i, 3) * P, z = hs ? cz + (hash(i, 4) - .5) * 40 : -45 - hash(i, 5) * 190;
+  const g = hs ? K.house(4, 2.6, 5, '#fdf6e8', ['#f0a898', '#a8c4e4', '#f4c890'][i % 3], '#b8cce0') : K.tree(5 + hash(i, 6) * 3, '#8cc8a0', '#c8a890', '#a8d8a8'); g.scale.setScalar(hs ? 1.7 : 1.5); g.rotation.y = hash(i, 7) * 6; scene.add(g); things.push({ g, x0, z }); }
+for (let i = 0; i < 6; i++) { const c = K.cloud(2.4 + hash(i, 8) * 1.6, '#fffaf2'); c.position.set((i - 2.5) * 70, 50 + hash(i, 9) * 30, -200 - hash(i, 10) * 60); c.userData.cl = c.position.x; scene.add(c); }
+const fx = K.fx(scene, 20); let fT = 0;
+const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+void main(){vec2 p=vUv*res;vec3 c=vec3(0.),paper=vec3(.80,.855,.89);float a0=vn(p*.04)*6.283;
+for(int i=0;i<8;i++){float fi=float(i),a=a0+fi*.785,r=1.5+5.*h(vec2(fi,7.)+floor(p*.34));c+=src(vUv+vec2(cos(a),sin(a))*r/res);}c=mix(c/8.,vec3(1.),.08);   // ふちをこすってぼかす
+vec2 q=rot(.6)*p;float tooth=vn(q*vec2(.06,.45))*.65+vn(p*.8)*.35,thin=smoothstep(.35,.7,fbm(p*.006+5.));                                                    // こすった向きの粉の目
+c=mix(c,paper,smoothstep(.52,.8,tooth)*(.14+.5*thin));gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const bx = t * 3, by = 25 + Math.sin(t * .5) * 1.2; bal.position.set(bx, by, 0); bal.rotation.y = t * .08; bal.rotation.z = Math.sin(t * .6) * .03;
+  others.forEach((b, i) => { b.position.set(bx + b.userData.x + Math.sin(t * .2 + i) * 6, by + b.userData.y + Math.sin(t * .4 + i * 2) * 2, b.userData.z); });
+  for (const o of things) { const x = bx + P / 2 - (((bx + P / 2 - o.x0) % P) + P) % P; o.g.position.set(x, H(x, o.z) - .2, o.z); }
+  scene.children.forEach(o => { if (o.userData.cl !== undefined) o.position.x = bx + o.userData.cl + t * .5; });
+  if (Math.sin(t * .5) < -.2 && (fT -= dt) < 0) { fT = .12; fx.emit('flame', bx, by - 9.3, 0, { vy: 2, life: .4, size: 1.6, tint: '#ffd8a0' }); } fx.update(dt);
+  land.follow(bx, 0, -110); sun.position.set(bx - 20, 60, 40); sun.target.position.set(bx + 10, 0, -50);
+  cam.position.set(bx - 8 + Math.sin(t * .1) * 3, by - 6, 27); cam.lookAt(bx + 1, by - 2.6, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>
