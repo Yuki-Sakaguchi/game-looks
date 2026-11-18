@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-14 森の小道の探索 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0f8d8;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">7-14 ─ 森の小道の探索 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script src="retro.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない木・岩・石の門に、その場で打ったドット絵のテクスチャ（苔むした石だたみ、石づみ、木の皮、葉）をはり、横 320 ドットの粗い絵に描く。
+// 色は深い緑と石の灰にしぼり、差し色は旅人の赤だけ。木もれ日の明るい所と暗い所を地面に焼きこみ、色数を落としてディザにかけ、ブラウン管に映してにじませる。
+// 明るい森の小道。帽子の旅人が、古い門をくぐり、石の祠の前を通って輪を歩く。部品はぜんぶ retro.js（R.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 600, aa: false, fitAspect: .9, maxFov: 74 });
+scene.add(R.skyDome([[0, '#4a98cc'], [.6, '#8cccd0'], [1, '#d4eeb8']], { r: 300 })); scene.fog = new THREE.Fog('#a4d4a0', 14, 72);
+const { sun } = K.lights(scene, renderer, { sky: 0xc8f0c0, ground: 0x6a8a5a, amb: 1.55, sun: 0xfff0b8, power: 2.5, range: 30 }), SUN = new THREE.Vector3(-.5, .72, .42).normalize();
+
+// ---- 小道の輪。pt(a, e) は輪から外へ e m の点と進む向き、off(x, z) は道からのへだたり ----
+const rr = a => 26 + 5 * Math.sin(2 * a) + 3 * Math.sin(3 * a + 1), TAU = Math.PI * 2;
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x));
+// 木もれ日：0（木かげ）〜1（日だまり）。地面の明るさと、光のすじを置く場所に使う
+const dapple = (x, z) => { const v = Math.sin(x * .23 + Math.sin(z * .17) * 1.6) * Math.cos(z * .21 + Math.sin(x * .13) * 1.4); return Math.max(0, Math.min(1, v * 1.8 + .45)); };
+const land = R.ground({ w: 150, d: 150, cell: 2, layers: [T.grass({ c: '#4c8a46', flowers: .15, fc: ['#ffffff', '#f4e27a'] }), T.cobble({ moss: .75, c: '#8c908c' }), T.dirt({ c: '#6e5e46' })],
+  mix: (x, z) => { const d = Math.abs(off(x, z)); return [Math.max(0, Math.min(1, 1.3 - d / 1.5)), d > 2.4 && Math.sin(x * .31) * Math.sin(z * .27 + 1) > .45 ? .7 : 0]; },
+  shade: (x, z) => { const k = dapple(x, z); return [.6 + .78 * k, .7 + .62 * k, .74 + .2 * k]; } });
+scene.add(land.mesh);
+
+// ---- 石の物：石づみのかべ・古い門・祠と石どうろう ----
+const stoneT = T.stone({ moss: .6, c: '#9a9c98' }), stone2 = T.stone({ moss: 1, c: '#888c8a', seed: 2 }), slate = T.roof({ kind: 'slate', c: '#6a7480', moss: 1 }), wood = T.planks({ c: '#6a4a34' });
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const wall = (len, seed = 0) => { const G = R.geo().smooth(0), n = Math.round(len / .8); G.box(len, .75, .6, 0, 0, 0, { m: 3, taper: [1, .82], c0: .7, top: false });   // 上の石は 1 つずつ高さをかえる（くずれた所は低い）
+  for (let i = 0; i < n; i++) { const x = (i + .5) / n * len - len / 2, h = hash(i, 1, seed) < .22 ? .08 : .3 + hash(i, 2, seed) * .28; G.loft(4, [[.75, .42, .27, .3, .85, x], [.75 + h, .36, .22, .3 + h / 3, 1.05, x + (hash(i, 3, seed) - .5) * .1]], { cap: 'top', ur: 1 }); } return G.mesh(stoneT); };
+const gate = () => { const B = R.parts(), S = B.g(stone2).smooth(0), W = B.g(wood).smooth(0), Rf = B.g(slate).smooth(0);
+  for (const s of [-1, 1]) { S.loft(4, [[0, .62, .62, 0, .7, s * 2.1], [.35, .58, .58, .12, .9, s * 2.1], [.35, .46, .46, .12, .85, s * 2.1], [3, .38, .38, 1, 1.05, s * 2.1], [3, .5, .5, 1, .9, s * 2.1], [3.25, .46, .46, 1.1, 1.05, s * 2.1]], { cap: 'top', ur: 2 }); W.box(.16, .9, .16, s * 2.1, 3.25, 0, { m: 1.5 }); }
+  W.box(5.6, .26, .3, 0, 3.5, 0, { m: 1.5 }).box(4.6, .16, .2, 0, 2.75, 0, { m: 1.5 }).box(.18, .6, .18, 0, 2.9, 0, { m: 1.5 });
+  for (const s of [-1, 1]) Rf.quad([-3.1, 3.72, s * .95], [3.1, 3.72, s * .95], [3.1, 4.3, 0], [-3.1, 4.3, 0].slice(), [0, 0, 2, .4], [.8, .8, 1.05, 1.05]).quad([3.1, 3.72, s * .95], [-3.1, 3.72, s * .95], [-3.1, 4.3, 0], [3.1, 4.3, 0], [0, 0, 2, .4], .55);
+  return B.group(); };
+const lantern = () => { const B = R.parts(); B.g(stone2).smooth(0).loft(6, [[0, .3, .3, 0, .7], [.14, .26, .26, .1, .9], [.14, .11, .11, .1, .8], [.8, .1, .1, .5, 1], [.8, .22, .22, .5, .85], [.9, .22, .22, .6, 1]], { cap: 'top' }).loft(6, [[1.2, .34, .34, 0, .8], [1.27, .3, .3, .1, 1], [1.5, .05, .05, .4, 1.1]], { cap: 'top' });
+  B.g(T.lamp({}), { glow: true }).loft(4, [[.9, .16, .16, 0], [1.2, .16, .16, 1]], { ur: 4, rot: .5 }); return B.group(); };
+const AG = .5, AS = 1.42, [gx, gz, gr] = pt(AG); put(gate(), gx, gz, gr);
+for (const [a0, a1, e, sd] of [[AG - .32, AG - .02, 2.8, 1], [AG + .02, AG + .3, 2.8, 2], [AG - .2, AG - .02, -2.8, 3], [AG + .02, AG + .22, -2.8, 4], [AS - .22, AS + .22, -5.6, 5], [2.5, 2.8, 2.6, 6], [3.7, 3.95, -2.6, 7], [4.9, 5.2, 2.6, 8]]) {
+  const n = Math.round((a1 - a0) * rr(a0) / 3.1); for (let i = 0; i < n; i++) { const [x, z, ry] = pt(a0 + (i + .5) / n * (a1 - a0), e); put(wall(3.2, sd * 9 + i), x, z, ry + Math.PI / 2); } }
+const [sx, sz, sr] = pt(AS, -3.9), shrine = new THREE.Group(), hs = R.house({ w: 2.6, d: 2.4, h: 2.3, wall: stoneT, base: stone2, roof: slate, pitch: 1, eave: .6, ridge: 'z', door: T.door({ arch: 1, c: '#7a3a30' }), wins: { f: 0, r: 0, b: 0, l: 0 } });
+hs.scale.setScalar(.6); hs.position.y = .5; shrine.add(hs, R.geo().smooth(0).box(3.2, .25, 3, 0, 0, 0, { m: 3, taper: .95, c0: .7 }).box(2.3, .25, 2.2, 0, .25, 0, { m: 3, taper: .95, c0: .8 }).mesh(stone2));
+for (const s of [-1, 1]) { const l = lantern(); l.position.set(s * 1.5, 0, 1.9); shrine.add(l); } put(shrine, sx, sz, sr + Math.PI / 2);
+const glow = new THREE.PointLight('#ffc070', 10, 7, 1.6); glow.position.set(sx, 1.4, sz); scene.add(glow);
+
+// ---- 木・岩・草（道と石の物はよける） ----
+const clear = (x, z, m) => Math.abs(off(x, z)) > m && Math.hypot(x - sx, z - sz) > 4.2 && Math.hypot(x - gx, z - gz) > 5;
+for (let i = 0; i < 230; i++) { const a = hash(i, 1) * TAU, r = 6 + hash(i, 2) * 72, x = Math.cos(a) * r, z = Math.sin(a) * r, k = i % 3; if (!clear(x, z, 3.4)) continue;
+  put(R.tree({ kind: k ? 'round' : 'tall', h: (k ? 9 : 13) + hash(i, 3) * 6, c: ['#2f7a48', '#3f8a44', '#28684a'][i % 3], seed: i }), x, z, i); }
+for (let i = 0; i < 44; i++) { const [x, z] = pt(hash(i, 4) * TAU, (i % 2 ? 1 : -1) * (2.3 + hash(i, 5) * 5)); if (clear(x, z, 2.2)) put(R.rock({ s: .5 + hash(i, 6) ** 2 * 1.6, c: '#8c908c', moss: .4 + hash(i, 7) * .6, seed: i }), x, z, i, -.1); }
+for (let i = 0; i < 170; i++) { const [x, z] = pt(hash(i, 8) * TAU, (i % 2 ? 1 : -1) * (1.9 + hash(i, 9) ** 1.5 * 9)), k = i % 6; if (!clear(x, z, 1.8)) continue;
+  if (k === 5) put(R.tree({ kind: 'bush', h: 1 + hash(i, 10) * .6, c: '#3f8a44', flowers: i % 4 ? 0 : .4, fc: ['#ffffff', '#f7b8d0'], seed: i }), x, z, i); else put(R.tuft({ kind: ['grass', 'grass', 'flower', 'bush', 'reed'][k], s: .6 + hash(i, 11) * .5, c: '#4f9a48', seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#4a8a5c', haze: '#a4d4a0', r: 96, h: 20, y: -1, rep: 8 }), R.backdrop({ c: '#6aa878', haze: '#c8e8b8', r: 140, h: 44, y: -2, rep: 6, seed: 3 }));
+
+// ---- 木もれ日の光のすじ（ドットのまばらな帯を、うすく明るく重ねる）----
+const rayP = R.Px(32, 64); rayP.each((x, y) => hash(x, 5) < (1 - Math.abs(x - 15.5) / 16) * .9 && hash(x, y, 3) < .15 + y / 70 ? '#fff6c0' : null);
+const rayM = new THREE.MeshBasicMaterial({ map: T.from(rayP, { m: 1, cut: true }), transparent: true, opacity: .1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }), rayG = R.geo();
+for (let i = 0, n = 0; i < 300 && n < 16; i++) { const [x, z] = pt(i * .31, (hash(i, 12) - .5) * 9); if (dapple(x, z) < .93 || !clear(x, z, .2)) continue; n++; const w = .7 + hash(i, 13) * .7, L = 13, c = Math.cos(i), s = Math.sin(i);
+  rayG.quad([x - c * w, 0, z - s * w], [x + c * w, 0, z + s * w], [x + c * w + SUN.x * L, SUN.y * L, z + s * w + SUN.z * L], [x - c * w + SUN.x * L, SUN.y * L, z - s * w + SUN.z * L], [0, 0, 1, 1]); }
+const rays = new THREE.Mesh(rayG.build(), rayM); scene.add(rays);
+
+// ---- 人・ねこ・鳥 ----
+const hero = R.person({ face: 0, cloth: 'tunic', top: '#cc3f2e', top2: '#f0e0b8', bottom: '#5a4a3a', boots: true, hat: 'straw', pack: true, hair: '#4a3020', s: 1.05 }); scene.add(hero);
+const monk = R.person({ face: 6, cloth: 'robe', skirt: 1, top: '#8a8a7a', hair: '#d8d8d8' }), [mx, mz] = pt(AS, -1.9); monk.position.set(mx, 0, mz); monk.rotation.y = Math.atan2(sx - mx, sz - mz); scene.add(monk);
+const cat = R.cat({ c: '#e8e4dc' }), [cx, cz, cr] = pt(AG + .12, 2.8); cat.position.set(cx, 1.02, cz); cat.rotation.y = cr - 2; scene.add(cat);
+const birds = [.9, .93, .98, 2.2, 2.26, 3.3, 3.36, 4.4, 5.6, 5.66].map((a, i) => { const [x, z] = pt(a, (i % 3 - 1) * .7), b = R.bird(i % 3 ? { c: '#8a6a4a', belly: '#e8d8b8', neck: false } : { c: '#e8e4dc', neck: false }); b.position.set(x, 0, z); b.rotation.y = i * 2.1; b.userData.home = [x, z, i * 2.1]; b.userData.fly = -1; scene.add(b); return b; });
+
+// ---- 旅人の道（輪を左まわり。門の少し手前から始める） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.9, S0 = (AG - .36) / TAU, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, mo = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.8);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
+  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.5, p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 祠でおがむ人・ねこ・鳥（近づくと飛ぶ）
+  R.idle(monk, t, 0); for (const n of ['armL', 'armR']) monk.userData.J[n].rotation.x = -1.05; for (const n of ['foreL', 'foreR']) monk.userData.J[n].rotation.x = -1.2; monk.userData.J.torso.rotation.x = .12 + Math.sin(t * .8) * .06;
+  R.catPose(cat, 'sit', t);
+  for (const b of birds) { const [hx, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
+    if (b.userData.fly < 0) { R.birdPose(b, 'peck', t + hr * 3); if (dh < 3.6) b.userData.fly = 0; }
+    else { const f = (b.userData.fly += dt); b.visible = f < 5; b.position.set(hx + Math.cos(hr) * f * 3.2, Math.min(9, f * 2.8 - f * f * .1), hz + Math.sin(hr) * f * 3.2); b.rotation.y = Math.atan2(Math.cos(hr), Math.sin(hr)); R.birdPose(b, 'fly', t + hr);
+      if (f > 5 && dh > 18) { b.userData.fly = -1; b.visible = true; b.position.set(hx, 0, hz); b.rotation.y = hr; } } }
+  // ただよう光のつぶ
+  if ((mo += dt) > .16) { mo = 0; const a = Math.random() * TAU, r = 2 + Math.random() * 6; fx.emit('spark', p.x + tg.x * 9 + Math.cos(a) * r, .6 + Math.random() * 3, p.z + tg.z * 9 + Math.sin(a) * r, { size: .1, life: 3, vy: .12, spread: .25, tint: '#fff2a8', add: true }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

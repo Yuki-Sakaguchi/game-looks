@@ -71,7 +71,7 @@ const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 16), new THREE.MeshBasic
 const starG = new THREE.BufferGeometry(); starG.setAttribute('position', new THREE.Float32BufferAttribute([...Array(160)].flatMap((_, i) => { const a = hash(i, 11) * 6.283, e = .12 + hash(i, 12) * 1.2; return [Math.cos(a) * Math.cos(e) * 340, Math.sin(e) * 340, Math.sin(a) * Math.cos(e) * 340]; }), 3));
 scene.add(new THREE.Points(starG, new THREE.PointsMaterial({ color: '#dfe6ff', size: 2.2, sizeAttenuation: false, fog: false })));
 for (const i of [0, 2, 3, 5, 6]) { const l = new THREE.PointLight('#ffa850', 22, 10, 1.5); l.position.set(LAMPS[i][0], 3.1, LAMPS[i][1]); scene.add(l); }
-const NS = 280, flakeG = new THREE.BufferGeometry(), fp = new Float32Array(NS * 3); flakeG.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+const NS = 220, flakeG = new THREE.BufferGeometry(), fp = new Float32Array(NS * 3); flakeG.setAttribute('position', new THREE.BufferAttribute(fp, 3));
 const flakes = new THREE.Points(flakeG, new THREE.PointsMaterial({ color: '#eef2ff', size: .055, fog: false })); flakes.frustumCulled = false; scene.add(flakes);
 const mod = (v, m) => ((v % m) + m) % m;
 
@@ -84,12 +84,12 @@ const chatA = npc({ face: 4, cloth: 'apron', top: '#b0586a', skirt: .8, hair: '#
 
 // ---- 主人公の道（輪を左まわり。村人は右まわりで来て、すれちがう） ----
 const path = new THREE.CatmullRomCurve3([...Array(28)].map((_, i) => { const [x, z] = pt(-i / 28 * 6.283, .5); return new THREE.Vector3(x, 0, z); }), true, 'centripetal'), back = new THREE.CatmullRomCurve3([...Array(28)].map((_, i) => { const [x, z] = pt(i / 28 * 6.283, -.7); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
-const LEN = path.getLength(), SPEED = 2, S0 = .03, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 60);
+const LEN = path.getLength(), SPEED = 1.7, S0 = .03, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 60);
 const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
 let first = true, sm = 0;
 K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
-  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 4);
   if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
   cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.4, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
