@@ -18,7 +18,7 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 44 }), { add, box, hash } = K;
 scene.background = new THREE.Color('#000000'); scene.fog = new THREE.Fog('#000000', 90, 175);
-const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 3.8, range: 36 });
+const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 4.3, range: 36 });
 const H = (x, z) => z * .2 + Math.sin(x * .05) * Math.cos(z * .04) * 2.5 + Math.sin(z * .021 + x * .03) * 3, pathX = z => Math.sin(z * .025) * 9;   // −z へ下る雪の丘
 const W = new THREE.Color('#ffffff'), land = K.terrain(H, 70, 70, 3, () => W); land.mesh.receiveShadow = true; scene.add(land.mesh);
 const INK = '#1a1a1a', WALL = '#d4d4d4', P = 100, things = [];
@@ -36,7 +36,7 @@ const scarf = box(sled, .16, .06, .7, WH, 0, 0, 0); scarf.geometry.translate(0, 
 let cy = null;
 const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 void main(){vec2 p=vUv*res;vec3 n=nrm(vUv);float d=dep(vUv),l=luma(src(vUv)),f=smoothstep(.93,.5,l);            // f＝黒インクの量
-vec2 q=rot(-atan(n.y,n.x+.001))*p;float ln=abs(fract(q.x/7.)-.5)*2.,nick=step(.22,fract(q.y/30.+h(vec2(floor(q.x/7.),3.))));   // 彫りあとの線は、面の向きに直角
+vec2 q=rot(-atan(n.y,n.x+.001))*p;float ln=abs(fract(q.x/9.)-.5)*2.,nick=step(.22,fract(q.y/30.+h(vec2(floor(q.x/9.),3.))));   // 彫りあとの線は、面の向きに直角
 float v=1.-step(ln,f*1.15-.08)*mix(1.,nick,step(f,.75));if(d>nf.y*.9)v=0.;
 vec2 o=px*2.5;float a=luma(src(vUv+vec2(o.x,0.))),b=luma(src(vUv-vec2(o.x,0.))),c=luma(src(vUv+vec2(0.,o.y))),e=luma(src(vUv-vec2(0.,o.y)));
 if(edge(vUv,2.,.5,.05)>.5){if(min(min(a,b),min(c,e))>.6)v=0.;else if(max(max(a,b),max(c,e))<.5)v=1.;}            // 白どうしの境は黒い線、黒どうしは白い線
