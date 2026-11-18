@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>箱をやめたローポリ 20 案 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#0c0d10;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{display:flex;gap:10px;padding:8px 10px 9px;align-items:baseline}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a}
+.genre{color:#9a988f;font-size:11px}
+.look{font-weight:600}
+.tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>箱をやめたローポリ 20 案</h1>
+  <p>第 7 集。第 6 集は人も家も木も「箱の組み合わせ」で、ブロックの世界に見えすぎました。それを 2 つの方向で直したものです。01〜10 は「こまかいローポリ」: 面を増やして、丸い頭やひじ・ひざのある人、のきや窓わくのある家、でこぼこの葉の木まで作りこみます。11〜20 は「描きこんだテクスチャとブラウン管」: 面は少ないまま、れんがや屋根がわら、顔や服をドット絵のテクスチャで描き、低い解像度とブラウン管のにじみでやわらかく見せます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。部品の一覧は <a href="model-sheet.html" style="color:#e8b44a">こまかいローポリの部品</a>と<a href="retro-sheet.html" style="color:#e8b44a">テクスチャの一覧</a>で見られます。</p>
+</header>
+<div id="grid"></div>
+<script>
+// [ファイル名, 場面, ルック, 3D なら 1]
+const LOOKS = [
+  ['01-hill-village-walk', '丘の村の散歩', 'こまかいローポリ：夕方のやわらかい光', 1],
+  ['02-onsen-snow-night', '雪の温泉街の夜歩き', 'こまかいローポリ：雪と窓のあかり', 1],
+  ['03-sakura-local-train', '桜並木のローカル線', 'こまかいローポリ：桜吹雪と小さな駅', 1],
+  ['04-seaside-bike-evening', '海ぞいの坂道を自転車で', 'こまかいローポリ：夕日の海', 1],
+  ['05-shepherd-misty-hill', '朝霧の丘の羊飼い', 'こまかいローポリ：霧とひつじの群れ', 1],
+  ['06-lake-boat-dawn', '夜明けの湖の小舟', 'こまかいローポリ：朝焼けの水面', 1],
+  ['07-autumn-forest-path', '秋の森のきのこ狩り', 'こまかいローポリ：紅葉と木もれ日', 1],
+  ['08-lantern-festival-dusk', 'たそがれの灯ろう祭り', 'こまかいローポリ：紺の夕やみと灯ろう', 1],
+  ['09-harbor-delivery-truck', '港町の配達トラック', 'こまかいローポリ：色ちがいの家並み', 1],
+  ['10-rainy-school-road', '雨上がりの通学路', 'こまかいローポリ：水たまりと朝の光', 1],
+  ['11-plaza-town-rpg', '石だたみの町の広場', 'ドット絵のテクスチャとブラウン管：夕方の町', 1],
+  ['12-snow-village-night', '雪の村の夜', 'ドット絵のテクスチャとブラウン管：雪と窓のあかり', 1],
+  ['13-coast-drive', '海ぞいのドライブ', 'ドット絵のテクスチャとブラウン管：道路と海', 1],
+  ['14-forest-shrine-path', '森の小道の探索', 'ドット絵のテクスチャとブラウン管：苔の石だたみ', 1],
+  ['15-harbor-market', '港の朝市', 'ドット絵のテクスチャとブラウン管：桟橋と屋台', 1],
+  ['16-wheat-village-cart', '麦畑の村の荷車', 'ドット絵のテクスチャとブラウン管：わらぶきと麦', 1],
+  ['17-night-shopping-street', '夜の商店街', 'ドット絵のテクスチャとブラウン管：シャッターと街灯', 1],
+  ['18-desert-bazaar', '砂の町のバザール', 'ドット絵のテクスチャとブラウン管：砂と色の布', 1],
+  ['19-lake-boat-fishing', '湖の小舟', 'ドット絵のテクスチャとブラウン管：動く水面', 1],
+  ['20-castle-garden', '城の庭園の散歩', 'ドット絵のテクスチャとブラウン管：石づみと花だん', 1],
+];
+const grid = document.getElementById('grid');
+for (const [file, genre, look, is3d] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>
