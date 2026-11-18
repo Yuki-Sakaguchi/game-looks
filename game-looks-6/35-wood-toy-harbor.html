@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-35 木のおもちゃの港 積み木の箱庭</title>
+<style>
+html,body{margin:0;height:100%;background:#f4ecdc;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#8a5a34;background:#f4ecdc;padding:0 6px}
+</style>
+<div id="cap">6-35 ─ 木のおもちゃの港 / 木目の積み木と 4 色のぬった部品でできた箱庭　｜　見るだけ（自動で荷を積みかえる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 木のおもちゃの決まり：形は角を丸めた積み木と円柱だけ。素材は 2 つ ― 木目のある明るい木（Canvas でかいた木目の模様）と、
+// 赤・青・黄・緑に白を足した、少しつやのあるぬり。明るい机の上にやわらかい影を落とす。仕上げの加工はしない
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 36, fitAspect: 1.45, maxFov: 100 }), { add, hash } = K;
+scene.background = new THREE.Color('#f4ecdc');
+K.lights(scene, renderer, { range: 19, amb: 1.7, power: 1.9, pos: [10, 26, -14], sky: 0xfffaf0, ground: 0xead8b8 });
+// 木目：明るい木の色に、ゆるく波うつ細い線と、ふし
+const wc = document.createElement('canvas'); wc.width = wc.height = 256; { const g = wc.getContext('2d'); g.fillStyle = '#ebcb98'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 46; i++) { const y0 = hash(i, 1) * 256, a = 2 + hash(i, 2) * 5, ph = hash(i, 3) * 6; g.strokeStyle = `rgba(176,122,62,${.14 + hash(i, 4) * .3})`; g.lineWidth = .8 + hash(i, 5) * 2.2; g.beginPath(); for (let x = 0; x <= 256; x += 8) g.lineTo(x, y0 + Math.sin(x / 256 * 6.283 + ph) * a + Math.sin(x / 256 * 12.566 + i) * 1.5); g.stroke(); }
+  for (const [x, y] of [[70, 90], [190, 200]]) for (let r = 9; r > 1; r -= 2.5) { g.strokeStyle = 'rgba(150,96,48,.4)'; g.lineWidth = 1; g.beginPath(); g.ellipse(x, y, r * 1.8, r, 0, 0, 6.3); g.stroke(); } }
+const wt = new THREE.CanvasTexture(wc); wt.wrapS = wt.wrapT = THREE.RepeatWrapping; wt.colorSpace = THREE.SRGBColorSpace; wt.anisotropy = 4;
+const WOOD = new THREE.MeshStandardMaterial({ map: wt, roughness: .62 }), WOOD2 = new THREE.MeshStandardMaterial({ map: wt, color: '#e0b888', roughness: .62 });
+const mats = {}, paint = c => c.isMaterial ? c : mats[c] || (mats[c] = K.flat(c, { flatShading: false, roughness: .42 }));
+const RED = '#e2483a', BLUE = '#3f86d8', YEL = '#f4bc34', GREEN = '#54ac5e', WHITE = '#faf4e6', DARK = '#6a4a34';
+// 角を丸めた積み木
+const rbox = (w, h, d, r) => { const g = new THREE.BoxGeometry(2, 2, 2, 5, 5, 5), p = g.attributes.position, n = g.attributes.normal, v = new THREE.Vector3(), k = a => Math.abs(a) < .3 ? 0 : Math.abs(a) < .8 ? Math.sign(a) * .75 : Math.sign(a), s = [w / 2 - r, h / 2 - r, d / 2 - r];
+  for (let i = 0; i < p.count; i++) { const a = [p.getX(i), p.getY(i), p.getZ(i)]; v.set(k(a[0]), k(a[1]), k(a[2])).normalize(); n.setXYZ(i, v.x, v.y, v.z); p.setXYZ(i, Math.sign(a[0]) * s[0] + v.x * r, Math.sign(a[1]) * s[1] + v.y * r, Math.sign(a[2]) * s[2] + v.z * r); } return g; };
+const S = m => { m.castShadow = m.receiveShadow = true; return m; }, RB = (p, w, h, d, r, c, x, y, z) => S(add(p, rbox(w, h, d, r), paint(c), x, y, z));
+const cyl = (p, r, h, c, x, y, z, r2 = r) => S(add(p, new THREE.CylinderGeometry(r2, r, h, 20), paint(c), x, y, z));
+const wheelsOn = (g, xs, c = RED) => { for (const x of xs) for (const z of [-.62, .62]) cyl(g, .34, .16, c, x, .36, z).rotation.x = Math.PI / 2; };
+// 机の影、海の板、岸の積み木、線路
+const fl = add(scene, new THREE.PlaneGeometry(120, 120), new THREE.ShadowMaterial({ opacity: .22 }), 0, 0, 0); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true;
+RB(scene, 30, .5, 9, .22, BLUE, 0, .25, -5.5); for (let i = 0; i < 9; i++) RB(scene, 1.6, .1, .3, .05, '#8cc2f0', -12 + i * 3 + (i % 2), .5, -3 - (i * 2.3 % 6), 0);
+const Q = 1.4; RB(scene, 24, Q, 8, .3, WOOD, 0, Q / 2, 3); for (const z of [2.15, 3.05]) RB(scene, 22, .12, .16, .05, DARK, 0, Q + .05, z);
+// 機関庫（両はし）、倉庫の家、積んだコンテナ、木、灯台
+for (const s of [-1, 1]) { RB(scene, 3.4, 2.6, 2.8, .3, s < 0 ? GREEN : BLUE, s * 10.2, Q + 1.3, 2.6); RB(scene, 3.7, .5, 3.1, .2, RED, s * 10.2, Q + 2.8, 2.6); S(add(scene, new THREE.BoxGeometry(.08, 1.9, 1.6), paint('#4a3a3a'), s * 8.47, Q + .95, 2.6)); }
+for (const [x, c] of [[-6.2, RED], [-3.6, BLUE]]) { RB(scene, 2, 1.7, 1.8, .15, WOOD2, x, Q + .85, 5.6); const r = S(add(scene, new THREE.CylinderGeometry(1.35, 1.35, 1.9, 3), paint(c), x, Q + 2.36, 5.6)); r.rotation.set(Math.PI / 2, 0, 0); r.rotation.order = 'YXZ'; r.rotation.y = Math.PI / 2; }
+[[3.2, 0, GREEN], [5.4, 0, RED], [7.6, 0, BLUE], [4.3, 1, YEL], [6.5, 1, GREEN]].forEach(([x, k, c]) => RB(scene, 2, 1, 1.1, .12, c, x, Q + .5 + k, 5.8));
+for (const x of [-9, -.8, .9]) { cyl(scene, .22, .9, WOOD2, x, Q + .45, 6.2); S(add(scene, new THREE.ConeGeometry(.8, 1.9, 16), paint(GREEN), x, Q + 1.8, 6.2)); }
+{ const g = new THREE.Group(); g.position.set(-10.4, Q, -.05); cyl(g, 1.2, .4, WOOD2, 0, .2, 0); for (let k = 0; k < 4; k++) cyl(g, .9 - k * .09, 1.05, k % 2 ? WHITE : RED, 0, .92 + k * 1.05, 0, .81 - k * .09); cyl(g, .85, .2, WOOD2, 0, 4.7, 0); cyl(g, .42, .7, new THREE.MeshBasicMaterial({ color: '#ffe27a' }), 0, 5.15, 0); S(add(g, new THREE.ConeGeometry(.7, .8, 16), paint(RED), 0, 5.9, 0)); scene.add(g); }
+// クレーン：木の足 2 本と黄色い腕。台車が腕にそって動き、ひもの先の赤い磁石で荷をつる
+for (const s of [-1, 1]) { RB(scene, .7, 6.2, .7, .16, WOOD, s * 1.9, Q + 3.1, .2); RB(scene, 1.3, .4, 1.5, .14, WOOD2, s * 1.9, Q + .2, .2); }
+RB(scene, 4.6, .6, .8, .18, WOOD2, 0, Q + 6.1, .2); RB(scene, .8, .6, 12.4, .2, YEL, 0, Q + 6.7, -.9); RB(scene, 1.5, 1.2, 1.5, .25, RED, 0, Q + 7.6, .2); RB(scene, 1.8, .3, 1.8, .12, BLUE, 0, Q + 8.3, .2);
+const trolley = RB(scene, 1.1, .4, 1.1, .12, BLUE, 0, Q + 6.25, -4), rope = S(add(scene, new THREE.CylinderGeometry(.05, .05, 1, 6), paint(DARK))), mag = cyl(scene, .5, .26, RED, 0, 0, 0);
+// 船（赤い船体と木の甲板）、黄色いコンテナ、機関車と貨車
+const ship = new THREE.Group(); RB(ship, 5.8, 1.1, 2.5, .5, RED, 0, .95, 0); RB(ship, 5.2, .3, 2.1, .12, WOOD, 0, 1.6, 0); RB(ship, 1.3, 1.3, 1.5, .22, WHITE, -1.8, 2.3, 0); RB(ship, 1.5, .22, 1.7, .1, BLUE, -1.8, 3.05, 0); cyl(ship, .3, .9, YEL, -1.8, 3.5, 0); scene.add(ship);
+const box1 = RB(scene, 2, 1, 1.1, .12, YEL, 0, 0, 0); for (const z of [-.56, .56]) S(add(box1, new THREE.BoxGeometry(1.5, .6, .03), paint('#fff0b8'), 0, 0, z));
+const loco = new THREE.Group(), wagon = new THREE.Group(); RB(loco, 2.3, .3, 1.1, .1, RED, 0, .62, 0); cyl(loco, .5, 1.3, WOOD, .35, 1.25, 0).rotation.z = Math.PI / 2; RB(loco, .95, 1.35, 1.15, .2, GREEN, -.65, 1.4, 0); cyl(loco, .2, .6, YEL, .7, 1.95, 0, .28); wheelsOn(loco, [-.7, .7]);
+RB(wagon, 2.4, .3, 1.2, .1, WOOD2, 0, .62, 0); wheelsOn(wagon, [-.75, .75], BLUE); loco.position.z = wagon.position.z = 2.6; scene.add(loco, wagon);
+const ease = (a, b, t) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); }, UP = 7.2, SHIPY = 2.875, WAGY = Q + 1.9;
+K.loop((dt, t) => {
+  const T = t % 15;   // 0〜2.5 船が着く／2.5〜4 磁石がおりる／4〜5.5 つり上げ／5.5〜8 横へ運ぶ／8〜9.5 貨車へおろす／9.5〜10.5 磁石が上がる／10.5〜 汽車と船が出る
+  const sx = -10 * (1 - ease(-1.2, 2.5, T)) + 13 * ease(10.5, 14.8, T), bob = Math.sin(t * 2) * .03; ship.position.set(sx, bob, -4); ship.rotation.z = Math.sin(t * 1.3) * .012; ship.scale.setScalar(Math.max(.001, 1 - ease(14.2, 15, T)));
+  const tz = -4 + 6.6 * (ease(5.5, 8, T) - ease(11, 14, T)), my = T < 5.5 ? UP + (SHIPY - UP) * (ease(2.5, 4, T) - ease(4, 5.5, T) * .62) : UP + (WAGY - UP) * (.62 * (1 - ease(8, 9.5, T)) + ease(8, 9.5, T) - ease(9.5, 10.5, T)), sw = Math.sin(t * 3) * .03 * (T > 4 && T < 9.5 ? 1 : 0);
+  trolley.position.z = tz; mag.position.set(sw, my, tz); rope.position.set(sw / 2, (Q + 6.05 + my) / 2, tz); rope.scale.y = Q + 6.05 - my;
+  const wx = -13 * (1 - ease(3, 7, T)) + 13 * ease(10.6, 14.6, T); wagon.position.x = wx; loco.position.x = wx + 2.5; wagon.position.y = loco.position.y = Q; wagon.visible = Math.abs(wx) < 9.6; loco.visible = Math.abs(wx + 2.5) < 9.6;
+  for (const g of [loco, wagon]) g.children.forEach(c => { if (c.geometry.type === 'CylinderGeometry' && c.position.y < .4) c.rotation.y = -wx * 2.9; });
+  if (T < 4) box1.position.set(sx + .7, SHIPY - .625 + bob, -4); else if (T < 9.5) box1.position.set(sw, my - .625, tz); else box1.position.set(wx, WAGY - .625, 2.6); box1.visible = T < 9.5 || wagon.visible;
+  const ca = -.45 + Math.sin(t * .2) * .5; cam.position.set(Math.sin(ca) * 29, 15 + Math.sin(t * .13) * 1.5, -Math.cos(ca) * 29); cam.lookAt(0, 2.6, -.5);
+  renderer.render(scene, cam);
+});
+</script>
+</html>
