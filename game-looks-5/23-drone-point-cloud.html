@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 23 ドローン探索 レーザー測量の点群</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;left:12px;top:10px;font:12px/1.6 ui-monospace,Menlo,monospace;color:#fff;letter-spacing:.08em;white-space:pre}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#9fb4c8;background:#000;padding:0 4px}
+</style>
+<div id="hud"></div>
+<div id="cap">LOOK 23 ─ ドローン探索 / レーザー測量の点群　｜　見るだけ（自動で飛んで測る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// レーザー測量（LiDAR）の点群に見立てる。面は 1 枚も描かず、黒い背景に点だけ。色は高さで 青→緑→黄→赤。
+// ドローンが 1 秒ごとに出すスキャンの輪が広がり、輪が届いた所の点が白く光って現れる。
+// 点は「ドローンから見えた所」にしか打たない（物かげと裏側は抜ける。遠いほどまばら）。ドローンと飛んだ道すじは白い線
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(52, 1, .1, 300);
+const T = 16, TAU = Math.PI * 2, R = 30, WAVE = 26;
+const path = t => { const a = t / T * TAU; return [Math.cos(a) * 19, 6 + Math.sin(a * 2) * 1.2, Math.sin(a) * 12]; };
+const pulses = [...Array(T)].map((_, k) => path(k));
+
+// ── 廃工場の形（箱の集まり。描かずに、点を打つ下じきと物かげの判定にだけ使う）
+const boxes = [];
+const box = (cx, cz, w, d, h, y0 = 0, cyl = 0) => { const b = { x0: cx - w / 2, x1: cx + w / 2, y0, y1: y0 + h, z0: cz - d / 2, z1: cz + d / 2, cx, cz, cyl }; boxes.push(b); return b; };
+box(-6, 0, 6, 6, 9, 0, 3); box(1.5, -2.5, 4.6, 4.6, 7, 0, 2.3); box(8, 2, 6.4, 6.4, 10.5, 0, 3.2); box(-1, 4.5, 2.2, 2.2, 17, 0, 1.1); // タンクと煙突
+box(4, -6, 3, 2, 2.4); box(-11, -3, 2, 3, 3.2); box(2, 6.5, 5, 1.4, 1.6);
+for (const [a, b] of [[-30, -13], [-8, 5], [10, 30]]) box((a + b) / 2, -19, b - a, .6, 9);          // 北の壁（こわれて穴がある）
+for (const [a, b] of [[-30, -18], [-12, 14], [20, 30]]) box((a + b) / 2, 19, b - a, .6, 9);
+box(-30, -7, .6, 24, 9); box(-30, 14, .6, 10, 9); box(30, 0, .6, 38, 9);
+for (let x = -24; x <= 24; x += 8) { box(x, -16.5, .9, .9, 9.6); box(x, 16.5, .9, .9, 9.6); }      // 柱
+for (const x of [-24, -8, 8, 24]) box(x, 0, .6, 33, .7, 9.6);                                      // 屋根のはり
+box(0, -17.6, 56, .7, .7, 4); box(-2, 17.6, 40, .7, .7, 5.5);                                      // 配管
+box(-25, 10, 6, 2.6, 2.6); box(-25, 10, 6, 2.6, 2.6, 2.6); box(-25, 6.6, 6, 2.6, 2.6); box(25, -11, 2.6, 6, 2.6); box(24, 11, 5, 3, 3.4); box(0, 15.6, 14, 1.5, 1.2);
+for (let i = 0; i < 6; i++) box(21 + i * .8, -15.5, .8, 2.2, .5 + i * .6);                         // 階段
+// 線分 a→b が箱にさえぎられるか
+function blocked(a, b, skip) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  for (let i = 0; i < boxes.length; i++) { const q = boxes[i]; if (q === skip) continue; const s = q.cyl ? .15 : 0, w = (q.x1 - q.x0) * s, e = (q.z1 - q.z0) * s; let t0 = .001, t1 = .995, u, v;
+    u = (q.x0 + w - a[0]) / dx; v = (q.x1 - w - a[0]) / dx; if (u > v) [u, v] = [v, u]; if (u > t0) t0 = u; if (v < t1) t1 = v; if (t0 > t1) continue;
+    u = (q.z0 + e - a[2]) / dz; v = (q.z1 - e - a[2]) / dz; if (u > v) [u, v] = [v, u]; if (u > t0) t0 = u; if (v < t1) t1 = v; if (t0 > t1) continue;
+    u = (q.y0 - a[1]) / dy; v = (q.y1 - a[1]) / dy; if (u > v) [u, v] = [v, u]; if (u > t0) t0 = u; if (v < t1) t1 = v; if (t0 > t1) continue; return true; }
+  return false;
+}
+const P = [], TR = [], IN = []; let seed = 1; const rnd = () => hash(seed++, 7);
+// 物の表面の点: いちばん早く届く輪を探し、見えない点（裏・物かげ・遠すぎ）は捨てる
+function hit(p, n, own) {
+  let best = 1e9, bd = 0;
+  for (let k = 0; k < T; k++) { const c = pulses[k], dx = c[0] - p[0], dy = c[1] - p[1], dz = c[2] - p[2], d2 = dx * dx + dy * dy + dz * dz; if (d2 > R * R || dx * n[0] + dy * n[1] + dz * n[2] <= 0) continue; const d = Math.sqrt(d2), tr = k + d / WAVE; if (tr < best && !blocked(c, p, own)) { best = tr; bd = d; } }
+  if (best < 1e9 && rnd() < 1.5 - bd / R * 1.25) { P.push(p[0], p[1], p[2]); TR.push(best % T); IN.push(rnd()); }
+}
+for (const b of boxes) {
+  const w = b.x1 - b.x0, d = b.z1 - b.z0, h = b.y1 - b.y0, sx = .22, sy = .38; // 横に細かく、たてに粗い（走査のすじ）
+  if (b.cyl) { for (let y = b.y0 + sy * .5; y < b.y1; y += sy) for (let a = 0, da = sx / b.cyl; a < TAU; a += da) { const aa = a + rnd() * da * .4, n = [Math.cos(aa), 0, Math.sin(aa)]; hit([b.cx + n[0] * b.cyl, y + rnd() * .05, b.cz + n[2] * b.cyl], n, b); }
+    for (let r = sy; r < b.cyl; r += sy) for (let a = 0; a < TAU; a += sx / r) hit([b.cx + Math.cos(a) * r, b.y1, b.cz + Math.sin(a) * r], [0, 1, 0], b); continue; }
+  for (let y = b.y0 + sy * .5; y < b.y1; y += sy) {
+    for (let x = b.x0; x < b.x1; x += sx) { const xx = x + rnd() * sx * .4; hit([xx, y, b.z0], [0, 0, -1], b); hit([xx, y, b.z1], [0, 0, 1], b); }
+    for (let z = b.z0; z < b.z1; z += sx) { const zz = z + rnd() * sx * .4; hit([b.x0, y, zz], [-1, 0, 0], b); hit([b.x1, y, zz], [1, 0, 0], b); } }
+  for (let x = b.x0 + .15; x < b.x1; x += sy * .8) for (let z = b.z0 + .15; z < b.z1; z += sy * .8) { hit([x, b.y1, z], [0, 1, 0], b); if (b.y0 > 0) hit([x, b.y0, z], [0, -1, 0], b); }
+}
+// 地面の点: 輪ごとに、ドローンの真下を中心にした同心円でならぶ（外ほど間が広い）
+pulses.forEach((c, k) => { for (let r = 1.2; r < 29; r = r * 1.09 + .06) { const d = Math.hypot(r, c[1]); if (d > R) break; const n = Math.min(300, Math.floor(TAU * r / .5)), a0 = rnd() * 6;
+  for (let i = 0; i < n; i++) { const a = a0 + i / n * TAU, p = [c[0] + Math.cos(a) * r, 0, c[2] + Math.sin(a) * r]; if (Math.abs(p[0]) > 34 || Math.abs(p[2]) > 23) continue; if (boxes.some(q => !q.y0 && p[0] > q.x0 && p[0] < q.x1 && p[2] > q.z0 && p[2] < q.z1) || blocked(c, p)) continue; P.push(p[0], (rnd() - .5) * .04, p[2]); TR.push((k + d / WAVE) % T); IN.push(rnd() * .6); } } });
+const N = TR.length, geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('aT', new THREE.Float32BufferAttribute(TR, 1)); geo.setAttribute('aI', new THREE.Float32BufferAttribute(IN, 1));
+const pm = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uSize: { value: 2 } }, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+  vertexShader: `uniform float uTime,uSize;attribute float aT,aI;varying vec3 vC;
+  vec3 ramp(float h){vec3 a=vec3(.08,.25,1.),b=vec3(0.,.85,.8),c=vec3(.15,.95,.2),d=vec3(1.,.9,.1),e=vec3(1.,.18,.1);
+    return h<.25?mix(a,b,h*4.):h<.5?mix(b,c,h*4.-1.):h<.75?mix(c,d,h*4.-2.):mix(d,e,h*4.-3.);}
+  void main(){
+    float age=mod(uTime-aT,${T}.);                      // 輪が届いてからの時間
+    float vis=1.-smoothstep(10.,12.6,age),fl=exp(-age*4.5);   // 一周する前に消え、また測りなおす
+    vC=mix(ramp(clamp(position.y/12.,0.,1.))*(.95+.1*aI),vec3(1.),fl*.85)*vis*(.8+fl);
+    vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;vC*=1.-smoothstep(30.,52.,-mv.z);  // 遠い点は暗く
+    gl_PointSize=uSize*(1.+fl*1.8)*clamp(20./-mv.z,.8,2.3);
+    if(vis<=0.)gl_Position=vec4(2.,2.,2.,1.);}`,
+  fragmentShader: 'varying vec3 vC;void main(){vec2 q=gl_PointCoord-.5;if(dot(q,q)>.25)discard;gl_FragColor=vec4(vC,1.);}' });
+const pts = new THREE.Points(geo, pm); pts.frustumCulled = false; scene.add(pts);
+// ドローン（白い線の十字と 4 つの輪）と、飛んだ道すじ
+const white = new THREE.LineBasicMaterial({ color: 0xffffff }), dv = [];
+for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { dv.push(0, 0, 0, sx * .8, 0, sz * .8); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, b = (i + 1) / 12 * TAU; dv.push(sx * .8 + Math.cos(a) * .5, .08, sz * .8 + Math.sin(a) * .5, sx * .8 + Math.cos(b) * .5, .08, sz * .8 + Math.sin(b) * .5); } }
+dv.push(-.25, -.2, -.3, .25, -.2, -.3, .25, -.2, -.3, .25, -.2, .3, .25, -.2, .3, -.25, -.2, .3, -.25, -.2, .3, -.25, -.2, -.3, 0, 0, 0, 0, -.2, 0);
+const drone = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(dv, 3)), white); scene.add(drone);
+const TN = 150, trailG = new THREE.BufferGeometry(); trailG.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(TN * 3), 3));
+const trail = new THREE.Line(trailG, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 })); trail.frustumCulled = false; scene.add(trail);
+const beam = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, -1, 0], 3)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35 })); scene.add(beam);
+let tall = false;
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; tall = cam.aspect < 1; cam.fov = tall ? 80 : 52; cam.updateProjectionMatrix(); pm.uniforms.uSize.value = 2.4 * renderer.getPixelRatio() * (tall ? .8 : 1); };
+addEventListener('resize', resize); resize();
+const hud = document.getElementById('hud'), sorted = Float32Array.from(TR).sort(); let last = performance.now(), t = 0, hudT = -1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; pm.uniforms.uTime.value = t;
+  const p = path(t), q = path(t + .05); drone.position.set(p[0], p[1], p[2]); drone.rotation.set(0, Math.atan2(q[0] - p[0], q[2] - p[2]), 0); drone.rotateZ(-.18); drone.scale.setScalar(1.35);
+  const tp = trailG.attributes.position; for (let i = 0; i < TN; i++) { const c = path(t - i * .06); tp.setXYZ(i, c[0], c[1], c[2]); } tp.needsUpdate = true;
+  beam.position.set(p[0], p[1], p[2]); beam.scale.y = p[1];
+  const c = path(t - (tall ? 2.5 : 2.1)), a = path(t + 1.1), out = tall ? 1.22 : 1.15;
+  cam.position.set(c[0] * out, c[1] + (tall ? 8 : 5.5), c[2] * out); cam.lookAt(a[0] * .9, 3.2, a[2] * .9);
+  const ht = Math.floor(t * 8); if (ht !== hudT) { hudT = ht; const tl = t % T; let lo = 0, hi = N; while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] <= tl) lo = m + 1; else hi = m; } // 今の周で測った点の数
+    hud.textContent = 'LiDAR SCAN  LAP ' + String(Math.floor(t / T) + 1).padStart(2, '0') + '\nPTS ' + String(lo).padStart(6, '0') + ' / ' + N + '\nALT ' + p[1].toFixed(1) + ' m'; }
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

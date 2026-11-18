@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 19 湖のボート釣り 8 ミリフィルム</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8d2a8;opacity:.8}
+</style>
+<div id="cap">LOOK 19 ─ 湖のボート釣り / 8 ミリフィルムのホームムービー　｜　見るだけ（自動で魚がかかる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夏休みを写した 8 ミリフィルムを映写したものに見立てる。場面は 4:3 の小さな絵に 1 秒 18 コマで描き（動きがかくつく。粒子は 6 コマに 1 回入れ替える）、
+// 全画面のシェーダーで色あせた暖色（黄と赤にかたより、黒がうく）にする。そこへ粗い粒子、たてのきず、ほこり、ときどきのだいだいの光もれをのせ、
+// コマごとに上下のゆれと明るさのちらつきを入れる。左には送り穴（パーフォレーション）が見え、カメラは手持ちでゆれる
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const ss = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+const kf = (t, K) => { if (t <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (t <= K[i][0]) { const q = (t - K[i - 1][0]) / (K[i][0] - K[i - 1][0]); return K[i - 1][1] + (K[i][1] - K[i - 1][1]) * q * q * (3 - 2 * q); } return K[K.length - 1][1]; };
+const DPR = Math.min(devicePixelRatio || 1, 2);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(DPR); document.body.prepend(renderer.domElement);
+const RT = new THREE.WebGLRenderTarget(480, 360);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 4 / 3, .5, 300);
+{ const c = document.createElement('canvas'); c.width = 4; c.height = 128; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#5fa6e0'); gr.addColorStop(.45, '#bfe0f0'); gr.addColorStop(.6, '#f2f4e8'); gr.addColorStop(1, '#f2f4e8'); x.fillStyle = gr; x.fillRect(0, 0, 4, 128); const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; scene.background = tx; }
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8fb0a0, 1.7)); const sun = new THREE.DirectionalLight(0xfff0d0, 2.6); sun.position.set(6, 9, 5); scene.add(sun);
+const lam = (c, o = {}) => new THREE.MeshLambertMaterial({ color: c, flatShading: true, ...o }), BX = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const P = (par, geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); par.add(o); return o; };
+// 湖（面ごとに光る小さな波）、遠くの山、岸の木、小屋、雲
+const wg = new THREE.PlaneGeometry(160, 90, 70, 44); wg.rotateX(-Math.PI / 2); wg.translate(0, 0, -34); const water = new THREE.Mesh(wg, new THREE.MeshPhongMaterial({ color: 0x2a86a8, flatShading: true, shininess: 70, specular: 0xfff6d8 })); scene.add(water); const wp = wg.attributes.position, w0 = wp.array.slice();
+const ridge = (z, base, amp, col, k) => { const pos = [], idx = []; for (let i = 0; i <= 60; i++) { const x = -150 + i * 5, h = base + amp * (.5 + .5 * Math.sin(i * .37 + k) + .35 * Math.sin(i * .93 + k * 2) + hash(i, k) * .3); pos.push(x, 0, z, x, h, z); if (i < 60) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } } const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setIndex(idx); scene.add(new THREE.Mesh(ge, new THREE.MeshBasicMaterial({ color: col }))); };
+ridge(-140, 14, 16, 0x8fb4c4, 1); ridge(-100, 6, 10, 0x5f9278, 4); ridge(-78, 2, 4, 0x3f7a4a, 7);
+for (let i = 0; i < 70; i++) { const x = -75 + i * 2.2 + hash(i, 1) * 1.5, h = 3 + hash(i, 2) * 4, tr = P(scene, new THREE.ConeGeometry(1.1 + hash(i, 3), h, 5), lam(hash(i, 4) < .5 ? 0x2f6a3a : 0x3f8048), x, h / 2 + .6, -72 - hash(i, 5) * 4); }
+{ const hs = new THREE.Group(); P(hs, BX(5, 3, 4), lam(0xf2e8d0), 0, 1.5, 0); const rf = P(hs, new THREE.ConeGeometry(4.2, 2.4, 4), lam(0xc8402a), 0, 4.2, 0); rf.rotation.y = Math.PI / 4; P(hs, BX(9, .3, 1.6), lam(0x9a7a50), 6, .5, 3); hs.position.set(-13, .3, -70); scene.add(hs); }
+for (let i = 0; i < 7; i++) { const cl = new THREE.Group(); for (let k = 0; k < 4; k++) P(cl, new THREE.IcosahedronGeometry(5 + hash(i, k) * 4, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), k * 7 - 10, hash(k, i) * 3, 0).scale.y = .5; cl.position.set(-90 + i * 30 + hash(i, 9) * 10, 30 + hash(i, 8) * 16, -150); scene.add(cl); }
+// ボート（断面をつないだ船体）
+const boat = new THREE.Group(); scene.add(boat);
+{ const N = 9, pos = [], idx = [], rim = [[], []]; for (let i = 0; i <= N; i++) { const u = i / N, x = -1.6 + 3.2 * u, w = .62 * Math.pow(1 - u * u * u, .6), h = .4 + .2 * u * u; pos.push(x, h, -w, x, -.14 + .1 * u * u, -w * .6, x, -.14 + .1 * u * u, w * .6, x, h, w); rim[0].push(new THREE.Vector3(x, h, -w)); rim[1].push(new THREE.Vector3(x, h, w)); if (i < N) for (let k = 0; k < 3; k++) { const a = i * 4 + k; idx.push(a, a + 4, a + 1, a + 1, a + 4, a + 5); } } idx.push(0, 1, 3, 1, 2, 3);
+  const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setIndex(idx); ge.computeVertexNormals(); boat.add(new THREE.Mesh(ge, lam(0xf4efe2, { side: THREE.DoubleSide })));
+  for (const r of rim) boat.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(r), 20, .035, 5), lam(0xd23a2a))); for (const x of [-1.05, 0, .95]) P(boat, BX(.26, .04, 1), lam(0xb88a54), x, .28, 0);
+  const oar = P(boat, new THREE.CylinderGeometry(.025, .025, 2.2, 5), lam(0xb88a54), -.2, .44, .6); oar.rotation.z = Math.PI / 2 - .08; P(boat, BX(.5, .03, .16), lam(0xb88a54), -1.4, .52, .6); P(boat, BX(.3, .26, .3), lam(0x3a8ad0), .55, .13, -.2); }
+// 人形の手足は、2 点をむすぶ細い箱
+const limb = (par, w, m, d = w) => P(par, BX(1, w, d), m);
+const seg = (m, ax, ay, bx, by, z = 0) => { m.position.set((ax + bx) / 2, (ay + by) / 2, z); m.rotation.z = Math.atan2(by - ay, bx - ax); m.scale.x = Math.hypot(bx - ax, by - ay) + .03; };
+const SKIN = lam(0xf0b888), SHIRT = lam(0xfaf6ea), SHORT = lam(0x3a5a9a), STRAW = lam(0xe8c25a), VEST = lam(0xffb81a), CAPR = lam(0xd8301f);
+// 父さん（麦わら帽子）
+const dad = { legU: [limb(boat, .15, SHORT), limb(boat, .15, SHORT)], legL: [limb(boat, .11, SKIN), limb(boat, .11, SKIN)], torso: limb(boat, .3, SHIRT, .34), arm: [limb(boat, .09, SKIN), limb(boat, .09, SKIN)], sl: [limb(boat, .12, SHIRT), limb(boat, .12, SHIRT)], head: new THREE.Group() };
+boat.add(dad.head); P(dad.head, new THREE.IcosahedronGeometry(.14, 1), SKIN); P(dad.head, new THREE.CylinderGeometry(.3, .3, .025, 12), STRAW, 0, .1, 0); P(dad.head, new THREE.CylinderGeometry(.13, .16, .13, 10), STRAW, 0, .17, 0); P(dad.head, new THREE.CylinderGeometry(.165, .165, .04, 10), CAPR, 0, .13, 0);
+// 子ども（赤い帽子、黄色い救命胴衣）
+const kid = { legU: [limb(boat, .11, SHORT), limb(boat, .11, SHORT)], legL: [limb(boat, .08, SKIN), limb(boat, .08, SKIN)], torso: limb(boat, .26, VEST, .28), arm: [limb(boat, .07, SKIN), limb(boat, .07, SKIN)], head: new THREE.Group() };
+boat.add(kid.head); P(kid.head, new THREE.IcosahedronGeometry(.125, 1), SKIN); P(kid.head, new THREE.SphereGeometry(.135, 10, 6, 0, 6.3, 0, 1.5), CAPR, 0, .02, 0); P(kid.head, BX(.14, .02, .16), CAPR, .15, .04, 0);
+// さお、糸、うき、魚、水しぶき
+const ROD = lam(0x4a3220), rod = [...Array(6)].map((_, i) => limb(boat, .04 - i * .004, ROD)), line = limb(scene, .014, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+const bob = new THREE.Group(); P(bob, new THREE.SphereGeometry(.075, 8, 6), lam(0xf02a1a)); P(bob, new THREE.SphereGeometry(.07, 8, 6), lam(0xffffff), 0, -.04, 0); P(bob, BX(.015, .16, .015), lam(0xf02a1a), 0, .1, 0); scene.add(bob);
+const fish = new THREE.Group(); { const b = P(fish, new THREE.OctahedronGeometry(1, 0), lam(0xd8e2d0)); b.scale.set(.3, .11, .07); const bk = P(fish, new THREE.OctahedronGeometry(1, 0), lam(0x4a7a52), 0, .03, 0); bk.scale.set(.26, .09, .06); const tl = P(fish, new THREE.ConeGeometry(.1, .16, 3), lam(0x4a7a52), -.34, 0, 0); tl.rotation.z = -Math.PI / 2; tl.scale.z = .3; fish.userData.tl = tl; P(fish, BX(.02, .02, .15), lam(0x111111), .2, .02, 0); scene.add(fish); }
+const BXW = 2.45, EV = [2.3, 3.3, 4.25, 5.5, 6.2, 7, 13];
+const rings = EV.map(() => { const m = P(scene, new THREE.RingGeometry(.8, 1, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false })); m.rotation.x = -Math.PI / 2; return m; });
+const drops = [...Array(EV.length * 8)].map(() => P(scene, BX(.06, .06, .06), new THREE.MeshBasicMaterial({ color: 0xffffff })));
+// 魚の位置（水の中をにげ、2 回はねる）
+const fishAt = tt => { let x = BXW + Math.sin(tt * 2.3) * .3, y = -.22, r = Math.sin(tt * 9) * .3; for (const [a, b, h, d] of [[3.3, 4.25, 1.15, 1], [5.5, 6.2, .7, -1]]) if (tt >= a && tt <= b) { const q = (tt - a) / (b - a); y = Math.sin(Math.PI * q) * h - .12; x = BXW + d * (q - .5) * 1.0; r = Math.atan2(Math.cos(Math.PI * q) * h * 3, 1) * d + (d < 0 ? Math.PI : 0) + Math.sin(tt * 30) * .25; } return [x, y, r]; };
+// 仕上げ: フィルムらしい色・粒・きず・光もれ・送り穴
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ depthTest: false, uniforms: { tD: { value: RT.texture }, uFc: { value: new THREE.Vector2() }, uFs: { value: new THREE.Vector2(1, 1) }, uJ: { value: new THREE.Vector2() }, uFl: { value: 1 }, uLeak: { value: 0 }, uSeed: { value: 0 }, uGs: { value: 0 }, uCell: { value: 4 }, uSc: { value: new THREE.Vector3() }, uDu: { value: [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()] } },
+  vertexShader: 'void main(){gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader: `uniform sampler2D tD;uniform vec2 uFc,uFs,uJ;uniform float uFl,uLeak,uSeed,uGs,uCell;uniform vec3 uSc;uniform vec3 uDu[3];
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float box(vec2 p,vec2 b,float r){vec2 d=abs(p)-b+r;return length(max(d,0.))+min(max(d.x,d.y),0.)-r;}
+void main(){vec2 g0=(gl_FragCoord.xy-uFc)/uFs;vec2 q=g0+uJ;                 // g0: 映写機の窓（動かない）、q: フィルム（コマごとにゆれる）
+ vec2 asp=vec2(uFs.x/uFs.y,1.);
+ float gate=smoothstep(.006,-.004,box((g0-vec2(-.095,0.))*asp,vec2(.595,.5)*asp,.02));
+ float inF=smoothstep(.004,-.004,box(q*asp,vec2(.5,.492)*asp,.03));
+ vec2 uv=q+.5;vec3 c=pow(texture2D(tD,uv).rgb,vec3(.4545));
+ vec3 bl=(texture2D(tD,uv+vec2(.012,0.)).rgb+texture2D(tD,uv-vec2(.012,0.)).rgb+texture2D(tD,uv+vec2(0.,.016)).rgb+texture2D(tD,uv-vec2(0.,.016)).rgb)*.25;
+ c+=vec3(1.,.7,.4)*max(dot(bl,vec3(.33))-.55,0.)*.5;                        // 明るい所のにじみ
+ float l=dot(c,vec3(.3,.59,.11));c=mix(vec3(l),c,.7);
+ c=c*vec3(1.1,.96,.7)+vec3(.1,.06,.035);c=mix(c,vec3(1.,.93,.72)*l+.08,.22); // 色あせ: 黄と赤にかたより、黒がうく
+ c*=1.-.5*pow(length(q*vec2(1.05,1.))*1.5,2.6);                              // まわりが暗い
+ vec3 base=vec3(.055,.03,.018);                                              // 絵の外はフィルムの地
+ float hole=smoothstep(.006,-.004,box((q-vec2(-.59,0.))*asp,vec2(.052,.125)*asp,.018));
+ base=mix(base,vec3(1.,.96,.84),hole)+vec3(1.,.8,.5)*.25*exp(-max(box((q-vec2(-.59,0.))*asp,vec2(.052,.125)*asp,.018),0.)*26.);
+ c=mix(base,c,inF);
+ float n=h(floor(gl_FragCoord.xy/uCell)+uGs),n2=h(floor(gl_FragCoord.xy/uCell)*1.7+uGs+3.);
+ c+=((n-.5)*.1+vec3(n2-.5,0.,.5-n2)*.03)*(1.1-l*.5);                        // 粗い粒子
+ float sx=abs(q.x-uSc.x-.004*sin(q.y*9.+uSeed));c+=uSc.z*.3*smoothstep(.0022,.0004,sx);
+ float sx2=abs(q.x-uSc.y);c*=1.-.45*smoothstep(.0018,.0004,sx2)*step(.3,uSc.z);   // たてのきず（白と黒）
+ for(int i=0;i<3;i++){vec2 d=(q-uDu[i].xy)*asp;c*=1.-.85*step(.0005,uDu[i].z)*(1.-smoothstep(uDu[i].z*.35,uDu[i].z+.0001,length(d*vec2(1.,.6+.8*h(uDu[i].xy)))));}  // ほこり
+ float lk=uLeak*smoothstep(-.05,.55,q.x+.12*sin(q.y*4.+uSeed*.3));c=1.-(1.-c)*(1.-vec3(1.,.45,.08)*lk);c+=vec3(.5,.1,0.)*lk*lk;   // 光もれ
+ c*=uFl*gate;
+ gl_FragColor=vec4(c,1.);}` }));
+const pScene = new THREE.Scene(); pScene.add(post); const pCam = new THREE.Camera();
+const resize = () => { const W = innerWidth, H = innerHeight; renderer.setSize(W, H); const u = post.material.uniforms; let fw, fh, cx; if (H > W) { fw = W * 1.35; fh = fw * .75; cx = W / 2 - fw * .03; } else { fh = Math.min(H * .94, W * .9 / (4 / 3 * 1.19)); fw = fh * 4 / 3; cx = W / 2 + fw * .095; } u.uFc.value.set(cx * DPR, H / 2 * DPR); u.uFs.value.set(fw * DPR, fh * DPR); u.uCell.value = Math.max(2, Math.round(fh * DPR / 150)); };
+addEventListener('resize', resize); resize();
+const v = new THREE.Vector3();
+function film(fi) {                                    // フィルム 1 コマぶんを描く
+  const t = fi / 18, tt = t % 16;
+  for (let i = 0; i < wp.count; i++) { const x = w0[i * 3], z = w0[i * 3 + 2]; wp.array[i * 3 + 1] = Math.sin(x * .9 + t * 1.6) * .035 + Math.sin(z * 1.3 - t * 1.2 + x * .3) * .04 + Math.sin(x * 2.3 + z * 1.9 + t * 2.3) * .02; } wp.needsUpdate = true; wg.computeVertexNormals();
+  const fight = ss(2.3, 2.55, tt) * (1 - ss(6.9, 7.2, tt)), hold = ss(7.6, 8.4, tt) * (1 - ss(11.2, 11.5, tt)), jumpNow = (tt > 3.3 && tt < 4.4) || (tt > 5.5 && tt < 6.3);
+  boat.position.y = Math.sin(t * 1.3) * .03; boat.rotation.z = Math.sin(t * .9) * .015 - fight * .03 + Math.sin(t * 6) * .008 * fight; boat.rotation.x = Math.sin(t * 1.1) * .02;
+  // さおの角度と、しなり
+  const al = kf(tt, [[0, 38], [2.3, 38], [2.5, 52], [7, 50], [8.3, 82], [11.3, 82], [11.8, 112], [12.15, 30], [12.6, 38], [16, 38]]) * Math.PI / 180 + fight * Math.sin(t * 5) * .07, bend = fight * (.75 + Math.sin(t * 7) * .15) + hold * .22 + .04;
+  const lean = -.1 - fight * .28 - hold * .1 + ss(11.8, 12.15, tt) * (1 - ss(12.2, 12.8, tt)) * .3, hip = [-.05, .36], sh = [hip[0] + Math.sin(lean) * .56, hip[1] + Math.cos(lean) * .56], Hd = [sh[0] + .36 + hold * -.08, sh[1] - .2 + fight * .08 + hold * .12];
+  for (const i of [0, 1]) { const z = i ? .1 : -.1; seg(dad.legU[i], hip[0], hip[1], .34, .44, z); seg(dad.legL[i], .34, .44, .42 + i * .06, .02, z); const el = [(sh[0] + Hd[0]) / 2 - .02, (sh[1] + Hd[1]) / 2 - .09]; seg(dad.sl[i], sh[0], sh[1] - .04, el[0], el[1], z * 1.7); seg(dad.arm[i], el[0], el[1], Hd[0] - i * .12 * Math.cos(al), Hd[1] - i * .12 * Math.sin(al), z * 1.5); }
+  seg(dad.torso, hip[0], hip[1] - .04, sh[0], sh[1] + .02); dad.torso.scale.x = .62; dad.head.position.set(sh[0] + .03, sh[1] + .2, 0); dad.head.rotation.z = lean * .5 + hold * .2;
+  const pts = []; for (let k = 0; k <= 6; k++) { const u = k / 6, b = bend * Math.pow(u, 2.2) * .9; pts.push([Hd[0] - .15 * Math.cos(al) + Math.cos(al) * 2.45 * u + Math.cos(al - 1.75) * b, Hd[1] - .15 * Math.sin(al) + Math.sin(al) * 2.45 * u + Math.sin(al - 1.75) * b]); } rod.forEach((m, k) => seg(m, pts[k][0], pts[k][1], pts[k + 1][0], pts[k + 1][1]));
+  boat.updateMatrixWorld(); v.set(pts[6][0], pts[6][1], 0); boat.localToWorld(v); const tip = [v.x, v.y];
+  // 子ども: 魚がはねたら、ばんざい
+  const cheer = Math.max(jumpNow ? 1 : 0, hold), kh = [-1.05, .36], ks = [kh[0] + .03, kh[1] + .4 + cheer * Math.abs(Math.sin(t * 9)) * .05]; for (const i of [0, 1]) { const z = i ? .09 : -.09; seg(kid.legU[i], kh[0], kh[1], -.78, .4, z); seg(kid.legL[i], -.78, .4, -.72, .06, z); const up = cheer, hx = ks[0] + (1 - up) * .26 + up * (i ? .16 : -.1) + up * Math.sin(t * 11 + i) * .05, hy = ks[1] + (1 - up) * (fight ? .0 : -.24) + up * .36; seg(kid.arm[i], ks[0], ks[1] - .04, hx, hy, z * 2); }
+  seg(kid.torso, kh[0], kh[1] - .03, ks[0], ks[1] + .02); kid.torso.scale.x = .46; kid.head.position.set(ks[0] + .03, ks[1] + .17, 0);
+  // 糸の先: うき → 魚 → つり上げ → 投げ直し
+  let E, fp = fishAt(tt), fv = 0, bv = 1;
+  if (tt < 2.3 || tt >= 13) E = [BXW, .02 + Math.sin(t * 3) * .015 - ss(2.15, 2.3, tt) * .1];
+  else if (tt < 7) { E = [fp[0] + Math.cos(fp[2]) * .28, fp[1] + Math.sin(fp[2]) * .28]; fv = 1; bv = 0; }
+  else if (tt < 11.4) { const q = ss(7, 8.3, tt), sw = Math.sin(t * 4) * .12 * q; E = [fp[0] + (tip[0] - .05 + sw - fp[0]) * q, fp[1] + (tip[1] - .85 - fp[1]) * q]; fp = [E[0] - Math.sin(sw) * .1, E[1] - .28, Math.PI / 2 + Math.sin(t * 16) * .35 * (1 - ss(9, 11, tt) * .6)]; fv = 1 - ss(11.1, 11.4, tt); bv = 0; }
+  else if (tt < 12.15) E = [tip[0] - .25 * Math.cos(al), tip[1] - .5];
+  else { const q = (tt - 12.15) / .85; E = [tip[0] + (BXW - tip[0]) * q, tip[1] * (1 - q) + Math.sin(Math.PI * q) * .5 + .02 * q]; }
+  seg(line, tip[0], tip[1], E[0], E[1]); bob.visible = bv > 0; bob.position.set(E[0], E[1], 0); fish.visible = fv > .02; fish.scale.setScalar(Math.max(.01, fv) * 1.25); fish.position.set(fp[0], fp[1], 0); fish.rotation.z = fp[2]; fish.userData.tl.rotation.y = Math.sin(t * 25) * .6;
+  EV.forEach((e, i) => { const a = tt - e, r = rings[i], on = a > 0 && a < 1.3, f = fishAt(e), ex = i === 0 || i === 6 ? BXW : f[0]; r.visible = on; if (on) { r.position.set(ex, .03, 0); r.scale.setScalar(.25 + a * 1.1); r.material.opacity = (1 - a / 1.3) * .8; } for (let k = 0; k < 8; k++) { const d = drops[i * 8 + k], big = i > 0 && i < 6 ? 1 : .45; d.visible = a > 0 && a < .7; if (d.visible) d.position.set(ex + (hash(i, k) - .5) * 1.3 * a * 2 * big, (2.6 + hash(k, i) * 1.6) * a * big - 5 * a * a, (hash(i + 3, k) - .5) * a * 1.4); } });
+  // 手持ちカメラのゆれ
+  const lx = .78 + Math.sin(t * .5) * .12 + Math.sin(t * 2.9) * .025 + fight * .12, ly = .92 + Math.sin(t * .8 + 1) * .06 + Math.sin(t * 3.7) * .02;
+  cam.position.set(.8 + Math.sin(t * .6) * .1, 1.4 + Math.sin(t * .9) * .05, 7.7); cam.lookAt(lx, ly, 0); cam.rotation.z += Math.sin(t * .7) * .012;
+  renderer.setRenderTarget(RT); renderer.render(scene, cam); renderer.setRenderTarget(null);
+  const u = post.material.uniforms; u.uJ.value.set((hash(fi, 3) - .5) * .004, (hash(fi, 2) - .5) * .014 + Math.sin(t * 2.1) * .004); u.uFl.value = .93 + hash(fi, 5) * .13 + Math.sin(t * 1.7) * .03;
+  u.uLeak.value = (Math.pow(Math.sin(Math.PI * ss(4.1, 5.5, tt)), 1) * .75 + Math.sin(Math.PI * ss(11, 12.6, tt)) * .55) * (.8 + hash(fi, 6) * .3); u.uSeed.value = fi; u.uGs.value = Math.floor(fi / 6) * 3.7;
+  const sk = Math.floor(t * 1.3); u.uSc.value.set(hash(sk, 11) - .5 + (hash(fi, 12) - .5) * .004, hash(sk, 13) - .5, hash(sk, 14) > .35 ? .6 + hash(fi, 15) * .4 : 0);
+  u.uDu.value.forEach((d, i) => d.set(hash(fi, 20 + i) * 1.1 - .55, hash(fi, 30 + i) - .5, hash(fi, 40 + i) < .45 ? .004 + hash(fi, 50 + i) * .012 : 0));
+}
+let t0 = null, lastFi = -1, tAcc = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; tAcc += dt; const fi = Math.floor(tAcc * 18);
+  if (fi !== lastFi) { lastFi = fi; film(fi); }
+  renderer.render(pScene, pCam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

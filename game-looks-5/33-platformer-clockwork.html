@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 33 アクション 真鍮の歯車のからくり</title>
+<style>
+html,body{margin:0;height:100%;background:#070504;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6c27a;opacity:.85}
+</style>
+<div id="cap">LOOK 33 ─ アクション / 懐中時計の真鍮の歯車　｜　見るだけ（人形が歯車から歯車へとびうつる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 見立て: ふたを開けた懐中時計の中。真鍮の歯車、鋼のがんぎ車とアンクル、青焼きのねじ、赤いルビーの軸受け。
+// 歯車はモジュール（歯の大きさ）をそろえ、中心の間かく＝半径の和、回る速さ＝歯数の逆比、向きは 1 枚ごとに逆、歯と谷がかみ合う角度に合わせる。
+// 動きは「かち、かち」: てんぷが 1 回ふれるたびに がんぎ車が 1 歯だけ進み、輪列ぜんぶがそのぶんだけ かくっと回る。光は映りこみ（Canvas の環境マップ）が主役
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#070504'); scene.fog = new THREE.Fog('#070504', 19, 34);
+const cam = new THREE.PerspectiveCamera(36, 1, .1, 100); let tall = false;
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight; tall = a < 1; cam.aspect = a; cam.fov = tall ? 56 : a < 1.5 ? 36 * 1.5 / a : 36; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const mkc = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+// 映りこみ用の環境: 上が明るい窓あかり、下は暗い机。四角い光をいくつか置くと金属らしく見える
+const ec = mkc(512, 256); { const c = ec.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#fff4d8'); gr.addColorStop(.3, '#c89a5a'); gr.addColorStop(.52, '#4a3018'); gr.addColorStop(.6, '#0c0806'); gr.addColorStop(1, '#1a120a'); c.fillStyle = gr; c.fillRect(0, 0, 512, 256); c.fillStyle = '#ffffff'; for (const [x, y, w, h] of [[40, 20, 70, 60], [200, 40, 30, 80], [300, 10, 90, 40], [430, 50, 40, 70]]) c.fillRect(x, y, w, h); c.fillStyle = '#5a7ab8'; c.fillRect(120, 70, 50, 40); c.fillStyle = '#ffb060'; c.fillRect(350, 150, 60, 18); }
+const envT = new THREE.CanvasTexture(ec); envT.mapping = THREE.EquirectangularReflectionMapping; envT.colorSpace = THREE.SRGBColorSpace;
+// ヘアライン（細いすじ）: 明るさと粗さの両方に入れる
+const hc = mkc(256, 256); { const c = hc.getContext('2d'); c.fillStyle = '#b0b0b0'; c.fillRect(0, 0, 256, 256); for (let i = 0; i < 900; i++) { const v = 120 + Math.random() * 135 | 0; c.fillStyle = `rgba(${v},${v},${v},.5)`; c.fillRect(Math.random() * 256, Math.random() * 256, 30 + Math.random() * 200, 1); } }
+const hair = new THREE.CanvasTexture(hc); hair.wrapS = hair.wrapT = THREE.RepeatWrapping; hair.repeat.set(.5, .5);
+// 金属は「色 × 環境の映りこみ」をまぜるだけの軽い材質（粗いほど映りこみを弱く）
+const metal = (color, rough, o = {}) => new THREE.MeshPhongMaterial({ color, envMap: envT, combine: THREE.MixOperation, reflectivity: .92 - rough * .7, shininess: 90, specular: '#ffe6b0', ...o });
+const brass = metal('#e2ab48', .5, { map: hair }), brassD = metal('#4e3814', .95, { map: hair }), gold = metal('#ffd27a', .22), steel = metal('#c2c8d0', .32, { map: hair }), blued = metal('#2244c8', .3);
+const ruby = new THREE.MeshPhongMaterial({ color: '#e0103a', emissive: '#80001c', shininess: 200, specular: '#ffffff', envMap: envT, reflectivity: .25 });
+scene.add(new THREE.HemisphereLight(0xfff0d0, 0x201008, .5)); const key = new THREE.DirectionalLight(0xffe2b0, 2.2); key.position.set(-6, 9, 12); scene.add(key);
+
+// ── 歯車の形（歯は台形、内側は 5 本うでの抜き）
+const M = .16;
+function gearGeo(N, th, saw) {
+  const r = N * M / 2, ra = r + M * .9, rr = r - M * 1.1, p = Math.PI * 2 / N, s = new THREE.Shape();
+  const prof = saw ? [[rr, 0], [ra * 1.02, .1], [ra * 1.02, .22], [rr, .72]] : [[rr, -.3], [ra, -.13], [ra, .13], [rr, .3]];
+  for (let k = 0; k < N; k++) prof.forEach(([rad, a], i) => { const x = Math.cos((k + a) * p) * rad, y = Math.sin((k + a) * p) * rad; k + i ? s.lineTo(x, y) : s.moveTo(x, y); }); s.closePath();
+  if (N >= 15) { const r1 = r * .3, r2 = rr - M * 1.5, n = 5, gap = saw ? .16 : .22; for (let j = 0; j < n; j++) { const a0 = j * Math.PI * 2 / n + gap, a1 = (j + 1) * Math.PI * 2 / n - gap, h = new THREE.Path(); h.absarc(0, 0, r2, a0, a1, false); h.absarc(0, 0, r1, a1 - gap, a0 + gap, true); h.closePath(); s.holes.push(h); } }
+  return new THREE.ExtrudeGeometry(s, { depth: th, bevelEnabled: true, bevelThickness: .035, bevelSize: .035, bevelSegments: 1, curveSegments: 8 }).translate(0, 0, -th / 2);
+}
+const gears = [];
+function gear(N, x, y, z, mat, drv, th = .3) {
+  const m = new THREE.Mesh(gearGeo(N, th), mat); m.position.set(x, y, z); scene.add(m);
+  const g = { N, m, x, y, r: N * M / 2, top: y + N * M / 2 + M * .9, drv, al: drv ? Math.atan2(y - drv.y, x - drv.x) : 0, th: 0 }; gears.push(g);
+  // 軸受けのルビーと金の受け石わく
+  const j = new THREE.Mesh(new THREE.SphereGeometry(.15, 16, 10), ruby); j.scale.z = .5; j.position.set(x, y, z + th / 2 + .05); const ring = new THREE.Mesh(new THREE.TorusGeometry(.2, .06, 8, 20), gold); ring.position.copy(j.position); scene.add(j, ring);
+  return g;
+}
+const next = (g, N, deg) => { const d = g.r + N * M / 2, a = deg * Math.PI / 180; return [g.x + Math.cos(a) * d, g.y + Math.sin(a) * d]; };
+// 輪列の位置を左から決める（かみ合いは右はしの かな（小歯車）から左へ伝わる）
+const P0 = [0, 0], P1 = next({ x: 0, y: 0, r: 30 * M / 2 }, 18, 55), P2 = next({ x: P1[0], y: P1[1], r: 18 * M / 2 }, 36, -50), P3 = next({ x: P2[0], y: P2[1], r: 36 * M / 2 }, 20, 50), P4 = next({ x: P3[0], y: P3[1], r: 20 * M / 2 }, 28, -45), PP = next({ x: P4[0], y: P4[1], r: 28 * M / 2 }, 8, 75);
+const pin = gear(8, PP[0], PP[1], 0, steel, null, .5), G4 = gear(28, P4[0], P4[1], 0, brass, pin), G3 = gear(20, P3[0], P3[1], 0, brass, G4), G2 = gear(36, P2[0], P2[1], 0, brass, G3), G1 = gear(18, P1[0], P1[1], 0, brass, G2), G0 = gear(30, P0[0], P0[1], 0, brass, G1);
+const plat = [G0, G1, G2, G3, G4];
+// 奥の大きな輪列（暗い）
+const B0 = gear(64, 2.5, 6.6, -1.5, brassD, null, .25), pb1 = next(B0, 44, -60), B1 = gear(44, pb1[0], pb1[1], -1.5, brassD, B0, .25), pb2 = next(B1, 30, 8), B2 = gear(30, pb2[0], pb2[1], -1.5, brassD, B1, .25);
+// がんぎ車（のこぎり歯 15 枚・鋼）は かな と同じ軸
+const esc = new THREE.Mesh(gearGeo(15, .12, true), steel); esc.position.set(PP[0], PP[1], -.5); esc.scale.set(1.3, 1.3, 1); scene.add(esc);
+// アンクル（左右にかたんと振れる）と てんぷ（行き来する輪）
+const BX = PP[0] - 1.9, BY = PP[1] + 3.7, fork = new THREE.Group(); fork.position.set(PP[0] - .8, PP[1] + 2.05, -.5); scene.add(fork);
+{ const arm = new THREE.Mesh(new THREE.BoxGeometry(.14, 1.7, .1), steel); arm.position.y = .55; const bar = new THREE.Mesh(new THREE.BoxGeometry(1.5, .14, .1), steel); bar.position.y = -.3; fork.add(arm, bar); for (const sx of [-1, 1]) { const pj = new THREE.Mesh(new THREE.BoxGeometry(.12, .34, .14), ruby); pj.position.set(sx * .7, -.42, 0); fork.add(pj); } fork.rotation.z = Math.atan2(-(BX - fork.position.x), BY - fork.position.y); }
+const forkBase = fork.rotation.z, bal = new THREE.Group(); bal.position.set(BX, BY, -.9); scene.add(bal);
+{ const rim = new THREE.Mesh(new THREE.TorusGeometry(1.75, .13, 10, 56), gold); const sp = new THREE.Mesh(new THREE.BoxGeometry(3.4, .2, .1), gold); bal.add(rim, sp); for (let i = 0; i < 14; i++) { const a = i * Math.PI / 7 + .2, w = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .16, 8), gold); w.position.set(Math.cos(a) * 1.9, Math.sin(a) * 1.9, 0); w.rotation.z = a - Math.PI / 2; bal.add(w); } }
+const spiral = []; for (let i = 0; i <= 220; i++) { const a = i * .16, r = .22 + i * .0046; spiral.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, .12)); }
+const spring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(spiral), new THREE.LineBasicMaterial({ color: '#5a8cff' })); bal.add(spring);
+// てんぷ受け（鋼の橋）とルビー、青焼きのねじ
+const screw = (x, y, z, r) => { const g = new THREE.Group(), h = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .1, 20), blued), sl = new THREE.Mesh(new THREE.BoxGeometry(r * 1.9, .03, r * .22), new THREE.MeshBasicMaterial({ color: '#050814' })); sl.position.y = .05; g.add(h, sl); g.rotation.x = Math.PI / 2; g.rotation.y = Math.random() * 3; g.position.set(x, y, z); scene.add(g); };
+{ const cock = new THREE.Mesh(new THREE.BoxGeometry(.8, 3.6, .14), steel); cock.position.set(BX + .75, BY + 1.3, -.45); cock.rotation.z = -.52; scene.add(cock); const j = new THREE.Mesh(new THREE.SphereGeometry(.2, 16, 10), ruby); j.scale.z = .5; j.position.set(BX, BY, -.34); const rg = new THREE.Mesh(new THREE.TorusGeometry(.27, .07, 8, 20), gold); rg.position.copy(j.position); scene.add(j, rg); screw(BX + 1.25, BY + 2.2, -.34, .2); screw(BX + 1.6, BY + 2.8, -.34, .2); }
+// 地板（ペルラージュ＝うろこ模様の研ぎ）と、ケースのふち
+const pc = mkc(512, 512); { const c = pc.getContext('2d'); c.fillStyle = '#707070'; c.fillRect(0, 0, 512, 512); for (let y = 0; y < 13; y++) for (let x = 0; x < 13; x++) { const gx = x * 44 + (y % 2) * 22, gy = y * 40, gr = c.createRadialGradient(gx, gy, 2, gx, gy, 30); gr.addColorStop(0, '#d0d0d0'); gr.addColorStop(.8, '#8a8a8a'); gr.addColorStop(1, '#404040'); c.fillStyle = gr; c.beginPath(); c.arc(gx, gy, 30, 0, 7); c.fill(); } }
+const perl = new THREE.CanvasTexture(pc); perl.wrapS = perl.wrapT = THREE.RepeatWrapping; perl.repeat.set(5, 5); perl.colorSpace = THREE.SRGBColorSpace;
+const CX = 5.4, CY = 2.9, plate = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshPhongMaterial({ color: '#8a6430', map: perl, envMap: envT, combine: THREE.MixOperation, reflectivity: .3, shininess: 30 })); plate.position.set(CX, CY, -2.6); scene.add(plate);
+const rimC = new THREE.Mesh(new THREE.TorusGeometry(11.6, .8, 14, 90), gold); rimC.position.set(CX, CY, -1.6); scene.add(rimC);
+for (const [x, y] of [[2.7, -2.6], [8.6, -3.2], [4.6, 8.6], [-2.6, 4.6], [13.6, 5.2], [14.2, -.6], [-3.4, -2.2]]) screw(x, y, -2.5, .36);
+
+// ── ぜんまいじかけの人形（赤いほうろうの胴、真鍮の頭、背中のねじ）
+const man = new THREE.Group(), enamel = new THREE.MeshPhongMaterial({ color: '#d8261c', shininess: 120, specular: '#ffffff', envMap: envT, reflectivity: .2 });
+const body = new THREE.Mesh(new THREE.CylinderGeometry(.17, .24, .5, 12), enamel); body.position.y = .5; const head = new THREE.Mesh(new THREE.SphereGeometry(.19, 14, 10), gold); head.position.y = .93; const hat = new THREE.Mesh(new THREE.ConeGeometry(.16, .3, 10), enamel); hat.position.y = 1.2;
+const legL = new THREE.Mesh(new THREE.BoxGeometry(.1, .28, .1), steel), legR = legL.clone(); legL.position.set(0, .14, .1); legR.position.set(0, .14, -.1);
+const wind = new THREE.Group(); { const st = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .2, 6), gold); st.rotation.z = Math.PI / 2; const lp = new THREE.Mesh(new THREE.TorusGeometry(.1, .035, 6, 14), gold); lp.position.x = -.18; lp.rotation.y = Math.PI / 2; wind.add(st, lp); wind.position.set(-.3, .55, 0); }
+man.add(body, head, hat, legL, legR, wind); man.scale.setScalar(1.9); scene.add(man);
+// とびうつる途中で取る小さなルビー
+const gems = [0, 1, 2, 3].map(i => { const a = plat[i], b = plat[i + 1], m = new THREE.Mesh(new THREE.OctahedronGeometry(.24), ruby); m.position.set((a.x + b.x) / 2, (a.top + b.top) / 2 + 1.75, 0); m.userData.hide = 0; scene.add(m); return m; });
+
+const SEQ = [4, 3, 2, 1, 0, 1, 2, 3], STAY = 1.25, HOP = .75;
+let last = performance.now(), t = 0, camX = P4[0], camY = 3;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // かち、かち: 1 秒に 3 回、がんぎ車が 1 歯ずつ進む（進んだあと少しだけ はねかえる）
+  const tk = t * 3, n = Math.floor(tk), fr = tk - n, e = Math.min(1, fr / .14), adv = n + e * e * (3 - 2 * e) - (fr > .14 && fr < .34 ? .07 * Math.sin((fr - .14) / .2 * Math.PI) : 0);
+  pin.th = -adv * Math.PI * 2 / 15; B0.th = adv * .012;
+  for (const g of gears) { if (g.drv) g.th = g.al + Math.PI + Math.PI / g.N - (g.drv.th - g.al) * g.drv.N / g.N; g.m.rotation.z = g.th; }
+  esc.rotation.z = pin.th;
+  fork.rotation.z = forkBase + (n % 2 ? 1 : -1) * .13 * (e * 2 - 1);
+  bal.rotation.z = 1.5 * Math.sin(Math.PI * tk); spring.scale.setScalar(1 + bal.rotation.z * .05);
+  // 人形: 歯車のてっぺんで足ぶみ → となりの歯車へ山なりにとぶ
+  const u = t % (SEQ.length * (STAY + HOP)), si = Math.floor(u / (STAY + HOP)), su = u - si * (STAY + HOP), a = plat[SEQ[si]], b = plat[SEQ[(si + 1) % SEQ.length]], dir = b.x > a.x ? 1 : -1;
+  let px = a.x, py = a.top, air = 0;
+  if (su > STAY) { const f = (su - STAY) / HOP; px = a.x + (b.x - a.x) * f; py = a.top + (b.top - a.top) * f + Math.sin(f * Math.PI) * 1.9; air = 1; if (f > .45) gems[Math.min(SEQ[si], SEQ[(si + 1) % SEQ.length])].userData.hide = 3.2; }
+  else { const sq = su > STAY - .18 ? (su - STAY + .18) / .18 : 0; py -= sq * .08; man.scale.y = 1.9 * (1 - sq * .18); }
+  if (air) man.scale.y = 1.9 * 1.08;
+  man.position.set(px, py, 0); man.rotation.y = dir > 0 ? 0 : Math.PI; man.rotation.z = air ? -.25 * dir * Math.cos((su - STAY) / HOP * Math.PI) : 0;
+  const st = t * 14; legL.rotation.z = air ? .7 : Math.sin(st) * .6; legR.rotation.z = air ? -.5 : -Math.sin(st) * .6; wind.rotation.x = t * 6;
+  for (const g of gems) { g.userData.hide -= dt; g.visible = g.userData.hide <= 0; g.rotation.y = t * 2.5; }
+  const k = tall ? .9 : .08, tx = CX + (px - CX) * k, ty = tall ? py + 1.6 : CY + .4 + (py - CY) * .12; camX += (tx - camX) * Math.min(1, dt * 2.5); camY += (ty - camY) * Math.min(1, dt * 2.5);
+  cam.position.set(camX - 2.6, camY - 1.2, tall ? 20 : 23.5); cam.lookAt(camX, camY, 0);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

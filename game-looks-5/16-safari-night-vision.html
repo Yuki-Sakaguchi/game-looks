@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 16 夜の動物観察 暗視スコープ</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#7dff9a;opacity:.8}
+</style>
+<canvas id="hud"></canvas>
+<div id="cap">LOOK 16 ─ 夜の動物観察 / 暗視スコープ　｜　見るだけ（自動でさがして見つける）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 暗視スコープ（光を増幅する管）ごしの映像に見立てる。場面は灰色だけの 3D を小さな正方形の絵に描き、
+// 全画面のシェーダーで「明るさ → 緑 1 色」に直す。明るい所は白くとんでまわりににじみ、動物の目だけが強く光る。
+// 粗い粒のノイズは 1 秒に 4 回だけ入れ替える。視野は丸く、ふちは黒。照準の目盛りと発見の枠は上に重ねて描く
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const ss = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+const DPR = Math.min(devicePixelRatio || 1, 2);
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(DPR); document.body.prepend(renderer.domElement);
+const hud = document.getElementById('hud'), g = hud.getContext('2d');
+const RT = new THREE.WebGLRenderTarget(448, 448);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1a1a1a); scene.fog = new THREE.Fog(0x121212, 30, 95);
+const cam = new THREE.PerspectiveCamera(10, 1, .5, 200); cam.position.set(0, 1.7, 0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x303030, 1.1));
+const moon = new THREE.DirectionalLight(0xffffff, 2.4); moon.position.set(-8, 12, 6); scene.add(moon);
+const lam = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }), bas = c => new THREE.MeshBasicMaterial({ color: c, fog: false });
+const box = (w, h, d, m, x = 0, y = 0, z = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); return b; };
+// 地面（水場のところだけくぼむ）
+const POND = [-3, -17.5];
+const gh = (x, z) => Math.sin(x * .13) * .35 + Math.sin(z * .17 + 1) * .3 + Math.sin(x * .41 + z * .33) * .12 - 1.1 * ss(6.8, 3.2, Math.hypot(x - POND[0], z - POND[1]));
+{ const ge = new THREE.PlaneGeometry(200, 160, 70, 56); ge.rotateX(-Math.PI / 2); ge.translate(0, 0, -60); const p = ge.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, gh(p.getX(i), p.getZ(i)) + (p.getZ(i) < -70 ? ss(-70, -130, p.getZ(i)) * (6 + hash(i) * 9) : 0)); scene.add(new THREE.Mesh(ge, lam(0x3a3a3a))); }
+const water = new THREE.Mesh(new THREE.CircleGeometry(6.6, 24), new THREE.MeshBasicMaterial({ color: 0x3c3c3c })); water.rotation.x = -Math.PI / 2; water.position.set(POND[0], -.62, POND[1]); scene.add(water);
+const glints = [...Array(16)].map((_, i) => { const m = box(.5 + hash(i, 1) * .9, .01, .05, new THREE.MeshBasicMaterial({ color: 0xffffff })); m.position.set(POND[0] - 3.5 + hash(i, 2) * 7, -.6, POND[1] - 3 + hash(i, 3) * 5); scene.add(m); return m; });
+// 草むら（細い三角すいをたくさん）と、しげみ、木
+{ const N = 2600, im = new THREE.InstancedMesh(new THREE.ConeGeometry(.07, 1, 3), new THREE.MeshLambertMaterial({ flatShading: true }), N), d = new THREE.Object3D(), c = new THREE.Color();
+  for (let i = 0; i < N; i++) { const x = (hash(i, 1) - .5) * 70, z = -11 - hash(i, 2) * 46, pd = Math.hypot(x - POND[0], z - POND[1]); const hgt = pd < 4.6 ? 0 : (pd < 7.5 ? .7 + hash(i, 3) * .7 : .25 + hash(i, 3) * .45); d.position.set(x, gh(x, z) + hgt / 2, z); d.scale.set(1 + hash(i, 5), hgt, 1 + hash(i, 6)); d.rotation.set((hash(i, 7) - .5) * .5, hash(i, 4) * 6, (hash(i, 8) - .5) * .5); d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, c.setScalar(.1 + hash(i, 9) * .16)); }
+  scene.add(im); }
+for (let i = 0; i < 26; i++) { const x = (hash(i, 21) - .5) * 80, z = -30 - hash(i, 22) * 40, s = 1 + hash(i, 23) * 1.4, tr = new THREE.Group(); tr.add(new THREE.Mesh(new THREE.CylinderGeometry(.18, .26, 2.4, 5), lam(0x2c2c2c))); tr.children[0].position.y = 1.2; for (let k = 0; k < 3; k++) { const cn = new THREE.Mesh(new THREE.ConeGeometry(1.7 - k * .4, 2.2, 6), lam(0x6a6a6a)); cn.position.y = 2.6 + k * 1.3; tr.add(cn); } tr.scale.setScalar(s); tr.position.set(x, gh(x, z), z); scene.add(tr); }
+for (let i = 0; i < 30; i++) { const x = (hash(i, 31) - .5) * 60, z = -9 - hash(i, 32) * 30; if (Math.hypot(x - POND[0], z - POND[1]) < 7) continue; const b = new THREE.Mesh(new THREE.IcosahedronGeometry(.6 + hash(i, 33) * .7, 0), lam(0x555555)); b.position.set(x, gh(x, z) + .3, z); b.scale.y = .7; scene.add(b); }
+{ const sp = new Float32Array(600); for (let i = 0; i < 200; i++) { const a = (hash(i, 41) - .5) * 2.2, e = .06 + hash(i, 42) * .5; sp[i * 3] = Math.sin(a) * 150; sp[i * 3 + 1] = Math.sin(e) * 150; sp[i * 3 + 2] = -Math.cos(a) * 150; } const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.BufferAttribute(sp, 3)); scene.add(new THREE.Points(ge, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, fog: false }))); }
+// 動物。体は明るい灰色、目だけは光をはね返すので真っ白
+const FUR = lam(0xd0d0d0), FUR2 = lam(0xa0a0a0), WHT = lam(0xf0f0f0), EYE = bas(0xffffff), DRK = lam(0x2a2a2a);
+const eye = (r, x, y, z) => { const e = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), EYE); e.position.set(x, y, z); return e; };
+// しか
+const deer = new THREE.Group(), dNeck = new THREE.Group(), dHead = new THREE.Group(), dLegs = [];
+{ deer.add(box(.44, .52, 1.2, FUR, 0, 1.02, 0), box(.1, .14, .1, WHT, 0, 1.2, -.64));
+  for (const [x, z] of [[-.15, .45], [.15, .45], [-.15, -.45], [.15, -.45]]) { const l = box(.11, .8, .11, FUR2, x, .4, z); deer.add(l); dLegs.push(l); }
+  dNeck.position.set(0, 1.18, .5); dNeck.add(box(.2, .62, .24, FUR, 0, .26, .06)); dHead.position.set(0, .6, .08);
+  dHead.add(box(.22, .24, .26, FUR, 0, 0, 0), box(.15, .15, .24, FUR2, 0, -.05, .22), box(.09, .06, .04, DRK, 0, -.04, .345), eye(.055, -.105, .04, .1), eye(.055, .105, .04, .1));
+  for (const s of [-1, 1]) { const ear = box(.07, .2, .04, FUR, s * .17, .14, -.06); ear.rotation.z = -s * .9; dHead.add(ear); const an = new THREE.Group(); an.position.set(s * .07, .12, -.04); an.rotation.z = -s * .35; an.add(box(.035, .5, .035, WHT, 0, .25, 0)); const a2 = box(.03, .26, .03, WHT, s * .07, .38, .06); a2.rotation.z = -s * .7; const a3 = box(.03, .22, .03, WHT, s * .05, .56, -.02); a3.rotation.z = -s * .5; const a4 = box(.03, .2, .03, WHT, 0, .2, .1); a4.rotation.x = .8; an.add(a2, a3, a4); dHead.add(an); }
+  dNeck.add(dHead); deer.add(dNeck); const x = -3.4, z = -23.4; deer.position.set(x, gh(x, z), z); scene.add(deer); }
+// きつね
+const fox = new THREE.Group(), fHead = new THREE.Group(), fLegs = [], fTail = new THREE.Group();
+{ fox.add(box(.2, .22, .62, FUR, 0, .4, 0)); for (const [x, z] of [[-.07, .24], [.07, .24], [-.07, -.24], [.07, -.24]]) { const l = box(.06, .32, .06, FUR2, x, .16, z); fox.add(l); fLegs.push(l); }
+  fHead.position.set(0, .52, .36); const sn = new THREE.Mesh(new THREE.ConeGeometry(.07, .2, 4), WHT); sn.rotation.x = Math.PI / 2; sn.position.set(0, -.03, .18); fHead.add(box(.2, .17, .17, FUR), sn, eye(.03, -.06, .03, .085), eye(.03, .06, .03, .085));
+  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.ConeGeometry(.05, .15, 3), FUR); e.position.set(s * .07, .15, -.02); fHead.add(e); }
+  fTail.position.set(0, .42, -.3); const tl = new THREE.Mesh(new THREE.ConeGeometry(.1, .5, 5), FUR); tl.rotation.x = -Math.PI / 2; tl.position.z = -.25; const tp = new THREE.Mesh(new THREE.ConeGeometry(.06, .16, 5), WHT); tp.rotation.x = -Math.PI / 2; tp.position.z = -.5; fTail.add(tl, tp); fox.add(fHead, fTail); scene.add(fox); }
+// ふくろう（枯れ木の枝の上）
+const owl = new THREE.Group(), oHead = new THREE.Group(), oEyes = [], OW = [8.5, 3.55, -17];
+{ const tx = OW[0] + .5, tz = OW[2], tr = new THREE.Mesh(new THREE.CylinderGeometry(.16, .3, 5.4, 5), lam(0x3a3a3a)); tr.position.set(tx, gh(tx, tz) + 2.7, tz); const br = new THREE.Mesh(new THREE.CylinderGeometry(.06, .1, 2.2, 4), lam(0x3a3a3a)); br.rotation.z = Math.PI / 2 - .12; br.position.set(tx - 1, OW[1] - .08, tz); const b2 = new THREE.Mesh(new THREE.CylinderGeometry(.04, .08, 1.6, 4), lam(0x3a3a3a)); b2.rotation.z = -.9; b2.position.set(tx + .6, 4.6, tz); scene.add(tr, br, b2);
+  const bd = new THREE.Mesh(new THREE.IcosahedronGeometry(.2, 0), FUR); bd.scale.set(.95, 1.35, .85); bd.position.y = .27; const bl = new THREE.Mesh(new THREE.IcosahedronGeometry(.13, 0), WHT); bl.scale.set(1, 1.3, .6); bl.position.set(0, .24, .1);
+  oHead.position.y = .58; const hd = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 1), FUR); hd.scale.y = .85; oHead.add(hd); for (const s of [-1, 1]) { const e = eye(.05, s * .07, .01, .135); oEyes.push(e); const tf = new THREE.Mesh(new THREE.ConeGeometry(.04, .13, 3), FUR2); tf.position.set(s * .11, .15, 0); tf.rotation.z = -s * .4; oHead.add(e, tf); } const bk = new THREE.Mesh(new THREE.ConeGeometry(.025, .07, 3), DRK); bk.rotation.x = Math.PI; bk.position.set(0, -.04, .165); oHead.add(bk);
+  owl.add(bd, bl, oHead); owl.position.set(...OW); owl.rotation.y = Math.atan2(-OW[0], -OW[2]); scene.add(owl); }
+// 見つける相手: 名前、ねらう点、画角、枠の大きさ（m）、発見している時間
+const TG = [{ n: 'シカ', o: deer, dy: 1.05, fov: 12.5, s: 2.7, a: 1.2, b: 5.4, pt: 100 }, { n: 'キツネ', o: fox, dy: .42, fov: 4.6, s: 1.1, a: 8, b: 10.8, pt: 150 }, { n: 'フクロウ', o: owl, dy: .4, fov: 3.6, s: .86, a: 13.2, b: 16, pt: 300 }];
+// 仕上げ: 緑 1 色、にじみ、粒、丸い視野
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ depthTest: false, uniforms: { tD: { value: RT.texture }, uC: { value: new THREE.Vector2() }, uR: { value: 1 }, uSeed: { value: 0 }, uCell: { value: 3 } },
+  vertexShader: 'void main(){gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader: `uniform sampler2D tD;uniform vec2 uC;uniform float uR,uSeed,uCell;
+float L(vec2 u){return dot(texture2D(tD,u).rgb,vec3(.3,.59,.11));}
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+void main(){vec2 p=(gl_FragCoord.xy-uC)/uR;float r=length(p);if(r>1.03){gl_FragColor=vec4(0.,0.,0.,1.);return;}
+ vec2 uv=.5+p*.5*(1.-.07*(1.-r*r));            // 管のレンズのわずかなふくらみ
+ float l=L(uv),b=0.;
+ for(int i=0;i<8;i++){float a=float(i)*.7854+.3;vec2 d=vec2(cos(a),sin(a));b+=max(L(uv+d*.011)-.62,0.)+.7*max(L(uv-d.yx*.027)-.62,0.)+.4*max(L(uv+d*.05)-.7,0.);}
+ l=pow(l,.72)*1.2+b*.42;                        // 増幅と、明るい所のにじみ（ブルーミング）
+ vec2 cell=floor(gl_FragCoord.xy/uCell);float n=h(cell+uSeed);
+ l+=(n-.5)*.13*(1.2-min(l,1.))+step(.9975,n)*.5; // 粗い粒と、ときどきの光る点
+ l*=1.-.06*sin(gl_FragCoord.y/uCell*1.2);
+ vec3 c=vec3(.0,.045,.012)+vec3(.13,1.,.3)*l+vec3(.75,.25,.7)*smoothstep(.9,1.5,l);
+ c*=smoothstep(1.01,.8,r)*(1.-.25*r*r);
+ gl_FragColor=vec4(c,1.);}` }));
+const pScene = new THREE.Scene(); pScene.add(post); const pCam = new THREE.Camera();
+let W = 1, H = 1, R = 1;
+const resize = () => { W = innerWidth; H = innerHeight; renderer.setSize(W, H); hud.width = W * DPR; hud.height = H * DPR; R = Math.min(Math.max(W, H) * .37, Math.min(W, H) * .76); const u = post.material.uniforms; u.uC.value.set(W * DPR / 2, H * DPR / 2); u.uR.value = R * DPR; u.uCell.value = Math.max(2, Math.round(R * DPR / 150)); };
+addEventListener('resize', resize); resize();
+const aim = new THREE.Vector3(), v = new THREE.Vector3(), v2 = new THREE.Vector3();
+const tpos = (k, out) => out.copy(TG[k].o.position).setY(TG[k].o.position.y + TG[k].dy);
+let last = performance.now(), t = 0, fxPrev = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; const tt = t % 18;
+  // 動物の動き
+  const down = tt < 3 ? 1 - ss(.4, 1.2, tt) : ss(6.2, 7.4, tt); dNeck.rotation.x = .35 + down * 1.75; dHead.rotation.x = -.3 - down * .9; dNeck.rotation.y = (1 - down) * -.55 + Math.sin(t * .7) * .05 * (1 - down);
+  deer.rotation.y = Math.atan2(-deer.position.x, -deer.position.z) + .6; dHead.children[5].rotation.x = Math.max(0, Math.sin(t * 2.3)) > .96 ? .5 : 0;
+  const fx = 9.4 - 2.4 * ss(5.5, 8, tt) - 3 * ss(10.9, 13.5, tt), fz = -14.5 + Math.sin(fx * .6) * .5, sp = Math.min(1, Math.abs(fx - fxPrev) / Math.max(dt, .001) / .9); fxPrev = fx;
+  fox.position.set(fx, gh(fx, fz) + .02, fz); fox.rotation.y = -Math.PI / 2 + .25; const still = ss(7.6, 8.1, tt) * (1 - ss(10.7, 11, tt)); fHead.rotation.y = still * 1.2; fHead.rotation.x = (1 - still) * .25; fLegs.forEach((l, i) => l.rotation.x = Math.sin(t * 9 + (i % 3 ? 0 : Math.PI)) * .55 * sp); fTail.rotation.y = Math.sin(t * 2.2) * .35; fTail.rotation.x = .25;
+  const ow = ss(12.6, 13.2, tt) * (1 - ss(16.1, 16.6, tt)); oHead.rotation.y = (1 - ow) * Math.sin(t * .9) * 1.3; oHead.rotation.z = ow * Math.sin(t * 1.3) * .22; const blink = (tt > 14.6 && tt < 14.78) || (t * .37 % 1 < .03) ? .08 : 1; oEyes.forEach(e => e.scale.y = blink);
+  glints.forEach((m, i) => { m.visible = hash(i, Math.floor(t * 5 + i * .37)) > .45; m.position.x = POND[0] - 3.5 + hash(i, 2) * 7 + Math.sin(t + i) * .2; });
+  // 視野: ねらう点を相手から相手へゆっくり移す。さがしている間は大きくゆれ、見つけるとおちつく
+  const k1 = ss(5.6, 7.3, tt), k2 = ss(11, 12.7, tt), k3 = ss(16.2, 17.8, tt), mv = Math.sin(Math.PI * k1) + Math.sin(Math.PI * k2) + Math.sin(Math.PI * k3);
+  tpos(0, aim); aim.lerp(tpos(1, v), k1).lerp(tpos(2, v), k2).lerp(tpos(0, v), k3);
+  const fov = TG[0].fov + (TG[1].fov - TG[0].fov) * k1 + (TG[2].fov - TG[1].fov) * k2 + (TG[0].fov - TG[2].fov) * k3 + mv * 3;
+  const sw = fov * .0035 * (1 + mv * 3), d = aim.length(); aim.x += (Math.sin(t * 1.1) + Math.sin(t * 2.7) * .5) * sw * d * .25 + mv * Math.sin(t * .9) * .5; aim.y += (Math.sin(t * 1.4 + 1) + Math.sin(t * 3.1) * .4) * sw * d * .2 - mv * .35;
+  cam.fov = fov * (H > W ? 1.25 : 1); cam.updateProjectionMatrix(); cam.lookAt(aim);
+  post.material.uniforms.uSeed.value = Math.floor(t * 4) * 7.13;
+  renderer.setRenderTarget(RT); renderer.render(scene, cam); renderer.setRenderTarget(null); renderer.render(pScene, pCam);
+  // 照準の目盛りと表示
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, W, H); const cx = W / 2, cy = H / 2, u = R / 100; g.strokeStyle = g.fillStyle = '#b8ffc4'; g.shadowColor = '#3cff6a'; g.shadowBlur = 6; g.lineWidth = Math.max(1, u * .5); g.lineCap = 'butt';
+  g.globalAlpha = .75; g.beginPath(); for (const s of [-1, 1]) { g.moveTo(cx + s * u * 5, cy); g.lineTo(cx + s * u * 62, cy); g.moveTo(cx, cy + s * u * 5); g.lineTo(cx, cy + s * u * 62); for (let i = 1; i <= 6; i++) { const q = i * 9 * u + u * 5, l = (i % 2 ? 1.6 : 3) * u; g.moveTo(cx + s * q, cy - l); g.lineTo(cx + s * q, cy + l); g.moveTo(cx - l, cy + s * q); g.lineTo(cx + l, cy + s * q); } } g.stroke();
+  g.globalAlpha = .35; g.beginPath(); g.arc(cx, cy, u * 34, 0, 7); g.stroke(); g.globalAlpha = .9; g.fillRect(cx - u * .6, cy - u * .6, u * 1.2, u * 1.2);
+  let found = 0; const fs = Math.max(11, Math.min(18, R * .05)); g.font = `bold ${fs}px ui-monospace,Menlo,monospace`; g.textBaseline = 'middle';
+  TG.forEach((T, k) => { if (tt >= T.a) found++; if (tt < T.a || tt > T.b) return; tpos(k, v).project(cam); const kk = 1 - .07 * (1 - Math.min(1, v.x * v.x + v.y * v.y)), sx = cx + v.x / kk * R, sy = cy - v.y / kk * R, e = tt - T.a, op = 1 + 1.2 * (1 - ss(0, .35, e)), hs = T.s / (2 * Math.tan(cam.fov * Math.PI / 360) * tpos(k, v2).distanceTo(cam.position)) * R * op, c = hs * .32;
+    if (e < .5 && Math.floor(e * 16) % 2) return; g.globalAlpha = 1; g.lineWidth = Math.max(1.5, u * .9); g.beginPath(); for (const [ax, ay] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { g.moveTo(sx + ax * hs, sy + ay * (hs - c)); g.lineTo(sx + ax * hs, sy + ay * hs); g.lineTo(sx + ax * (hs - c), sy + ay * hs); } g.stroke();
+    if (e > .35) { g.textAlign = 'left'; g.fillText(`${T.n}　はっけん +${T.pt}`, sx - hs, sy - hs - fs); } });
+  g.globalAlpha = .85; const m = Math.max(14, Math.min(W, H) * .04), sc = TG.reduce((s, T) => s + (tt >= T.a ? T.pt : 0), 0), z = n => String(n).padStart(2, '0');
+  g.textAlign = 'left'; g.fillText(`暗視 ×${(60 / cam.fov).toFixed(1)}`, m, m + 6); g.fillText(`方位 ${String(Math.round((Math.atan2(aim.x, -aim.z) * 57.3 + 360) % 360)).padStart(3, '0')}°`, m, m + 6 + fs * 1.5);
+  g.textAlign = 'right'; g.fillText(`02:${z(14 + Math.floor(t / 60) % 40)}:${z(Math.floor(t % 60))}`, W - m, m + 6); g.fillText(`みつけた ${found}/3　${String(sc).padStart(4, '0')} 点`, W - m, m + 6 + fs * 1.5);
+  if (mv > .2 && Math.floor(t * 3) % 2) { g.textAlign = 'center'; g.fillText('さがしています…', cx, cy + u * 74); }
+  g.shadowBlur = 0; g.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

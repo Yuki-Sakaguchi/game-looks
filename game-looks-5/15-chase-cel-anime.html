@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 15 バイクチェイス セル画アニメ</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1c40;overflow:hidden}
+canvas{display:block;position:fixed;left:0;top:0;width:100vw;height:100vh}
+#fx{pointer-events:none}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;background:#2a1c40;padding:0 6px;z-index:2}
+</style>
+<canvas id="fx"></canvas>
+<div id="cap">LOOK 15 ─ バイクチェイス / セル画アニメ　｜　見るだけ（自動で走る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// セル画アニメに見立てる。人と乗りものは「セル」: 色トレス線の輪郭（裏返した外わく）＋べたの基本色＋ 1 段の影色＋小さなハイライト。
+// 空・海・道・壁は「背景画」: Canvas にポスターカラーの筆あとで描いた絵を貼る。セルは 1 秒 12 コマ（2 コマ打ち）で止めて動かし、背景だけは毎コマなめらかに流す。
+// ライトは透過光（にじむ加算の光）。上に重ねた 2D の層に、スピード線とフィルムの小さなごみを 12 コマごとに描きかえる
+import * as THREE from 'three';
+THREE.ColorManagement.enabled = false;
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.outputColorSpace = THREE.LinearSRGBColorSpace; renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const fxc = document.getElementById('fx'), fx = fxc.getContext('2d');
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(38, 1, .1, 900);
+let W, H, S;
+const resize = () => { W = innerWidth; H = innerHeight; S = Math.min(devicePixelRatio || 1, 2); renderer.setSize(W, H); fxc.width = W * S; fxc.height = H * S; cam.aspect = W / H; cam.fov = W > H ? 38 : 60; cam.updateProjectionMatrix(); lastQ = -1; };
+let lastQ = -1;
+const cvs = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
+const mix = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+// 筆あと: 横長のだ円を少しかたむけて置く
+const dab = (x, px, py, l, w, col, a = 1, r = 0) => { x.globalAlpha = a; x.fillStyle = col; x.beginPath(); x.ellipse(px, py, l, w, r, 0, 7); x.fill(); x.globalAlpha = 1; };
+
+// ── 背景画: 夕方の空と雲、湾の向こうの街と橋 ──
+const HZ = 677;
+const skyTex = cvs(2048, 768, (x, w, h) => {
+  const stops = [[0, [44, 36, 96]], [.3, [110, 60, 130]], [.55, [226, 96, 104]], [.75, [255, 150, 78]], [.88, [255, 206, 110]], [1, [255, 232, 160]]];
+  const at = f => { for (let i = 1; i < stops.length; i++) if (f <= stops[i][0]) return mix(stops[i - 1][1], stops[i][1], (f - stops[i - 1][0]) / (stops[i][0] - stops[i - 1][0])); return stops[5][1]; };
+  for (let y = 0; y < HZ; y += 4) { x.fillStyle = `rgb(${at(y / HZ)})`; x.fillRect(0, y, w, 5); }
+  for (let i = 0; i < 1500; i++) { const py = hash(i, 1) * HZ, c = at(Math.max(0, Math.min(1, py / HZ + (hash(i, 2) - .5) * .12))); dab(x, hash(i, 3) * w, py, 40 + hash(i, 4) * 120, 3 + hash(i, 5) * 7, `rgb(${c.map(v => Math.min(255, v + (hash(i, 6) - .5) * 16))})`, .55, (hash(i, 7) - .5) * .08); }
+  const sx = 760, sy = HZ - 46; for (const [r, a] of [[330, .16], [210, .2], [120, .3]]) dab(x, sx, sy, r * 1.5, r, '#ffe9a8', a); dab(x, sx, sy, 58, 58, '#fff6d6');   // 夕日
+  // 雲: 上は紫のかげ、下は夕日のだいだい
+  for (let k = 0; k < 13; k++) { const cx = hash(k, 11) * w, cy = 70 + hash(k, 12) * 470, cw = 150 + hash(k, 13) * 260, chh = 22 + hash(k, 14) * 40; for (let i = 0; i < 90; i++) { const u = hash(k * 97 + i, 15) * 2 - 1, v = hash(k * 97 + i, 16) * 2 - 1; if (u * u + v * v > 1) continue; const col = v < -.25 ? '#6a4a8e' : v < .3 ? '#a85a8a' : hash(i, k) < .5 ? '#ff9a6a' : '#ffc48a'; dab(x, cx + u * cw, cy + v * chh, 26 + hash(i, k + 17) * 46, 6 + hash(i, k + 18) * 9, col, .92, (hash(i, k + 19) - .5) * .2); } for (let i = 0; i < 12; i++) dab(x, cx + (hash(k, i + 20) * 2 - 1) * cw * .8, cy + chh * .9, 30 + hash(i, k) * 40, 3.5, '#ffe2a0', .9); }
+  // 海と、夕日の照り返し
+  for (let y = HZ; y < h; y += 3) { x.fillStyle = `rgb(${mix([226, 120, 110], [84, 60, 130], (y - HZ) / (h - HZ))})`; x.fillRect(0, y, w, 4); }
+  for (let i = 0; i < 260; i++) { const py = HZ + 2 + hash(i, 31) * (h - HZ), sp = (py - HZ) * 2.2 + 30; dab(x, sx + (hash(i, 32) - .5) * sp, py, 8 + hash(i, 33) * 26, 1.6, '#fff0b8', .9); }
+  // 遠い街・クレーン・つり橋のシルエット（窓あかりだけ黄色）
+  for (let i = 0; i < 150; i++) { const bx = hash(i, 41) * w, bwd = 10 + hash(i, 42) * 26, bht = 8 + Math.pow(hash(i, 43), 3) * 78; if (Math.abs(bx - sx) < 150) continue; x.fillStyle = hash(i, 44) < .5 ? '#5a3a7a' : '#6e4486'; x.fillRect(bx, HZ - bht, bwd, bht + 2); x.fillStyle = '#ffd97a'; for (let q = 0; q < bht / 9; q++) if (hash(i, q + 50) < .5) x.fillRect(bx + 2 + hash(i, q) * (bwd - 6), HZ - bht + 3 + q * 8, 3, 2); }
+  x.strokeStyle = '#4a3070'; x.fillStyle = '#4a3070'; x.lineWidth = 4; x.fillRect(1150, HZ - 16, 720, 5); for (const tx of [1300, 1700]) { x.fillRect(tx - 5, HZ - 120, 10, 122); x.lineWidth = 2; x.beginPath(); x.moveTo(tx - 200, HZ - 16); x.quadraticCurveTo(tx - 90, HZ - 30, tx, HZ - 118); x.quadraticCurveTo(tx + 90, HZ - 30, tx + 200, HZ - 16); x.stroke(); x.fillStyle = '#ff5a4a'; x.fillRect(tx - 3, HZ - 126, 6, 6); x.fillStyle = '#4a3070'; }
+});
+const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(900, 340), new THREE.MeshBasicMaterial({ map: skyTex, depthWrite: false })); backdrop.renderOrder = -10; scene.add(backdrop);
+// 道（アスファルトも筆あと）、海、右の壁、左のガードレール
+const rep = (t, rx, ry) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); return t; };
+const roadTex = rep(cvs(256, 512, (x, w, h) => { x.fillStyle = '#6a5680'; x.fillRect(0, 0, w, h); for (let i = 0; i < 500; i++) { const py = hash(i, 61) * h, l = 20 + hash(i, 62) * 60; for (const o of [0, -h, h]) dab(x, hash(i, 63) * w, py + o, 2 + hash(i, 64) * 4, l, ['#5a4874', '#74608a', '#8a6a8e', '#544270'][i % 4], .5); } for (let i = 0; i < 60; i++) for (const o of [0, -h]) dab(x, 100 + hash(i, 65) * 60, hash(i, 66) * h + o, 3, 40, '#e89a7a', .25);
+  x.fillStyle = '#f6e2c6'; x.fillRect(8, 0, 6, h); x.fillRect(w - 14, 0, 6, h); for (const lx of [w / 3, w * 2 / 3]) x.fillRect(lx - 3, 40, 6, 200); }), 1, 15);
+const road = new THREE.Mesh(new THREE.PlaneGeometry(15, 320), new THREE.MeshBasicMaterial({ map: roadTex })); road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -140); scene.add(road);
+const seaTex = rep(cvs(256, 256, (x, w, h) => { x.fillStyle = '#7a568a'; x.fillRect(0, 0, w, h); for (let i = 0; i < 300; i++) for (const o of [0, -w, w]) dab(x, hash(i, 71) * w + o, hash(i, 72) * h, 10 + hash(i, 73) * 30, 2 + hash(i, 74) * 2, ['#e8866e', '#5a3e7e', '#c96a80', '#ffc48a'][i % 4], .7); }), 6, 12);
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(300, 320), new THREE.MeshBasicMaterial({ map: seaTex })); sea.rotation.x = -Math.PI / 2; sea.position.set(-158, -1.2, -140); scene.add(sea);
+const wallTex = rep(cvs(512, 128, (x, w, h) => { x.fillStyle = '#8a6a8e'; x.fillRect(0, 0, w, h); for (let i = 0; i < 260; i++) for (const o of [0, -w, w]) dab(x, hash(i, 81) * w + o, hash(i, 82) * h, 20 + hash(i, 83) * 50, 3 + hash(i, 84) * 4, ['#7a5a84', '#9a7694', '#6a4c78', '#b0849a'][i % 4], .6); x.fillStyle = '#5a3e6e'; x.fillRect(0, 0, w, 10); x.fillRect(0, h - 8, w, 8); for (let i = 0; i < 4; i++) x.fillRect(i * 128, 0, 5, h); x.fillStyle = '#ffd0a0'; x.fillRect(0, 10, w, 3); }), 24, 1);
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(320, 2.6), new THREE.MeshBasicMaterial({ map: wallTex, side: THREE.DoubleSide })); wall.rotation.y = Math.PI / 2; wall.position.set(7.6, 1.3, -140); scene.add(wall);
+const railTex = rep(cvs(256, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.fillStyle = '#f2e6da'; x.fillRect(0, 10, w, 16); x.fillStyle = '#b89ab4'; x.fillRect(0, 22, w, 5); x.fillStyle = '#d8c4cc'; x.fillRect(118, 10, 14, 54); x.fillStyle = '#8a6a94'; x.fillRect(128, 26, 4, 38); }), 60, 1);
+const rail = new THREE.Mesh(new THREE.PlaneGeometry(320, .95), new THREE.MeshBasicMaterial({ map: railTex, transparent: true, side: THREE.DoubleSide, alphaTest: .5 })); rail.rotation.y = Math.PI / 2; rail.position.set(-7.5, .47, -140); scene.add(rail);
+// 透過光（にじむ加算の光）: しんは白、まわりに色のにじみ、横に長い筋
+const glowTex = cvs(256, 256, (x) => { let gr = x.createRadialGradient(128, 128, 0, 128, 128, 128); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.1, 'rgba(255,255,255,.85)'); gr.addColorStop(.3, 'rgba(255,255,255,.28)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 256, 256); gr = x.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 124, 256, 8); });
+const glow = (col, s) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); sp.scale.set(s * 1.5, s, 1); sp.userData.s = s; return sp; };
+// 街灯（背景あつかい: べたのシルエットと透過光。なめらかに流れる）
+const lamps = [...Array(8)].map(() => { const gp = new THREE.Group(), m = new THREE.MeshBasicMaterial({ color: '#4a3468' }), pole = new THREE.Mesh(new THREE.BoxGeometry(.16, 7, .16), m), arm = new THREE.Mesh(new THREE.BoxGeometry(2.6, .14, .14), m), gl = glow('#ffb060', 3.4); pole.position.y = 3.5; arm.position.set(-1.3, 6.9, 0); gl.position.set(-2.4, 6.75, 0); gp.add(pole, arm, gl); gp.position.x = 8.2; scene.add(gp); return gp; });
+
+// ── セル: トゥーンの材料と、色トレス線 ──
+const LV = new THREE.Vector3(-.55, .62, .56).normalize();
+const toon = (base, shade, hi = 0) => new THREE.ShaderMaterial({ uniforms: { base: { value: new THREE.Color(base) }, shade: { value: new THREE.Color(shade) }, L: { value: LV }, hi: { value: hi } },
+  vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position,1.); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix * viewMatrix * wp; }',
+  fragmentShader: 'uniform vec3 base, shade, L; uniform float hi; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN); float d = dot(n, L); vec3 c = d > .12 ? base : shade; if (hi > .5 && dot(n, normalize(L + vV)) > .93) c = mix(base, vec3(1.), .75); gl_FragColor = vec4(c, 1.); }' });
+function part(gp, geo, mat, line, pos, rot) {
+  const m = new THREE.Mesh(geo, mat); geo.computeBoundingBox(); const sz = geo.boundingBox.getSize(new THREE.Vector3()), th = .03;
+  const o = new THREE.Mesh(geo, line); o.scale.set((sz.x + th * 2) / Math.max(sz.x, .001), (sz.y + th * 2) / Math.max(sz.y, .001), (sz.z + th * 2) / Math.max(sz.z, .001)); m.add(o);
+  m.position.set(...pos); if (rot) m.rotation.set(...rot); gp.add(m); return m;
+}
+const box = (a, b, c) => new THREE.BoxGeometry(a, b, c), cyl = (r, r2, h, n = 14) => new THREE.CylinderGeometry(r, r2, h, n);
+const tyreM = toon('#3a3058', '#1e1836'), metalM = toon('#c8c0d8', '#7a6c9c', 1), darkM = toon('#4a4068', '#2a2244');
+function bike(body, bodyS, suit, suitS, helm, helmS, lineC, hero) {
+  const gp = new THREE.Group(), line = new THREE.MeshBasicMaterial({ color: lineC, side: THREE.BackSide }), B = toon(body, bodyS), R = toon(suit, suitS), Hm = toon(helm, helmS, 1);
+  const wheels = [.74, -.74].map(z => { const w = part(gp, cyl(.36, .36, .17), tyreM, line, [0, .36, z], [0, 0, Math.PI / 2]); const hub = new THREE.Mesh(box(.5, .19, .09), metalM); w.add(hub); return w; });
+  part(gp, box(.3, .42, .95), darkM, line, [0, .58, 0]); part(gp, box(.38, .26, .62), B, line, [0, .93, .12]);
+  part(gp, box(.5, .46, .34), B, line, [0, 1.0, .68], [-.3, 0, 0]); part(gp, box(.3, .1, .6), B, line, [0, .78, .74], [.1, 0, 0]); part(gp, box(.36, .24, .05), toon('#bfe6f2', '#6a9cc8'), line, [0, 1.3, .7], [-.55, 0, 0]);
+  for (const s of [-1, 1]) part(gp, box(.08, .72, .08), metalM, line, [s * .15, .64, .78], [.35, 0, 0]);
+  part(gp, box(.26, .16, .62), B, line, [0, .96, -.62], [.25, 0, 0]); part(gp, cyl(.07, .1, .75, 8), metalM, line, [.22, .52, -.6], [Math.PI / 2, 0, 0]);
+  const hl = new THREE.Mesh(new THREE.CircleGeometry(.12, 14), new THREE.MeshBasicMaterial({ color: '#fff8d8' })); hl.position.set(0, 1.0, .86); gp.add(hl); const gl = glow(hero ? '#ffd890' : '#cfe0ff', hero ? 1.2 : 2.4); gl.position.set(0, 1.0, .95); gp.add(gl); gp.userData.glow = gl;
+  // 乗り手
+  const rd = new THREE.Group(); gp.add(rd); gp.userData.rider = rd;
+  part(rd, box(.44, .62, .3), R, line, [0, 1.4, -.04], [.6, 0, 0]); part(rd, new THREE.SphereGeometry(.21, 14, 10), Hm, line, [0, 1.74, .3]); part(rd, box(.32, .1, .16), toon('#3a2c5a', '#1e1838'), line, [0, 1.75, .44]);
+  for (const s of [-1, 1]) { part(rd, box(.12, .12, .58), R, line, [s * .25, 1.34, .36], [.5, 0, 0]); part(rd, box(.16, .16, .52), R, line, [s * .23, 1.02, .04], [-.3, 0, 0]); part(rd, box(.14, .5, .14), darkM, line, [s * .25, .7, -.2], [-.4, 0, 0]); }
+  if (hero) gp.userData.scarf = [0, 1, 2].map(i => part(rd, box(.13, .05, .46), toon('#ffd23a', '#e88a2a'), line, [0, 1.6 + i * .05, -.3 - i * .42]));
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(1, 18), new THREE.MeshBasicMaterial({ color: '#3a2a58', transparent: true, opacity: .6, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.scale.set(.5, 1.3, 1); sh.position.set(.25, .02, -.1); gp.add(sh);
+  gp.userData.wheels = wheels; scene.add(gp); return gp;
+}
+const hero = bike('#ee402c', '#a8243e', '#fff2dc', '#c4a6d6', '#fffaf0', '#c8b4dc', '#5a1830', true);
+const foes = [bike('#3e4a86', '#232a58', '#4a4470', '#2a2448', '#e84a6a', '#9a2850', '#1c1638'), bike('#2e7a80', '#1c4a5e', '#4a4470', '#2a2448', '#ffb030', '#c06a28', '#1c1638')];
+// 追ってくる車
+const car = new THREE.Group(); { const line = new THREE.MeshBasicMaterial({ color: '#16122e', side: THREE.BackSide }), Bm = toon('#4a3e8a', '#2a2258');
+  part(car, box(1.9, .55, 4.2), Bm, line, [0, .62, 0]); part(car, box(1.6, .5, 2), Bm, line, [0, 1.12, -.3]); part(car, box(1.44, .36, .06), toon('#9ad0e8', '#3a5a9a'), line, [0, 1.12, .72]);
+  for (const sx of [-1, 1]) for (const z of [1.3, -1.3]) part(car, cyl(.36, .36, .26), tyreM, line, [sx * .92, .36, z], [0, 0, Math.PI / 2]);
+  car.userData.glows = [-.62, .62].map(xx => { const d = new THREE.Mesh(new THREE.CircleGeometry(.15, 12), new THREE.MeshBasicMaterial({ color: '#fff8d8' })); d.position.set(xx, .68, 2.11); const gl = glow('#fff0c0', 3); gl.position.set(xx, .68, 2.2); car.add(d, gl); return gl; });
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 4.8), new THREE.MeshBasicMaterial({ color: '#3a2a58', transparent: true, opacity: .6, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.set(.3, .02, -.2); car.add(sh); scene.add(car); }
+addEventListener('resize', resize); resize();
+
+// ── 上の層: スピード線、フィルムのごみ、速さの文字（12 コマごとに描きかえる）──
+function overlay(q, boost, t) {
+  fx.setTransform(S, 0, 0, S, 0, 0); fx.clearRect(0, 0, W, H);
+  const vx = W * (W > H ? .3 : .4), vy = H * .36, n = 26 + Math.floor(boost * 40), R = Math.hypot(W, H);
+  fx.fillStyle = '#fff6e6';
+  for (let i = 0; i < n; i++) { const a = hash(i, q) * 6.283, r0 = R * (.36 + hash(i, q + 3) * .3 - boost * .12), r1 = r0 + R * (.12 + hash(i, q + 5) * .3), w = 1 + hash(i, q + 7) * 3.2, c = Math.cos(a), s = Math.sin(a); if (Math.abs(s) < .16) continue; fx.globalAlpha = .5 + hash(i, q + 9) * .45; fx.beginPath(); fx.moveTo(vx + c * r0, vy + s * r0); fx.lineTo(vx + c * r1 - s * w, vy + s * r1 + c * w); fx.lineTo(vx + c * r1 + s * w, vy + s * r1 - c * w); fx.fill(); }
+  // フィルムのごみ: 小さな黒い点と白い点、たまに毛
+  const q3 = Math.floor(q / 3);
+  for (let i = 0; i < 5; i++) { fx.globalAlpha = .55; fx.fillStyle = i % 3 ? '#1a1024' : '#fff'; fx.beginPath(); fx.ellipse(hash(i, q3 + 20) * W, hash(i, q3 + 30) * H, .8 + hash(i, q3) * 1.8, .7 + hash(i, q3 + 1) * 1.1, hash(i, q3) * 3, 0, 7); fx.fill(); }
+  if (q3 % 4 === 0) { const hx = hash(q3, 41) * W, hy = hash(q3, 42) * H; fx.globalAlpha = .5; fx.strokeStyle = '#1a1024'; fx.lineWidth = .9; fx.beginPath(); fx.moveTo(hx, hy); fx.bezierCurveTo(hx + 14, hy - 12, hx + 22, hy + 16, hx + 40, hy + 4); fx.stroke(); }
+  // 速さと、追っ手との間
+  fx.globalAlpha = 1; fx.textAlign = 'right'; fx.font = 'italic 900 34px "Arial Black",Impact,sans-serif'; const kmh = String(Math.round(168 + boost * 46 + Math.sin(t * 3) * 3)), X = W - 20, Y = 50;
+  fx.lineWidth = 6; fx.strokeStyle = '#5a1830'; fx.strokeText(kmh, X - 54, Y); fx.fillStyle = '#fff6e6'; fx.fillText(kmh, X - 54, Y); fx.font = 'italic 900 15px "Arial Black",Impact,sans-serif'; fx.lineWidth = 4; fx.strokeText('km/h', X, Y); fx.fillText('km/h', X, Y);
+  const gap = '追っ手まで ' + Math.round(-foes[0].position.z * 2.2) + ' m'; fx.font = '900 14px "Hiragino Sans","Yu Gothic",sans-serif'; fx.strokeText(gap, X, Y + 26); fx.fillStyle = '#ffd23a'; fx.fillText(gap, X, Y + 26);
+}
+
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const SP = 46, q = Math.floor(t * 12), tq = q / 12, boost = Math.pow(Math.max(0, Math.sin(t * .785 - .4)), 6);
+  // 背景画と道はなめらかに流す（毎コマ）
+  roadTex.offset.y = -(t * SP / (320 / 15)) % 1; wallTex.offset.x = -(t * SP / (320 / 24)) % 1; railTex.offset.x = -(t * SP / (320 / 60)) % 1; seaTex.offset.y = -(t * 6 / (320 / 12)) % 1;
+  lamps.forEach((l, i) => { l.position.z = 24 - ((i * 40 + t * SP) % 320); });
+  const tall = W <= H; cam.position.set((tall ? 1.7 : 2.7) + Math.sin(t * .5) * .25, (tall ? 1.9 : 1.55) + Math.sin(t * .8) * .06, tall ? 7.4 : 6.3); cam.lookAt(tall ? .1 : -.5, 1.25, -3);
+  { const yaw = Math.atan2((tall ? .1 : -.5) - cam.position.x, -3 - cam.position.z) + Math.sin(t * .2) * .03; backdrop.position.set(cam.position.x + Math.sin(yaw) * 420 + 60, 130, cam.position.z + Math.cos(yaw) * 420); backdrop.rotation.y = yaw + Math.PI; }   // 背景画はカメラの向く先に立てて、ゆっくり横へ送る
+  // セルは 12 コマごとにだけ動かす（2 コマ打ち）
+  if (q !== lastQ) {
+    lastQ = q;
+    const pose = (b, x, z, lean, k) => { b.position.set(x, Math.abs(Math.sin(tq * 9 + k)) * .03, z); b.rotation.z = lean; b.rotation.y = -lean * .5; for (const w of b.userData.wheels || []) w.rotation.x = q * 1.1; if (b.userData.rider) b.userData.rider.position.y = (q % 2) * .012; };
+    pose(hero, Math.sin(tq * .62) * 1.5 - .3, boost * 1.2, -Math.cos(tq * .62) * .3, 0); hero.userData.scarf.forEach((s, i) => { s.position.x = Math.sin(q * 1.9 + i * 1.3) * .08 * (i + 1); s.position.y = 1.6 + i * .05 + Math.sin(q * 2.3 + i) * .05 * (i + 1); s.rotation.y = Math.sin(q * 1.9 + i * 1.3) * .3; });
+    pose(foes[0], -3.2 + Math.sin(tq * .9) * 1.6, -8.5 + Math.sin(tq * .785) * 3.2 - boost * 3, -Math.cos(tq * .9) * .34, 1);
+    pose(foes[1], 3.1 + Math.sin(tq * .7 + 2) * 1.7, -15 + Math.cos(tq * .45) * 3.5 - boost * 4, -Math.cos(tq * .7 + 2) * .3, 2);
+    car.position.set(-.4 + Math.sin(tq * .33) * 1.6, 0, -25 + Math.sin(tq * .3) * 4 - boost * 5); car.rotation.y = Math.cos(tq * .33) * .06;
+    const fl = .9 + hash(q, 7) * .25; for (const b of [hero, ...foes]) { const gl = b.userData.glow; gl.scale.set(gl.userData.s * 1.5 * fl, gl.userData.s * fl, 1); } for (const gl of car.userData.glows) gl.scale.set(gl.userData.s * 1.5 * fl, gl.userData.s * fl, 1);
+    overlay(q, boost, t);
+  }
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

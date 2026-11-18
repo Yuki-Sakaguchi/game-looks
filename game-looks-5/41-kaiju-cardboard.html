@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 41 怪獣あばれ ダンボール工作</title>
+<style>
+html,body{margin:0;height:100%;background:#3b2a1e;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0d9b0}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 41 ─ 怪獣あばれ / ダンボール工作　｜　見るだけ（自動でのし歩く）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 子ども部屋の床に作ったダンボール工作に見立てる: 色は茶色のダンボールだけ。面にはうすい縦のうね、切り口には波形の中しん、
+// 布テープと透明テープ、マジックの手がきの窓と顔、矢印やバーコードの印刷の残り。怪獣は箱を割りピンでつないだ形。
+// 動きは 1 秒に 10 コマだけ進める（手で少しずつ動かしたようにかくかくする）。たおれたビルは、ふまれてぺしゃんこになる
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x3b2a1e); scene.fog = new THREE.Fog(0x3b2a1e, 26, 52);
+const cam = new THREE.PerspectiveCamera(34, 1, .1, 120);
+scene.add(new THREE.HemisphereLight(0xffe6c4, 0x6b4a30, 1.25));
+const key = new THREE.DirectionalLight(0xffd6a0, 2.7); key.position.set(-7, 11, 8); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 5; key.shadow.bias = -.0006;
+Object.assign(key.shadow.camera, { left: -13, right: 13, top: 10, bottom: -8, near: 1, far: 40 }); scene.add(key);
+
+let seed = 11; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+// ダンボールの地: うすい縦のうねと、紙の繊維
+function kraft(x, w, h, base = '#c79c64') {
+  x.fillStyle = base; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < w; i += 6) { x.fillStyle = 'rgba(95,58,22,.13)'; x.fillRect(i, 0, 2, h); x.fillStyle = 'rgba(255,238,205,.13)'; x.fillRect(i + 3, 0, 1.5, h); }
+  for (let i = 0; i < w * h / 70; i++) { const v = rnd() < .5 ? 60 : 255; x.fillStyle = `rgba(${v},${v * .85 | 0},${v * .6 | 0},.07)`; x.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 6, 1); }
+}
+// マジックペンの線: 少しふるえた線を 2 度がきする
+function pen(x, pts, lw = 4) {
+  x.strokeStyle = '#1d1712'; x.lineCap = x.lineJoin = 'round';
+  for (let k = 0; k < 2; k++) { x.lineWidth = k ? lw * .55 : lw; x.beginPath(); pts.forEach(([a, b], i) => { const px = a + (rnd() - .5) * 3.2, py = b + (rnd() - .5) * 3.2; i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke(); }
+}
+const box4 = (x, a, b, w, h, lw) => pen(x, [[a, b], [a + w, b], [a + w, b + h], [a, b + h], [a, b - 3]], lw);
+const ring = (x, cx, cy, r, lw) => pen(x, Array.from({ length: 15 }, (_, i) => [cx + Math.cos(i * .47) * r, cy + Math.sin(i * .47) * r]), lw);
+// 箱に残った印刷: 上向き矢印、バーコード、荷札
+function arrows(x, cx, cy, s) {
+  x.fillStyle = 'rgba(96,44,30,.78)';
+  for (const o of [-1, 1]) { const ax = cx + o * s * .62; x.beginPath(); x.moveTo(ax, cy - s); x.lineTo(ax + s * .45, cy - s * .35); x.lineTo(ax + s * .18, cy - s * .35); x.lineTo(ax + s * .18, cy + s * .5); x.lineTo(ax - s * .18, cy + s * .5); x.lineTo(ax - s * .18, cy - s * .35); x.lineTo(ax - s * .45, cy - s * .35); x.fill(); }
+  x.fillRect(cx - s * 1.15, cy + s * .66, s * 2.3, s * .14);
+}
+function barcode(x, a, b, w, h) { x.fillStyle = '#efe6d2'; x.fillRect(a - 5, b - 5, w + 10, h + 16); x.fillStyle = '#1d1712'; for (let i = 0; i < w;) { const bw = 1 + (rnd() * 3 | 0); x.fillRect(a + i, b, bw, h); i += bw + 1 + (rnd() * 3 | 0); } x.fillRect(a, b + h + 3, w * .7, 3); }
+function tag(x, a, b) { x.fillStyle = '#efe6d2'; x.fillRect(a, b, 84, 56); x.fillStyle = '#b8432e'; x.fillRect(a, b, 84, 9); x.fillStyle = 'rgba(40,30,25,.7)'; for (let i = 0; i < 3; i++) x.fillRect(a + 7, b + 18 + i * 9, 40 + rnd() * 26, 2.5); barcode(x, a + 50, b + 36, 26, 8); }
+function tape(x, a, b, w, h, clear) {
+  if (clear) { x.fillStyle = 'rgba(255,250,232,.26)'; x.fillRect(a, b, w, h); x.fillStyle = 'rgba(255,255,255,.6)'; w > h ? x.fillRect(a, b + h * .16, w, h * .13) : x.fillRect(a + w * .16, b, w * .13, h); }
+  else { x.fillStyle = '#8b5b31'; x.fillRect(a, b, w, h); x.fillStyle = 'rgba(40,20,5,.16)'; for (let i = 0; i < Math.max(w, h); i += 3) w > h ? x.fillRect(a + i, b, 1, h) : x.fillRect(a, b + i, w, 1); x.fillStyle = 'rgba(255,225,180,.25)'; w > h ? x.fillRect(a, b + 2, w, 2) : x.fillRect(a + 2, b, 2, h); }
+}
+const M = t => new THREE.MeshLambertMaterial({ map: t });
+// ビルの面: マジックでかいた窓と戸
+function facade(cols, rows, extra) {
+  return tex(256, 256, (x, w, h) => {
+    kraft(x, w, h); extra && extra(x);
+    const cw = w / cols, ch = (h - 40) / rows;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (r === rows - 1 && c === (cols >> 1)) { box4(x, c * cw + cw * .25, r * ch + 18, cw * .5, ch + 14, 5); pen(x, [[c * cw + cw * .62, r * ch + ch * .7], [c * cw + cw * .64, r * ch + ch * .72]], 7); continue; }
+      const a = c * cw + cw * .2, b = r * ch + 16, ww = cw * .6, hh = ch * .62; box4(x, a, b, ww, hh, 4.5);
+      if (rnd() < .45) for (let i = 1; i < 5; i++) pen(x, [[a + ww * i / 5, b + 3], [a + ww * i / 5 - 8, b + hh - 3]], 2.5);       // あかりのついた窓はななめ線でぬる
+      else { pen(x, [[a + ww / 2, b], [a + ww / 2, b + hh]], 3); pen(x, [[a, b + hh / 2], [a + ww, b + hh / 2]], 3); }
+    }
+  });
+}
+const FAC = [
+  facade(3, 4, x => tape(x, 0, 2, 256, 15, false)), facade(2, 3, x => { arrows(x, 200, 205, 26); }), facade(3, 3, x => { tape(x, 118, 0, 20, 256, true); }),
+  facade(2, 4, x => { tag(x, 150, 180); tape(x, 0, 240, 256, 16, false); }), facade(4, 5, x => barcode(x, 180, 215, 60, 18)),
+].map(M);
+const PLAIN = [x => arrows(x, 128, 150, 44), x => { tape(x, 108, 0, 40, 256, false); }, x => { barcode(x, 60, 170, 90, 30); tape(x, 0, 30, 256, 22, true); }, x => tag(x, 40, 60)]
+  .map(f => M(tex(256, 256, (x, w, h) => { kraft(x, w, h); f(x); })));
+const TOP = M(tex(256, 256, (x, w, h) => { kraft(x, w, h); x.fillStyle = 'rgba(60,35,15,.5)'; x.fillRect(0, 126, 256, 3); tape(x, 0, 108, 256, 40, false); }));
+// 切り口: 2 枚の紙のあいだに波形の中しんが見える
+function flute(n) {
+  const t = tex(64, 16, (x) => { x.fillStyle = '#6f4b27'; x.fillRect(0, 0, 64, 16); x.fillStyle = '#d2a970'; x.fillRect(0, 0, 64, 3); x.fillRect(0, 13, 64, 3); x.strokeStyle = '#d9b27c'; x.lineWidth = 2.2; x.beginPath(); for (let i = 0; i <= 64; i++) { const y = 8 + Math.sin(i / 16 * Math.PI * 2) * 4.2; i ? x.lineTo(i, y) : x.moveTo(i, y); } x.stroke(); });
+  t.wrapS = THREE.RepeatWrapping; t.repeat.set(n, 1); return M(t);
+}
+function box(w, h, d, mats, parent, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m; }
+// 上にのせた 1 枚板。4 つの切り口に波形が見える
+function slab(w, d, parent, y, t = .16, topMat = TOP) { const fx = flute(Math.round(w * 4)), fz = flute(Math.round(d * 4)); return box(w, t, d, [fz, fz, topMat, topMat, fx, fx], parent, 0, y, 0); }
+
+// 床（フローリング）と、街の土台の 1 枚板
+const floorT = tex(512, 512, (x) => { for (let i = 0; i < 8; i++) { const v = 150 + rnd() * 40; x.fillStyle = `rgb(${v + 22 | 0},${v * .8 | 0},${v * .56 | 0})`; x.fillRect(0, i * 64, 512, 64); x.fillStyle = 'rgba(60,30,10,.5)'; x.fillRect(0, i * 64, 512, 2); x.fillRect(rnd() * 512, i * 64, 2, 64); for (let k = 0; k < 14; k++) { x.fillStyle = 'rgba(90,50,20,.12)'; x.fillRect(0, i * 64 + rnd() * 64, 512, 1); } } });
+floorT.wrapS = floorT.wrapT = THREE.RepeatWrapping; floorT.repeat.set(7, 7);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), new THREE.MeshStandardMaterial({ map: floorT, roughness: .55 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const roadT = M(tex(1024, 512, (x, w, h) => {
+  kraft(x, w, h, '#bd9158'); pen(x, [[0, 180], [340, 176], [700, 182], [1024, 178]], 7); pen(x, [[0, 340], [300, 344], [680, 338], [1024, 342]], 7);
+  for (let i = 20; i < 1024; i += 90) pen(x, [[i, 260], [i + 46, 261]], 6);
+  for (let i = 0; i < 6; i++) pen(x, [[500 + i * 14, 186], [500 + i * 14, 334]], 9);   // 横断歩道
+  arrows(x, 880, 440, 34); tape(x, 240, 0, 44, 512, true); barcode(x, 60, 430, 110, 34);
+}));
+{ const g = new THREE.Group(); scene.add(g); const fx = flute(64), fz = flute(30); box(20, .3, 9.4, [fz, fz, roadT, roadT, fx, fx], g, 0, .15, -.3); }
+const Y0 = .3;
+
+// 街: 道の上の 4 つは怪獣がたおす。奥の列は高いビル、手前は低い箱と車
+const city = [];
+function building(x, z, w, h, d, k, target) {
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner); scene.add(g); g.position.set(x, Y0, z);
+  const f = FAC[k % FAC.length], s = PLAIN[k % PLAIN.length];
+  box(w, h, d, [f, f, TOP, TOP, f, s], inner, 0, h / 2, 0); slab(w + .2, d + .2, inner, h + .08);
+  if (k % 2) { const p = new THREE.Group(); inner.add(p); p.position.set(w * .15, h + .16, 0); box(w * .4, .5, d * .4, [s, s, TOP, TOP, s, s], p, 0, .25, 0); }   // 屋上の小さい箱
+  if (target) city.push({ g, inner, x, w, h });
+  return g;
+}
+[-4.5, -1.5, 1.5, 4.5].forEach((x, i) => building(x, 0, 1.2, [2.0, 2.3, 1.9, 2.2][i], 1.5, i, true));
+[[-9, 3.2, 2.6], [-6.6, 2.4, 3.6], [-4.1, 2, 2.4], [-1.9, 2.2, 4], [.8, 2.6, 2.8], [3.5, 2, 3.7], [5.9, 2.4, 2.5], [8.6, 2.6, 3.3]].forEach(([x, w, h], i) => building(x, -3.7, w, h, 1.6, i + 2));
+[[-7.4, .9, .8], [-3, 1.3, .6], [3.1, 1, .9], [7.2, 1.4, .7]].forEach(([x, w, h], i) => building(x, 3.1, w, h, 1, i + 1));
+const wheelT = M(tex(128, 64, (x, w, h) => { kraft(x, w, h); ring(x, 30, 44, 15, 5); ring(x, 98, 44, 15, 5); box4(x, 40, 8, 46, 20, 4); }));
+const cars = [[-.6, 3.2], [5.3, 3.3]].map(([x, z]) => box(1.1, .5, .6, [PLAIN[1], PLAIN[1], TOP, TOP, wheelT, wheelT], scene, x, Y0 + .25, z));
+// 「たおした数」の立て札
+const signC = document.createElement('canvas'); signC.width = 256; signC.height = 160; const signT = new THREE.CanvasTexture(signC); signT.colorSpace = THREE.SRGBColorSpace;
+const SEG = [[0, 0, 1, 0], [1, 0, 1, 1], [1, 1, 1, 2], [0, 2, 1, 2], [0, 1, 0, 2], [0, 0, 0, 1], [0, 1, 1, 1]], DIG = ['111111', '011', '1101101', '1111001', '0110011'];
+function drawSign(n) {
+  const x = signC.getContext('2d'); seed = 5 + n; kraft(x, 256, 160); tape(x, 0, 0, 256, 14, false);
+  x.fillStyle = '#1d1712'; x.font = 'bold 30px "Hiragino Maru Gothic ProN","Yu Gothic",sans-serif'; x.fillText('たおした', 16, 58); x.fillText('ビル', 28, 104);
+  const d = DIG[n]; SEG.forEach((s, i) => { if (d[i] === '1') pen(x, [[168 + s[0] * 50, 34 + s[1] * 48], [168 + s[2] * 50, 34 + s[3] * 48]], 9); });
+  signT.needsUpdate = true;
+}
+{ const g = new THREE.Group(); scene.add(g); g.position.set(-7.6, Y0, 1.3); g.rotation.y = .35; const m = M(signT), fx = flute(18); box(2, 1.25, .1, [fx, fx, fx, fx, m, PLAIN[0]], g, 0, .9, 0).rotation.x = -.16; box(.12, .5, .9, PLAIN[1], g, 0, .25, -.3); }
+// 床に置いた道具: 布テープの輪と、マジックペン
+{ const r = new THREE.Mesh(new THREE.CylinderGeometry(.75, .75, .5, 32, 1, true), new THREE.MeshStandardMaterial({ color: 0x8b5b31, roughness: .7, side: THREE.DoubleSide })); r.position.set(8.2, .25, 6.2); r.castShadow = true; scene.add(r);
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, 1.7, 12), new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: .35 })); p.rotation.set(Math.PI / 2, 0, .9); p.position.set(-6.4, .13, 6.4); p.castShadow = true; scene.add(p);
+  const q = new THREE.Mesh(new THREE.CylinderGeometry(.145, .145, .5, 12), new THREE.MeshStandardMaterial({ color: 0xe9e2d2, roughness: .4 })); q.rotation.copy(p.rotation); q.position.set(-6.4 - Math.sin(.9) * .7, .13, 6.4 - Math.cos(.9) * .7); scene.add(q); }
+
+// 怪獣: 箱をつないだ形。+x を向く。うろこも顔もマジックがき
+const skin = k => tex(256, 256, (x, w, h) => {
+  kraft(x, w, h, '#b07c43'); if (k === 0) arrows(x, 70, 190, 30); if (k === 1) tape(x, 0, 200, 256, 26, false); if (k === 2) barcode(x, 150, 200, 70, 24);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (rnd() < .75) { const a = 34 + c * 60 + (r % 2) * 26, b = 30 + r * 50; pen(x, [[a - 16, b], [a - 10, b + 14], [a, b + 19], [a + 10, b + 14], [a + 16, b]], 4); }
+});
+const SK = [0, 1, 2].map(k => M(skin(k)));
+const face = flip => M(tex(256, 176, (x, w, h) => {
+  kraft(x, w, h, '#b07c43'); if (flip) { x.translate(w, 0); x.scale(-1, 1); }
+  ring(x, 176, 66, 30, 6); x.fillStyle = '#1d1712'; x.beginPath(); x.arc(184, 70, 13, 0, 7); x.fill(); pen(x, [[132, 22], [176, 30], [222, 52]], 8);   // 目と、おこったまゆ
+  pen(x, [[238, 96], [240, 99]], 8);
+  pen(x, Array.from({ length: 13 }, (_, i) => [70 + i * 15, i % 2 ? 150 : 174]), 5);   // きば
+}));
+const jawT = flip => M(tex(256, 64, (x, w, h) => { kraft(x, w, h, '#b07c43'); if (flip) { x.translate(w, 0); x.scale(-1, 1); } pen(x, Array.from({ length: 13 }, (_, i) => [60 + i * 15, i % 2 ? 26 : 2]), 5); }));
+const pinM = new THREE.MeshStandardMaterial({ color: 0xe0b548, metalness: .7, roughness: .3, emissive: 0x5a4210 });
+const pinG = new THREE.CylinderGeometry(.1, .1, .05, 14); pinG.rotateX(Math.PI / 2);
+const pin = (p, x, y, z) => { for (const s of [-1, 1]) { const m = new THREE.Mesh(pinG, pinM); m.position.set(x, y, z * s); p.add(m); } };   // 割りピンの頭
+const K = new THREE.Group(); scene.add(K); K.position.y = Y0; K.scale.setScalar(1.3);
+const grp = (p, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); p.add(g); return g; };
+const bodyG = grp(K, 0, 1.35, 0);
+box(1.45, 1.9, 1.25, [SK[1], SK[1], TOP, TOP, SK[0], SK[2]], bodyG, 0, .85, 0);
+const legs = [-1, 1].map(s => { const g = grp(K, 0, 1.35, .7 * s); box(.6, 1.3, .42, SK[2], g, 0, -.6, 0); box(1, .26, .5, [SK[1], SK[1], TOP, TOP, SK[1], SK[1]], g, .22, -1.22, 0); pin(g, 0, 0, .23); return g; });
+const arms = [-1, 1].map(s => { const g = grp(bodyG, .45, 1.2, .72 * s); box(.95, .3, .26, SK[1], g, .4, 0, 0); box(.12, .34, .3, SK[1], g, .86, -.12, 0); pin(g, 0, 0, .15); return g; });
+const tails = []; { let p = bodyG, off = [-.7, .3, 0]; [[1.15, .8, .85], [.95, .52, .58], [.8, .32, .34]].forEach(([w, h, d], i) => { const g = grp(p, ...off); box(w, h, d, SK[i], g, -w / 2 + .1, 0, 0); pin(g, 0, 0, d / 2 + .02); const sp = box(.36, .36, .07, SK[1], g, -w / 2, h / 2 + .08, 0); sp.rotation.z = Math.PI / 4; tails.push(g); p = g; off = [-w + .2, 0, 0]; }); }
+for (let i = 0; i < 3; i++) { const sp = box(.5, .5, .08, SK[1], bodyG, -.72, .55 + i * .55, 0); sp.rotation.z = Math.PI / 4; }   // 背びれ
+const head = grp(bodyG, .45, 1.75, 0), FL = face(false), FR = face(true);
+box(1.35, .9, 1.05, [SK[1], SK[1], TOP, TOP, FL, FR], head, .55, .42, 0); pin(head, 0, .1, .55);
+const jaw = grp(head, .05, 0, 0); box(1.2, .3, .95, [SK[1], SK[1], TOP, TOP, jawT(false), jawT(true)], jaw, .58, -.15, 0);
+for (const s of [-1, 1]) { const h = box(.07, .3, .3, SK[1], head, .3, .95, .3 * s); h.rotation.x = Math.PI / 4; }   // つの
+
+const BA = .85, tgt = new THREE.Vector3();
+function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); stepQ = -1; }
+addEventListener('resize', resize);
+
+const HALF = 8, sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+let t = HALF * 2 + .8, last = performance.now(), stepQ = -1, score = -1;
+resize();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const q = Math.floor(t * 10);
+  if (q !== stepQ) {
+    stepQ = q; const tq = q / 10, half = Math.floor(tq / HALF), s = tq - half * HALF, dir = half % 2 ? -1 : 1;
+    const u = -7.5 + 2.5 * Math.min(s, 6), kx = dir * u, walking = s < 6, ph = tq * 5.2;
+    K.position.x = kx; K.rotation.y = (dir > 0 ? 0 : Math.PI) + Math.PI * sm(s - 7);
+    const roar = sm((s - 6) * 4) * (1 - sm((s - 6.9) * 5));
+    let swipe = 0, n = 0;
+    city.forEach((b, i) => {
+      const ub = dir * b.x, sh = (ub - b.w / 2 - 2.1 + 7.5) / 2.5, sf = (ub + 1.5 + 7.5) / 2.5, back = 1 - sm((s - 6.3 - i * .12) / .35);
+      const p = (s - sh) / .45; let a = p <= 0 ? 0 : p < 1 ? p * p : 1 - .07 * Math.sin(Math.min(1, (p - 1) / .5) * Math.PI);
+      if (s > sh) n++; if (Math.abs(s - sh + .1) < .25) swipe = 1;
+      b.g.position.x = b.x + dir * b.w / 2; b.inner.position.x = -dir * b.w / 2; b.g.rotation.z = -dir * a * Math.PI / 2 * back;
+      b.g.scale.x = 1 - (s > sf ? .8 : 0) * back;   // ふまれて、ぺしゃんこ
+    });
+    if (s > 6.4) n = 0;
+    if (n !== score) { score = n; drawSign(n); }
+    // 歩き: 足を交互に出し、体をゆらす
+    const w = walking ? 1 : 0;
+    legs[0].rotation.z = Math.sin(ph) * .6 * w; legs[1].rotation.z = -Math.sin(ph) * .6 * w;
+    K.position.y = Y0 + Math.abs(Math.cos(ph)) * .16 * w; K.rotation.z = Math.sin(ph) * .05 * w;
+    bodyG.rotation.z = -.14 + roar * .32 - swipe * .12; bodyG.rotation.x = Math.sin(ph) * .05 * w;
+    head.rotation.z = Math.sin(ph * 2) * .06 + roar * .55; jaw.rotation.z = -.1 - .25 * Math.max(0, Math.sin(tq * 3.1)) - roar * .55 - swipe * .3;
+    arms.forEach((a, i) => a.rotation.z = (i ? 1 : -1) * Math.sin(ph) * .35 * w + roar * 1.1 - swipe * .9 + .2);
+    tails.forEach((g, i) => { g.rotation.z = .1 + Math.sin(ph - i * .9) * .16; g.rotation.y = Math.sin(ph * .5 - i * .8) * .32; });
+    cars.forEach((c, i) => { c.position.x = (i ? 5.3 : -.6) + ((tq * (i ? .8 : -.6) + 30) % 3 - 1.5); });
+    // カメラは怪獣を少し追う。たて長では引く
+    const a = cam.aspect, k = Math.max(1, BA / a), follow = a < 1 ? 1 : 0;
+    tgt.set(kx * follow + (a >= 1 ? Math.sign(kx) * Math.max(0, Math.abs(kx) - 5) * 1.2 : 0) + (a < 1 ? (K.rotation.y > 1.5 ? -.6 : .6) : 0), a < 1 ? 1.2 : 2, a < 1 ? 1 : 0); cam.position.set(tgt.x * .9, tgt.y + 4.6 * k, tgt.z + 15 * k); cam.lookAt(tgt);
+    renderer.render(scene, cam);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 30 ボウリング ブラックライトの蛍光</title>
+<style>
+html,body{margin:0;height:100%;background:#07020f;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;left:0;right:0;top:12px;text-align:center;font:bold 20px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.3em;color:#ff3fb4;text-shadow:0 0 10px #ff3fb4,0 0 24px #ff3fb4}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b89cff;opacity:.85}
+</style>
+<div id="hud"></div>
+<div id="cap">LOOK 30 ─ ボウリング / ブラックライトの蛍光　｜　見るだけ（投げる → ピンがはじける → リプレイ）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ブラックライト（紫外線ライト）だけをつけた夜のボウリング場。部屋は暗い紫で、ふつうの色の物はほぼ黒い影。
+// 光るのは 蛍光のピンク・黄緑・水色・だいだい と 白い物 だけ: ピン、球のうずまき、レーンの矢印と線、かべのじゅうたん模様。
+// 描き方: 光る物は光に関係なく自分の色でべた塗り。明るい所を取り出してぼかし、上から足す（にじみ）。レーンは 上下逆さの場面を先に描いて、半分すける板を重ねる（つや）
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const PINK = '#ff3fb4', LIME = '#b6ff2e', CYAN = '#3df2ff', ORG = '#ff9a2e', WHITE = '#efeaff', UV = '#8a4dff', NEON = [PINK, LIME, CYAN, ORG];
+const renderer = new THREE.WebGLRenderer({ antialias: false }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.autoClear = false; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(), world = new THREE.Group(), floor = new THREE.Group(); scene.add(world, floor);
+const cam = new THREE.PerspectiveCamera(50, 1, .05, 80);
+const tex = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+const basic = (c, o = {}) => new THREE.MeshBasicMaterial({ color: c, ...o });
+const box = (g, w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+const HW = .53, ZN = 6, ZF = -16.2, PITCH = 1.8, HEAD = -15;
+// ---- レーン（蛍光の矢印・点・線。板そのものは黒に近い） ----
+const laneT = tex(128, 2048, (c, w, h) => { const zy = z => (z - ZF) / (ZN - ZF) * h, glow = (col, b = 6) => { c.fillStyle = c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = b; };
+  c.fillStyle = '#080312'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(138,77,255,.2)'; for (let i = 1; i < 13; i++) c.fillRect(i * w / 13, 0, 1, zy(0));
+  glow(CYAN); c.fillRect(2, 0, 3, zy(0)); c.fillRect(w - 5, 0, 3, zy(0));
+  glow(PINK, 8); c.fillRect(0, zy(0) - 3, w, 7);
+  glow(LIME); for (let k = -3; k <= 3; k++) { c.beginPath(); c.arc(64 + k * 17, zy(-2.1), 2.6, 0, 7); c.fill(); }
+  glow(ORG, 8); for (let k = -3; k <= 3; k++) { const y = zy(-4.9 + Math.abs(k) * .22), x = 64 + k * 17; c.beginPath(); c.moveTo(x, y - 20); c.lineTo(x + 5, y + 14); c.lineTo(x - 5, y + 14); c.fill(); }
+  glow(PINK); for (const k of [-2, -1, 1, 2]) c.fillRect(64 + k * 24 - 1.5, zy(-11.5), 3, 60);
+  glow(CYAN); for (let k = -2; k <= 2; k++) { c.beginPath(); c.arc(64 + k * 22, zy(2.2), 3, 0, 7); c.fill(); c.beginPath(); c.arc(64 + k * 22, zy(3.6), 3, 0, 7); c.fill(); }
+  glow(UV, 10); c.fillRect(0, 0, w, 5); });
+const laneM = new THREE.MeshBasicMaterial({ map: laneT, transparent: true, opacity: .6, depthWrite: false });
+const blackM = basic('#030108'), pinTex = tex(4, 64, (c) => { c.fillStyle = WHITE; c.fillRect(0, 0, 4, 64); c.fillStyle = PINK; c.fillRect(0, 22, 4, 3); c.fillRect(0, 27, 4, 3); });
+const pinG = new THREE.LatheGeometry([[0, 0], [.035, 0], [.05, .03], [.06, .1], [.055, .17], [.035, .24], [.023, .28], [.025, .32], [.033, .35], [.03, .37], [.015, .385], [0, .39]].map(p => new THREE.Vector2(p[0], p[1])), 10);
+const pinM = new THREE.MeshLambertMaterial({ map: pinTex, emissive: 0xffffff, emissiveMap: pinTex, emissiveIntensity: .62 });
+const pinXZ = []; for (let r = 0; r < 4; r++) for (let i = 0; i <= r; i++) pinXZ.push([(i - r / 2) * .305, HEAD - r * .264]);
+for (let l = -1; l <= 1; l++) {
+  const ln = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, ZN - ZF), laneM); ln.rotation.x = -Math.PI / 2; ln.position.set(l * PITCH, 0, (ZN + ZF) / 2); floor.add(ln);
+  for (const sd of [-1, 1]) { box(floor, PITCH - HW * 2, .1, ZN - ZF + 1, blackM, l * PITCH + sd * PITCH / 2, -.05, (ZN + ZF) / 2 - .5); box(world, .025, .03, -ZF, basic(sd * l >= 0 && l ? UV : CYAN), l * PITCH + sd * (HW + .03), .015, ZF / 2); }
+  box(floor, HW * 2, .1, 3, blackM, l * PITCH, -.05, ZF - 1.5);
+  if (l) pinXZ.forEach(([x, z], k) => { if (hash(k, l) < .75) { const p = new THREE.Mesh(pinG, pinM); p.position.set(l * PITCH + x, 0, z); world.add(p); } });
+}
+box(floor, 3, .1, ZN - ZF + 1, blackM, -PITCH * 1.5 - 1.3, -.05, (ZN + ZF) / 2 - .5); box(floor, 3, .1, ZN - ZF + 1, blackM, PITCH * 1.5 + 1.3, -.05, (ZN + ZF) / 2 - .5);
+// ---- かべ（じゅうたんのような星と渦の模様）と天井、ピンの上のかざり板 ----
+const carpet = tex(512, 256, (c, w, h) => { c.fillStyle = '#0a031c'; c.fillRect(0, 0, w, h); c.lineWidth = 4; c.lineCap = 'round';
+  for (let i = 0; i < 46; i++) { const x = hash(i, 1) * w, y = hash(i, 2) * h, col = NEON[i % 4], s = 9 + hash(i, 3) * 20, k = i % 5; c.fillStyle = c.strokeStyle = col; c.shadowColor = col; c.shadowBlur = 8; c.beginPath();
+    if (k === 0) { for (let j = 0; j < 10; j++) { const a = j * Math.PI / 5 + i, r = j % 2 ? s * .42 : s; c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } c.fill(); }
+    else if (k === 1) { for (let a = 0; a < 15; a += .25) c.lineTo(x + Math.cos(a + i) * a * s * .09, y + Math.sin(a + i) * a * s * .09); c.stroke(); }
+    else if (k === 2) { for (let j = 0; j < 7; j++) c.lineTo(x + j * s * .5, y + (j % 2 ? -s : s) * .5); c.stroke(); }
+    else if (k === 3) { c.arc(x, y, s * .6, 0, 7); c.stroke(); c.beginPath(); c.arc(x, y, s * .16, 0, 7); c.fill(); }
+    else { for (let j = 0; j < 3; j++) { c.beginPath(); c.arc(x + j * s * .7, y + (j - 1) * s * .4, 3.5, 0, 7); c.fill(); } } } });
+carpet.wrapS = THREE.RepeatWrapping; carpet.repeat.set(4, 1);
+const RW = PITCH * 1.5 + .95, RH = 3.1;
+for (const sd of [-1, 1]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(ZN - ZF + 2, RH), basic(0xffffff, { map: carpet })); w.rotation.y = -sd * Math.PI / 2; w.position.set(sd * RW, RH / 2, (ZN + ZF) / 2); world.add(w); }
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, ZN - ZF + 2), basic('#05020c')); ceil.rotation.x = Math.PI / 2; ceil.position.set(0, RH, (ZN + ZF) / 2); world.add(ceil);
+for (let z = 3; z > ZF; z -= 2.6) { box(world, RW * 1.5, .05, .09, basic('#a878ff'), 0, RH - .1, z); box(world, RW * 1.5 + .2, .02, .3, basic('#2a1260'), 0, RH - .06, z); }   // 紫外線の管
+const mask = tex(1024, 256, (c, w, h) => { c.fillStyle = '#0a031c'; c.fillRect(0, 0, w, h); c.lineCap = 'round';
+  for (let j = 0; j < 4; j++) { c.strokeStyle = NEON[j]; c.shadowColor = NEON[j]; c.shadowBlur = 14; c.lineWidth = 9 - j; c.beginPath(); for (let x = -10; x <= w + 10; x += 12) c.lineTo(x, 128 + (j - 1.5) * 26 + Math.sin(x * .012 + j * .8) * 46); c.stroke(); }
+  for (let i = 0; i < 14; i++) { const x = 40 + i * 72, y = 44 + hash(i, 9) * 170, s = 14 + hash(i, 8) * 16, col = i % 3 ? WHITE : NEON[i % 4]; c.fillStyle = col; c.shadowColor = col; c.beginPath(); for (let j = 0; j < 10; j++) { const a = j * Math.PI / 5 + i, r = j % 2 ? s * .42 : s; c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } c.fill(); }
+  c.fillStyle = PINK; c.shadowColor = PINK; c.fillRect(0, h - 10, w, 6); c.fillStyle = CYAN; c.shadowColor = CYAN; c.fillRect(0, 4, w, 5); });
+{ const m = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, RH - .62), basic(0xffffff, { map: mask })); m.position.set(0, .62 + (RH - .62) / 2, ZF + .35); world.add(m); box(world, RW * 2, .62, .1, basic('#020106'), 0, .31, ZF - .9); }
+// 蛍光でない物は黒い影になる（ボール返しの台と、置いてある球）
+box(world, .42, .46, 1.5, basic('#0a0516'), -PITCH / 2, .23, 3.4); box(world, .44, .02, 1.52, basic('#2a1260'), -PITCH / 2, .47, 3.4);
+for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(.108, 14, 10), basic(i === 1 ? ORG : '#140a22')); b.position.set(-PITCH / 2, .58, 2.95 + i * .24); world.add(b); }
+const dl = new THREE.DirectionalLight(0x9a6cff, 1.6); dl.position.set(.5, 3, 2); world.add(dl);
+// ---- 球（うずまき模様）と 10 本のピン ----
+const ballT = tex(256, 128, (c, w, h) => { c.fillStyle = '#12051f'; c.fillRect(0, 0, w, h); c.lineCap = 'round';
+  for (let j = 0; j < 5; j++) { c.strokeStyle = j % 2 ? CYAN : LIME; c.lineWidth = 9; c.beginPath(); for (let x = -20; x <= w + 20; x += 6) c.lineTo(x, 64 + Math.sin(x / w * Math.PI * 4 + j * 1.3) * 34 + (j - 2) * 7 + (x / w - .5) * 60); c.stroke(); }
+  c.fillStyle = PINK; for (const [x, y] of [[40, 30], [52, 22], [50, 40]]) { c.beginPath(); c.arc(x, y, 5, 0, 7); c.fill(); } });
+const RB = .108, ball = new THREE.Mesh(new THREE.SphereGeometry(RB, 24, 16), basic(0xffffff, { map: ballT })); world.add(ball);
+const pins = pinXZ.map(() => { const p = new THREE.Mesh(pinG, pinM); world.add(p); return p; });
+// ---- 簡単な自作の物理: 上から見た円どうしのぶつかり＋たおれる角度。1 投ぶんを先に全部計算しておき、本番もリプレイもその記録を再生する ----
+const FPS = 120, NF = FPS * 7, ST = 4 + 50; let rec = new Float32Array(NF * ST), tHit = 3, fallen = 0;
+function simulate(seed) {
+  const b = { x: .1 + (hash(seed, 1) - .5) * .09, z: 1.6, vx: .14, vz: -6.1, y: 0, vy: 0, roll: 0 }, P = pinXZ.map(([x, z]) => ({ x, z, vx: 0, vz: 0, y: 0, vy: 0, tilt: 0, tv: 0, dir: 0 }));
+  const dt = 1 / FPS, hook = -.46 - hash(seed, 2) * .1; tHit = -1;
+  const kick = (p, dv) => { p.dir = Math.atan2(p.vz, p.vx); p.tv += dv * 5; if (p.y <= 0) p.vy += Math.min(1.6, dv * .28); };
+  for (let f = 0; f < NF; f++) {
+    if (b.z < -7.2 && b.z > ZF) b.vx += hook * dt;
+    b.x += b.vx * dt; b.z += b.vz * dt; b.roll += Math.hypot(b.vx, b.vz) * dt / RB; if (b.z < ZF - .1) { b.vy -= 9.8 * dt; b.y += b.vy * dt; }
+    for (const p of P) {
+      const rp = .058 + .09 * Math.sin(p.tilt), dx = p.x - b.x, dz = p.z - b.z, d = Math.hypot(dx, dz);
+      if (d < RB + rp && p.y < .3 && b.y > -.1) { const nx = dx / d, nz = dz / d, vr = (b.vx - p.vx) * nx + (b.vz - p.vz) * nz; if (vr > 0) { const j = 1.75 * vr / (1 / 6.5 + 1 / 1.5); b.vx -= j / 6.5 * nx; b.vz -= j / 6.5 * nz; p.vx += j / 1.5 * nx; p.vz += j / 1.5 * nz; kick(p, j / 1.5); if (tHit < 0) tHit = f / FPS; } const o = RB + rp - d; p.x += nx * o; p.z += nz * o; }
+    }
+    for (let i = 0; i < 10; i++) for (let k = i + 1; k < 10; k++) { const p = P[i], q = P[k]; if (p.y < -.2 || q.y < -.2) continue; const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz), rr = .116 + .09 * (Math.sin(p.tilt) + Math.sin(q.tilt));
+      if (d < rr && d > 1e-4) { const nx = dx / d, nz = dz / d, vr = (p.vx - q.vx) * nx + (p.vz - q.vz) * nz; if (vr > 0) { const j = .82 * vr; p.vx -= j * nx; p.vz -= j * nz; q.vx += j * nx; q.vz += j * nz; kick(q, j); kick(p, j * .5); } const o = (rr - d) / 2; p.x -= nx * o; p.z -= nz * o; q.x += nx * o; q.z += nz * o; } }
+    for (const p of P) {
+      const fr = Math.exp(-(p.tilt < .2 ? 5 : 1.5) * dt); p.vx *= fr; p.vz *= fr; p.x += p.vx * dt; p.z += p.vz * dt;
+      if (Math.abs(p.x) > .64 && p.x * p.vx > 0) { p.vx *= -.5; p.x = Math.sign(p.x) * .64; }
+      if (p.tilt > 0 || p.tv > 0) { p.tv += (p.tilt > .13 ? 15 * Math.sin(p.tilt) : -40 * p.tilt) * dt; p.tv *= Math.exp(-1.2 * dt); p.tilt += p.tv * dt; if (p.tilt < 0) { p.tilt = 0; p.tv = 0; } if (p.tilt > Math.PI / 2) { p.tilt = Math.PI / 2; p.tv *= -.25; } }
+      const pit = p.z < ZF - .05; p.vy -= 9.8 * dt; p.y += p.vy * dt; if (p.y < 0 && !pit) { p.y = 0; p.vy = p.vy < -1 ? -p.vy * .3 : 0; }
+    }
+    const o = f * ST; rec[o] = b.x; rec[o + 1] = b.y; rec[o + 2] = b.z; rec[o + 3] = b.roll;
+    P.forEach((p, i) => { const q = o + 4 + i * 5; rec[q] = p.x; rec[q + 1] = p.y; rec[q + 2] = p.z; rec[q + 3] = p.tilt; rec[q + 4] = p.dir; });
+  }
+  if (tHit < 0) tHit = 3; fallen = P.filter(p => p.tilt > 1 || p.y < -.2).length;
+}
+const ax = new THREE.Vector3(), rollAx = new THREE.Vector3(1, 0, .3).normalize();
+function show(tau) {
+  const o = Math.max(0, Math.min(NF - 1, Math.round(tau * FPS))) * ST;
+  ball.position.set(rec[o], rec[o + 1] + RB, rec[o + 2]); ball.quaternion.setFromAxisAngle(rollAx, -rec[o + 3]);
+  pins.forEach((p, i) => { const q = o + 4 + i * 5, ti = rec[q + 3], d = rec[q + 4]; p.position.set(rec[q], rec[q + 1] + Math.sin(ti) * .055, rec[q + 2]); ax.set(Math.sin(d), 0, -Math.cos(d)); p.quaternion.setFromAxisAngle(ax, ti); p.visible = rec[q + 1] > -1.2; });
+}
+// ---- にじみ（明るい所だけ取り出して小さくぼかし、上から足す） ----
+const rtS = new THREE.WebGLRenderTarget(4, 4), rtA = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false }), rtB = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: false });
+const fsq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); fsq.frustumCulled = false; const fscene = new THREE.Scene(); fscene.add(fsq); const fcam = new THREE.Camera();
+const VS = 'varying vec2 vU; void main(){ vU = uv; gl_Position = vec4(position.xy, 0., 1.); }';
+const brightM = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, px: { value: new THREE.Vector2() } }, vertexShader: VS, depthTest: false,
+  fragmentShader: 'uniform sampler2D tD; uniform vec2 px; varying vec2 vU; void main(){ vec3 c = vec3(0.); for (int i = 0; i < 4; i++) { vec2 o = vec2(mod(float(i), 2.) - .5, floor(float(i) / 2.) - .5) * 2.; c += texture2D(tD, vU + o * px).rgb; } c *= .25; gl_FragColor = vec4(max(c - .12, 0.) * 1.3, 1.); }' });
+const blurM = new THREE.ShaderMaterial({ uniforms: { tD: { value: null }, dir: { value: new THREE.Vector2() } }, vertexShader: VS, depthTest: false,
+  fragmentShader: 'uniform sampler2D tD; uniform vec2 dir; varying vec2 vU; void main(){ vec3 c = texture2D(tD, vU).rgb * .227; c += (texture2D(tD, vU + dir * 1.385).rgb + texture2D(tD, vU - dir * 1.385).rgb) * .316; c += (texture2D(tD, vU + dir * 3.231).rgb + texture2D(tD, vU - dir * 3.231).rgb) * .0703; gl_FragColor = vec4(c, 1.); }' });
+const finalM = new THREE.ShaderMaterial({ uniforms: { tD: { value: rtS.texture }, tG: { value: rtA.texture } }, vertexShader: VS, depthTest: false,
+  fragmentShader: `uniform sampler2D tD, tG; varying vec2 vU; void main(){ vec3 c = texture2D(tD, vU).rgb, g = texture2D(tG, vU).rgb; c += g * 1.05 + vec3(.012, .002, .03) + vec3(.02, .0, .05) * dot(g, vec3(.4));
+    vec2 q = vU - .5; c *= 1. - .9 * dot(q, q); gl_FragColor = vec4(c, 1.);
+    #include <colorspace_fragment>
+  }` });
+const pass = (m, target) => { fsq.material = m; renderer.setRenderTarget(target); renderer.render(fscene, fcam); };
+let tall = false;
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight, d = renderer.getPixelRatio(), w = innerWidth * d, h = innerHeight * d; tall = a < 1; cam.aspect = a; cam.fov = tall ? 74 : 50; cam.updateProjectionMatrix();
+  rtS.setSize(w, h); rtA.setSize(Math.ceil(w / 4), Math.ceil(h / 4)); rtB.setSize(Math.ceil(w / 4), Math.ceil(h / 4)); brightM.uniforms.px.value.set(1 / w, 1 / h); };
+addEventListener('resize', resize); resize();
+const hud = document.getElementById('hud'); let hudS = '';
+const ease = f => f * f * (3 - 2 * f), cl = f => Math.max(0, Math.min(1, f)), look = new THREE.Vector3(), cp = new THREE.Vector3();
+let last = performance.now(), t = 0, shot = 0, t0 = 0, score = 0, counted = false; simulate(0);
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 1 投の流れ: かまえ .8 秒 → 投げて球を追う → ピンがはじける → 横からゆっくりリプレイ → 結果
+  const WAIT = .8, LIVE = tHit + 1.9, REP = 4.2, RES = 1.5; let ct = t - t0;
+  if (ct > WAIT + LIVE + REP + RES) { shot++; t0 = t; ct = 0; simulate(shot); counted = false; }
+  let tau, hs = `SCORE ${String(score).padStart(3, '0')}`;
+  if (ct < WAIT + LIVE) {
+    tau = Math.max(0, ct - WAIT); show(tau);
+    const bx = ball.position.x, bz = Math.max(ball.position.z, HEAD), back = tall ? 2.5 : 1.9, stop = HEAD + (tall ? 3.4 : 2.7), cz = Math.max(bz + back, stop), near = cl((stop + 3 - bz - back) / 3);
+    cp.set(bx * .5 + .05, .42 + near * .32 + (tall ? .2 : 0), cz); look.set(bx * .6 * (1 - near), .16, Math.max(bz - 3.5, HEAD - .5));
+    if (tau > tHit) cp.x += Math.sin(tau * 60) * .012 * Math.exp(-(tau - tHit) * 6);                                   // 当たった時のゆれ
+  } else if (ct < WAIT + LIVE + REP) {
+    const f = (ct - WAIT - LIVE) / REP; tau = tHit - .45 + f * 1.75; show(tau);
+    cp.set(tall ? .75 : 1.02 - f * .25, .24 + f * .1, HEAD + (tall ? 1.6 : 1.05) - f * .3); look.set(0, .17, HEAD - .42);
+    if (Math.sin(t * 9) > -.3) hs = '● REPLAY';
+  } else {
+    show(NF / FPS); const f = ease(cl((ct - WAIT - LIVE - REP) / .6)); cp.set(0, 1.0 + f * .5, HEAD + (tall ? 3.6 : 2.9)); look.set(0, .1, HEAD - .4);
+    if (!counted) { counted = true; score += fallen === 10 ? 30 : fallen; } hs = fallen === 10 ? '★ STRIKE ★' : `${fallen} 本`;
+  }
+  cam.position.copy(cp); cam.lookAt(look);
+  if (hs !== hudS) hud.textContent = hudS = hs;
+  renderer.setRenderTarget(rtS); renderer.setClearColor(0x05020c, 1); renderer.clear();
+  world.scale.y = -1; floor.visible = false; renderer.render(scene, cam);          // 先に上下逆さの場面（レーンに映る分）
+  renderer.clearDepth(); world.scale.y = 1; floor.visible = true; renderer.render(scene, cam);
+  brightM.uniforms.tD.value = rtS.texture; pass(brightM, rtA);
+  for (let i = 0; i < 2; i++) { const s = 1 + i * 1.6; blurM.uniforms.tD.value = rtA.texture; blurM.uniforms.dir.value.set(s / rtA.width, 0); pass(blurM, rtB); blurM.uniforms.tD.value = rtB.texture; blurM.uniforms.dir.value.set(0, s / rtA.height); pass(blurM, rtA); }
+  pass(finalM, null);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

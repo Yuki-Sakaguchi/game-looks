@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 11 壁走りランナー スプレーのステンシル</title>
+<style>
+html,body{margin:0;height:100%;background:#6f6a60;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f1ece0;background:#17151a;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 11 ─ 壁走りランナー / スプレーのステンシル（型ぬきの落書き）　｜　見るだけ（自動で走って跳ぶ）</div>
+<script>
+// 白く塗ったれんが壁に、型紙でスプレーした落書きに見立てる。色は黒と赤の 2 色だけ。形はどれも「つなぎ（ブリッジ）」で切れたべた。
+// 型は 1 つずつ別の画像に作る: べたの形 → ふちに粒の霧（オーバースプレー）→ 下のふちからペンキのしずく。赤は黒と少しずれて重なる（2 枚めの型紙のずれ）。
+// 走る人は 1 秒 6 回だけ、その時の場所に新しく吹きつける。前のコマは壁に残ってうすくなる（連続写真）。壁だけがなめらかに流れる
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const INK = '#17151a', RED = '#dc2338';
+let W, H, S, U, GY, wall, TW, SP = {}, scoreSp = null, scoreN = -1, shade;
+
+// 型紙 1 枚ぶんのスプレー絵を作る。draw は w×h の箱（単位 U）に黒で形を描く
+function stencil(w, h, draw, col = INK, drips = 3, seed = 1) {
+  const pad = 24, k = U * S, cw = Math.ceil((w + pad * 2) * k), ch = Math.ceil((h + pad * 2 + 44) * k);
+  const m = document.createElement('canvas'); m.width = cw; m.height = ch; const x = m.getContext('2d', { willReadFrequently: true });
+  x.setTransform(k, 0, 0, k, pad * k, pad * k); x.fillStyle = x.strokeStyle = '#000'; x.lineJoin = 'round'; draw(x);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over';
+  // たれたしずく: 形の下のふちを探して、細い線と丸い玉を足す
+  const d = x.getImageData(0, 0, cw, ch).data;
+  for (let i = 0; i < drips; i++) {
+    const px = Math.floor((pad + w * (.12 + .76 * hash(seed, i * 3 + 1))) * k); let py = -1;
+    for (let y = ch - 1; y > 0; y--) if (d[(y * cw + px) * 4 + 3] > 128) { py = y; break; }
+    if (py < 0) continue; const len = (7 + hash(seed, i * 3 + 2) * 30) * k, r = (1 + hash(seed, i * 3 + 3) * .7) * k;
+    x.fillRect(px - r * .6, py - 3 * k, r * 1.2, len); x.beginPath(); x.arc(px, py - 3 * k + len, r * 1.25, 0, 7); x.fill();
+  }
+  // べたの中のむら（うすい所に壁が少し見える）
+  x.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < w * h / 50; i++) { x.globalAlpha = .25 + hash(seed + i, 7) * .5; x.fillRect(hash(i, seed + 1) * cw, hash(i, seed + 2) * ch, k * (1 + hash(i, 3) * 1.6), k * (1 + hash(i, 4))); }
+  x.globalAlpha = 1; x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, cw, ch);
+  // 霧: ぼかした影を作り、その濃さを「点が打たれる確率」に変える
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch; const o = c.getContext('2d', { willReadFrequently: true });
+  o.shadowColor = col; o.shadowBlur = 9 * k; o.shadowOffsetX = 30000; o.drawImage(m, -30000, 0); o.shadowBlur = 3 * k; o.drawImage(m, -30000, 0); o.shadowColor = 'transparent'; o.shadowOffsetX = 0;
+  const im = o.getImageData(0, 0, cw, ch), e = im.data;
+  for (let i = 3; i < e.length; i += 4) { const a = e[i] / 255; e[i] = Math.random() < a * a * .7 ? 130 + Math.random() * 110 : a * 34; }
+  o.putImageData(im, 0, 0); o.drawImage(m, 0, 0);
+  return { c, w: cw / S, h: ch / S, p: pad * U };
+}
+const put = (s, x, y, a = 1) => { g.globalAlpha = a; g.drawImage(s.c, x - s.p, y - s.p, s.w, s.h); g.globalAlpha = 1; };
+const seg = (x, x1, y1, x2, y2, w1, w2, g0 = .1, g1 = .94) => { const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, ax = x1 + dx * g0, ay = y1 + dy * g0, bx = x1 + dx * g1, by = y1 + dy * g1; x.beginPath(); x.moveTo(ax + nx * w1 / 2, ay + ny * w1 / 2); x.lineTo(bx + nx * w2 / 2, by + ny * w2 / 2); x.lineTo(bx - nx * w2 / 2, by - ny * w2 / 2); x.lineTo(ax - nx * w1 / 2, ay - ny * w1 / 2); x.fill(); };
+const cutLine = (x, x1, y1, x2, y2, w) => { x.globalCompositeOperation = 'destination-out'; x.lineWidth = w; x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); x.globalCompositeOperation = 'source-over'; };
+
+// 走る人（箱は 150×170、足もとは y=170）。関節ごとにすき間をあけて、型紙のつなぎにする
+const POSES = [...Array(6)].map((_, i) => { const f = i / 6 * 6.283, b = q => .25 + 1.25 * (.5 + .5 * Math.cos(q + .6)); return { t1: .15 + .95 * Math.sin(f), b1: b(f), t2: .15 - .95 * Math.sin(f), b2: b(f + Math.PI), a1: -.95 * Math.sin(f), a2: .95 * Math.sin(f), lean: .3, i }; })
+  .concat([{ t1: 1.25, b1: 1.5, t2: -.55, b2: .5, a1: 2.3, a2: -.9, lean: .2, air: 1, i: 6 }, { t1: 1.35, b1: 1.9, t2: .5, b2: 1.9, a1: 1.9, a2: -1.3, lean: .5, air: 1, i: 7 }, { t1: .75, b1: .3, t2: -.25, b2: .8, a1: 2.6, a2: -2, lean: .08, air: 1, i: 8 }]);
+function runner(x, P, layer) {
+  const hx = 66, L1 = 37, L2 = 39;
+  const leg = (th, b) => [L1 * Math.sin(th), L1 * Math.cos(th), L1 * Math.sin(th) + L2 * Math.sin(th - b), L1 * Math.cos(th) + L2 * Math.cos(th - b), th - b];
+  const A = leg(P.t1, P.b1), B = leg(P.t2, P.b2), hy = P.air ? 98 : 163 - Math.max(A[3], B[3]);
+  const sx = hx + 50 * Math.sin(P.lean), sy = hy - 50 * Math.cos(P.lean), hdx = sx + 22 * Math.sin(P.lean + .3), hdy = sy - 22 * Math.cos(P.lean + .3);
+  const shoe = L => { x.save(); x.translate(hx + L[2], hy + L[3]); x.rotate(-L[4] * .7); x.beginPath(); x.moveTo(-8, -5); x.lineTo(8, -6); x.lineTo(19, 3); x.lineTo(18, 7); x.lineTo(-9, 7); x.fill(); x.restore(); };
+  if (layer) {  // 赤の型: くつ、たなびく首巻き
+    shoe(A); shoe(B); const w = Math.sin(P.i * 1.9) * 7;
+    x.beginPath(); x.moveTo(sx - 4, sy - 9); x.lineTo(sx - 30, sy - 12 + w); x.lineTo(sx - 58, sy - 2 - w); x.lineTo(sx - 54, sy + 9 - w); x.lineTo(sx - 30, sy - 1 + w); x.lineTo(sx - 6, sy + 1); x.fill(); return;
+  }
+  const arm = (a, w) => { const ex = sx + 25 * Math.sin(a), ey = sy + 4 + 25 * Math.cos(a), fx = ex + 24 * Math.sin(a + 1.4), fy = ey + 24 * Math.cos(a + 1.4); seg(x, sx, sy + 4, ex, ey, w, w - 2, .16, .9); seg(x, ex, ey, fx, fy, w - 2, w - 4, .12, 1); x.beginPath(); x.arc(fx, fy, 5.5, 0, 7); x.fill(); };
+  arm(P.a2, 11);
+  seg(x, hx, hy, hx + B[0], hy + B[1], 15, 11, .12, .9); seg(x, hx + B[0], hy + B[1], hx + B[2], hy + B[3], 11, 7, .1, .86);
+  seg(x, hx, hy, hx + A[0], hy + A[1], 17, 12, .12, .9); seg(x, hx + A[0], hy + A[1], hx + A[2], hy + A[3], 12, 7, .1, .86);
+  seg(x, hx, hy, sx, sy, 24, 31, .04, .86);                               // 胴
+  cutLine(x, sx + 12, sy + 2, hx - 14, hy - 12, 3.2);                    // かばんのひも（つなぎ）
+  cutLine(x, hx - 16, hy - 14, hx + 16, hy - 12, 2.6);                   // ベルト
+  x.beginPath(); x.arc(hdx, hdy, 13, 0, 7); x.fill();                    // 頭
+  x.beginPath(); x.moveTo(hdx - 13, hdy - 2); x.lineTo(hdx - 18, hdy + 13); x.lineTo(hdx - 2, hdy + 12); x.fill();   // フード
+  x.beginPath(); x.moveTo(hdx + 4, hdy - 9); x.lineTo(hdx + 23, hdy - 5); x.lineTo(hdx + 22, hdy - 1); x.lineTo(hdx + 6, hdy - 3); x.fill();   // つば
+  cutLine(x, hdx - 12, hdy - 6, hdx + 12, hdy - 1, 2.4); cutLine(x, hdx + 3, hdy + 3, hdx + 11, hdy + 4, 2.6);
+  arm(P.a1, 12);
+}
+// じゃま物（箱は 110×110、足もとは y=110）
+const OBS = [
+  [RED, x => { x.beginPath(); x.moveTo(44, 8); x.lineTo(66, 8); x.lineTo(88, 92); x.lineTo(22, 92); x.fill(); x.fillRect(8, 97, 94, 13); cutLine(x, 20, 36, 90, 36, 7); cutLine(x, 14, 66, 96, 66, 7); }],
+  [INK, x => { x.beginPath(); x.ellipse(60, 80, 26, 30, 0, 0, 7); x.fill(); x.beginPath(); x.arc(48, 34, 17, 0, 7); x.fill(); x.beginPath(); x.moveTo(32, 30); x.lineTo(32, 6); x.lineTo(46, 20); x.lineTo(54, 4); x.lineTo(63, 28); x.fill();
+    x.lineWidth = 8; x.lineCap = 'round'; x.beginPath(); x.moveTo(84, 100); x.bezierCurveTo(108, 96, 104, 62, 90, 52); x.stroke(); x.fillRect(36, 104, 30, 6);
+    cutLine(x, 34, 50, 64, 56, 3); cutLine(x, 60, 62, 60, 108, 2.4); x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.ellipse(41, 32, 3.6, 2.2, .3, 0, 7); x.ellipse(54, 32, 3.6, 2.2, -.3, 0, 7); x.fill(); x.globalCompositeOperation = 'source-over'; }],
+  [INK, x => { x.fillRect(2, 26, 106, 26); x.fillRect(2, 62, 106, 12); seg(x, 22, 54, 10, 110, 9, 9, 0, 1); seg(x, 88, 54, 100, 110, 9, 9, 0, 1); for (let i = 0; i < 6; i++) cutLine(x, 4 + i * 22, 56, 26 + i * 22, 22, 8); cutLine(x, 0, 57, 110, 57, 3); }],
+  [INK, x => { x.beginPath(); x.moveTo(22, 30); x.lineTo(88, 30); x.lineTo(82, 110); x.lineTo(28, 110); x.fill(); x.fillRect(16, 14, 78, 11); x.fillRect(46, 6, 18, 6); for (let i = 0; i < 4; i++) cutLine(x, 36 + i * 13, 40, 37 + i * 12, 102, 4.5); }],
+];
+const starPath = (x, cx, cy, r) => { x.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283 - 1.571, q = i % 2 ? r * .44 : r; x.lineTo(cx + Math.cos(a) * q, cy + Math.sin(a) * q); } x.fill(); };
+// 型ぬき文字: 1 文字ごとに、まん中にたての「つなぎ」を入れる
+function stText(x, s, px, x0, y0) { x.font = `900 ${px}px Impact,"Arial Black","Hiragino Sans",sans-serif`; x.textBaseline = 'alphabetic'; let p = x0; for (const ch of s) { const w = x.measureText(ch).width; x.fillText(ch, p, y0); if (ch !== '1' && ch !== ' ') cutLine(x, p + w / 2, y0 - px, p + w / 2, y0 + 4, px * .07); p += w + px * .07; } return p - x0; }
+
+function build() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * S; cv.height = H * S;
+  U = Math.min(H / 470, W / 380); GY = Math.round(H * (W > H ? .76 : .74));
+  // 壁を 1 枚（横にくり返せる形で）作る
+  const BW = 58 * U, BH = 21 * U, nx = Math.ceil((W + 40) / BW / 2) * 2; TW = nx * BW;
+  wall = document.createElement('canvas'); wall.width = Math.round(TW * S); wall.height = H * S; const x = wall.getContext('2d'); x.setTransform(wall.width / TW, 0, 0, S, 0, 0);
+  x.fillStyle = '#8c867a'; x.fillRect(0, 0, TW, H);
+  const peel = (bx, by) => Math.sin(bx / nx * 6.283 * 2 + by * .42) + Math.sin(bx / nx * 6.283 * 3 - by * .27 + 1.7) * .8 + Math.sin(by * .8 + bx / nx * 6.283) * .5 + hash(bx, by) * .7;
+  for (let r = 0; r * BH < H; r++) for (let b = -1; b <= nx; b++) {
+    const bx = b * BW + (r % 2) * BW / 2, by = r * BH, key = ((b % nx) + nx) % nx, p = peel(key + (r % 2) * .5, r), v = hash(key, r);
+    x.fillStyle = `hsl(${12 + v * 10},${34 + v * 14}%,${33 + hash(key, r + 50) * 10}%)`; x.fillRect(bx + 1.2 * U, by + 1.2 * U, BW - 2.4 * U, BH - 2.4 * U);
+    if (p < 1.75) {   // 白い塗り（はがれていない所）。ふちは少しかすれる
+      const full = p < 1.4; x.fillStyle = full ? (v < .8 ? '#d9d5c9' : '#d2cdc0') : '#ddd8cb'; x.globalAlpha = full ? .96 : .8;
+      if (full) { x.fillRect(bx - .5, by - .5, BW + 1, BH + 1); x.fillStyle = 'rgba(60,54,44,.2)'; x.fillRect(bx, by + BH - 1.3 * U, BW, 1.3 * U); x.fillRect(bx, by, 1.2 * U, BH); } else for (let i = 0; i < 5; i++) x.fillRect(bx + hash(key * 7 + i, r) * BW * .7, by + hash(key * 5 + i, r + 3) * BH * .6, BW * (.2 + hash(i, key) * .3), BH * (.3 + hash(i, r) * .3));
+      x.globalAlpha = 1;
+    }
+  }
+  // 塗りつぶして消した落書きのあと、はがれたポスター
+  for (let i = 0; i < 3; i++) { x.fillStyle = ['#c9c4b6', '#b9bcb4', '#d2c9b4'][i]; x.globalAlpha = .82; x.fillRect(TW * (.08 + i * .34 + hash(i, 61) * .08), H * (.1 + hash(i, 62) * .25), (130 + hash(i, 63) * 120) * U, (60 + hash(i, 64) * 60) * U); } x.globalAlpha = 1;
+  for (let i = 0; i < 3; i++) {
+    const px = TW * (.2 + i * .31), py = GY - (345 - hash(i, 71) * 40) * U, pw = (96 + hash(i, 72) * 30) * U, ph = pw * 1.38; x.save(); x.translate(px, py); x.rotate((hash(i, 73) - .5) * .09);
+    x.beginPath(); x.moveTo(0, 0); for (let k = 0; k <= 10; k++) x.lineTo(pw, ph * k / 10 * (.5 + hash(i, 74) * .5)); const bot = ph * (.5 + hash(i, 74) * .5);
+    for (let k = 10; k >= 0; k--) x.lineTo(pw * k / 10, bot - hash(i * 9 + k, 75) * ph * .28); x.closePath(); x.fillStyle = ['#d8c890', '#b8c2c0', '#d9b9a8'][i]; x.fill(); x.clip();
+    x.fillStyle = 'rgba(40,36,40,.55)'; x.fillRect(pw * .1, ph * .08, pw * .8, ph * .12); for (let k = 0; k < 5; k++) x.fillRect(pw * .1, ph * (.27 + k * .07), pw * (.4 + hash(i, k + 80) * .4), ph * .025);
+    x.fillStyle = 'rgba(255,255,255,.35)'; for (let k = 0; k < 6; k++) x.fillRect(hash(i, k + 90) * pw, 0, 2 * U, ph); x.restore();
+  }
+  // しみ（雨だれ）と、下のコンクリートの台
+  for (let i = 0; i < 7; i++) { const sx = hash(i, 31) * TW, sw = (10 + hash(i, 32) * 46) * U, sh = H * (.3 + hash(i, 33) * .6), gr = x.createLinearGradient(0, 0, 0, sh); gr.addColorStop(0, 'rgba(50,44,36,.15)'); gr.addColorStop(1, 'rgba(50,44,36,0)'); x.fillStyle = gr; x.fillRect(sx, 0, sw, sh); }
+  const CY = GY + 74 * U; x.fillStyle = '#8f8d86'; x.fillRect(0, CY, TW, H - CY); x.fillStyle = 'rgba(0,0,0,.3)'; x.fillRect(0, CY, TW, 5 * U); x.fillStyle = 'rgba(255,255,255,.16)'; x.fillRect(0, CY + 5 * U, TW, 2 * U);
+  for (let i = 0; i < 90; i++) { x.fillStyle = hash(i, 41) < .5 ? 'rgba(40,40,36,.14)' : 'rgba(255,255,250,.1)'; x.fillRect(hash(i, 42) * TW, CY + 8 * U + hash(i, 43) * (H - CY), (8 + hash(i, 44) * 50) * U, (1 + hash(i, 45) * 3) * U); }
+  for (let i = 0; i < nx / 2; i++) { x.fillStyle = 'rgba(30,30,28,.45)'; x.beginPath(); x.arc((i + .5) * BW * 2, CY + 34 * U, 4 * U, 0, 7); x.fill(); x.fillStyle = 'rgba(30,30,28,.3)'; x.fillRect(i * BW * 2, CY + 5 * U, 1.5 * U, H); }
+  for (let i = 0; i < 26; i++) { x.fillStyle = `rgba(${70 + hash(i, 51) * 30},${90 + hash(i, 52) * 30},50,.2)`; x.beginPath(); x.ellipse(hash(i, 53) * TW, CY + 2 * U, (14 + hash(i, 54) * 40) * U, (5 + hash(i, 55) * 9) * U, 0, 0, 7); x.fill(); }
+  // 型を作る
+  SP = { run: POSES.map((P, i) => [stencil(150, 170, q => runner(q, P, 0), INK, 3, i + 3), stencil(150, 170, q => runner(q, P, 1), RED, 1, i + 40)]) };
+  SP.obs = OBS.map(([c, f], i) => stencil(110, 110, f, c, 4, i + 60));
+  SP.star = stencil(46, 46, q => { starPath(q, 23, 23, 22); cutLine(q, 23, 0, 23, 46, 2.4); }, RED, 2, 70);
+  SP.plus = stencil(64, 30, q => stText(q, '+10', 28, 2, 27), INK, 0, 71);
+  SP.line = stencil(380, 12, q => { q.beginPath(); q.moveTo(0, 2); for (let i = 0; i <= 19; i++) q.lineTo(i * 20, 1 + hash(i, 77) * 3); for (let i = 19; i >= 0; i--) q.lineTo(i * 20, 9 + hash(i, 78) * 3); q.fill(); }, INK, 6, 72);
+  SP.arrow = stencil(120, 60, q => { q.beginPath(); q.moveTo(0, 20); q.lineTo(70, 20); q.lineTo(70, 2); q.lineTo(120, 30); q.lineTo(70, 58); q.lineTo(70, 40); q.lineTo(0, 40); q.fill(); cutLine(q, 30, 0, 30, 60, 4); cutLine(q, 74, 0, 74, 60, 4); }, RED, 3, 73);
+  shade = g.createRadialGradient(W / 2, H * .45, Math.min(W, H) * .35, W / 2, H / 2, Math.hypot(W, H) * .62); shade.addColorStop(0, 'rgba(20,16,10,0)'); shade.addColorStop(1, 'rgba(20,16,10,.2)');
+  scoreN = -1;
+}
+build(); addEventListener('resize', build);
+
+// 進み方: じゃま物は 660U ごと。その手前で跳ぶ。星はじゃま物の上と、あいだの地面ぞい
+const V = 330, GAP = 660, JT = .7, JH = 104;
+const stars = i => [[i * GAP + 500, 150], [i * GAP + 500 + 300, 100], [i * GAP + 500 + 370, 100]];
+function runnerAt(tt) { const x = V * tt, k = Math.round((x - 500) / GAP), f = (x - (k * GAP + 500)) / (V * JT) + .5; if (f > 0 && f < 1) return { x, y: 4 * JH * f * (1 - f), pose: f < .3 ? 6 : f < .72 ? 7 : 8 }; return { x, y: 0, pose: Math.floor(tt * 6) % 6 }; }
+let t = 0, last = performance.now(), sprays = [], lastK = -1;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const k = Math.floor(t * 6);
+  if (k !== lastK) { lastK = k; const r = runnerAt(k / 6); r.rot = (hash(k, 5) - .5) * .07; r.dx = (hash(k, 6) - .5) * 4; sprays.push(r); if (sprays.length > 7) sprays.shift(); }
+  const cam = V * t * U - W * (W > H ? .4 : .46) + 75 * U, cur = sprays[sprays.length - 1];
+  g.setTransform(S, 0, 0, S, 0, 0);
+  const ox = -(((cam % TW) + TW) % TW); g.drawImage(wall, ox, 0, TW, H); g.drawImage(wall, ox + TW, 0, TW, H);
+  // 地面の線
+  const LW = 392 * U; for (let i = Math.floor(cam / LW); i * LW < cam + W; i++) put(SP.line, i * LW - cam, GY - 1 * U);
+  // じゃま物、矢印、星
+  let score = 0;
+  for (let i = Math.floor(cam / U / GAP) - 1; i <= Math.floor((cam + W) / U / GAP) + 1; i++) {
+    put(SP.obs[((i % 4) + 4) % 4], (i * GAP + 500 - 55) * U - cam, GY - 110 * U);
+    if (((i % 2) + 2) % 2 === 0) put(SP.arrow, (i * GAP + 500 + 210) * U - cam, GY - 250 * U, .85);
+    for (const [sx, sh] of stars(i)) { const got = sx < cur.x + 40, X = (sx - 23) * U - cam, Y = GY - (sh + 46) * U; put(SP.star, X, Y, got ? .13 : 1); if (got) put(SP.plus, X - 6 * U, Y - 30 * U, .9); }
+  }
+  const lap = Math.floor((cur.x + 160) / GAP), inl = cur.x + 40 - (lap * GAP + 500); score = (lap * 3 + (inl > 370 ? 3 : inl > 300 ? 2 : inl > 0 ? 1 : 0)) % 48 * 10;
+  // 走る人: 古いコマから順に。新しいほど濃い
+  const AL = [.05, .08, .12, .17, .24, .36, 1];
+  sprays.forEach((r, i) => {
+    const a = AL[i + 7 - sprays.length], sp = SP.run[r.pose], X = r.x * U - cam, Y = GY - (170 + r.y) * U;
+    g.save(); g.translate(X + 75 * U, Y + 120 * U); g.rotate(r.rot); g.translate(-75 * U, -120 * U); put(sp[1], r.dx * U, -3 * U, a); put(sp[0], 0, 0, a); g.restore();
+  });
+  // 点数（型ぬき数字）
+  if (score !== scoreN) { scoreN = score; scoreSp = stencil(190, 50, q => { starPath(q, 20, 26, 19); stText(q, String(score).padStart(4, '0'), 50, 48, 46); }, INK, 2, 99); }
+  put(scoreSp, 18 * U, 18 * U);
+  g.fillStyle = shade; g.fillRect(0, 0, W, H);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

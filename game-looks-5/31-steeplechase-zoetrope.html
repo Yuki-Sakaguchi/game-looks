@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 31 障害馬術 ゾートロープ</title>
+<style>
+html,body{margin:0;height:100%;background:#120b06;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8c890;opacity:.85}
+</style>
+<div id="cap">LOOK 31 ─ 障害馬術 / ゾートロープ（回転のぞき絵）　｜　見るだけ（自動で回り、馬が柵をとぶ）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 見立て: 机の上で回るゾートロープ（黒い円筒のすき間から、内側に貼った 12 こまの絵をのぞく道具）。
+// 円筒は 1 秒に 1 回転。すき間が 1 こま分（30 度）進むたびに絵が 1 こま進んで見えるので、帯の絵は「30 度ずつ、かくっと」送る（1 秒 12 こま）。
+// すき間のある黒いかべは回転でぶれた半透明のしまにする。真上から見るときは しかけが効かないので、絵はただ流れて回る
+import * as THREE from 'three';
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#120b06'); scene.fog = new THREE.Fog('#120b06', 20, 48);
+const cam = new THREE.PerspectiveCamera(30, 1, .1, 200);
+const resize = () => { renderer.setSize(innerWidth, innerHeight); const a = innerWidth / innerHeight; cam.aspect = a; cam.fov = a >= 1.5 ? 30 : Math.min(84, 2 * Math.atan(Math.tan(15 * Math.PI / 180) * 1.5 / a) * 180 / Math.PI); cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+
+// ── 12 こまの帯（走って、柵をとんで、また走る 1 周期）。墨の影絵に、騎手の上着と柵だけ赤
+const FW = 256, FH = 200, NF = 12, sc = document.createElement('canvas'); sc.width = FW * NF; sc.height = FH;
+{
+  const c = sc.getContext('2d'), INK = '#17120e', RED = '#c8321e', GY = 172;
+  const limb = (x, y, a1, l1, a2, l2, w) => { const kx = x + Math.sin(a1) * l1, ky = y + Math.cos(a1) * l1; c.lineWidth = w; c.beginPath(); c.moveTo(x, y); c.lineTo(kx, ky); c.lineTo(kx + Math.sin(a2) * l2, ky + Math.cos(a2) * l2); c.stroke(); };
+  for (let k = 0; k < NF; k++) {
+    c.save(); c.translate(((NF - k) % NF) * FW, 0); c.beginPath(); c.rect(0, 0, FW, FH); c.clip(); c.translate(FW, 0); c.scale(-1, 1);   // 回す向きに合わせて こまは逆順に並べ、内側から見て正しい向きになるよう裏返す
+    c.fillStyle = '#ecdcb4'; c.fillRect(0, 0, FW, FH); c.fillStyle = '#d6c296'; for (let i = 0; i < 50; i++) c.fillRect(rnd() * FW, rnd() * FH, 2 + rnd() * 3, 1);
+    c.fillStyle = INK; c.fillRect(0, GY, FW, 3); for (let i = 0; i < 5; i++) { const gx = (((i * 80 - k * 20) % 320) + 320) % 320 - 30; c.fillRect(gx, GY + 8, 26, 2); c.fillRect(gx + 40, GY + 16, 14, 2); }
+    c.fillRect(0, 0, 2, FH); c.font = 'bold 13px serif'; c.fillText(String(k + 1), 8, 18);
+    if (k >= 4 && k <= 8) { const fx = 128 + (6 - k) * 52; c.fillStyle = INK; c.fillRect(fx - 16, GY - 3, 32, 4); for (let i = 0; i < 6; i++) { c.fillStyle = i % 2 ? '#f6ecd0' : RED; c.fillRect(fx - 4, GY - 46 + i * 7.4, 8, 7.4); } c.strokeStyle = INK; c.lineWidth = 2; c.strokeRect(fx - 4, GY - 46, 8, 44); c.fillStyle = RED; c.beginPath(); c.moveTo(fx, GY - 46); c.lineTo(fx, GY - 62); c.lineTo(fx + 14, GY - 55); c.lineTo(fx, GY - 50); c.fill(); }
+    const u = (k - 3) / 6, inJ = u > 0 && u < 1, j = inJ ? Math.sin(Math.PI * u) : 0, g = k * Math.PI / 2, mix = (a, b) => a + (b - a) * j;
+    c.translate(122, 106 - j * 44); c.rotate(inJ ? -Math.cos(Math.PI * u) * .3 : 0); c.strokeStyle = INK; c.fillStyle = INK; c.lineCap = c.lineJoin = 'round';
+    for (const [ph, w] of [[.9, 7], [0, 8]]) {
+      const f = Math.sin(g + ph), h = Math.sin(g + ph + 2.4), fa = mix(f * .85, 1.15), fb = mix(f * .85 - .35 - .5 * Math.max(0, Math.cos(g + ph)), -1);
+      limb(34, 8, fa, 30, fb, 30, w);
+      limb(-38, 6, mix(h * .8 - .1, u < .5 ? -.9 : .5), 32, mix(h * .8 + .45 * Math.max(0, Math.cos(g + ph + 2.4)), u < .5 ? -.6 : -.7), 32, w + 1);
+    }
+    for (const [x, y, rx, ry] of [[0, 0, 50, 21], [30, -2, 24, 23], [-34, -2, 24, 22]]) { c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.fill(); }
+    c.lineWidth = 22; c.beginPath(); c.moveTo(38, -8); c.lineTo(64, -40); c.stroke();
+    c.save(); c.translate(68, -48); c.rotate(.75); c.beginPath(); c.ellipse(12, 0, 20, 9, 0, 0, 7); c.fill(); c.restore(); c.beginPath(); c.moveTo(60, -52); c.lineTo(62, -68); c.lineTo(70, -54); c.fill();
+    c.lineWidth = 8; c.beginPath(); c.moveTo(-54, -10); c.quadraticCurveTo(-84, -16 - 10 * Math.sin(g), -94, 4 + 8 * Math.cos(g) - j * 16); c.stroke();
+    c.lineWidth = 7; c.beginPath(); c.moveTo(4, -18); c.lineTo(15, 6); c.lineTo(8, 14); c.stroke();
+    c.strokeStyle = RED; c.lineWidth = 15; c.beginPath(); c.moveTo(2, -22); c.lineTo(15 + j * 9, -52 + j * 5); c.stroke(); c.lineWidth = 6; c.beginPath(); c.moveTo(14 + j * 9, -46 + j * 5); c.lineTo(42, -30); c.stroke();
+    c.beginPath(); c.arc(20 + j * 10, -65 + j * 6, 9, 0, 7); c.fill(); c.fillRect(22 + j * 10, -70 + j * 6, 14, 4);
+    c.restore();
+  }
+}
+const stripT = new THREE.CanvasTexture(sc); stripT.colorSpace = THREE.SRGBColorSpace; stripT.wrapS = THREE.RepeatWrapping; stripT.anisotropy = 4;
+
+// ── 机とあかり
+const wc = document.createElement('canvas'); wc.width = wc.height = 512; { const c = wc.getContext('2d'); c.fillStyle = '#7a4c26'; c.fillRect(0, 0, 512, 512); for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(${rnd() < .5 ? '40,20,8' : '170,110,60'},${.05 + rnd() * .12})`; c.fillRect(0, rnd() * 512, 512, 1 + rnd() * 4); } c.fillStyle = 'rgba(30,14,6,.5)'; for (let y = 0; y < 512; y += 128) c.fillRect(0, y, 512, 3); }
+const woodT = new THREE.CanvasTexture(wc); woodT.colorSpace = THREE.SRGBColorSpace; woodT.wrapS = woodT.wrapT = THREE.RepeatWrapping; woodT.repeat.set(5, 5);
+const table = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshStandardMaterial({ map: woodT, roughness: .5 })); table.rotation.x = -Math.PI / 2; scene.add(table);
+scene.add(new THREE.HemisphereLight(0x6a4a30, 0x1a0c04, .5)); const lamp = new THREE.PointLight(0xffb060, 420, 0, 2); lamp.position.set(6, 9, 5); scene.add(lamp);
+const radial = (stops, draw) => { const cv = document.createElement('canvas'); cv.width = cv.height = 512; const c = cv.getContext('2d'); if (draw) draw(c); else { const gr = c.createRadialGradient(256, 256, 0, 256, 256, 256); stops.forEach(([p, col]) => gr.addColorStop(p, col)); c.fillStyle = gr; c.fillRect(0, 0, 512, 512); } return new THREE.CanvasTexture(cv); };
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(13, 13), new THREE.MeshBasicMaterial({ map: radial([[0, 'rgba(0,0,0,.85)'], [.45, 'rgba(0,0,0,.7)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false })); shadow.rotation.x = -Math.PI / 2; shadow.position.set(-1.6, .02, -1.2); shadow.renderOrder = 1; scene.add(shadow);
+// すき間をぬけた光が、机の上に 12 本のすじになって回る
+const fan = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), new THREE.MeshBasicMaterial({ map: radial(null, c => { for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, gr = c.createRadialGradient(256, 256, 86, 256, 256, 250); gr.addColorStop(0, 'rgba(255,190,110,.26)'); gr.addColorStop(1, 'rgba(255,190,110,0)'); c.fillStyle = gr; c.beginPath(); c.moveTo(256, 256); c.arc(256, 256, 256, a - .1, a + .1); c.fill(); } }), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); fan.position.y = .03; fan.renderOrder = 2; scene.add(fan);
+
+// ── 円筒。外は黒、上半分にすき間 12 本、内側の下半分に絵の帯
+const R = 3, H = 3, Y0 = .55, drum = new THREE.Group(); scene.add(drum);
+const U = { map: { value: stripT }, off: { value: 0 }, blur: { value: .2 }, ph: { value: 0 }, lampDir: { value: new THREE.Vector3(.6, .6, .5).normalize() } };
+const wall = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 120, 1, true), new THREE.ShaderMaterial({
+  uniforms: U, side: THREE.DoubleSide, transparent: true,
+  vertexShader: `varying vec2 vUv; varying vec3 vN; void main(){ vUv=uv; vN=normalize(mat3(modelMatrix)*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `uniform sampler2D map; uniform float off, blur, ph; uniform vec3 lampDir; varying vec2 vUv; varying vec3 vN;
+  void main(){
+    float s=fract(vUv.x*12.), w=.4;
+    float cov=clamp((min(s,.5+w*.5)-max(s-blur,.5-w*.5))/blur,0.,1.);   // 1 コマのあいだに すき間が通った割合（回転のぶれ）
+    float band=step(.56,vUv.y)*step(vUv.y,.93), a=1.-cov*band; vec3 col;
+    if(gl_FrontFacing){ float l=max(dot(vN,lampDir),0.); col=vec3(.004,.0035,.003)+vec3(.5,.3,.14)*pow(l,4.)*.12; a*=mix(1.,.93,band); }
+    else if(vUv.y<.5){ col=texture2D(map,vec2(vUv.x+off,vUv.y*2.)).rgb;
+      float sh=smoothstep(.1,.5,abs(fract(vUv.x*12.+ph)-.5)*2.);   // 向かいのすき間の影が帯の上を走る
+      col*=vec3(1.,.86,.66)*(.5+.5*sh)*(.75+.35*max(dot(-vN,lampDir),0.)); a=1.; }
+    else col=vec3(.02,.016,.013);
+    if(a<.02) discard; gl_FragColor=vec4(col,a);
+    #include <colorspace_fragment>
+  }` }));
+wall.position.y = Y0 + H / 2; wall.renderOrder = 3; drum.add(wall);
+const blk = new THREE.MeshStandardMaterial({ color: '#0c0a09', roughness: .45 }), brass = new THREE.MeshStandardMaterial({ color: '#b98a3a', roughness: .35, metalness: .8 });
+const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 64), new THREE.MeshStandardMaterial({ color: '#2a2019', roughness: .8 })); floor.rotation.x = -Math.PI / 2; floor.position.y = Y0 + .01; drum.add(floor);
+for (const y of [Y0, Y0 + H]) { const r = new THREE.Mesh(new THREE.TorusGeometry(R, .06, 8, 80), y > 1 ? brass : blk); r.rotation.x = Math.PI / 2; r.position.y = y; drum.add(r); }
+const knob = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .5, 12), brass); knob.position.y = Y0 + .25; drum.add(knob);
+const base = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, .3, 40), new THREE.MeshStandardMaterial({ color: '#3a2212', roughness: .4 })); base.position.y = .15; scene.add(base);
+const stem = new THREE.Mesh(new THREE.CylinderGeometry(.22, .3, .3, 16), brass); stem.position.y = .42; scene.add(stem);
+
+const sm = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+const pS = new THREE.Vector3(), pT = new THREE.Vector3(0, 13.5, 5), lS = new THREE.Vector3(0, 1.15, -2.5), lT = new THREE.Vector3(0, 1.4, 0), look = new THREE.Vector3();
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const a = t * Math.PI * 2, step = Math.PI / 6, aq = Math.floor(a / step) * step, u = t % 18, top = sm(10.5, 12, u) - sm(16, 17.5, u);
+  drum.rotation.y = a; fan.rotation.set(-Math.PI / 2, 0, a);
+  U.off.value = top < .5 ? (a - aq) / (Math.PI * 2) : 0;   // のぞいている間だけ、絵は 30 度ずつ送られて見える
+  U.ph.value = t * 7.3; lamp.intensity = 420 * (1 + Math.sin(t * 31) * .03);
+  pS.set(Math.sin(t * .33) * 1.8, 4.05, 9.2); cam.position.lerpVectors(pS, pT, top); look.lerpVectors(lS, lT, top); cam.lookAt(look);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 43 そりすべり スノードーム</title>
+<style>
+html,body{margin:0;height:100%;background:#120d0c;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8c9a0}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 43 ─ そりすべり / スノードーム　｜　見るだけ（自動ですべる・ときどき振られる）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 机の上のスノードームに見立てる: 中の雪の村は別の絵（RenderTarget）に描き、ガラスの球の面に貼る。
+// 貼るとき、まん中は大きく・ふちはちぢめて色をずらし（水の入った球の屈折のまね）、窓の形の強いハイライトと机の映りこみを重ねる。
+// 中は水なので、雪の粒とラメはゆっくりしずむ。14 秒に 1 度、ドームごと振られて、ふぶきになる
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x120d0c);
+const inner = new THREE.Scene();               // 球の中だけの場面
+const cam = new THREE.PerspectiveCamera(34, 1, .1, 120);
+const rt = new THREE.WebGLRenderTarget(4, 4, { samples: 4 });
+
+let seed = 9; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+function tex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+const R = 3, FLOOR = -1.6;
+
+// ── 部屋: 暗い部屋、木の机、暖かい光、奥のぼけた明かり
+scene.add(new THREE.HemisphereLight(0xffd9b0, 0x1a100c, .35));
+const lamp = new THREE.SpotLight(0xffc888, 260, 40, .5, .7, 1.6); lamp.position.set(-8, 11, 7); lamp.target.position.set(0, -2, 0); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.radius = 6; scene.add(lamp, lamp.target);
+const deskT = tex(512, 512, (x) => { x.fillStyle = '#5a3520'; x.fillRect(0, 0, 512, 512); for (let i = 0; i < 260; i++) { x.strokeStyle = `rgba(${rnd() < .5 ? '30,14,6' : '150,95,55'},${.08 + rnd() * .14})`; x.lineWidth = 1 + rnd() * 2; const y = rnd() * 512; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(170, y + rnd() * 14 - 7, 340, y + rnd() * 14 - 7, 512, y + rnd() * 8 - 4); x.stroke(); } });
+deskT.wrapS = deskT.wrapT = THREE.RepeatWrapping; deskT.repeat.set(4, 4);
+const DESK = -4.05;
+const desk = new THREE.Mesh(new THREE.PlaneGeometry(80, 60), new THREE.MeshStandardMaterial({ map: deskT, roughness: .42 })); desk.rotation.x = -Math.PI / 2; desk.position.y = DESK; desk.receiveShadow = true; scene.add(desk);
+const dot = tex(64, 64, (x) => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.7, 'rgba(255,255,255,.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); });
+for (let i = 0; i < 16; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: dot, color: [0xffb060, 0xff8848, 0xffd890, 0xc86a50][i % 4], transparent: true, opacity: .1 + rnd() * .22, blending: THREE.AdditiveBlending, depthWrite: false })); s.position.set(-22 + rnd() * 44, -1 + rnd() * 13, -16 - rnd() * 6); s.scale.setScalar(1.6 + rnd() * 2.6); scene.add(s); }
+
+// ── ドームの外がわ: 木の台、真鍮の帯、ねじのつまみ、ガラスの球
+const globe = new THREE.Group(); scene.add(globe);
+const inn = new THREE.Group(); inner.add(inn);       // 中身。ドームと同じ動きをさせる
+const wood = new THREE.MeshStandardMaterial({ color: 0x6a2f1c, roughness: .32 }), brass = new THREE.MeshStandardMaterial({ color: 0xd9a84a, roughness: .28, metalness: .75, emissive: 0x3a2608 });
+{
+  const prof = [[0, -4.05], [2.75, -4.05], [2.85, -3.9], [2.8, -3.6], [2.5, -3.35], [2.45, -2.75], [2.6, -2.55], [2.5, -2.3], [2.2, -2.15], [0, -2.15]].map(([r, y]) => new THREE.Vector2(r, y));
+  const base = new THREE.Mesh(new THREE.LatheGeometry(prof, 48), wood); base.castShadow = base.receiveShadow = true; globe.add(base);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(2.48, 2.48, .2, 48, 1, true), brass); band.position.y = -3.05; globe.add(band);
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(2.2, .09, 8, 48), brass); collar.rotation.x = Math.PI / 2; collar.position.y = -2.1; globe.add(collar);
+}
+const knob = new THREE.Group(); knob.position.set(2.45, -3.05, .9); knob.rotation.y = -.35; globe.add(knob);
+{ const sh = new THREE.Mesh(new THREE.CylinderGeometry(.09, .09, .7, 10), brass); sh.rotation.z = Math.PI / 2; sh.position.x = .3; knob.add(sh); for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.TorusGeometry(.22, .07, 8, 16), brass); w.rotation.y = Math.PI / 2; w.position.set(.68, .26 * s, 0); w.castShadow = true; knob.add(w); } }
+const gU = { tIn: { value: rt.texture }, res: { value: new THREE.Vector2() }, cen: { value: new THREE.Vector2() }, rad: { value: new THREE.Vector2() } };
+const glass = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 40), new THREE.ShaderMaterial({
+  uniforms: gU,
+  vertexShader: `varying vec3 vN,vV; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.); vN=normalize(normalMatrix*normal); vV=-mv.xyz; gl_Position=projectionMatrix*mv; }`,
+  fragmentShader: `uniform sampler2D tIn; uniform vec2 res,cen,rad; varying vec3 vN,vV;
+  void main(){
+    vec3 n=normalize(vN), v=normalize(vV); float rim=1.-clamp(dot(n,v),0.,1.);
+    vec2 uv=gl_FragCoord.xy/res, d=(uv-cen)/rad; float r=min(1.,length(d));
+    // 屈折のまね: まん中は大きく見え、ふちは外がわの景色がちぢんで回りこむ。色ごとに少しずらす
+    float g=.80+.42*pow(r,4.);
+    vec4 a=texture2D(tIn,cen+d*rad*g), b=texture2D(tIn,cen+d*rad*(g+.02*r*r)), c=texture2D(tIn,cen+d*rad*(g-.02*r*r));
+    vec3 col=vec3(b.r,a.g,c.b); float al=a.a;
+    // 球ごしの部屋は上下がさかさ: 上に机の茶色、下は暗い
+    vec3 room=mix(vec3(.035,.03,.04),vec3(.30,.16,.08),smoothstep(-.2,1.,d.y))*.9+vec3(.02,.03,.05);
+    col=room*(1.-al)+col*vec3(.96,.99,1.);
+    col*=1.-smoothstep(.86,1.,r)*.55;                      // ふちはガラスが厚くて暗い
+    // 映りこみ: 窓の形のハイライト、小さな点、下半分に机
+    vec3 rf=reflect(-v,n); float fr=.04+pow(rim,3.)*.8;
+    vec3 q=rf-normalize(vec3(-.52,.62,.58)); float win=smoothstep(.2,.15,max(abs(q.x),abs(q.y)*.72));
+    win*=1.-.85*smoothstep(.02,.008,min(abs(q.x+.01),abs(q.y-.02)));
+    float sp=pow(max(dot(rf,normalize(vec3(.62,-.2,.76))),0.),160.)*.9+pow(max(dot(rf,normalize(vec3(-.52,.62,.58))),0.),6.)*.10;
+    vec3 refl=mix(vec3(.05,.04,.04),vec3(.42,.24,.12),smoothstep(.05,-.5,rf.y))+vec3(1.,.8,.55)*smoothstep(.75,1.,rf.y)*.25;
+    col=col*(1.-fr)+refl*fr+vec3(1.,.95,.85)*(win*.85+sp);
+    col+=vec3(.9,.95,1.)*smoothstep(.955,.975,r)*smoothstep(1.,.985,r)*.25;   // ふちの細い光の輪
+    gl_FragColor=vec4(col,1.);
+    #include <colorspace_fragment>
+  }` }));
+globe.add(glass);
+// 机に落ちる、ガラスを通った光のにじみ
+{ const c = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.5), new THREE.MeshBasicMaterial({ map: dot, color: 0xffc070, transparent: true, opacity: .32, blending: THREE.AdditiveBlending, depthWrite: false })); c.rotation.x = -Math.PI / 2; c.rotation.z = -.5; c.position.set(3.8, DESK + .02, -1.4); scene.add(c); }
+
+// ── 球の中: 雪の丘、上の家、ジグザグのそり道、旗、木
+inner.add(new THREE.HemisphereLight(0xdfeaff, 0x5a68a8, 1.15));
+const sun = new THREE.DirectionalLight(0xffd9a8, 1.9); sun.position.set(-4, 6, 5); inner.add(sun);
+const L = (c, o = {}) => new THREE.MeshLambertMaterial({ color: c, ...o });
+const add = (geo, mat, x, y, z, p = inn) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); p.add(m); return m; };
+const snowM = L(0xf4f8ff), HR = 2.25, HH = 2.05;
+const hillY = r => FLOOR + HH * Math.pow(Math.cos(Math.min(1, r / HR) * Math.PI / 2), 1.5);
+add(new THREE.CylinderGeometry(2.52, 2.3, .5, 48), snowM, 0, FLOOR - .25, 0);
+add(new THREE.LatheGeometry(Array.from({ length: 25 }, (_, i) => new THREE.Vector2((1 - i / 24) * HR, hillY((1 - i / 24) * HR))), 48), snowM, 0, 0, 0);
+function house(x, y, z, s, wall, roof, ry) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(s); g.rotation.y = ry; inn.add(g);
+  add(new THREE.BoxGeometry(.8, .5, .62), L(wall), 0, .25, 0, g);
+  const rf = new THREE.ConeGeometry(.66, .42, 4); rf.rotateY(Math.PI / 4); rf.scale(1, 1, .82); add(rf, L(roof), 0, .7, 0, g);
+  const sn = new THREE.ConeGeometry(.5, .34, 4); sn.rotateY(Math.PI / 4); sn.scale(1, 1, .82); add(sn, snowM, 0, .79, 0, g);
+  add(new THREE.BoxGeometry(.12, .3, .12), L(0x7a3a2a), .2, .8, -.05, g); add(new THREE.BoxGeometry(.15, .05, .15), snowM, .2, .97, -.05, g);
+  const lit = new THREE.MeshBasicMaterial({ color: 0xffd35a });
+  for (const wx of [-.22, .22]) add(new THREE.BoxGeometry(.15, .16, .02), lit, wx, .3, .315, g);
+  add(new THREE.BoxGeometry(.14, .26, .02), L(0x5a2f1c), 0, .14, .316, g);
+  return g;
+}
+house(0, hillY(0) - .04, -.05, 1.0, 0xc9483a, 0x8a2f2a, .25); house(-1.75, FLOOR, .9, .62, 0xe8d8b0, 0x3d6a8a, .7); house(1.85, FLOOR, .35, .58, 0xe8d8b0, 0x8a2f2a, -.6);
+const treeG = new THREE.ConeGeometry(.2, .5, 7), treeS = new THREE.ConeGeometry(.13, .26, 7), pine = L(0x1f6a48);
+[[-1.2, -.9, 1], [1.3, -.8, 1.2], [-.75, -.4, .8], [.95, -1.25, .9], [-2, -.2, 1.1], [2.05, -.6, 1], [-1.45, .15, .8], [.4, -1.7, 1.1], [-.4, -1.9, .9], [1.5, 1.45, .7], [-1.3, 1.75, .7]].forEach(([x, z, s]) => {
+  const y = hillY(Math.hypot(x, z)) - .03; for (let i = 0; i < 3; i++) add(treeG, pine, x, y + (.22 + i * .2) * s, z).scale.setScalar(s * (1 - i * .22)); add(treeS, snowM, x, y + .78 * s, z).scale.setScalar(s);
+});
+// そりの道: 丘の手前がわを左右にふれながら下りる
+const pathP = (s, out) => { const r = .42 + 1.9 * s, th = 1.02 * Math.sin(s * Math.PI * 3.5) * (.55 + .45 * s); return out.set(r * Math.sin(th), hillY(r) + .02, r * Math.cos(th)); };
+{ const pts = Array.from({ length: 90 }, (_, i) => pathP(i / 89, new THREE.Vector3())); const tb = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, .075, 5); tb.scale(1, 1, 1); add(tb, L(0xbfd4ee), 0, -.045, 0); }
+const gates = [1, 3, 5].map((k, i) => { const s = k / 7, p = pathP(s, new THREE.Vector3()), g = new THREE.Group(); g.position.copy(p); inn.add(g); const side = Math.sign(p.x) || 1;
+  add(new THREE.CylinderGeometry(.015, .015, .42, 5), L(0x6a4a30), side * .2, .2, 0, g); const fl = add(new THREE.BoxGeometry(.2, .13, .012), new THREE.MeshLambertMaterial({ color: i % 2 ? 0x2f6fd0 : 0xe23a3a }), side * .2 - side * .1, .35, 0, g); return { g, s, fl, side }; });
+// 雪だるまと、そりの子ども
+{ const sm = new THREE.Group(); sm.position.set(.95, FLOOR, 1.75); inn.add(sm); add(new THREE.SphereGeometry(.17, 12, 8), snowM, 0, .15, 0, sm); add(new THREE.SphereGeometry(.12, 12, 8), snowM, 0, .38, 0, sm); add(new THREE.ConeGeometry(.03, .1, 6).rotateX(Math.PI / 2), L(0xf08030), 0, .38, .14, sm); add(new THREE.CylinderGeometry(.08, .08, .1, 8), L(0x222230), 0, .52, 0, sm); }
+const sled = new THREE.Group(); inn.add(sled);
+{ add(new THREE.BoxGeometry(.2, .035, .36), L(0xd8342c), 0, .07, 0, sled); for (const s of [-1, 1]) add(new THREE.BoxGeometry(.025, .03, .42), L(0xe8c070), .09 * s, .03, .02, sled);
+  add(new THREE.SphereGeometry(.1, 10, 8), L(0x2f62c8), 0, .19, -.04, sled).scale.set(1, 1.15, 1); add(new THREE.SphereGeometry(.075, 10, 8), L(0xf2c8a0), 0, .36, -.02, sled);
+  add(new THREE.ConeGeometry(.075, .13, 8), L(0xe23a3a), 0, .46, -.03, sled); add(new THREE.SphereGeometry(.03, 6, 5), snowM, 0, .53, -.03, sled); add(new THREE.BoxGeometry(.17, .045, .1), L(0xf2c23a), 0, .28, -.03, sled); }
+const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(64, 64, (x) => { x.translate(32, 32); x.fillStyle = '#fff3b0'; for (let i = 0; i < 4; i++) { x.rotate(Math.PI / 4); x.beginPath(); x.moveTo(0, -30 + (i % 2) * 14); x.lineTo(5, 0); x.lineTo(0, 30 - (i % 2) * 14); x.lineTo(-5, 0); x.fill(); } }), transparent: true, depthTest: false })); star.visible = false; inn.add(star);
+
+// 雪の粒（白）とラメ（金と銀。向きでちかちか光る）
+const NS = 520, NG = 90, sp = new Float32Array(NS * 3), sv = new Float32Array(NS * 3), gp = new Float32Array(NG * 3), gv = new Float32Array(NG * 3), gc = new Float32Array(NG * 3);
+const inBall = (a, i) => { for (;;) { const x = rnd() * 2 - 1, y = rnd() * 2 - 1, z = rnd() * 2 - 1; if (x * x + y * y + z * z < 1) { a[i] = x * 2.8; a[i + 1] = y * 2.8; a[i + 2] = z * 2.8; return; } } };
+for (let i = 0; i < NS; i++) inBall(sp, i * 3); for (let i = 0; i < NG; i++) inBall(gp, i * 3);
+const sGeo = new THREE.BufferGeometry(); sGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+const gGeo = new THREE.BufferGeometry(); gGeo.setAttribute('position', new THREE.BufferAttribute(gp, 3)); gGeo.setAttribute('color', new THREE.BufferAttribute(gc, 3));
+const snowPts = new THREE.Points(sGeo, new THREE.PointsMaterial({ map: dot, color: 0xffffff, size: .085, transparent: true, opacity: .95, depthWrite: false })); snowPts.frustumCulled = false; inn.add(snowPts);
+const glit = new THREE.Points(gGeo, new THREE.PointsMaterial({ map: dot, size: .13, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); glit.frustumCulled = false; inn.add(glit);
+function drift(p, v, n, dt, t, kick, fall) {
+  for (let i = 0; i < n; i++) {
+    const j = i * 3, x = p[j], y = p[j + 1], z = p[j + 2];
+    if (kick > 0) { v[j] += (rnd() - .5) * 60 * kick * dt + -z * 8 * kick * dt; v[j + 1] += (rnd() - .2) * 60 * kick * dt; v[j + 2] += (rnd() - .5) * 60 * kick * dt + x * 8 * kick * dt; }
+    // 水の中: 速さはすぐにぶり、ゆっくりうずをまきながらしずむ
+    const tx = -z * .07 + Math.sin(t * .7 + i) * .05, ty = -fall * (.75 + (i % 7) * .07), tz = x * .07 + Math.cos(t * .6 + i * 1.7) * .05, k = Math.min(1, dt * 1.5);
+    v[j] += (tx - v[j]) * k; v[j + 1] += (ty - v[j + 1]) * k; v[j + 2] += (tz - v[j + 2]) * k;
+    let nx = x + v[j] * dt, ny = y + v[j + 1] * dt, nz = z + v[j + 2] * dt; const l = Math.hypot(nx, ny, nz);
+    if (l > 2.86) { const s = 2.86 / l; nx *= s; ny *= s; nz *= s; const d = (v[j] * nx + v[j + 1] * ny + v[j + 2] * nz) / (2.86 * 2.86); if (d > 0) { v[j] -= nx * d * 1.3; v[j + 1] -= ny * d * 1.3; v[j + 2] -= nz * d * 1.3; } }
+    if (ny < hillY(Math.hypot(nx, nz)) + .02 && v[j + 1] < 0) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 1.9; nx = Math.cos(a) * r; nz = Math.sin(a) * r; ny = Math.sqrt(2.86 * 2.86 - r * r) - rnd() * .5; v[j] = v[j + 1] = v[j + 2] = 0; }   // つもったら上からまた降る
+    p[j] = nx; p[j + 1] = ny; p[j + 2] = nz;
+  }
+}
+
+const tgt = new THREE.Vector3(0, -.55, 0), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h, pr = renderer.getPixelRatio(); renderer.setSize(w, h, false); cam.aspect = a; cam.updateProjectionMatrix();
+  rt.setSize(Math.round(w * pr), Math.round(h * pr)); gU.res.value.set(Math.round(w * pr), Math.round(h * pr));
+  const k = Math.max(1, .86 / a); cam.position.set(0, 1.9 * k, 15.5 * k); cam.lookAt(tgt);
+}
+addEventListener('resize', resize); resize();
+
+const CYCLE = 14, RUN = 9, sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+const p1 = new THREE.Vector3(), p2 = new THREE.Vector3(), bx = new THREE.Vector3(), by = new THREE.Vector3(), bz = new THREE.Vector3(), mm = new THREE.Matrix4();
+let t = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  // 振られる: 持ち上げられて左右にゆすられ、置かれる
+  const tc = (t + CYCLE - 1) % CYCLE, env = sm(tc / .15) * (1 - sm((tc - .7) / .3)), kick = tc < .85 ? env : 0;
+  globe.position.set(Math.sin(t * 34) * .3 * env, env * .45, 0); globe.rotation.z = Math.sin(t * 27) * .09 * env;
+  inn.position.copy(globe.position); inn.rotation.copy(globe.rotation); knob.rotation.x = t * .8;
+  drift(sp, sv, NS, dt, t, kick, .2); drift(gp, gv, NG, dt, t, kick, .12); sGeo.attributes.position.needsUpdate = true; gGeo.attributes.position.needsUpdate = true;
+  for (let i = 0; i < NG; i++) { const b = .12 + Math.pow(Math.max(0, Math.sin(t * (2.5 + i % 5) + i * 2.4)), 10) * 1.6, gold = i % 2; gc[i * 3] = b; gc[i * 3 + 1] = b * (gold ? .78 : .95); gc[i * 3 + 2] = b * (gold ? .35 : 1); } gGeo.attributes.color.needsUpdate = true;
+  // そり: 上の家から 9 秒かけて下り、またのぼる。旗の横を通ると旗が回り、星が出る
+  const u = ((t + 1.2) % (RUN + 1.2)) / RUN, s = Math.min(1, u), se = s * (.35 + .65 * s);
+  pathP(se, p1); pathP(Math.min(1, se + .012), p2); bz.subVectors(p2, p1); if (bz.lengthSq() < 1e-8) bz.set(0, 0, 1); bz.normalize(); by.set(p1.x * .25, 1, p1.z * .25).normalize(); bx.crossVectors(by, bz).normalize(); by.crossVectors(bz, bx);
+  mm.makeBasis(bx, by, bz); sled.quaternion.setFromRotationMatrix(mm); sled.position.copy(p1); sled.visible = u < 1.06; sled.rotateZ(-Math.cos(se * Math.PI * 3.5) * .3 * (s < 1 ? 1 : 0));
+  star.visible = false;
+  for (const g of gates) { const d = se - g.s; g.fl.rotation.y = d > 0 && d < .12 ? d / .12 * Math.PI * 4 : 0; if (d > 0 && d < .07 && s < 1) { star.visible = true; star.position.copy(g.g.position); star.position.y += .5 + d * 4; star.scale.setScalar(.25 + Math.sin(d / .07 * Math.PI) * .3); } }
+  // 球の画面上の位置と大きさ（貼る絵をずらすのに使う）
+  v3.copy(globe.position).project(cam); gU.cen.value.set(v3.x * .5 + .5, v3.y * .5 + .5);
+  v4.set(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(R).add(globe.position).project(cam); const rx = Math.abs(v4.x - v3.x) * .5 * 1.02; gU.rad.value.set(rx, rx * cam.aspect);
+  renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(inner, cam);
+  renderer.setRenderTarget(null); renderer.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

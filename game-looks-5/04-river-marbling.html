@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 04 川下り 墨流し（マーブリング）</title>
+<style>
+html,body{margin:0;height:100%;background:#f3eddc;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1f3b73;background:#f3eddc;padding:0 6px}
+#hud{position:fixed;right:14px;top:10px;font:italic 14px/1.4 Georgia,serif;color:#1f3b73;background:#f3eddc;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="hud">よけた岩 0</div>
+<div id="cap">LOOK 04 ─ 川下り / 墨流し（マーブリング）　｜　見るだけ（自動で岩をよけて下る）</div>
+<script>
+// 墨流し（マーブリング）に見立てる。川は、水に浮かべた 5 色の絵の具を櫛でひいた縞。岸は紙の白。
+// 画素ごとに「この色はどこから流れてきたか」を逆にたどる: 岩は絵の具を落とした輪（まわりの縞を押しのける）、
+// 舟は針でひいた線（通ったあとの縞を前へ引きずる）。色は縞の番号で決めるべた塗りで、ぼかさない
+const cv = document.getElementById('c'), hud = document.getElementById('hud');
+const gl = cv.getContext('webgl', { antialias: false });
+const VS = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+const FS = `precision highp float;
+uniform vec2 R; uniform float T;
+const float V=.14, C0=-.3, L=.9;
+float h1(float n){return fract(sin(n*127.1)*43758.5453);}
+float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){return vn(p)*.65+vn(p*2.3+3.7)*.35;}
+float xc(float t){return .13*sin(.9*t)+.035*sin(2.3*t+1.);}          // 舟の横の位置（時刻 t）
+vec3 pal(float k){ if(k<1.)return vec3(.12,.23,.45); if(k<2.)return vec3(.18,.61,.58); if(k<3.)return vec3(.85,.64,.25); if(k<4.)return vec3(.78,.27,.17); return vec3(.94,.89,.76); }
+// 絵の具を 1 滴落とす（中心 c、半径 r）: まわりの模様を外へ押しのける。逆にたどる式
+vec2 drop(vec2 p, vec2 c, float r){ vec2 d=p-c; float l2=max(dot(d,d),1e-6); return c+d*sqrt(max(0.,1.-r*r/l2)); }
+void main(){
+  float m=min(R.x,R.y); bool wide=R.x>R.y;
+  vec2 f=(gl_FragCoord.xy-.5*R)/m; float a=wide?-f.y:f.x, ah=wide?f.x:f.y;   // a: 川の横、ah: 進む向き
+  float w=ah+V*T;                                                         // 川に固定した、流れの向きの位置
+  vec2 p=vec2(a,w); float cw=C0+V*T, cx=xc(T);
+  vec3 paper=vec3(.953,.93,.865)-.03*vn(vec2(a*90.,ah*14.))-.02*h2(floor(gl_FragCoord.xy));
+  // 岸
+  float mid=.03*sin(w*1.3), hw=.36+.035*sin(w*2.1+1.)+.02*sin(w*5.3), bank=abs(a-mid)-hw;
+  // 岩（落とした輪）
+  vec3 rockCol=vec3(0.); float rock=0.; float k0=floor(w/L);
+  vec2 q=p;
+  for(int i=-1;i<=2;i++){ float k=k0+float(i), wk=k*L, tk=(wk-C0)/V, x0=xc(tk), rx=x0-(x0<0.?-1.:1.)*(.19+.03*h1(k)), r=.06+.025*h1(k+9.);
+    vec2 c=vec2(rx,wk); float d=length(p-c);
+    if(d<r){ rock=1.; float ring=d/r; rockCol=ring<.3?pal(4.):ring<.52?pal(0.):ring<.7?pal(mod(k,2.)+1.5):ring<.86?pal(4.):pal(0.); }
+    float win=smoothstep(L,.6*L,abs(w-wk));                                  // 遠い岩はきかせない（つぎ目を出さない）
+    q=drop(q,c,r*1.25*win);
+    vec2 vc=vec2(-rx*.9,wk+.5*L), dv=q-vc; float an=(mod(k,2.)<1.?2.4:-2.4)*exp(-dot(dv,dv)/.011), cs=cos(an), sn=sin(an); q=vc+vec2(dv.x*cs-dv.y*sn,dv.x*sn+dv.y*cs); }   // 岩のあいだの渦
+  // 舟が通ったあと（針でひいた線）: 縞を進む向きへ引きずる
+  float beh=C0-ah, tp=(w-C0)/V, dpath=abs(a-xc(tp));
+  float z=.2*smoothstep(-.02,.14,beh)*exp(-max(beh,0.)*1.1);
+  q.y-=z*exp(-dpath/.04);
+  // 舟のへさきが押しのける
+  vec2 e=vec2(q.x,(q.y-cw)*.45+cw); e=drop(e,vec2(cx,cw),.03); q=vec2(e.x,(e.y-cw)/.45+cw);
+  // もとの縞（櫛でひいた山形と、ゆっくりしたうねり）
+  q.x+=.045*(abs(fract(q.y*2.6)-.5)*2.-.5);
+  q+=.14*vec2(fbm(q*2.2+vec2(0.,T*.03)),fbm(q*2.2+7.3))-.07;
+  float sw=q.x*8.5+2.2*fbm(vec2(q.x*1.7,q.y*.9)+3.)+.6*sin(q.y*2.2);
+  float fr=fract(sw), id=mod(floor(sw),5.);
+  float k=mod(id*2.+ (fr<.18?1.:fr<.5?0.:fr<.62?4.:fr<.86?2.:3.),5.);
+  vec3 col=pal(k);
+  float vein=min(min(abs(fr-.18),abs(fr-.5)),min(abs(fr-.62),min(abs(fr-.86),min(fr,1.-fr))));
+  col=mix(pal(4.),col,smoothstep(.0,.022,vein));                              // 色のさかいに紙の色の細い筋
+  float sp=h2(floor(q*vec2(30.,30.))); vec2 sc=fract(q*30.)-.5; if(sp>.95&&length(sc)<.3) col=pal(4.);   // ふりかけた小さな粒
+  if(rock>.5) col=rockCol;
+  col*=.95+.05*vn(vec2(a,ah)*9.);                                             // 絵の具のこさのむら
+  // 岸は紙の白（ふちに絵の具がたまった細い線）
+  col=mix(col,vec3(.12,.2,.38),smoothstep(-.012,-.004,bank)*.8);
+  col=mix(col,paper,smoothstep(-.003,.001,bank));
+  // 舟（紙の白をぬいた形に、朱のふちと紺のこぎ手）
+  float hd=atan((xc(T+.05)-xc(T-.05))/(.1*V))*.6; vec2 b=vec2(a-cx,ah-C0); b=vec2(b.x*cos(hd)-b.y*sin(hd),b.x*sin(hd)+b.y*cos(hd));
+  float hull=abs(b.x)-.034*(1.-pow(abs(b.y)/.105,2.));
+  if(abs(b.y)<.105){ if(hull<.007) col=vec3(.1,.16,.32); if(hull<.0)col=vec3(.80,.27,.16); if(hull<-.009)col=vec3(.96,.93,.86);
+    if(abs(abs(b.y)-.045)<.004&&hull<-.009) col=vec3(.80,.27,.16);
+    if(length(b-vec2(0.,-.008))<.016) col=vec3(.1,.16,.32); }
+  float sd=sin(T*5.); vec2 pd=b-vec2(sd*.03,.012); float ca=cos(sd*.7), sa=sin(sd*.7); pd=vec2(pd.x*ca-pd.y*sa,pd.x*sa+pd.y*ca);
+  if(abs(pd.y)<.004&&abs(pd.x)<.05) col=vec3(.1,.16,.32); if(length(vec2((abs(pd.x)-.055)*.6,pd.y))<.008) col=vec3(.1,.16,.32);   // かい
+  gl_FragColor=vec4(col,1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr); gl.useProgram(pr);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const uR = gl.getUniformLocation(pr, 'R'), uT = gl.getUniformLocation(pr, 'T');
+function resize() { const S = Math.min(devicePixelRatio || 1, 2); cv.width = innerWidth * S; cv.height = innerHeight * S; gl.viewport(0, 0, cv.width, cv.height); }
+addEventListener('resize', resize); resize();
+let t = 1.2, last = performance.now(), shown = -1, odd = false;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  requestAnimationFrame(frame); odd = !odd; if (odd) return;                     // ゆっくりした流れなので、描くのは 1 コマおき
+  gl.uniform2f(uR, cv.width, cv.height); gl.uniform1f(uT, t); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const n = Math.floor((t - 1.2) * .14 / .9 + .35); if (n !== shown) { shown = n; hud.textContent = 'よけた岩 ' + n; }
+}
+requestAnimationFrame(frame);
+</script>
+</html>

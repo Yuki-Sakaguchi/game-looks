@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 08 航海 古い地球儀</title>
+<style>
+html,body{margin:0;height:100%;background:#120a06;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8c98a;opacity:.85}
+#hud{position:fixed;top:14px;left:50%;transform:translateX(-50%);padding:5px 16px;font:italic 17px/1.3 Georgia,'Times New Roman',serif;letter-spacing:.12em;color:#3a2408;background:linear-gradient(#e9c873,#b98d3a 55%,#d8b25c);border:1px solid #6e4f1c;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.6);white-space:nowrap}
+</style>
+<div id="hud">寄港 0 ／ 航海 1</div>
+<div id="cap">LOOK 08 ─ 航海 / 古い地球儀　｜　見るだけ（帆船が港から港へ進む）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 見立て: 暗い書斎の机にのった古い地球儀。その表面を小さな帆船が港から港へ進み、赤い点線の航路が残る。
+// 決まり: 球の絵は 1 枚の紙の地図（黄ばんだ紙、ふちだけ濃い手彩色の国分け、経緯線、舟形の紙のつぎ目、羅針図、海の怪物）を
+// Canvas で空想の大陸として描く。その上にニスの層（つやの映りこみ）。光はランプの暖色 1 つ。真鍮の子午環と木の台
+import * as THREE from 'three';
+let sd = 20; const rnd = () => { sd = sd + 0x6D2B79F5 | 0; let t = Math.imul(sd ^ sd >>> 15, 1 | sd); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const h3 = (x, y, z) => { let n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 1274126177); n = Math.imul(n ^ n >>> 13, 1274126177); return ((n ^ n >>> 16) >>> 0) / 4294967296; };
+const n3 = (x, y, z) => { const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); let a = x - X, b = y - Y, c = z - Z; a = a * a * (3 - 2 * a); b = b * b * (3 - 2 * b); c = c * c * (3 - 2 * c); const L = (p, q, t) => p + (q - p) * t;
+  return L(L(L(h3(X, Y, Z), h3(X + 1, Y, Z), a), L(h3(X, Y + 1, Z), h3(X + 1, Y + 1, Z), a), b), L(L(h3(X, Y, Z + 1), h3(X + 1, Y, Z + 1), a), L(h3(X, Y + 1, Z + 1), h3(X + 1, Y + 1, Z + 1), a), b), c); };
+const fbm = (x, y, z, o) => { let a = .5, s = 0, n = 0; for (let i = 0; i < o; i++) { s += a * n3(x, y, z); n += a; x *= 2.03; y *= 2.03; z *= 2.03; a *= .5; } return s / n; };
+const sph = (u, v) => { const lo = u * Math.PI * 2, th = v * Math.PI, s = Math.sin(th); return [-Math.cos(lo) * s, Math.cos(th), Math.sin(lo) * s]; };
+const uvOf = p => [((Math.atan2(p.z, -p.x) / (Math.PI * 2)) % 1 + 1) % 1, Math.acos(Math.max(-1, Math.min(1, p.y))) / Math.PI];
+
+// ---- 地図の絵（1024×512 で陸と海と国の色を決め、2048×1024 に広げて線の絵を足す）
+const FW = 1024, FH = 512, SEA = .525, hgt = new Float32Array(FW * FH), fc = document.createElement('canvas'); fc.width = FW; fc.height = FH;
+const TINT = [[166, 186, 128], [226, 160, 96], [224, 150, 140], [226, 200, 110]], seeds = [...Array(18)].map((_, i) => { const p = sph(rnd(), .15 + rnd() * .7); return [...p, i % 4]; });
+{ const x = fc.getContext('2d'), im = x.createImageData(FW, FH), d = im.data;
+  for (let py = 0; py < FH; py++) for (let px = 0; px < FW; px++) {
+    const [a, b, c] = sph((px + .5) / FW, (py + .5) / FH), h = fbm(a * 1.7 + 5.3, b * 1.7 + 1.1, c * 1.7 + 8.7, 5) - Math.pow(Math.abs(b), 6) * .08; hgt[py * FW + px] = h;
+    const st = .86 + .2 * fbm(a * 2.6 + 20, b * 2.6, c * 2.6, 3) + (Math.random() - .5) * .05; let r = 232 * st, g = 210 * st, bl = 160 * st;
+    if (h > SEA) {
+      const wx = a + (n3(a * 5 + 3, b * 5, c * 5) - .5) * .22, wy = b + (n3(a * 5, b * 5 + 7, c * 5) - .5) * .22, wz = c + (n3(a * 5, b * 5, c * 5 + 9) - .5) * .22; let m1 = -9, m2 = -9, k = 0;
+      for (const s of seeds) { const dd = wx * s[0] + wy * s[1] + wz * s[2]; if (dd > m1) { m2 = m1; m1 = dd; k = s[3]; } else if (dd > m2) m2 = dd; }
+      const T = TINT[k], edge = Math.max(m1 - m2 < .022 ? 1 : 0, 1 - (h - SEA) / .02), w = .46 + .44 * Math.max(0, Math.min(1, edge));   // 国ざかいと岸だけ濃くぬる（手彩色）
+      r += (T[0] * st - r) * w; g += (T[1] * st - g) * w; bl += (T[2] * st - bl) * w; if (m1 - m2 < .004) { r *= .6; g *= .55; bl *= .5; }
+    } else { r += (150 - r) * .4; g += (184 - g) * .4; bl += (164 - bl) * .4; if (h > SEA - .03 && py % 3 === 0) { r *= .72; g *= .72; bl *= .72; } }   // 岸の近くの海は細い横線
+    if (Math.abs(h - SEA) < .0035) { r = 70; g = 48; bl = 28; }
+    const i = (py * FW + px) * 4; d[i] = r; d[i + 1] = g; d[i + 2] = bl; d[i + 3] = 255;
+  } x.putImageData(im, 0, 0); }
+const landUV = (u, v) => hgt[Math.min(FH - 1, Math.floor(v * FH)) * FW + (Math.floor(u * FW) % FW + FW) % FW] > SEA;
+const W = 2048, H = 1024, mc = document.createElement('canvas'); mc.width = W; mc.height = H; const c = mc.getContext('2d'); c.drawImage(fc, 0, 0, W, H);
+const INK = '#4a3018', spots = [];
+function oceanSpot(R) { let u, v; for (let n = 0; n < 900; n++) { u = rnd(); v = .5 + (rnd() - .5) * .34; let ok = !landUV(u, v) && spots.every(s => Math.min(Math.abs(s[0] - u), 1 - Math.abs(s[0] - u)) > .1 || Math.abs(s[1] - v) > .16); for (let i = 0; ok && i < 16; i++) for (const k of [.5, 1]) if (landUV(u + Math.cos(i * .39) * R * k / FW, v + Math.sin(i * .39) * R * k / FH)) ok = false; if (ok) break; } spots.push([u, v]); return [u * W, v * H]; }
+// 山の印
+c.strokeStyle = INK; c.lineWidth = 1.6; for (let i = 0; i < 900; i++) { const u = rnd(), v = .12 + rnd() * .76; if (hgt[Math.floor(v * FH) * FW + Math.floor(u * FW)] > SEA + .075) { const x = u * W, y = v * H; c.beginPath(); c.moveTo(x - 7, y + 4); c.quadraticCurveTo(x - 1, y - 9, x, y - 5); c.quadraticCurveTo(x + 3, y - 1, x + 8, y + 4); c.moveTo(x + 1, y - 3); c.lineTo(x + 3, y + 3); c.stroke(); } }
+// 羅針図と方位線
+{ const [x, y] = oceanSpot(34); c.strokeStyle = 'rgba(90,58,26,.3)'; c.lineWidth = 1.2; for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * 520, y + Math.sin(a) * 520); c.stroke(); }
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 - Math.PI / 2, r = i % 4 === 0 ? 78 : i % 2 === 0 ? 52 : 32, wd = .2; c.beginPath(); c.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); c.lineTo(x + Math.cos(a - wd) * 13, y + Math.sin(a - wd) * 13); c.lineTo(x, y); c.closePath(); c.fillStyle = i % 4 === 0 ? '#7a2a1a' : '#3f5a50'; c.fill(); c.beginPath(); c.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); c.lineTo(x + Math.cos(a + wd) * 13, y + Math.sin(a + wd) * 13); c.lineTo(x, y); c.closePath(); c.fillStyle = '#ecd9a6'; c.fill(); c.strokeStyle = INK; c.lineWidth = 1; c.stroke(); }
+  c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 40, 0, 7); c.stroke(); c.fillStyle = '#7a2a1a'; c.beginPath(); c.moveTo(x, y - 106); c.lineTo(x - 9, y - 84); c.lineTo(x + 9, y - 84); c.fill(); }
+// 海の怪物（こぶが波から出ている大うみへび）
+for (let m = 0; m < 3; m++) { const [x, y] = oceanSpot(26), f = m % 2 ? -1 : 1; c.save(); c.translate(x, y); c.scale(f * 1.15, 1.15); c.lineWidth = 2.4; c.strokeStyle = INK; c.fillStyle = 'rgba(96,128,100,.75)';
+  for (const [hx, r] of [[-44, 12], [-16, 17], [16, 14]]) { c.beginPath(); c.arc(hx, 6, r, Math.PI, 0); c.closePath(); c.fill(); c.stroke(); for (let k = 1; k < 4; k++) { c.beginPath(); c.arc(hx, 6, r * k / 4, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); } }
+  c.beginPath(); c.moveTo(36, 6); c.quadraticCurveTo(38, -34, 58, -32); c.quadraticCurveTo(76, -30, 70, -18); c.lineTo(56, -16); c.quadraticCurveTo(50, -8, 52, 6); c.closePath(); c.fill(); c.stroke(); c.fillStyle = INK; c.beginPath(); c.arc(58, -25, 2.4, 0, 7); c.fill();
+  c.beginPath(); c.moveTo(-62, 6); c.quadraticCurveTo(-74, -10, -66, -20); c.stroke(); c.lineWidth = 1.4; for (let k = -70; k < 70; k += 18) { c.beginPath(); c.moveTo(k, 10); c.quadraticCurveTo(k + 5, 5, k + 10, 10); c.stroke(); } c.restore(); }
+// 海の名前（つくりごとのラテン語ふう）
+c.fillStyle = 'rgba(74,48,24,.8)'; c.textAlign = 'center'; for (const s of ['MARE  INCOGNITVM', 'OCEANVS  SERPENTIS']) { const [x, y] = oceanSpot(30); c.font = 'italic 30px Georgia,serif'; c.save(); c.translate(x, y); c.rotate((rnd() - .5) * .3); [...s].forEach((ch, i) => c.fillText(ch, (i - s.length / 2) * 21, 0)); c.restore(); }
+// 経線・緯線、赤道の目もり、回帰線、舟形の紙のつぎ目
+c.strokeStyle = 'rgba(80,52,24,.42)'; c.lineWidth = 1.5; c.beginPath(); for (let i = 0; i < 24; i++) { c.moveTo(i * W / 24, H * .06); c.lineTo(i * W / 24, H * .94); } for (let j = 1; j < 12; j++) { c.moveTo(0, j * H / 12); c.lineTo(W, j * H / 12); } c.stroke();
+c.setLineDash([14, 9]); c.beginPath(); for (const la of [23.5, -23.5, 66.5, -66.5]) { c.moveTo(0, (90 - la) / 180 * H); c.lineTo(W, (90 - la) / 180 * H); } c.stroke(); c.setLineDash([]);
+for (let i = 0; i < 72; i++) { c.fillStyle = i % 2 ? '#4a3018' : '#ecd9a6'; c.fillRect(i * W / 72, H / 2 - 4, W / 72, 8); } c.strokeStyle = INK; c.lineWidth = 1; c.strokeRect(-2, H / 2 - 4, W + 4, 8);
+for (let i = 0; i < 12; i++) { const x = (i + .5) * W / 12; c.strokeStyle = 'rgba(60,36,14,.5)'; c.lineWidth = 1; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); c.strokeStyle = 'rgba(255,244,210,.3)'; c.lineWidth = 3; c.beginPath(); c.moveTo(x + 2.5, 0); c.lineTo(x + 2.5, H); c.stroke(); }
+
+// ---- 港と航路（陸をなるべく横切らない順路をえらぶ）
+const V = (u, v) => new THREE.Vector3(...sph(u, v)), slerp = (a, b, t, o = new THREE.Vector3()) => { const w = a.angleTo(b), s = Math.sin(w) || 1; return o.copy(a).multiplyScalar(Math.sin((1 - t) * w) / s).addScaledVector(b, Math.sin(t * w) / s).normalize(); };
+const cands = []; for (let n = 0; n < 6000 && cands.length < 70; n++) { const u = rnd(), v = .3 + rnd() * .4; if (!landUV(u, v)) continue; let coast = false; for (let i = 0; i < 8; i++) if (!landUV(u + Math.cos(i * .785) * 7 / FW, v + Math.sin(i * .785) * 7 / FH)) coast = true; if (coast) cands.push(V(u, v)); }
+const landFrac = (a, b) => { let n = 0; const p = new THREE.Vector3(); for (let i = 3; i < 28; i++) { slerp(a, b, i / 30, p); if (landUV(...uvOf(p))) n++; } return n / 25; };
+let best = null, bestS = 1e9; for (let tr = 0; tr < 40; tr++) { const r = [cands[Math.floor(rnd() * cands.length)]]; let sc = 0;
+  for (let k = 1; k < 6; k++) { let bp = null, bs = 1e9; for (const q of cands) { if (r.some(o => o.angleTo(q) < .55)) continue; const w = r[k - 1].angleTo(q); if (w > 1.25) continue; const s = landFrac(r[k - 1], q) + rnd() * .05 + (k === 5 ? landFrac(q, r[0]) + Math.max(0, q.angleTo(r[0]) - 1.3) : 0); if (s < bs) { bs = s; bp = q; } } if (!bp) { sc = 1e9; break; } r.push(bp); sc += bs; }
+  if (sc < bestS) { bestS = sc; best = r; } }
+const ports = best || cands.slice(0, 6), ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+ports.forEach((p, i) => { const [u, v] = uvOf(p), x = u * W, y = v * H; c.fillStyle = '#a3261a'; c.strokeStyle = INK; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 8, 0, 7); c.fill(); c.stroke(); c.beginPath(); c.arc(x, y, 14, 0, 7); c.stroke(); c.fillStyle = INK; c.font = 'bold 24px Georgia,serif'; c.textAlign = 'left'; c.fillText(ROM[i], x + 18, y - 10); });
+// しみと、ニスの黄ばみ
+for (let i = 0; i < 90; i++) { const x = rnd() * W, y = rnd() * H, r = 6 + rnd() * 34, gr = c.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(110,64,20,.13)'); gr.addColorStop(1, 'rgba(110,64,20,0)'); c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2); }
+c.fillStyle = 'rgba(176,112,30,.1)'; c.fillRect(0, 0, W, H); for (const y of [0, H * .945]) { c.fillStyle = '#d8bf8a'; c.fillRect(0, y, W, H * .055); }
+
+// ---- 舞台
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(34, 1, .1, 100);
+const resize = () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }; addEventListener('resize', resize); resize();
+const cvT = (w, h, draw) => { const k = document.createElement('canvas'); k.width = w; k.height = h; draw(k.getContext('2d')); const t = new THREE.CanvasTexture(k); t.colorSpace = THREE.SRGBColorSpace; return t; };
+// 書斎の背景（本棚のぼんやりした影とランプの明かり）
+scene.background = cvT(512, 512, x => { x.fillStyle = '#0d0705'; x.fillRect(0, 0, 512, 512); for (let r = 0; r < 4; r++) { let px = 0; while (px < 512) { const bw = 10 + Math.random() * 18, bh = 70 + Math.random() * 34; x.fillStyle = ['#3a1410', '#1c2a1e', '#33200f', '#1a1c30', '#40300f'][Math.floor(Math.random() * 5)]; x.globalAlpha = .55; x.fillRect(px, r * 124 + 112 - bh, bw - 2, bh); px += bw; } x.globalAlpha = 1; x.fillStyle = '#1e110a'; x.fillRect(0, r * 124 + 112, 512, 12); }
+  let gr = x.createRadialGradient(90, 110, 0, 90, 110, 360); gr.addColorStop(0, 'rgba(255,170,80,.42)'); gr.addColorStop(.4, 'rgba(200,110,40,.12)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 512, 512);
+  gr = x.createRadialGradient(256, 256, 120, 256, 256, 380); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.8)'); x.fillStyle = gr; x.fillRect(0, 0, 512, 512); });
+// 映りこみ用のまわりの絵（ランプと窓だけが明るい暗い部屋）
+{ const env = cvT(256, 128, x => { x.fillStyle = '#1a0f08'; x.fillRect(0, 0, 256, 128); x.fillStyle = '#2a170b'; x.fillRect(0, 70, 256, 58); let gr = x.createRadialGradient(150, 36, 0, 150, 36, 30); gr.addColorStop(0, '#fff'); gr.addColorStop(.3, '#ffd9a0'); gr.addColorStop(1, 'rgba(255,150,60,0)'); x.fillStyle = gr; x.fillRect(100, 0, 100, 80); x.fillStyle = '#93a6c8'; x.fillRect(214, 22, 10, 30); x.fillRect(228, 22, 10, 30); });
+  env.mapping = THREE.EquirectangularReflectionMapping; const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromEquirectangular(env).texture; }
+scene.add(new THREE.HemisphereLight(0x8a6038, 0x1a0d06, .9));
+const lamp = new THREE.PointLight(0xffb36b, 95, 0, 2); lamp.position.set(-3.2, 2.7, 3.6); scene.add(lamp);
+const tilt = new THREE.Group(); tilt.rotation.z = -.41; scene.add(tilt); const spin = new THREE.Group(); tilt.add(spin);
+const mapT = new THREE.CanvasTexture(mc); mapT.colorSpace = THREE.SRGBColorSpace; mapT.anisotropy = 8;
+spin.add(new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhysicalMaterial({ map: mapT, roughness: .62, clearcoat: 1, clearcoatRoughness: .1, envMapIntensity: 1.3 })));
+const brass = new THREE.MeshStandardMaterial({ color: '#c79a3e', metalness: 1, roughness: .3, envMapIntensity: 2.2 }), woodM = new THREE.MeshStandardMaterial({ color: '#8a4a26', roughness: .45, envMapIntensity: .8 });
+const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, .036, 10, 120), brass); ring.scale.z = 1.7; tilt.add(ring);
+for (const s of [1, -1]) { const pin = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .16, 10), brass); pin.position.y = s * 1.04; const knob = new THREE.Mesh(new THREE.SphereGeometry(.055, 12, 10), brass); knob.position.y = s * 1.16; tilt.add(pin, knob); }
+const col = new THREE.Mesh(new THREE.LatheGeometry([[.05, 0], [.09, .03], [.05, .1], [.07, .22], [.045, .3], [.1, .4], [.12, .42]].map(p => new THREE.Vector2(...p)), 24), brass); col.position.y = -1.56; scene.add(col);
+const foot = new THREE.Mesh(new THREE.LatheGeometry([[0, .2], [.2, .2], [.26, .16], [.5, .12], [.66, .1], [.74, .05], [.74, 0], [0, 0]].map(p => new THREE.Vector2(...p)), 40), woodM); foot.position.y = -1.76; scene.add(foot);
+const desk = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ roughness: .5, envMapIntensity: .5, map: cvT(512, 512, x => { x.fillStyle = '#4a2814'; x.fillRect(0, 0, 512, 512); for (let i = 0; i < 400; i++) { x.strokeStyle = `rgba(${Math.random() < .5 ? '20,8,2' : '120,70,30'},${.05 + Math.random() * .12})`; x.lineWidth = 1 + Math.random() * 3; const y = Math.random() * 512; x.beginPath(); x.moveTo(0, y); x.bezierCurveTo(170, y + Math.random() * 16 - 8, 340, y + Math.random() * 16 - 8, 512, y + Math.random() * 10 - 5); x.stroke(); } }) })); desk.rotation.x = -Math.PI / 2; desk.position.y = -1.76; scene.add(desk);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 4.4), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: cvT(128, 128, x => { const gr = x.createRadialGradient(64, 64, 8, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,.85)'); gr.addColorStop(.35, 'rgba(0,0,0,.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); }) })); shadow.rotation.x = -Math.PI / 2; shadow.position.set(.7, -1.752, -.5); scene.add(shadow);
+
+// 帆船、航路の点、港の合図
+const ship = new THREE.Group(), inner = new THREE.Group(), sm = (col, o = {}) => new THREE.MeshStandardMaterial({ color: col, roughness: .7, ...o }); ship.add(inner); spin.add(ship);
+{ const hull = new THREE.Mesh(new THREE.CylinderGeometry(.03, .014, .13, 7), sm('#5a3018')); hull.rotation.z = Math.PI / 2; hull.scale.set(1, 1, .55); hull.position.y = .022; const deck = new THREE.Mesh(new THREE.BoxGeometry(.035, .03, .04), sm('#6a3a1c')); deck.position.set(-.05, .045, 0);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .15, 5), sm('#3a2010')); mast.position.set(.005, .11, 0); const sailM = sm('#f4ead0', { side: THREE.DoubleSide, emissive: '#5a4a30', emissiveIntensity: .5 });
+  const s1 = new THREE.Mesh(new THREE.PlaneGeometry(.075, .062), sailM), s2 = new THREE.Mesh(new THREE.PlaneGeometry(.05, .04), sailM), s3 = new THREE.Mesh(new THREE.PlaneGeometry(.05, .05), sailM); s1.rotation.y = s2.rotation.y = s3.rotation.y = Math.PI / 2 - .25; s1.position.set(.012, .09, 0); s2.position.set(.012, .15, 0); s3.position.set(-.04, .095, 0);
+  const pen = new THREE.Mesh(new THREE.PlaneGeometry(.035, .014), sm('#c0281c', { side: THREE.DoubleSide, emissive: '#601008' })); pen.position.set(-.012, .19, 0); inner.add(hull, deck, mast, s1, s2, s3, pen); inner.scale.setScalar(1.55); }
+const ND = 300, dots = new THREE.InstancedMesh(new THREE.CircleGeometry(.0115, 8), new THREE.MeshBasicMaterial({ color: '#8a1c12' }), ND), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), S1 = new THREE.Vector3(1, 1, 1), S0 = new THREE.Vector3(0, 0, 0), P0 = new THREE.Vector3();
+for (let i = 0; i < ND; i++) dots.setMatrixAt(i, M.compose(P0, Q, S0)); dots.frustumCulled = false; spin.add(dots);
+const pulse = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 32), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false })); pulse.visible = false; spin.add(pulse);
+const hud = document.getElementById('hud');
+let leg = 0, f = 0, wait = 0, nd = 0, acc = 0, calls = 0, pT = 9, t = 0, ang = null; const pos = new THREE.Vector3(), nxt = new THREE.Vector3(), X = new THREE.Vector3(), Zv = new THREE.Vector3();
+function sim(dt) {
+  t += dt; pT += dt; const a = ports[leg % 6], b = ports[(leg + 1) % 6], w = a.angleTo(b);
+  if (wait > 0) wait -= dt; else { f += dt * .3 / w; acc += dt * .3; if (acc > .034) { acc = 0; slerp(a, b, Math.min(1, f), P0); Q.setFromUnitVectors(Z, P0); dots.setMatrixAt(nd++ % ND, M.compose(P0.multiplyScalar(1.004), Q, S1)); dots.instanceMatrix.needsUpdate = true; } }
+  if (f >= 1) { f = 0; leg++; wait = .7; calls++; pT = 0; pulse.position.copy(b).multiplyScalar(1.006); pulse.quaternion.setFromUnitVectors(Z, b); hud.textContent = `寄港 ${(calls - 1) % 6 + 1} ／ 航海 ${Math.floor((calls - 1) / 6) + 1}`; return; }
+  slerp(a, b, f, pos); slerp(a, b, Math.min(1, f + .02), nxt); X.copy(nxt).sub(pos).normalize(); Zv.crossVectors(X, pos).normalize(); X.crossVectors(pos, Zv);
+  ship.position.copy(pos); ship.quaternion.setFromRotationMatrix(M.makeBasis(X, pos, Zv)); inner.rotation.x = Math.sin(t * 2.6) * .16; inner.rotation.z = Math.sin(t * 1.9) * .07; inner.position.y = .004 + Math.sin(t * 2.6) * .003;
+  const tg = -.05 - Math.atan2(pos.x, pos.z); if (ang === null) ang = tg; let da = (tg - ang) % (Math.PI * 2); if (da > Math.PI) da -= Math.PI * 2; if (da < -Math.PI) da += Math.PI * 2; ang += da * Math.min(1, dt * 2.6);   // 船がこちらを向くように球がゆっくり回る
+}
+for (let i = 0; i < 150; i++) sim(.05);
+let last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; sim(dt);
+  spin.rotation.y = ang; pulse.visible = pT < .9; if (pulse.visible) { pulse.scale.setScalar(.03 + pT * .16); pulse.material.opacity = 1 - pT / .9; }
+  const asp = cam.aspect, d = Math.max(5.7, 2.95 / (.611 * asp)); cam.position.set(Math.sin(t * .17) * .45, .55, d); cam.lookAt(0, -.36, 0);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

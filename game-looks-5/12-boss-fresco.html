@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 12 ボス戦 ひび割れたフレスコ壁画</title>
+<style>
+html,body{margin:0;height:100%;background:#e6dcc6;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e8d6;background:#3a2a20;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 12 ─ ボス戦 / ひび割れたフレスコ壁画　｜　見るだけ（自動で竜と戦う）</div>
+<script>
+// しっくいの壁に描いた古い壁画に見立てる。色は土の顔料だけ（黄土・赤土・緑土・こげ茶の輪郭・石灰の白）。青は勇者のマントにだけ、金は光輪と槍にだけ使う。
+// 絵は「こい輪郭線＋平たい色面」で 1 秒 10 コマずつ動く。その上に、動かない壁の層（色むら・細かいひび・絵がはがれて白い下地が見える所）を重ねる。
+// 槍や火が当たると、壁のその場所のしっくいがはがれて白くなり、かけらだけがなめらかに落ちる。はがれた所は絵が動いても壁に残る
+const cv = document.getElementById('c'), mg = cv.getContext('2d'), pc = document.createElement('canvas'), g = pc.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const UMB = '#3a2a20', RED = '#a04a2e', OCH = '#cf9d45', GRN = '#748a62', LAP = '#2c4c9c', WHT = '#ece3ce', GOLD = '#e0ad38', PLA = '#e6dcc6';
+let W, H, S, U, bw, bh, A, GY, over, dyn, dx, ptq = -1;
+// 竜の背骨の通り道（横長の形, たて長の形）。画面の形でまぜる
+const CP = [[.37, .43, .36, .47], [.44, .25, .52, .34], [.58, .17, .72, .33], [.72, .29, .80, .49], [.76, .52, .62, .61], [.64, .68, .50, .73], [.80, .75, .74, .80], [.93, .62, .88, .69], [.90, .44, .84, .57]];
+// でこぼこの丸（はがれの形）
+function blob(x, cx, cy, r, seed, n = 16) { x.beginPath(); for (let i = 0; i < n; i++) { const a = i / n * 6.283, q = r * (.55 + .7 * hash(seed, i) * (.6 + .4 * Math.sin(a * 3 + seed))); x.lineTo(cx + Math.cos(a) * q, cy + Math.sin(a) * q * .85); } x.closePath(); }
+function loss(x, cx, cy, r, seed, sin) {   // 絵がはがれて、白い下地が見える所
+  blob(x, cx, cy, r, seed); x.fillStyle = PLA; x.fill(); x.save(); x.clip();
+  for (let i = 0; i < r * .8; i++) { x.fillStyle = hash(seed, i + 30) < .5 ? 'rgba(120,100,80,.16)' : 'rgba(255,255,250,.5)'; x.fillRect(cx + (hash(seed, i + 60) - .5) * r * 2, cy + (hash(seed, i + 90) - .5) * r * 2, 1 + hash(i, 3) * 3, 1 + hash(i, 4) * 2); }
+  if (sin) { x.strokeStyle = 'rgba(160,74,46,.5)'; x.lineWidth = 1.6; x.beginPath(); for (let i = 0; i < 4; i++) { x.moveTo(cx - r, cy - r * .5 + i * r * .34); x.quadraticCurveTo(cx, cy - r + i * r * .5, cx + r, cy - r * .2 + i * r * .2); } x.stroke(); }  // 下がきの赤い線
+  x.restore(); blob(x, cx, cy, r, seed); x.strokeStyle = 'rgba(58,42,32,.4)'; x.lineWidth = 1.1; x.stroke();
+  blob(x, cx + 1.2, cy + 1.6, r, seed); x.strokeStyle = 'rgba(255,255,250,.5)'; x.lineWidth = .8; x.stroke();
+}
+function build() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; pc.width = cv.width = W * S; pc.height = cv.height = H * S; ptq = -1;
+  U = Math.min(W, H) / 600; bw = W / U; bh = H / U; A = Math.max(0, Math.min(1, (W / H - .6) / .8)); GY = bh * (.86 - .03 * A);
+  over = document.createElement('canvas'); over.width = cv.width; over.height = cv.height; dyn = document.createElement('canvas'); dyn.width = cv.width; dyn.height = cv.height;
+  dx = dyn.getContext('2d'); dx.setTransform(S * U, 0, 0, S * U, 0, 0);
+  const x = over.getContext('2d'); x.setTransform(S * U, 0, 0, S * U, 0, 0);
+  // 色むら（顔料のうすい所・こい所）
+  for (let i = 0; i < 260; i++) { const cx = hash(i, 1) * bw, cy = hash(i, 2) * bh, r = 20 + hash(i, 3) * 90, gr = x.createRadialGradient(cx, cy, 0, cx, cy, r), c = hash(i, 4) < .55 ? '236,227,206' : '70,50,36'; gr.addColorStop(0, `rgba(${c},.13)`); gr.addColorStop(1, `rgba(${c},0)`); x.fillStyle = gr; x.fillRect(cx - r, cy - r, r * 2, r * 2); }
+  x.fillStyle = 'rgba(230,220,198,.1)'; x.fillRect(0, 0, bw, bh);
+  // 細かいひびの網（ゆがんだ格子の辺を、ところどころ抜いて引く）
+  const C = 26, P = (i, j) => [i * C + (hash(i, j) - .5) * C * .9, j * C + (hash(j, i + 77) - .5) * C * .9];
+  x.strokeStyle = 'rgba(50,34,24,.3)'; x.lineWidth = .7; x.beginPath();
+  for (let j = 0; j * C < bh + C; j++) for (let i = 0; i * C < bw + C; i++) { const p = P(i, j), q = P(i + 1, j), r = P(i, j + 1); if (hash(i * 3, j * 5) < .62) { x.moveTo(p[0], p[1]); x.quadraticCurveTo((p[0] + q[0]) / 2 + (hash(i, j + 9) - .5) * 9, (p[1] + q[1]) / 2 + (hash(i, j + 5) - .5) * 9, q[0], q[1]); } if (hash(i * 7, j * 2) < .62) { x.moveTo(p[0], p[1]); x.quadraticCurveTo((p[0] + r[0]) / 2 + (hash(i, j + 19) - .5) * 9, (p[1] + r[1]) / 2, r[0], r[1]); } }
+  x.stroke();
+  // 大きなひび（枝分かれ）
+  for (let k = 0; k < 9; k++) { let px = hash(k, 21) * bw, py = hash(k, 22) < .5 ? 0 : hash(k, 23) * bh, a = 1.2 + hash(k, 24) * .9; const walk = (px, py, a, n, w, d) => { x.strokeStyle = 'rgba(40,26,18,.62)'; x.lineWidth = w; x.beginPath(); x.moveTo(px, py); for (let i = 0; i < n; i++) { a += (hash(k * 31 + i, d) - .5) * .9; px += Math.cos(a) * 13; py += Math.sin(a) * 13; x.lineTo(px, py); if (d < 2 && hash(k * 17 + i, d + 40) < .09) { x.stroke(); walk(px, py, a + (hash(i, k) < .5 ? .9 : -.9), n * .4, w * .6, d + 1); x.strokeStyle = 'rgba(40,26,18,.62)'; x.lineWidth = w; x.beginPath(); x.moveTo(px, py); } } x.stroke(); }; walk(px, py, a, 26 + hash(k, 25) * 40, 1.5, 0); }
+  // 白いぽつぽつ（顔料の小さなはがれ）
+  for (let i = 0; i < 1500; i++) { x.fillStyle = `rgba(236,227,206,${.3 + hash(i, 31) * .5})`; x.fillRect(hash(i, 32) * bw, hash(i, 33) * bh, .8 + hash(i, 34) * 2.2, .8 + hash(i, 35) * 1.6); }
+  // 大きなはがれ: ふちとすみ、下のほうに多い
+  const L = [[.02, .03, 70, 1], [.97, .95, 80, 0], [.9, .04, 46, 0], [.03, .62, 40, 0], [.5, .995, 60, 0], [.22, .98, 44, 0], [.985, .45, 38, 0], [.72, .9, 26, 0], [.3, .08, 22, 0], [.12, .3, 16, 0], [.6, .44, 12, 0], [.84, .2, 15, 0], [.45, .93, 20, 0]];
+  L.forEach(([fx, fy, r, s], i) => { loss(x, fx * bw, fy * bh, r, i + 3, s); for (let k = 0; k < 3; k++) loss(x, fx * bw + (hash(i, k) - .5) * r * 3, fy * bh + (hash(i, k + 5) - .5) * r * 3, r * .18, i * 9 + k); });
+  // 1 枚の絵に焼きなおす（毎コマ重ねるのを軽くする）
+  const flat = document.createElement('canvas'); flat.width = cv.width; flat.height = cv.height; flat.getContext('2d').drawImage(over, 0, 0); over = flat;
+  reset();
+}
+const shape = (f, lw = 2.6) => { g.fillStyle = f; g.fill(); if (lw) { g.lineWidth = lw; g.strokeStyle = UMB; g.stroke(); } };
+const poly = (...p) => { g.beginPath(); for (let i = 0; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.closePath(); };
+
+// ── 竜 ──
+let SPN = [];
+function spine(tq, lunge, hx, hy) {
+  const pts = CP.map(([wx, wy, tx, ty], i) => { let px = (tx + (wx - tx) * A) * bw + Math.sin(tq * 1.1 + i * 1.3) * 8, py = (ty + (wy - ty) * A) * bh + Math.cos(tq * .9 + i * 1.7) * 7; if (i < 2) { const dxh = hx - px, dyh = hy - 60 - py, l = Math.hypot(dxh, dyh); px += dxh / l * lunge * (i ? 22 : 60); py += dyh / l * lunge * (i ? 22 : 60); } return [px, py]; });
+  const q = [pts[0], ...pts, pts[pts.length - 1]], out = [];
+  for (let i = 1; i < q.length - 2; i++) for (let k = 0; k < 9; k++) { const f = k / 9, f2 = f * f, f3 = f2 * f, c = j => .5 * (2 * q[i][j] + (q[i + 1][j] - q[i - 1][j]) * f + (2 * q[i - 1][j] - 5 * q[i][j] + 4 * q[i + 1][j] - q[i + 2][j]) * f2 + (3 * q[i][j] - q[i - 1][j] - 3 * q[i + 1][j] + q[i + 2][j]) * f3); out.push([c(0), c(1)]); }
+  out.push(pts[pts.length - 1]); const n = out.length;
+  return out.map((p, i) => { const a = out[Math.max(0, i - 1)], b = out[Math.min(n - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, s = i / (n - 1); return { x: p[0], y: p[1], nx: -(b[1] - a[1]) / l, ny: (b[0] - a[0]) / l, s, w: s < .45 ? 20 + 24 * Math.sin(s / .45 * 1.571) : 42 * Math.pow(1 - (s - .45) / .55, .8) + 2 }; });
+}
+function dragon(tq, jaw, hit) {
+  const P = SPN, n = P.length, at = (p, v) => [p.x + p.nx * p.w * v, p.y + p.ny * p.w * v];
+  // つばさ（肩から扇の形）
+  const sh = P[Math.floor(n * .3)], base = (-105 + 75 * A) * Math.PI / 180, flap = Math.sin(tq * 2.2) * .12, tips = [...Array(5)].map((_, i) => { const a = base + (i - 2) * (.36 + flap * .3) + flap, l = 215 - Math.abs(i - 2) * 22; return [sh.x + Math.cos(a) * l, sh.y + Math.sin(a) * l]; });
+  g.beginPath(); g.moveTo(sh.x, sh.y); tips.forEach((p, i) => { if (i) { const q = tips[i - 1]; g.quadraticCurveTo((p[0] + q[0]) / 2 * .78 + sh.x * .22, (p[1] + q[1]) / 2 * .78 + sh.y * .22, p[0], p[1]); } else g.lineTo(p[0], p[1]); }); g.closePath(); shape('#dcc79a', 3.4);
+  g.lineWidth = 5; g.strokeStyle = OCH; g.beginPath(); for (const p of tips) { g.moveTo(sh.x, sh.y); g.lineTo(p[0], p[1]); } g.stroke(); g.lineWidth = 1.4; g.strokeStyle = UMB; g.beginPath(); for (const p of tips) { g.moveTo(sh.x + 3, sh.y - 3); g.lineTo(p[0] + 3, p[1] - 2); } g.stroke();
+  // あし
+  for (const s of [.4, .63]) { const p = P[Math.floor(n * s)], lx = p.x - 8, ly = p.y + p.w * .5, sw = Math.sin(tq * 1.5 + s * 9) * 6; g.beginPath(); g.ellipse(lx, ly + 14, 20, 30, .3, 0, 7); shape(GRN, 3); poly(lx - 12, ly + 36, lx + 8, ly + 38, lx - 14 + sw, ly + 78, lx - 30 + sw, ly + 72); shape(GRN, 3); for (let k = 0; k < 3; k++) { poly(lx - 32 + sw + k * 9, ly + 70, lx - 24 + sw + k * 9, ly + 72, lx - 36 + sw + k * 11, ly + 92); shape(WHT, 2); } }
+  // 背のとげ
+  for (let i = 5; i < n - 6; i += 3) { const a = at(P[i - 1], -1), b = at(P[i + 1], -1), c = at(P[i], -1.5 - 8 / P[i].w); poly(a[0], a[1], c[0], c[1], b[0], b[1]); shape(OCH, 2.4); }
+  // 尾の先
+  { const e = P[n - 1], d = P[n - 4], ax = e.x - d.x, ay = e.y - d.y, l = Math.hypot(ax, ay); poly(e.x + ax / l * 30, e.y + ay / l * 30, e.x - ay / l * 15, e.y + ax / l * 15, e.x + ay / l * 15, e.y - ax / l * 15); shape(OCH, 2.6); }
+  // 胴（緑土）と腹（黄土）
+  g.beginPath(); for (let i = 3; i < n; i++) g.lineTo(...at(P[i], 1)); for (let i = n - 1; i >= 3; i--) g.lineTo(...at(P[i], -1)); g.closePath(); shape(GRN, 0);
+  g.beginPath(); for (let i = 3; i < n; i++) g.lineTo(...at(P[i], 1)); for (let i = n - 1; i >= 3; i--) g.lineTo(...at(P[i], .38)); g.closePath(); g.fillStyle = OCH; g.fill();
+  g.lineWidth = 1.3; g.strokeStyle = UMB; g.beginPath(); for (let i = 4; i < n - 1; i += 2) { g.moveTo(...at(P[i], 1)); g.lineTo(...at(P[i + 1], .38)); } for (let i = 3; i < n; i++) g.lineTo(...at(P[i], .38)); g.stroke();
+  g.globalAlpha = .6; g.beginPath(); for (let i = 4; i < n - 5; i += 2) for (const v of [-.62, -.2, .16]) { if (P[i].w < 14 && v !== -.2) continue; const [cx, cy] = at(P[i + (v === -.2 ? 1 : 0)], v), a = Math.atan2(-P[i].nx, P[i].ny); g.moveTo(cx + Math.cos(a - 1.5) * 7, cy + Math.sin(a - 1.5) * 7); g.arc(cx, cy, 7, a - 1.5, a + 1.5); } g.stroke(); g.globalAlpha = 1;
+  g.beginPath(); for (let i = 3; i < n; i++) g.lineTo(...at(P[i], 1)); for (let i = n - 1; i >= 3; i--) g.lineTo(...at(P[i], -1)); g.closePath(); g.lineWidth = 3.6; g.stroke();
+  // 頭
+  const h = P[2], ang = Math.atan2(P[0].y - P[5].y, P[0].x - P[5].x); g.save(); g.translate(h.x, h.y); g.rotate(ang); if (Math.cos(ang) < 0) g.scale(1, -1); g.translate(-18, 0);
+  poly(-4, -30, -40, -52, -22, -22, -46, -20, -22, -4, -44, 12, -4, 14); shape(OCH, 2.6);                          // えりのひれ
+  poly(8, -30, -18, -66, 26, -34); shape(OCH, 2.6); poly(26, -32, 12, -62, 42, -32); shape(OCH, 2.6);             // 角
+  g.save(); g.translate(8, 8); g.rotate(jaw); poly(-8, -4, 82, 2, 86, 12, 30, 22, -8, 20); shape(GRN, 3); for (let i = 0; i < 5; i++) { poly(30 + i * 11, 2, 35 + i * 11, -9, 40 + i * 11, 2); shape(WHT, 1.6); } g.restore();
+  if (jaw > .2) { poly(20, 10, 70, 14 + jaw * 16, 62, 22 + jaw * 20, 78, 30 + jaw * 20, 56, 30 + jaw * 16, 20, 18); shape(RED, 2); }
+  poly(-6, -30, 44, -34, 98, -18, 104, -4, 96, 4, 40, 6, -6, 12); shape(GRN, 3);                                   // 上あご
+  for (let i = 0; i < 5; i++) { poly(44 + i * 11, 5, 49 + i * 11, 16, 54 + i * 11, 5); shape(WHT, 1.6); }
+  g.beginPath(); g.ellipse(40, -18, 11, 8, -.15, 0, 7); shape(hit ? GOLD : WHT, 2.4); g.beginPath(); g.arc(43, -17, 4.2, 0, 7); g.fillStyle = UMB; g.fill();
+  g.lineWidth = 3.4; g.beginPath(); g.moveTo(24, -30); g.lineTo(54, -25); g.stroke(); g.beginPath(); g.arc(92, -10, 2.6, 0, 7); g.fill();
+  const m = g.getTransform().transformPoint(new DOMPoint(96, 10)); g.restore(); return [m.x / S / U, m.y / S / U];
+}
+// 火（舌の形を重ねる。1 コマごとにゆれが変わる）
+function fire(mx, my, tx, ty, f, tq) {
+  for (const [col, wd] of [[RED, 1], [OCH, .62], [WHT, .28]]) { g.beginPath(); const n = 12, ex = mx + (tx - mx) * f, ey = my + (ty - my) * f, lx = ex - mx, ly = ey - my, l = Math.hypot(lx, ly) || 1, nx = -ly / l, ny = lx / l;
+    for (let i = 0; i <= n; i++) { const s = i / n, w = (8 + s * 46) * wd * (1 + .35 * Math.sin(i * 2.3 + tq * 31)); g.lineTo(mx + lx * s + nx * w, my + ly * s + ny * w); }
+    for (let i = 0; i < 5; i++) { const a = (i / 4 - .5) * 2.2, r = (34 + 22 * hash(i, Math.floor(tq * 10))) * wd * (i % 2 ? 1.4 : .7); g.lineTo(ex + (lx / l * Math.cos(a) - nx * Math.sin(a)) * r, ey + (ly / l * Math.cos(a) - ny * Math.sin(a)) * r); }
+    for (let i = n; i >= 0; i--) { const s = i / n, w = (8 + s * 46) * wd * (1 + .35 * Math.sin(i * 1.9 - tq * 27)); g.lineTo(mx + lx * s - nx * w, my + ly * s - ny * w); }
+    g.closePath(); shape(col, wd === 1 ? 3 : 1.4); }
+}
+// ── 勇者（足もとが原点、右向き）──
+function hero(x, y, tq, run, throwing, guard) {
+  g.save(); g.translate(x, y); g.scale(1.5, 1.5); const st = run ? Math.sin(tq * 14) : 0;
+  poly(-6, -62, -34 - st * 4, -46, -40, -18 + st * 5, -22, -22, -10, -40); shape(RED, 2.4);                       // 赤土のマントのすそ
+  for (const s of [-1, 1]) { poly(-5 * s - 3, -30, -5 * s + 4, -30, -5 * s + 5 + st * s * 9, -2, -5 * s + 12 + st * s * 9, 0, -5 * s - 3 + st * s * 9, 0); shape(OCH, 2.2); }
+  poly(-11, -64, 11, -64, 15, -26, -15, -26); shape(LAP, 2.4);                                                     // 青い衣（ラピスはここだけ）
+  g.strokeStyle = GOLD; g.lineWidth = 2; g.beginPath(); g.moveTo(-14, -30); g.lineTo(14, -30); g.moveTo(0, -62); g.lineTo(0, -32); g.stroke();
+  g.beginPath(); g.arc(1, -76, 19, 0, 7); shape(GOLD, 2.4); g.fillStyle = UMB; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(1 + Math.cos(i * .449) * 15, -76 + Math.sin(i * .449) * 15, 1, 0, 7); g.fill(); }   // 金の光輪
+  g.beginPath(); g.arc(1, -75, 9.5, 0, 7); shape('#dcb88a', 2.2); g.beginPath(); g.arc(-1, -78, 9.5, 2.6, 5.6); g.lineTo(1, -78); g.fillStyle = UMB; g.fill(); g.beginPath(); g.arc(5, -75, 1.3, 0, 7); g.fill();
+  const sa = guard ? -.2 : .5; g.save(); g.translate(guard ? 16 : 10, guard ? -52 : -46); g.rotate(sa); g.beginPath(); g.ellipse(0, 0, 13, 17, 0, 0, 7); shape(WHT, 2.4); g.beginPath(); g.arc(0, 0, 5, 0, 7); shape(RED, 1.6); g.restore();   // 盾
+  const aa = throwing > 0 ? -2.4 + throwing * 2.2 : -1.9; g.save(); g.translate(-8, -60); g.rotate(aa); poly(-3, 0, 3, 0, 3, 22, -3, 22); shape(LAP, 2); if (!(throwing > .5)) { g.translate(0, 22); g.rotate(-aa - .5); spearShape(44); } g.restore();
+  g.restore();
+}
+function spearShape(l) { g.lineWidth = 5; g.strokeStyle = UMB; g.beginPath(); g.moveTo(-l, 0); g.lineTo(l, 0); g.stroke(); g.lineWidth = 2.4; g.strokeStyle = GOLD; g.stroke(); poly(l, -5, l + 16, 0, l, 5); shape(GOLD, 2); }
+
+// ── 進行 ──
+const T = 16.5, NH = 12; let t = 0, last = performance.now(), frags = [], hits = 0, nextSp = 0, spears = [], deaths = 0, fireChips = 0;
+function reset() { if (dx) dx.clearRect(0, 0, bw, bh); hits = 0; nextSp = 0; spears = []; deaths = 0; fireChips = 0; frags = []; }
+function chip(x, y, r, seed, col) {
+  loss(dx, x, y, r, seed); for (let k = 0; k < 3; k++) loss(dx, x + (hash(seed, k) - .5) * r * 2.6, y + (hash(seed, k + 5) - .5) * r * 2.6, r * (.15 + hash(seed, k + 8) * .2), seed * 7 + k);
+  dx.strokeStyle = 'rgba(40,26,18,.6)'; dx.lineWidth = 1.1; dx.beginPath(); for (let k = 0; k < 2; k++) { let a = hash(seed, k + 20) * 6.283, px = x + Math.cos(a) * r * .7, py = y + Math.sin(a) * r * .6; dx.moveTo(px, py); for (let i = 0; i < 5; i++) { a += (hash(seed + i, k + 30) - .5); px += Math.cos(a) * 9; py += Math.sin(a) * 9; dx.lineTo(px, py); } } dx.stroke();
+  for (let i = 0; i < 9; i++) frags.push({ x: x + (hash(seed, i + 40) - .5) * r * 1.4, y: y + (hash(seed, i + 50) - .5) * r, vx: (hash(seed, i + 60) - .5) * 90, vy: -20 - hash(seed, i + 70) * 70, r: 3 + hash(seed, i + 80) * 7, a: hash(seed, i) * 6, va: (hash(seed, i + 9) - .5) * 9, col: i % 3 ? col : PLA, s: seed + i });
+}
+build(); addEventListener('resize', build);
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; if (t >= T) { t -= T; reset(); }
+  const tq = Math.floor(t * 10) / 10, firing = (t > 3 && t < 4.7) || (t > 9.2 && t < 10.9), ft = t > 9 ? t - 9.2 : t - 3, dying = t > 14;
+  // 勇者の位置: 左下を行き来する。火のあいだは下がって盾をかまえる
+  const hx = bw * (.2 - .02 * A) + Math.sin(tq * .9) * bw * .07 - (firing ? 24 : 0), hop = Math.max(0, Math.sin(tq * 2.1 + 1)) > .93 ? 16 : 0, hy = GY - hop;
+  SPN = spine(tq, firing ? Math.min(1, ft * 3) : dying ? -.6 : 0, hx, hy);
+  // 槍を投げる。当たった所のしっくいがはがれる
+  const since = t - (.8 + 1.1 * (nextSp - 1));
+  if (nextSp < NH && t > .8 + 1.1 * nextSp && !firing) { const p = SPN[8 + Math.floor(hash(nextSp, 7) * 52)]; spears.push({ x0: hx + 10, y0: hy - 108, x1: p.x + p.nx * p.w * (hash(nextSp, 8) - .5), y1: p.y + p.ny * p.w * (hash(nextSp, 9) - .5), f: 0, k: nextSp }); nextSp++; } else if (nextSp < NH && t > .8 + 1.1 * nextSp) nextSp++;
+  for (const s of spears) { const was = s.f; s.f += dt / .42; if (was < 1 && s.f >= 1) { hits++; chip(s.x1, s.y1, 17 + hash(s.k, 3) * 10, 100 + s.k, hash(s.k, 4) < .7 ? GRN : OCH); } }
+  spears = spears.filter(s => s.f < 1.5);
+  if (dying && t < 15.3 && deaths < (t - 14) / .09) { const p = SPN[2 + (deaths * 23) % (SPN.length - 4)]; chip(p.x, p.y, 20 + hash(deaths, 3) * 14, 500 + deaths, GRN); deaths++; }
+  // 絵と壁の層は 1 秒 10 コマ。コマが変わったときだけ 1 枚の絵に描きなおす
+  if (tq !== ptq) {
+    ptq = tq; g.setTransform(S * U, 0, 0, S * U, 0, 0);
+    g.fillStyle = RED; g.fillRect(0, 0, bw, bh);
+    g.fillStyle = '#8c3f28'; g.fillRect(0, 0, bw, bh * .16);
+    { const sx = bw * (.14 + .04 * A), sy = bh * (.16 + .04 * A); g.beginPath(); for (let i = 0; i < 32; i++) { const a = i / 32 * 6.283, r = i % 2 ? 34 : 52; g.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } g.closePath(); shape(OCH, 2); g.beginPath(); g.arc(sx, sy, 27, 0, 7); shape(GOLD, 2.4); }   // 金の日輪
+    for (const [fx, w, hh, c] of [[.0, .2, .3, '#d9c08c'], [.9, .22, .4, '#d9c08c'], [.42, .16, .12, '#c9ab74']]) { const x0 = fx * bw, ww = w * bw, top = GY - hh * bh; g.beginPath(); g.moveTo(x0 - 30, GY); for (let i = 0; i <= 6; i++) { const yy = top + (i % 2) * 22 + Math.abs(i - 3) * hh * bh * .22; g.lineTo(x0 + ww * i / 6, yy); g.lineTo(x0 + ww * (i + .6) / 6, yy + 18); } g.lineTo(x0 + ww + 30, GY); g.closePath(); shape(c, 2.6); g.lineWidth = 1.3; g.beginPath(); for (let i = 1; i < 6; i++) { g.moveTo(x0 + ww * i / 6, top + (i % 2) * 22 + Math.abs(i - 3) * hh * bh * .22); g.lineTo(x0 + ww * (i - .3) / 6, GY); } g.stroke(); }   // 段々の岩山
+    g.fillStyle = OCH; g.fillRect(0, GY, bw, bh - GY); g.fillStyle = '#5a3524'; g.fillRect(0, GY + 34, bw, bh); g.fillStyle = UMB; g.fillRect(0, GY - 1.5, bw, 3);
+    g.fillStyle = WHT; g.fillRect(0, GY + 34, bw, 3); for (let i = 0; i * 64 < bw; i++) { poly(i * 64 + 8, GY + 48, i * 64 + 32, GY + 42, i * 64 + 56, GY + 48, i * 64 + 32, GY + 54); shape(i % 2 ? GRN : RED, 1.6); }
+    const jaw = firing ? .55 : dying ? .5 : .08 + Math.max(0, Math.sin(tq * 1.7)) * .12, flash = spears.some(s => s.f >= 1);
+    const mouth = dragon(tq, jaw, flash || dying);
+    if (firing && ft > .3) { const f = Math.min(1, (ft - .3) * 3.5), tx = hx + 62, ty = GY - 6; fire(mouth[0], mouth[1], tx, ty, f, tq); if (f >= 1 && fireChips < Math.floor((ft - .5) / .55) + 1 + (t > 9 ? 2 : 0)) { fireChips++; chip(tx + (hash(fireChips, 3) - .3) * 70, GY - 4 + hash(fireChips, 4) * 26, 15 + hash(fireChips, 5) * 9, 300 + fireChips, OCH); } }
+    hero(hx, hy, tq, !firing, since < .3 ? since / .3 : 0, firing);
+    for (const s of spears) { const f = Math.min(1, s.f); if (s.f < 1) { g.save(); g.translate(s.x0 + (s.x1 - s.x0) * f, s.y0 + (s.y1 - s.y0) * f - Math.sin(f * 3.14) * 30); g.rotate(Math.atan2(s.y1 - s.y0, s.x1 - s.x0)); spearShape(26); g.restore(); } else { g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, r = i % 2 ? 12 : 34; g.lineTo(s.x1 + Math.cos(a) * r, s.y1 + Math.sin(a) * r); } g.closePath(); shape(GOLD, 2); } }
+    // わくの帯と、竜の体力（金の丸。へると絵の具がはがれた白い丸になる）
+    g.fillStyle = OCH; g.fillRect(0, 0, bw, 20); g.fillRect(0, bh - 14, bw, 14); g.fillRect(0, 0, 14, bh); g.fillRect(bw - 14, 0, 14, bh); g.fillStyle = UMB; g.fillRect(14, 20, bw - 28, 2.5); g.fillRect(14, 20, 2.5, bh - 34); g.fillRect(bw - 16.5, 20, 2.5, bh - 34); g.fillRect(14, bh - 16, bw - 28, 2.5);
+    g.fillStyle = RED; for (let i = 0; i * 30 < bw; i++) { poly(i * 30 + 4, 10, i * 30 + 15, 3, i * 30 + 26, 10, i * 30 + 15, 17); g.fill(); }
+    const hp = dying ? 0 : NH - hits; for (let i = 0; i < NH; i++) { g.beginPath(); g.arc(bw / 2 + (i - 5.5) * 27, 44, 10, 0, 7); shape(i < hp ? GOLD : PLA, 2.4); if (i < hp) { g.beginPath(); g.arc(bw / 2 + (i - 5.5) * 27, 44, 4, 0, 7); shape(RED, 1.2); } }
+    // 壁の層: はがれ（当たってできたぶんは、終わりに直されて消える）→ 色むら・ひび・古いはがれ
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = t > T - 1.2 ? Math.max(0, (T - t) / 1.2) : 1; g.drawImage(dyn, 0, 0); g.globalAlpha = 1; g.drawImage(over, 0, 0);
+  }
+  // 画面へ: 絵 1 枚と、落ちるかけら（かけらだけは毎コマなめらかに動く）
+  mg.setTransform(1, 0, 0, 1, 0, 0); mg.drawImage(pc, 0, 0); mg.setTransform(S * U, 0, 0, S * U, 0, 0);
+  for (const p of frags) { p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt; mg.save(); mg.translate(p.x, p.y); mg.rotate(p.a); mg.beginPath(); for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283, r = p.r * (.6 + hash(p.s, i) * .6); mg.lineTo(Math.cos(a) * r, Math.sin(a) * r); } mg.closePath(); mg.fillStyle = 'rgba(40,26,18,.25)'; mg.translate(2, 3); mg.fill(); mg.translate(-2, -3); mg.fillStyle = p.col; mg.fill(); mg.lineWidth = .8; mg.strokeStyle = 'rgba(58,42,32,.6)'; mg.stroke(); mg.restore(); }
+  frags = frags.filter(p => p.y < bh + 30);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

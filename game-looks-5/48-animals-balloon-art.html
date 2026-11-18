@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 48 動物レース バルーンアート</title>
+<style>
+html,body{margin:0;height:100%;background:#ffe9d6;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#7a3a4a;opacity:.9}
+</style>
+<div id="cap">LOOK 48 ─ 動物レース / バルーンアート（ねじった細長い風船）　｜　見るだけ（自動でぴょこぴょこ競走）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 細長い風船をねじって作る動物（バルーンアート）に見立てる。体はふくらんだ節（カプセル形）だけで、節と節はねじり目でつなぐ。
+// ゴムのつや: 丸く強いハイライト、ふちが透けて明るくなる半透明感。鼻先に結び目、しっぽの先にふくらまない残り。
+// 色はあざやかな単色 5 つ。はねるたびに節が順ぐりにきゅっとふくらみ、首やしっぽが少し遅れてゆれる
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#ffe6cf'); scene.fog = new THREE.Fog('#ffe6cf', 22, 60);
+const cam = new THREE.PerspectiveCamera(28, 1, .1, 200);
+const resize = () => {
+  renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(4.0 / th, 3.6 / (th * cam.aspect));
+  cam.position.set(d * .16, 1.6 + d * .4, d * .9); cam.lookAt(0, 1.45, .3); scene.fog.near = d + 9; scene.fog.far = d + 48;
+}; addEventListener('resize', resize); resize();
+// つやのうつりこみ用の明るい部屋
+{ const es = new THREE.Scene(); es.add(new THREE.Mesh(new THREE.BoxGeometry(40, 40, 40), new THREE.MeshBasicMaterial({ color: '#b8a8a0', side: THREE.BackSide })));
+  const pan = (c, w, h, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); es.add(m); };
+  pan('#ffffff', 14, 14, -8, 17, 8); pan('#ffffff', 8, 14, 18, 6, 6); pan('#fff0e0', 30, 6, 0, 2, 19);
+  scene.environment = new THREE.PMREMGenerator(renderer).fromScene(es, .02).texture; }
+scene.add(new THREE.HemisphereLight(0xfffaf0, 0xffc8b0, 1.5));
+const sun = new THREE.DirectionalLight(0xfff4e0, 2.3); sun.position.set(-6, 12, 9); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+{ const c = sun.shadow.camera; c.left = -9; c.right = 9; c.top = 8; c.bottom = -8; c.near = 2; c.far = 40; sun.shadow.radius = 5; sun.shadow.bias = -.0006; } scene.add(sun);
+
+// ゴムの材質: つやつやの単色＋ふちが明るく透ける
+const COL = { red: '#f02a3a', yel: '#ffc814', blu: '#32b8f0', grn: '#34c45a', pur: '#9a4ae0' };
+function rubber(c) {
+  const m = new THREE.MeshPhysicalMaterial({ color: c, roughness: .2, clearcoat: 1, clearcoatRoughness: .06, envMapIntensity: .7 });
+  m.onBeforeCompile = s => { s.fragmentShader = s.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+    float fr = pow(1.0 - abs(dot(normalize(vViewPosition), normal)), 2.0);
+    totalEmissiveRadiance += diffuseColor.rgb * (fr * .5 + .06) + vec3(fr * fr * .2);`); };
+  return m;
+}
+// 風船の節: a から b までのカプセル。ねじり目は小さくしぼった玉
+const UP = new THREE.Vector3(0, 1, 0), V = (x, y, z = 0) => new THREE.Vector3(x, y, z);
+function seg(parent, mat, a, b, r, list) {
+  const d = b.clone().sub(a), L = d.length(), m = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(.01, L - r * 1.7), 8, 18), mat);
+  m.position.copy(a).addScaledVector(d, .5); m.quaternion.setFromUnitVectors(UP, d.normalize()); m.castShadow = m.receiveShadow = true; parent.add(m); list.push(m); return m;
+}
+const ballG = new THREE.SphereGeometry(1, 14, 10);
+function bub(parent, mat, p, r, list) { const m = new THREE.Mesh(ballG, mat); m.position.copy(p); m.scale.setScalar(r); m.castShadow = true; parent.add(m); if (list) list.push(m); return m; }
+function animal(c, o) {
+  const mat = rubber(COL[c]), dark = rubber(new THREE.Color(COL[c]).multiplyScalar(.55)), r = o.r || .2, segs = [];
+  const root = new THREE.Group(), by = o.leg * .95 + r * .7, F = V(o.body / 2, by), B = V(-o.body / 2, by + (o.rise || 0));
+  seg(root, mat, B, F, r * 1.05, segs);
+  const pv = p => { const g = new THREE.Group(); g.position.copy(p); return g; };
+  const fl = pv(F), hl = pv(B), neck = pv(F), tail = pv(B); root.add(fl, hl, neck, tail);
+  for (const s of [-1, 1]) {
+    seg(fl, mat, V(0, 0, s * r * .5), V(.1, -o.leg, s * r * 1.15), r, segs);
+    seg(hl, mat, V(0, 0, s * r * .5), V(-.1, -(B.y - r * .6), s * r * 1.15), r * (o.hleg ? 1.15 : 1), segs);
+    if (o.pom) { bub(fl, mat, V(.12, -o.leg + .02, s * r * 1.2), r * 1.35, segs); bub(hl, mat, V(-.12, -o.leg + .02, s * r * 1.2), r * 1.35, segs); }
+  }
+  const N = V(Math.cos(o.na) * o.neck, Math.sin(o.na) * o.neck); seg(neck, mat, V(0, 0), N, r, segs);
+  const head = pv(N); neck.add(head);
+  const tip = V(o.snout, -o.snout * .12); seg(head, mat, V(0, 0), tip, r, segs);
+  const ears = [-1, 1].map(s => { const e = pv(V(0, 0, 0)); head.add(e); seg(e, mat, V(0, 0, s * r * .45), V(-Math.cos(o.ea) * o.ear, Math.sin(o.ea) * o.ear, s * (r * 1.0 + o.ear * .22)), r * .95, segs); return e; });
+  if (o.pom) bub(head, mat, V(-.05, r * 1.7, 0), r * 1.3, segs);
+  // 鼻先の結び目（しぼり口）
+  bub(head, dark, tip.clone().add(V(r * .22, -.01)), r * .2); const lip = new THREE.Mesh(new THREE.TorusGeometry(r * .17, r * .07, 6, 12), dark); lip.position.copy(tip).add(V(r * .42, -.02)); lip.rotation.y = Math.PI / 2; head.add(lip);
+  const T = V(-Math.cos(o.ta) * o.tail, Math.sin(o.ta) * o.tail); seg(tail, mat, V(0, 0), T, r * .95, segs);
+  if (o.pom) bub(tail, mat, T.clone().multiplyScalar(1 + r * 1.5 / o.tail), r * 1.3, segs);
+  else { const e = T.clone().normalize(); seg(tail, dark, T.clone().addScaledVector(e, r * .75), T.clone().addScaledVector(e, r * 1.5), r * .16, []); }   // ふくらまない残り
+  for (const [g, p] of [[root, F], [root, B], [neck, N]]) bub(g, dark, p, r * .42);                                                 // ねじり目
+  scene.add(root); return { root, fl, hl, neck, head, tail, ears, segs, o };
+}
+const A = [
+  animal('yel', { body: 1.15, leg: 1.25, neck: 2.0, na: 1.25, snout: .55, ear: .32, ea: 1.0, tail: .45, ta: .5, z: -2.3, f: 2.9, hop: .5, p: 0 }),                 // きりん
+  animal('pur', { body: 1.0, leg: .8, neck: .75, na: 1.2, snout: .5, ear: .42, ea: .3, tail: .55, ta: 1.3, z: -1.15, f: 3.6, hop: .45, p: 1.9, pom: 1 }),        // プードル
+  animal('red', { body: 1.2, leg: .78, neck: .7, na: 1.05, snout: .68, ear: .5, ea: 1.0, tail: .75, ta: .95, z: 0, f: 3.3, hop: .55, p: 3.4 }),                    // いぬ
+  animal('blu', { body: .8, leg: .45, hleg: 1, rise: .22, neck: .5, na: 1.2, snout: .42, ear: 1.15, ea: 1.25, tail: .3, ta: .8, z: 1.15, f: 2.5, hop: 1.1, p: 5.1 }), // うさぎ
+  animal('grn', { body: 2.0, leg: .42, neck: .5, na: .95, snout: .7, ear: .5, ea: -.9, tail: .65, ta: .6, z: 2.3, f: 4.4, hop: .3, p: .7 }),                      // 胴長のいぬ
+];
+// 机: 水玉のテーブルクロス（走る向きと逆に流す）
+const tc = document.createElement('canvas'); tc.width = 512; tc.height = 512;
+{ const c = tc.getContext('2d'); c.fillStyle = '#fff3ea'; c.fillRect(0, 0, 512, 512); c.fillStyle = '#ffd2d8'; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { c.beginPath(); c.arc(x * 64 + (y % 2 ? 48 : 16), y * 64 + 32, 13, 0, 7); c.fill(); } }
+const tt = new THREE.CanvasTexture(tc); tt.colorSpace = THREE.SRGBColorSpace; tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.repeat.set(12, 3); tt.anisotropy = 4;
+const table = new THREE.Mesh(new THREE.PlaneGeometry(72, 18), new THREE.MeshStandardMaterial({ map: tt, roughness: .9 })); table.rotation.x = -Math.PI / 2; table.position.z = -3; table.receiveShadow = true; scene.add(table);
+// 流れていく小物: 三角ぼうし・紙コップ・プレゼント・スタートの旗じるし
+const LOOP = 36, props = [], PAL = Object.values(COL), lam = c => new THREE.MeshStandardMaterial({ color: c, roughness: .7 });
+for (let i = 0; i < 12; i++) {
+  const k = i % 3, c = PAL[(i * 2 + 1) % 5], g = new THREE.Group(); let m;
+  if (k === 0) { m = new THREE.Mesh(new THREE.ConeGeometry(.55, 1.5, 20), lam(c)); m.position.y = .75; const b = bub(g, lam('#ffffff'), V(0, 1.52), .16); b.castShadow = true; }
+  else if (k === 1) { m = new THREE.Mesh(new THREE.CylinderGeometry(.42, .3, .9, 20), lam('#ffffff')); m.position.y = .45; const s = new THREE.Mesh(new THREE.CylinderGeometry(.405, .36, .3, 20), lam(c)); s.position.y = .5; g.add(s); }
+  else { m = new THREE.Mesh(new THREE.BoxGeometry(1.1, .8, 1.1), lam(c)); m.position.y = .4; const rb = new THREE.Mesh(new THREE.BoxGeometry(1.13, .83, .2), lam('#ffffff')); rb.position.y = .4; g.add(rb); }
+  m.castShadow = true; g.add(m); g.userData = { x: i * 3 + hash(i, 1) * 1.4, z: -4.6 - hash(i, 2) * 1.6 }; g.rotation.y = hash(i, 3) * 3; scene.add(g); props.push(g);
+}
+// 机にちらばる紙ふぶきと、ふってくる紙ふぶき
+const NC = 260, conf = new THREE.InstancedMesh(new THREE.PlaneGeometry(.16, .1), new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: .8 }), NC), cd = [];
+for (let i = 0; i < NC; i++) { const air = i < 70; cd.push({ x: hash(i, 4) * LOOP, z: -6 + hash(i, 5) * 10.5, y: air ? hash(i, 6) * 7 : .012 + i * .0002, r: hash(i, 7) * 6.3, air, sp: .6 + hash(i, 8) }); conf.setColorAt(i, new THREE.Color(i % 6 === 5 ? '#ffffff' : PAL[i % 5])); }
+conf.frustumCulled = false; scene.add(conf);
+// 奥の紙のガーランド（三角旗を、たるんだひもに）
+const gar = new THREE.Group(); scene.add(gar);
+{ const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute([-.42, 0, 0, .42, 0, 0, 0, -.95, 0], 3)); fg.computeVertexNormals();
+  for (let row = 0; row < 2; row++) for (let i = 0; i < 66; i++) { const u = (i % 11) / 11, x = i * .9 - 29.7, y = (row ? 7.6 : 5.6) - Math.sin(u * Math.PI) * .9, f = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: new THREE.Color(PAL[(i % 11 + row * 2) % 5]).lerp(new THREE.Color('#ffe6cf'), row ? .45 : .15), side: THREE.DoubleSide })); f.position.set(x, y, row ? -13 : -9); f.rotation.z = Math.cos(u * Math.PI) * -.28; f.userData.p = i; gar.add(f); }
+}
+const wrap = (x, L) => ((x % L) + L * 1.5) % L - L / 2, dm = new THREE.Object3D();
+let last = performance.now(), t = 0, dist = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; dist += dt * 3.2;
+  for (const a of A) {
+    const o = a.o, ph = t * o.f * 2 + o.p, s = Math.sin(ph), up = Math.max(0, s), dn = Math.max(0, -s);
+    // 順位が入れかわるように、前後の位置をゆっくり変える
+    a.root.position.set(1.5 * Math.sin(t * Math.PI * 2 / 18 * (1 + (o.p % 2 | 0)) + o.p * 1.7) + .5 * Math.sin(t * .9 + o.p), up * o.hop, o.z);
+    a.root.scale.set(1 + dn * .1, 1 - dn * .16, 1 + dn * .1); a.root.rotation.z = Math.cos(ph) * .13;
+    a.fl.rotation.z = -Math.cos(ph) * .5 + .1; a.hl.rotation.z = Math.cos(ph) * .55 - .1;
+    a.neck.rotation.z = Math.sin(ph - .9) * .1; a.head.rotation.z = Math.sin(ph - 1.6) * .22; a.tail.rotation.z = Math.sin(ph - 2.2) * .3;
+    a.ears.forEach((e, i) => { e.rotation.z = Math.sin(ph - 2.4) * (o.ear > .8 ? .22 : .12); e.rotation.x = (i ? 1 : -1) * Math.sin(ph - 2) * .1; });
+    a.segs.forEach((m, i) => { const q = 1 + .07 * Math.sin(ph * 2 - i * .9); m.scale.x = m.scale.z = m.geometry === ballG ? m.scale.y : q; });     // 節がきゅっきゅっ
+  }
+  tt.offset.x = dist / 6;
+  for (const p of props) p.position.set(wrap(p.userData.x - dist, LOOP), 0, p.userData.z);
+  cd.forEach((c, i) => {
+    if (c.air) { const y = 7 - ((t * c.sp + c.y) % 7.5); dm.position.set(wrap(c.x - dist * .6, 20), y, c.z * .6 + 1); dm.rotation.set(t * 3 * c.sp + c.r, c.r + t * 2, c.r); }
+    else { dm.position.set(wrap(c.x - dist, LOOP), c.y, c.z); dm.rotation.set(-Math.PI / 2, 0, c.r); }
+    dm.updateMatrix(); conf.setMatrixAt(i, dm.matrix);
+  }); conf.instanceMatrix.needsUpdate = true;
+  gar.position.x = -((dist * .35) % 9.9);
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

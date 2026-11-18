@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 37 金魚の池 七宝焼</title>
+<style>
+html,body{margin:0;height:100%;background:#0b3a42;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0dc9a;background:#0a2f36cc;padding:0 6px}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 37 ─ 金魚の池 / 七宝焼（有線七宝）　｜　見るだけ（自動でえさを追う）</div>
+<script>
+// 有線七宝に見立てた池。形はすべて細い金の線で仕切り、中をガラスの釉薬のこい色（るり・ひすい・朱・白）でうめる。
+// 地は深い青緑を金線のうずまきでうめ、色の中には気泡とむらを置く。線はふちが暗く芯が明るい 2 重がきで金属に見せる。
+// 仕上げに、ガラスのつや（斜めの大きなハイライト）を上にかけ、光の帯が通る所だけ金線が白くきらめく
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const RURI = '#1b3f9c', RURI2 = '#102a6e', HISUI = '#2fa07c', HISUI2 = '#1c7a62', SHU = '#d9442a', SHU2 = '#f0894a', HAKU = '#f3eedd', JI = '#0e4f58', KIN = '#e6c468', KIN_D = '#4a3610';
+let W, H, S, u, bg, wires, gloss, leaves = [], fishes = [], foods = [], rings = [], score = 0;
+
+// 金線: 暗いふち → 金の芯 の 2 重がき。mask があれば、きらめき用に同じ線を白でも残す
+function wire(x, lw, col, mask) {
+  x.lineCap = x.lineJoin = 'round';
+  x.lineWidth = lw * 2.1; x.strokeStyle = KIN_D; x.stroke();
+  x.lineWidth = lw; x.strokeStyle = col || KIN; x.stroke();
+  if (mask) { mask.lineCap = 'round'; mask.lineWidth = lw; mask.strokeStyle = '#fff6d8'; mask.stroke(); }
+}
+// 両方の絵に同じ道を引くための小さな助け
+function both(a, b, f) { a.beginPath(); f(a); if (b) { b.beginPath(); f(b); } }
+// 釉薬のむらと気泡
+function mottle(x, x0, y0, w, h, n, seed) {
+  for (let i = 0; i < n; i++) { const px = x0 + hash(i, seed) * w, py = y0 + hash(i, seed + 1) * h, r = (6 + hash(i, seed + 2) * 40) * u; const gr = x.createRadialGradient(px, py, 0, px, py, r); const c = hash(i, seed + 3) > .5 ? '255,255,255' : '0,10,30'; gr.addColorStop(0, `rgba(${c},.09)`); gr.addColorStop(1, `rgba(${c},0)`); x.fillStyle = gr; x.fillRect(px - r, py - r, r * 2, r * 2); }
+  for (let i = 0; i < n * 5; i++) { const px = x0 + hash(i, seed + 4) * w, py = y0 + hash(i, seed + 5) * h, r = (.5 + hash(i, seed + 6) * 1.3) * u; x.fillStyle = 'rgba(0,10,25,.28)'; x.beginPath(); x.arc(px, py, r, 0, 7); x.fill(); x.fillStyle = 'rgba(255,255,255,.5)'; x.beginPath(); x.arc(px - r * .35, py - r * .35, r * .35, 0, 7); x.fill(); }
+}
+
+function build() {
+  S = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; u = Math.sqrt(W * H) / 900;
+  cv.width = W * S; cv.height = H * S;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W * S; c.height = H * S; const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, 0, 0); return [c, x]; };
+  let x, m;[bg, x] = mk();[wires, m] = mk();
+  // 地: 深い青緑に、むらと気泡
+  x.fillStyle = JI; x.fillRect(0, 0, W, H); mottle(x, 0, 0, W, H, 260, 11);
+  // 地をうめる金線のうずまき（波・雲の模様）
+  const sp = 50 * u; let k = 0;
+  for (let gy = -1; gy * sp * .86 < H + sp; gy++) for (let gx = -1; gx * sp < W + sp; gx++) {
+    k++; const cx = (gx + (gy & 1) * .5 + (hash(k, 1) - .5) * .25) * sp, cy = (gy * .86 + (hash(k, 2) - .5) * .25) * sp, dir = (gx + gy) & 1 ? 1 : -1, a0 = hash(k, 3) * 6.28, R = sp * .44;
+    both(x, m, c => { for (let i = 0; i <= 40; i++) { const f = i / 40, a = a0 + dir * f * 9.2, r = R * (.08 + f * .92); c[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r); } const a = a0 + dir * 9.2; c.quadraticCurveTo(cx + Math.cos(a + dir * .5) * R * 1.25, cy + Math.sin(a + dir * .5) * R * 1.25, cx + Math.cos(a + dir * 1.1) * R * 1.12, cy + Math.sin(a + dir * 1.1) * R * 1.12); });
+    wire(x, 1.25 * u, null, m);
+  }
+  // はすの葉（葉脈で仕切って、ひすい色のこい・うすいを交互に）と花
+  const erase = f => { m.globalCompositeOperation = 'destination-out'; m.beginPath(); f(m); m.fill('evenodd'); m.globalCompositeOperation = 'source-over'; }; // 上に重なる形の下の線は、きらめき用の絵からも消す
+  leaves = [[.13, .2, 118, .6], [.9, .13, 96, 2.4], [.84, .84, 128, 3.9], [.1, .86, 92, 5.2], [.5, .02, 70, 1.5]].map(([fx, fy, r, a]) => ({ x: fx * W, y: fy * H, r: r * u, a }));
+  for (const [li, L] of leaves.entries()) {
+    erase(c => c.arc(L.x, L.y, L.r * 1.05, 0, 7));
+    const N = 14, gap = .22, ang = i => L.a + gap + i / N * (6.283 - gap * 2), rr = (i) => L.r * (1 + Math.sin(i * 2.4 + li) * .035);
+    for (let i = 0; i < N; i++) {
+      x.beginPath(); x.moveTo(L.x, L.y); for (let j = 0; j <= 6; j++) { const a = ang(i + j / 6), r = rr(i) * (1 + Math.sin(j / 6 * Math.PI) * .04); x.lineTo(L.x + Math.cos(a) * r, L.y + Math.sin(a) * r); } x.closePath();
+      const gr = x.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r); const c = i & 1 ? [HISUI, HISUI2] : ['#48b890', HISUI]; gr.addColorStop(0, '#9fdcb0'); gr.addColorStop(.35, c[0]); gr.addColorStop(1, c[1]); x.fillStyle = gr; x.fill();
+    }
+    x.save(); x.beginPath(); x.arc(L.x, L.y, L.r * 1.04, 0, 7); x.clip(); mottle(x, L.x - L.r, L.y - L.r, L.r * 2, L.r * 2, 26, 40 + li * 9); x.restore();
+    both(x, m, c => { for (let i = 0; i <= N; i++) { c.moveTo(L.x, L.y); const a = ang(i), r = rr(Math.min(i, N - 1)); c.lineTo(L.x + Math.cos(a) * r, L.y + Math.sin(a) * r); } for (let i = 0; i < N; i++) for (let j = 0; j <= 6; j++) { const a = ang(i + j / 6), r = rr(i) * (1 + Math.sin(j / 6 * Math.PI) * .04); c[j ? 'lineTo' : 'moveTo'](L.x + Math.cos(a) * r, L.y + Math.sin(a) * r); } c.moveTo(L.x + L.r * .09, L.y); c.arc(L.x, L.y, L.r * .09, 0, 7); });
+    wire(x, 1.7 * u, null, m);
+  }
+  for (const [fx, fy, r, li] of [[.27, .3, 46, 0], [.72, .9, 52, 2], [.97, .34, 40, 1]]) {
+    const cx = fx * W, cy = fy * H, R = r * u; erase(c => c.arc(cx, cy, R * .8, 0, 7));
+    for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 8; i++) {
+      const a = i / 8 * 6.283 + ring * .39 + li, r0 = R * (ring ? .62 : 1), w = R * (ring ? .2 : .27);
+      const pet = c => { c.moveTo(cx, cy); c.quadraticCurveTo(cx + Math.cos(a - .5) * r0 * .7 - Math.sin(a) * -w, cy + Math.sin(a - .5) * r0 * .7, cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); c.quadraticCurveTo(cx + Math.cos(a + .5) * r0 * .7, cy + Math.sin(a + .5) * r0 * .7, cx, cy); };
+      x.beginPath(); pet(x); const gr = x.createRadialGradient(cx, cy, R * .1, cx, cy, r0); gr.addColorStop(0, HAKU); gr.addColorStop(.55, '#f6cfc4'); gr.addColorStop(1, '#e8607a'); x.fillStyle = gr; x.fill(); both(x, m, pet); wire(x, 1.4 * u, null, m);
+    }
+    x.beginPath(); x.arc(cx, cy, R * .17, 0, 7); x.fillStyle = '#e9b830'; x.fill(); both(x, m, c => c.arc(cx, cy, R * .17, 0, 7)); wire(x, 1.4 * u, null, m);
+  }
+  // ふち: るり色の帯と金の玉
+  const bw = 15 * u;
+  x.fillStyle = RURI2; x.beginPath(); x.rect(0, 0, W, H); x.rect(bw, bw, W - bw * 2, H - bw * 2); x.fill('evenodd'); erase(c => { c.rect(0, 0, W, H); c.rect(bw, bw, W - bw * 2, H - bw * 2); }); erase(c => c.roundRect(W / 2 - 75 * u, 26 * u, 150 * u, 40 * u, 20 * u));
+  both(x, m, c => { c.rect(bw, bw, W - bw * 2, H - bw * 2); c.rect(bw * .22, bw * .22, W - bw * .44, H - bw * .44); const per = 2 * (W + H - bw * 2), n = Math.round(per / (bw * 1.5)); for (let i = 0; i < n; i++) { let d = i / n * per, px, py; const a = W - bw, b = H - bw; if (d < a) { px = bw / 2 + d; py = bw * .61; } else if ((d -= a) < b) { px = W - bw * .61; py = bw / 2 + d; } else if ((d -= b) < a) { px = W - bw / 2 - d; py = H - bw * .61; } else { d -= a; px = bw * .61; py = H - bw / 2 - d; } c.moveTo(px + bw * .2, py); c.arc(px, py, bw * .2, 0, 7); } });
+  wire(x, 1.3 * u, null, m);
+  // ガラスのつや: 斜めの大きなハイライトと、ふちの暗がり
+  [gloss, x] = mk();
+  let gr = x.createLinearGradient(0, 0, W * .9 + H * .45, H * .9 + W * .1);
+  [[0, 0], [.2, 0], [.26, .3], [.33, .08], [.37, .2], [.43, 0], [.7, 0], [.75, .12], [.8, 0], [1, 0]].forEach(([p, a]) => gr.addColorStop(p, `rgba(255,255,255,${a})`)); x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  gr = x.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.hypot(W, H) * .6); gr.addColorStop(0, 'rgba(0,10,20,0)'); gr.addColorStop(1, 'rgba(0,10,20,.42)'); x.fillStyle = gr; x.fillRect(0, 0, W, H);
+  // 金魚とえさ
+  if (!fishes.length) for (let i = 0; i < 5; i++) fishes.push({ x: (.3 + hash(i, 70) * .4), y: (.3 + hash(i, 71) * .4), a: hash(i, 72) * 6.28, ph: i * 1.7, kind: i % 3, L: [150, 128, 112, 136, 104][i], sp: 0, n: 1 });
+  else for (const f of fishes) { f.x /= f.W; f.y /= f.H; }
+  for (const f of fishes) { f.x *= W; f.y *= H; f.W = W; f.H = H; f.spr = [bodySprite(f, KIN), bodySprite(f, '#fffbe6')]; f.tail = [SHU2, '#ffc9b0', '#5f86dc'][f.kind]; }
+  foods = []; rings = []; for (let i = 0; i < 3; i++) feed(i * 5 + 1);
+}
+function feed(seed) {
+  for (let k = 0; k < 20; k++) { const px = (.1 + hash(seed, k) * .8) * W, py = (.12 + hash(seed, k + 50) * .76) * H; if (leaves.every(L => Math.hypot(px - L.x, py - L.y) > L.r + 30 * u) && foods.every(f => Math.hypot(px - f.x, py - f.y) > 90 * u)) { foods.push({ x: px, y: py, t: 0 }); return; } }
+}
+
+// 金魚（真上から。頭が +x）。朱・白・るりの 3 とおり。動かない胴は先に 1 枚の絵にしておき（ふつうの金線／きらめいた金線の 2 枚）、尾とひれだけ毎コマ描く
+const KIND = [[SHU, SHU2, HAKU], [HAKU, '#fff', SHU], [RURI, '#3f6fd0', SHU2]];
+const bodyPath = (x, L) => { x.moveTo(.5 * L, 0); x.bezierCurveTo(.5 * L, .25 * L, .05 * L, .27 * L, -.36 * L, .03 * L); x.lineTo(-.36 * L, -.03 * L); x.bezierCurveTo(.05 * L, -.27 * L, .5 * L, -.25 * L, .5 * L, 0); };
+function bodySprite(f, wc) {
+  const L = f.L * u, lw = 1.5 * u, [c0, c1, c2] = KIND[f.kind], c = document.createElement('canvas'); c.width = Math.ceil(L * 1.1 * S); c.height = Math.ceil(L * .64 * S);
+  const x = c.getContext('2d'); x.setTransform(S, 0, 0, S, L * .5 * S, L * .32 * S);
+  x.beginPath(); bodyPath(x, L); const gr = x.createRadialGradient(.1 * L, 0, 0, .1 * L, 0, .5 * L); gr.addColorStop(0, c1); gr.addColorStop(1, c0); x.fillStyle = gr; x.fill();
+  x.save(); x.clip();
+  // もよう（別の色のます）と、うろこの金線、気泡
+  x.beginPath(); x.ellipse(0, (f.kind - 1) * .05 * L, .17 * L, .13 * L, .4, 0, 7); x.moveTo(.56 * L, 0); x.arc(.44 * L, 0, .12 * L, 0, 7); x.fillStyle = c2; x.fill(); wire(x, lw * .8, wc);
+  x.beginPath(); for (let i = 0; i < 6; i++) for (let j = -2; j <= 2; j++) { const sx = (-.3 + i * .085) * L, sy = (j + (i & 1) * .5) * .085 * L; x.moveTo(sx + .055 * L * Math.cos(1), sy - .055 * L * Math.sin(1)); x.arc(sx, sy, .055 * L, -1, 1); } wire(x, lw * .45, wc);
+  for (let i = 0; i < 7; i++) { x.fillStyle = 'rgba(255,255,255,.55)'; x.beginPath(); x.arc((hash(i, f.L) - .4) * .7 * L, (hash(i, f.L + 1) - .5) * .36 * L, .8 * u, 0, 7); x.fill(); }
+  x.restore(); x.beginPath(); bodyPath(x, L); wire(x, lw * 1.15, wc);
+  for (const s of [-1, 1]) { x.beginPath(); x.arc(.36 * L, s * .15 * L, .05 * L, 0, 7); x.fillStyle = HAKU; x.fill(); wire(x, lw * .8, wc); x.fillStyle = '#10182a'; x.beginPath(); x.arc(.37 * L, s * .15 * L, .026 * L, 0, 7); x.fill(); }
+  return c;
+}
+function fish(f, glint) {
+  const L = f.L * u, sw = Math.sin(f.ph) * .5, hot = glint > .5, wc = hot ? '#fffbe6' : KIN, lw = 1.5 * u, pale = f.kind === 1;
+  g.save(); g.translate(f.x, f.y); g.rotate(f.a + Math.sin(f.ph + 1) * .06);
+  // 尾びれ（3 枚にさけた、ゆれる扇）
+  g.save(); g.translate(-.3 * L, 0); g.rotate(sw);
+  for (const s of [-1, 0, 1]) { g.save(); g.rotate(s * .62 + sw * .5 * Math.abs(s)); const tl = s ? .62 : .5; g.beginPath(); g.moveTo(0, 0); g.bezierCurveTo(-.2 * L, -.2 * L, -tl * L, -.2 * L, -(tl + .04) * L, -.05 * L); g.quadraticCurveTo(-(tl - .1) * L, 0, -(tl + .04) * L, .05 * L); g.bezierCurveTo(-tl * L, .2 * L, -.2 * L, .2 * L, 0, 0); g.fillStyle = f.tail; g.fill(); for (const k of [-.09, 0, .09]) { g.moveTo(-.12 * L, k * .5 * L); g.quadraticCurveTo(-.3 * L, k * 1.3 * L, -(tl - .12) * L, k * 1.5 * L); } wire(g, lw * .8, wc); g.restore(); }
+  g.restore();
+  // 胸びれ
+  for (const s of [-1, 1]) { g.save(); g.translate(.14 * L, s * .15 * L); g.rotate(s * (2.3 + Math.sin(f.ph * 1.3 + s) * .25)); g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(.16 * L, -.11 * L, .25 * L, 0); g.quadraticCurveTo(.16 * L, .11 * L, 0, 0); g.fillStyle = pale ? '#ffd9c8' : SHU2; g.fill(); wire(g, lw * .8, wc); g.restore(); }
+  g.drawImage(f.spr[hot ? 1 : 0], -.5 * L, -.32 * L, L * 1.1, L * .64);
+  g.restore();
+}
+
+let t = 0, last = performance.now(), feedT = 0, feedN = 100;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  feedT += dt; if (feedT > 1.5 && foods.length < 4) { feedT = 0; feed(++feedN * 3.7); }
+  // 光の帯（斜めに 6 秒で一巡）
+  const D = W + H * .5, band = ((t / 6 + .25) % 1) * (D * 1.5) - D * .25, bw = 110 * u;
+  // 泳ぎ: いちばん近いえさへ向きを変える。葉とほかの金魚はよける
+  for (const f of fishes) {
+    let tx, ty, best = 1e9, tgt = null; for (const fd of foods) { const d = Math.hypot(fd.x - f.x, fd.y - f.y); if (d < best && fishes.every(o => o === f || Math.hypot(fd.x - o.x, fd.y - o.y) >= d)) { best = d; tgt = fd; } } // えさは、いちばん近い金魚だけが追う
+    if (tgt) { tx = tgt.x; ty = tgt.y; } else { tx = W * (.5 + .3 * Math.cos(t * .3 + f.L)); ty = H * (.5 + .3 * Math.sin(t * .37 + f.L)); }
+    let dx = tx - f.x, dy = ty - f.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    for (const L of leaves) { const ex = f.x - L.x, ey = f.y - L.y, d = Math.hypot(ex, ey), lim = L.r + f.L * u * .45; if (d < lim) { const k = (lim - d) / lim * 5; dx += ex / d * k; dy += ey / d * k; } }
+    for (const o of fishes) if (o !== f) { const ex = f.x - o.x, ey = f.y - o.y, d = Math.hypot(ex, ey), lim = (f.L + o.L) * u * .62; if (d < lim && d > 0) { const k = (lim - d) / lim * 4; dx += ex / d * k; dy += ey / d * k; } }
+    let da = Math.atan2(dy, dx) - f.a; da = Math.atan2(Math.sin(da), Math.cos(da)); f.a += Math.max(-2.6 * dt, Math.min(2.6 * dt, da));
+    const want = (tgt ? 150 : 60) * u * (1 - Math.min(.6, Math.abs(da) * .4)); f.sp += (want - f.sp) * Math.min(1, dt * 3);
+    f.x += Math.cos(f.a) * f.sp * dt; f.y += Math.sin(f.a) * f.sp * dt; f.ph += dt * (4 + f.sp / u * .05);
+    const hx = f.x + Math.cos(f.a) * f.L * u * .45, hy = f.y + Math.sin(f.a) * f.L * u * .45;
+    for (const fd of foods) if (Math.hypot(fd.x - hx, fd.y - hy) < 17 * u) { fd.eaten = 1; rings.push({ x: fd.x, y: fd.y, t: 0 }); score++; }
+    foods = foods.filter(fd => !fd.eaten);
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); // 全面を消してから描く（前のコマの描きかけをためない）
+  g.setTransform(S, 0, 0, S, 0, 0); g.drawImage(bg, 0, 0, W, H);
+  // えさ（白い玉を金線の 2 重の輪でかこむ）と、食べたあとの波紋
+  for (const fd of foods) { fd.t += dt; const p = Math.min(1, fd.t * 3); g.beginPath(); g.arc(fd.x, fd.y, 15 * u * p, 0, 7); g.moveTo(fd.x + 24 * u * p, fd.y); g.arc(fd.x, fd.y, 24 * u * p, 0, 7); g.globalAlpha = .8; wire(g, 1.1 * u); g.globalAlpha = 1; g.beginPath(); g.arc(fd.x, fd.y, 6.5 * u * p, 0, 7); g.fillStyle = HAKU; g.fill(); wire(g, 1.3 * u); }
+  for (const r of rings) { r.t += dt; g.globalAlpha = Math.max(0, 1 - r.t / .9); for (const k of [1, .6]) { g.beginPath(); g.arc(r.x, r.y, (12 + r.t * 90) * k * u, 0, 7); wire(g, 1.5 * u, '#fff3c0'); } g.globalAlpha = 1; } rings = rings.filter(r => r.t < .9);
+  for (const f of fishes) fish(f, 1 - Math.min(1, Math.abs(f.x + f.y * .5 - band) / bw));
+  // 点数の札（るりのますに金の字）
+  const pw = 150 * u, ph = 40 * u, px = W / 2 - pw / 2, py = 26 * u; g.beginPath(); g.roundRect(px, py, pw, ph, ph / 2); g.fillStyle = RURI2; g.fill(); wire(g, 1.6 * u);
+  g.font = `700 ${22 * u}px "Hiragino Mincho ProN","Yu Mincho",serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = KIN; g.fillText('えさ ' + score, W / 2, py + ph / 2 + u);
+  // 金線のきらめき: 地の金線だけの絵を、光の帯の形に切りぬいて明るく重ねる（3 重にして帯のふちをぼかす）
+  g.setTransform(S, 0, 0, S, 0, 0); g.globalCompositeOperation = 'lighter';
+  for (const [k, al] of [[1, .3], [.6, .35], [.25, .35]]) { g.save(); g.beginPath(); g.moveTo(band - bw * k, 0); g.lineTo(band + bw * k, 0); g.lineTo(band + bw * k - H * .5, H); g.lineTo(band - bw * k - H * .5, H); g.clip(); g.globalAlpha = al; g.drawImage(wires, 0, 0, W, H); g.restore(); }
+  g.globalCompositeOperation = 'source-over'; g.drawImage(gloss, 0, 0, W, H);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', build); build(); requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 45 タワーディフェンス 砂浜の砂の城</title>
+<style>
+html,body{margin:0;height:100%;background:#e6c887;overflow:hidden}
+canvas{width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;text-shadow:0 1px 2px #5a4020}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 45 ─ タワーディフェンス / 砂浜の砂の城　｜　見るだけ（自動で守る・ときどき波が来る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+// 夏の砂浜で作った砂の城に見立てる: 色はかわいた砂（明るい黄土色）とぬれた砂（こい茶色）の 2 つ。作った物はみなぬれた砂で、角はくずれている。
+// 面には砂粒のざらつき。道は指でなぞったみぞ。真上に近い強い日ざしで、影は短くてこい。色のある物は貝がら・海藻・プラスチックの道具だけ。
+// 12 秒に 1 度、手前から波が上がってきて、砂をぬれた色に変え、泡の線を残して引く。砂にかいた点数の線も波が消す
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xe6c887);
+const cam = new THREE.PerspectiveCamera(40, 1, .1, 120);
+scene.add(new THREE.HemisphereLight(0xfff6e0, 0xc9a060, .95));
+const sun = new THREE.DirectionalLight(0xfff1d0, 3.1); sun.position.set(3.5, 15, 3); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 1.6; sun.shadow.bias = -.0008; sun.shadow.normalBias = .03;
+Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, near: 1, far: 40 }); scene.add(sun);
+
+let seed = 17; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+const hash = (a, b = 0, c = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return n - Math.floor(n); };
+function tex(w, h, draw, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
+// 砂粒: 色のつぶつぶと、ざらつき（法線をゆらす高さの絵）
+const speck = tex(256, 256, (x) => { x.fillStyle = '#fff'; x.fillRect(0, 0, 256, 256); for (let i = 0; i < 9000; i++) { const v = rnd(); x.fillStyle = v < .5 ? `rgba(90,60,30,${.1 + rnd() * .22})` : v < .9 ? `rgba(255,250,235,${.2 + rnd() * .5})` : 'rgba(60,40,30,.5)'; x.fillRect(rnd() * 256, rnd() * 256, 1 + (rnd() * 2 | 0), 1 + (rnd() * 2 | 0)); } });
+const rough = tex(256, 256, (x) => { const d = x.createImageData(256, 256); for (let i = 0; i < d.data.length; i += 4) { const v = 80 + rnd() * 175 | 0; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); }, false);
+const DRY = 0xe7c57c, WET = 0x8d6436;
+const sandM = (c, rep = 2) => { const a = speck.clone(), b = rough.clone(); a.needsUpdate = b.needsUpdate = true; a.repeat.set(rep, rep); b.repeat.set(rep, rep); return new THREE.MeshStandardMaterial({ color: c, map: a, bumpMap: b, bumpScale: 2.2, roughness: .95 }); };
+const wetM = sandM(WET, 2), wetM2 = sandM(0x9a7040, 2), holeM = new THREE.MeshBasicMaterial({ color: 0x2e1c0e });
+// 角をくずす: 頂点を少しずらし、上の角はたれさせる
+function crumble(g, amt = .05, sag = .06) { const p = g.attributes.position; g.computeBoundingBox(); const top = g.boundingBox.max.y; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = Math.round(x * 30), l = Math.round(y * 30), m = Math.round(z * 30); const e = Math.max(0, 1 - (top - y) * 5); p.setXYZ(i, x + (hash(k, l, m) - .5) * amt, y + (hash(l, m, k) - .5) * amt - e * hash(m, k, l) * sag, z + (hash(m, l, k) - .5) * amt); } g.computeVertexNormals(); return g; }
+const add = (g, m, x, y, z, p = scene) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; p.add(o); return o; };
+
+// ── 指でなぞった道（みぞ）。海から上がって城の門まで
+const curve = new THREE.CatmullRomCurve3([[.6, 9.5], [1.9, 5.6], [-2.2, 3.7], [-2.6, 1.4], [1.7, .4], [2.4, -1.7], [.2, -2.7], [0, -3.9]].map(([x, z]) => new THREE.Vector3(x, 0, z)));
+const PATH = curve.getSpacedPoints(240), CASTLE = [0, -5.9];
+function pathD(x, z) { let d = 1e9; for (let i = 0; i < PATH.length; i += 2) { const dx = PATH[i].x - x, dz = PATH[i].z - z, q = dx * dx + dz * dz; if (q < d) d = q; } return Math.sqrt(d); }
+const U = { edge: { value: 9 }, wet: { value: 9 }, t: { value: 0 }, foamZ: { value: 9 }, foamA: { value: 0 } };
+{
+  const g = new THREE.PlaneGeometry(46, 40, 184, 160); g.rotateX(-Math.PI / 2); const p = g.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color(), dry = new THREE.Color(DRY), damp = new THREE.Color(0xa87c48);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), d = pathD(x, z), rc = Math.hypot(x - CASTLE[0], z - CASTLE[1]);
+    let h = .07 * Math.sin(x * .8 + 1) * Math.cos(z * .7) + (hash(Math.round(x * 4), Math.round(z * 4)) - .5) * .035;
+    const groove = Math.exp(-((d / .4) ** 2)), moat = Math.exp(-(((rc - 3.25) / .34) ** 2)) * (z > -3.6 && Math.abs(x) < .7 ? 0 : 1);
+    h += -.2 * groove + .07 * Math.exp(-(((d - .62) / .2) ** 2)) - .22 * moat + .08 * Math.exp(-(((rc - 3.85) / .22) ** 2));
+    p.setY(i, h); const k = Math.min(1, groove * 1.1 + moat); c.copy(dry).lerp(damp, k * .8).multiplyScalar(.94 + hash(Math.round(x * 2), Math.round(z * 2)) * .1); col.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
+  const m = sandM(0xffffff, 14); m.vertexColors = true;
+  // 砂の色の上に、ぬれたあと・水・泡を重ねる
+  m.onBeforeCompile = s => {
+    Object.assign(s.uniforms, { uEdge: U.edge, uWet: U.wet, uT: U.t, uFoamZ: U.foamZ, uFoamA: U.foamA });
+    s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvW=(modelMatrix*vec4(position,1.)).xyz;');
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec3 vW; uniform float uEdge,uWet,uT,uFoamZ,uFoamA;
+      float hs(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+      float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hs(i),hs(i+vec2(1,0)),f.x),mix(hs(i+vec2(0,1)),hs(i+vec2(1,1)),f.x),f.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      float nz=vn(vW.xz*.8)+.5*vn(vW.xz*2.1);
+      float wet=smoothstep(-.15,.35,vW.z-(uWet-nz*1.1));
+      diffuseColor.rgb*=mix(vec3(1.),vec3(.56,.44,.33),wet);
+      float wd=vW.z-(uEdge-nz*.8+sin(vW.x*1.2+uT*.9)*.22);
+      float water=smoothstep(0.,.3,wd);
+      diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(.45,.80,.76),vec3(.10,.50,.62),clamp(wd*.22,0.,1.)),water*clamp(.3+wd*.2,0.,.9));
+      float foam=smoothstep(-.08,.02,wd)*smoothstep(.55,.08,wd)*(.5+.5*step(.3,vn(vW.xz*7.+uT)));
+      foam+=water*step(.62,vn(vec2(vW.x*3.,vW.z*6.-uT*1.5)))*smoothstep(3.5,.3,wd)*.5;
+      float left=smoothstep(.16,.02,abs(vW.z-(uFoamZ-nz*1.1)-.1))*uFoamA*step(.38,vn(vW.xz*10.))*(1.-water);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(1.),clamp(foam+left,0.,1.));`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.22,max(wet*.55,water));');
+  };
+  const ground = new THREE.Mesh(g, m); ground.receiveShadow = true; scene.add(ground);
+}
+
+// ── バケツ型の塔: 上がせまい円すい台、ふちのでこぼこ、指であけた窓、棒きれの旗
+const stickM = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: .9 }), shellM = new THREE.MeshStandardMaterial({ color: 0xfbe9e0, roughness: .35 }), weedM = new THREE.MeshStandardMaterial({ color: 0x3f7a3a, roughness: .5, side: THREE.DoubleSide });
+const shellG = (() => { const g = new THREE.SphereGeometry(.16, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2); const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)), k = 1 + Math.sin(a * 7) * .08; p.setXYZ(i, p.getX(i) * k, p.getY(i) * .45, p.getZ(i) * k * (p.getZ(i) < 0 ? .5 : 1)); } g.computeVertexNormals(); return g; })();
+function bucketTower(x, z, r, h, parent = scene, y = 0, flag = 0) {
+  const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g);
+  add(crumble(new THREE.CylinderGeometry(r * .74, r, h, 22, 5), .05, .08), wetM, 0, h / 2, 0, g);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + x; add(crumble(new THREE.BoxGeometry(r * .32, r * .26, r * .26, 2, 2, 2), .04, .05), wetM2, Math.cos(a) * r * .56, h + r * .1, Math.sin(a) * r * .56, g).rotation.y = -a; }
+  for (const a of [.5, 1.25, 2.1]) add(new THREE.SphereGeometry(r * .13, 8, 6), holeM, Math.cos(a) * r * .84, h * .58, Math.sin(a) * r * .84, g).scale.set(1, 1.5, 1);
+  if (flag) { const s = add(new THREE.CylinderGeometry(.025, .035, 1.1, 5), stickM, 0, h + .5, 0, g); s.rotation.z = .12; const f = add(new THREE.PlaneGeometry(.42, .26), new THREE.MeshStandardMaterial({ color: flag, side: THREE.DoubleSide, roughness: .7 }), .16, h + .88, 0, g); f.rotation.y = -.4; }
+  return g;
+}
+const towers = [[-.4, 2.6], [3.7, .5], [-.1, -1.0], [-4.3, 2.6]].map(([x, z], i) => { const g = bucketTower(x, z, .72, 1.15, scene, -.03, [0xe23a3a, 0, 0x2f7de0, 0][i]); const s = add(shellG, shellM, 0, 1.36, 0, g); s.scale.setScalar(1.5); return { g, x, z, cd: i * .3, sq: 0, s }; });
+// ── 城: 土台の山、四すみの塔、かべ、まん中の大きい塔、門
+{
+  const c = new THREE.Group(); c.position.set(CASTLE[0], 0, CASTLE[1]); scene.add(c);
+  add(crumble(new THREE.CylinderGeometry(2.35, 2.9, .6, 40, 3), .08, .1), wetM, 0, .25, 0, c);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bucketTower(sx * 1.65, sz * 1.25, .62, 1.35, c, .5, sz > 0 && sx < 0 ? 0xf2c23a : 0);
+  for (const sz of [-1, 1]) add(crumble(new THREE.BoxGeometry(2.6, .8, .42, 12, 4, 2), .06, .1), wetM2, 0, .9, sz * 1.25, c);
+  for (const sx of [-1, 1]) add(crumble(new THREE.BoxGeometry(.42, .8, 1.9, 2, 4, 10), .06, .1), wetM2, sx * 1.65, .9, 0, c);
+  add(crumble(new THREE.BoxGeometry(1.9, 1.1, 1.5, 8, 5, 6), .07, .1), wetM, 0, 1.0, -.1, c);
+  bucketTower(0, -.1, .85, 1.5, c, 1.5, 0xe23a3a);
+  const door = add(new THREE.CylinderGeometry(.34, .34, .3, 14, 1, false, 0, Math.PI), holeM, 0, .52, 1.36, c); door.rotation.set(Math.PI / 2, 0, Math.PI / 2); door.scale.y = 1;
+  [[-.9, 1.0, 1.5], [.9, 1.05, 1.5], [0, 1.25, 1.5], [-1.65, 1.3, 1.9], [1.65, 1.3, 1.9]].forEach(([x, y, z], i) => { const s = add(shellG, i % 2 ? shellM : new THREE.MeshStandardMaterial({ color: 0xf6b8a8, roughness: .35 }), x, y - .15, z - .02, c); s.rotation.x = Math.PI / 2; });
+  const w = add(new THREE.TorusGeometry(.5, .06, 5, 14, 2.4), weedM, 1.0, .95, 1.5, c); w.rotation.z = 3.6; w.scale.z = .3;
+}
+// ── ちらばった貝、ひとで、海藻、プラスチックのシャベルとバケツ
+[[5.2, 4.8], [-5.5, .2], [3.2, -3.4], [-3.6, -2.4], [6.8, -4.6], [-7.4, 4.9], [-1.2, 5.6], [4.4, 6.4]].forEach(([x, z], i) => { const s = add(shellG, i % 3 ? shellM : new THREE.MeshStandardMaterial({ color: 0xf6b8a8, roughness: .35 }), x, .02, z); s.rotation.y = i * 1.3; s.scale.setScalar(.9 + (i % 3) * .3); });
+{ const sh = new THREE.Shape(); for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5, r = i % 2 ? .16 : .42; i ? sh.lineTo(Math.cos(a) * r, Math.sin(a) * r) : sh.moveTo(r, 0); } const g = new THREE.ExtrudeGeometry(sh, { depth: .07, bevelEnabled: true, bevelSize: .04, bevelThickness: .04, bevelSegments: 2 }); g.rotateX(-Math.PI / 2); add(g, new THREE.MeshStandardMaterial({ color: 0xee7a3a, roughness: .6 }), -4.6, .04, -3.6).rotation.y = .5; }
+for (const [x, z, r] of [[3.4, 5.2, .4], [-5.6, 5.9, 2.2]]) { const w = add(new THREE.TorusGeometry(.7, .05, 4, 16, 3.6), weedM, x, .05, z); w.rotation.set(Math.PI / 2, 0, r); w.castShadow = false; }
+const plast = c => new THREE.MeshStandardMaterial({ color: c, roughness: .25, side: THREE.DoubleSide });
+const bucket = new THREE.Group(), shovel = new THREE.Group(); scene.add(bucket, shovel);
+{ add(new THREE.CylinderGeometry(.95, .72, 1.3, 28, 1, true), plast(0x1f7fe0), 0, .65, 0, bucket); add(new THREE.CylinderGeometry(.72, .72, .06, 28), plast(0x1f7fe0), 0, .03, 0, bucket); add(new THREE.TorusGeometry(.97, .05, 6, 28), plast(0x1f7fe0), 0, 1.3, 0, bucket).rotation.x = Math.PI / 2;
+  add(crumble(new THREE.CylinderGeometry(.88, .85, .1, 24, 1), .04, .04), wetM, 0, 1.02, 0, bucket); const hd = add(new THREE.TorusGeometry(.96, .035, 5, 24, Math.PI), plast(0xffffff), 0, 1.25, 0, bucket); hd.rotation.x = -1.25;
+  const red = plast(0xe8342c); add(new THREE.CylinderGeometry(.07, .07, 1.5, 8), red, 0, .1, 0, shovel).rotation.z = Math.PI / 2; add(new THREE.TorusGeometry(.2, .06, 6, 14), red, -.95, .1, 0, shovel).rotation.x = Math.PI / 2;
+  const bl = new THREE.BoxGeometry(.95, .06, .7, 6, 1, 6), p = bl.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i); p.setY(i, p.getY(i) + z * z * .45 + (x > 0 ? x * x * .15 : 0)); p.setZ(i, z * (1 - Math.max(0, x) * .5)); } bl.computeVertexNormals(); add(bl, red, 1.15, .08, 0, shovel); }
+// 砂にかいた点数の線（5 本めはななめ）。波が来ると消える
+const tally = new THREE.Group(); scene.add(tally);
+const marks = Array.from({ length: 10 }, (_, i) => { const five = i % 5 === 4, m = new THREE.Mesh(new THREE.BoxGeometry(five ? 1.05 : .09, .02, five ? .09 : .62), new THREE.MeshBasicMaterial({ color: 0x7a5630 })); m.position.set((i >= 5 ? 1.4 : 0) + (five ? .33 : (i % 5) * .22), .02, 0); if (five) m.rotation.y = .5; m.visible = false; tally.add(m); return m; });
+
+// ── かに と やどかり
+const crabM = new THREE.MeshStandardMaterial({ color: 0xe8552c, roughness: .4 }), eyeM = new THREE.MeshBasicMaterial({ color: 0x111111 }), hShellM = new THREE.MeshStandardMaterial({ color: 0xf1dcb8, roughness: .4 });
+function crab(hermit) {
+  const g = new THREE.Group(), b = new THREE.Group(); g.add(b); scene.add(g); const legs = [];
+  if (hermit) { const s = add(new THREE.ConeGeometry(.27, .5, 10), hShellM, -.08, .3, 0, b); s.rotation.z = .9; const s2 = add(new THREE.TorusGeometry(.17, .05, 5, 12), new THREE.MeshStandardMaterial({ color: 0xb8784a, roughness: .5 }), -.02, .26, 0, b); s2.rotation.set(0, Math.PI / 2, 0); s2.rotation.z = .9; add(new THREE.SphereGeometry(.13, 10, 8), crabM, .2, .14, 0, b); }
+  else add(new THREE.SphereGeometry(.27, 14, 10), crabM, 0, .17, 0, b).scale.set(.8, .5, 1.15);
+  for (const s of [-1, 1]) {
+    add(new THREE.SphereGeometry(.035, 6, 5), eyeM, .2, hermit ? .3 : .33, .08 * s, b); add(new THREE.CylinderGeometry(.012, .012, .12, 4), crabM, .2, hermit ? .25 : .27, .08 * s, b);
+    add(new THREE.SphereGeometry(.1, 8, 6), crabM, .26, .13, (hermit ? .16 : .3) * s, b).scale.set(1.2, .7, .8);
+    for (let i = 0; i < 3; i++) { const l = add(new THREE.BoxGeometry(.04, .04, .26), crabM, -.14 + i * .13 - (hermit ? -.12 : 0), .1, (hermit ? .16 : .34) * s, b); l.rotation.x = -.5 * s; legs.push(l); }
+  }
+  g.visible = false; return { g, b, legs, hermit, alive: false, u: 0, hp: 0, dead: 0 };
+}
+const crabs = Array.from({ length: 12 }, (_, i) => crab(i % 3 === 2));
+const shots = Array.from({ length: 8 }, () => { const m = add(shellG, shellM, 0, -5, 0); m.scale.setScalar(.9); return { m, t: 9, from: new THREE.Vector3(), to: null }; });
+// 砂けむり
+const NP = 60, pp = new Float32Array(NP * 3).fill(-9), pv = new Float32Array(NP * 3), pl = new Float32Array(NP), pGeo = new THREE.BufferGeometry(); pGeo.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+const puff = new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0xd9b672, size: .14 })); puff.frustumCulled = false; scene.add(puff); let pi = 0;
+function burst(x, y, z) { for (let i = 0; i < 9; i++) { const j = (pi++ % NP) * 3; pp[j] = x; pp[j + 1] = y; pp[j + 2] = z; pv[j] = (rnd() - .5) * 2.4; pv[j + 1] = 1.5 + rnd() * 2; pv[j + 2] = (rnd() - .5) * 2.4; pl[j / 3] = .5; } }
+
+const tgt = new THREE.Vector3(0, 0, -.7); let tallyZ = 5.6;
+function resize() {
+  const a = innerWidth / innerHeight, tall = a < 1; renderer.setSize(innerWidth, innerHeight, false); cam.aspect = a; cam.updateProjectionMatrix();
+  const k = Math.max(1, .7 / a); cam.position.set(0, 17 * k, -.7 + 11 * k); cam.lookAt(tgt);
+  if (tall) { bucket.position.set(3.6, 0, -9.6); shovel.position.set(-3.4, 0, -9.8); shovel.rotation.y = .5; tally.position.set(-4.3, 0, 6.2); tallyZ = 6.2; }
+  else { bucket.position.set(7.2, 0, -1.6); shovel.position.set(-7.3, 0, -1.2); shovel.rotation.y = 1.9; tally.position.set(5.2, 0, 2.2); tallyZ = 2.2; }
+}
+addEventListener('resize', resize); resize();
+
+// ── 進行: かには 1.5 秒ごとに海から出て、みぞを歩く。塔は近いかにへ貝がらを投げる
+const SPEED = 1 / 15, v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
+let simT = 0, spawnT = 0, spawnN = 0, score = 0;
+function sim(dt, quiet) {
+  simT += dt; spawnT -= dt;
+  if (spawnT <= 0) { spawnT = 1.5; const c = crabs.find(c => !c.alive && c.dead <= 0 && c.hermit === (spawnN % 3 === 2)) || crabs.find(c => !c.alive && c.dead <= 0); spawnN++; if (c) { c.alive = true; c.u = 0; c.hp = c.hermit ? 3 : 2; c.g.visible = true; c.b.rotation.set(0, 0, 0); c.b.position.y = 0; } }
+  for (const c of crabs) {
+    if (c.alive) {
+      c.u += dt * SPEED * (c.hermit ? .8 : 1); if (c.u >= .98) { c.alive = false; c.g.visible = false; continue; }
+      curve.getPointAt(c.u, v3); curve.getTangentAt(c.u, v4); c.g.position.set(v3.x, -.13 + Math.abs(Math.sin(simT * 9 + c.u * 80)) * .03, v3.z);
+      c.g.rotation.y = Math.atan2(-v4.z, v4.x) + (c.hermit ? 0 : Math.PI / 2);         // かには横歩き
+      c.legs.forEach((l, i) => l.rotation.z = Math.sin(simT * 16 + i * 1.7) * .5);
+    } else if (c.dead > 0) { c.dead -= dt; const k = 1 - c.dead / .8; c.b.rotation.x = Math.min(1, k * 3) * Math.PI; c.b.position.y = Math.sin(Math.min(1, k * 2) * Math.PI) * .6 - Math.max(0, k - .6) * 1.2; if (c.dead <= 0) c.g.visible = false; }
+  }
+  for (const T of towers) {
+    T.cd -= dt; T.sq *= Math.exp(-dt * 7); T.g.scale.set(1 + T.sq * .1, 1 - T.sq * .14, 1 + T.sq * .1); T.s.visible = T.cd < .25;
+    if (T.cd > 0) continue; let best = null;
+    for (const c of crabs) if (c.alive && c.u > .12 && Math.hypot(c.g.position.x - T.x, c.g.position.z - T.z) < 3.3 && (!best || c.u > best.u)) best = c;
+    const s = best && shots.find(s => s.t >= 1); if (!s) continue;
+    T.cd = 1.05; T.sq = 1; s.t = 0; s.from.set(T.x, 1.4, T.z); s.to = best;
+  }
+  for (const s of shots) {
+    if (s.t >= 1) { s.m.visible = false; continue; } s.t += dt / .42; s.m.visible = true; const c = s.to;
+    s.m.position.lerpVectors(s.from, c.g.position, Math.min(1, s.t)); s.m.position.y += Math.sin(Math.min(1, s.t) * Math.PI) * 1.3 + .15; s.m.rotation.x += dt * 14; s.m.rotation.z += dt * 9;
+    if (s.t >= 1 && c.alive) { burst(c.g.position.x, .1, c.g.position.z); if (--c.hp <= 0) { c.alive = false; c.dead = .8; if (!quiet) { score++; } } }
+  }
+  for (let i = 0; i < NP; i++) if (pl[i] > 0) { pl[i] -= dt; const j = i * 3; pv[j + 1] -= 9 * dt; pp[j] += pv[j] * dt; pp[j + 1] += pv[j + 1] * dt; pp[j + 2] += pv[j + 2] * dt; if (pl[i] <= 0) pp[j + 1] = -9; }
+  pGeo.attributes.position.needsUpdate = true;
+}
+for (let i = 0; i < 320; i++) sim(.05, true);       // 開いたときから列ができているように、先に進めておく
+
+const CYCLE = 12, sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+let t = 0, last = performance.now(), wetLine = 7.2, prevEdge = 9;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt; sim(dt, false);
+  // 波: 1.4 秒から上がり、3.6 秒でいちばん上、そのあとゆっくり引く
+  const tc = t % CYCLE, up = sm((tc - 1.4) / 2.2), down = sm((tc - 3.6) / 3.6), reach = up * (1 - down);
+  const edge = 7.4 + Math.sin(t * 1.1) * .25 - reach * 4.6;
+  wetLine = Math.min(edge - .15, wetLine + dt * .42);               // ぬれたあとは、少しずつかわいて手前へもどる
+  if (edge > prevEdge && prevEdge < 4.5 && U.foamA.value < .5) { U.foamZ.value = prevEdge; U.foamA.value = 1; }   // 引きはじめに泡の線を残す
+  U.foamA.value = Math.max(0, U.foamA.value - dt * .2); prevEdge = edge;
+  U.edge.value = edge; U.wet.value = wetLine; U.t.value = t;
+  if (edge < tallyZ + .4 || score > 10) score = 0;
+  marks.forEach((m, i) => m.visible = i < score);
+  renderer.render(scene, cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

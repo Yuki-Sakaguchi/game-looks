@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 46 サーカスの綱渡り 針金のワイヤーアート</title>
+<style>
+html,body{margin:0;height:100%;background:#f3f1ec;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#222;opacity:.8}
+</style>
+<div id="cap">LOOK 46 ─ サーカスの綱渡り / 針金 1 本のワイヤーアート　｜　見るだけ（自動で綱をわたり、台がゆっくり回る）</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 黒い針金を手で曲げた「一筆がきの線」だけの立体に見立てる。面は 1 枚もなく、形はすべて細い管（TubeGeometry）。
+// 線は少しがたつき、つなぎ目は巻きつけた輪でとめる。白い壁の前に置き、強い 1 灯で壁に影の線画を落とす。
+// 色は黒い針金・白い壁・赤い玉 1 つだけ。回転台がゆっくり回るので、針金と影の重なりが変わっていく
+import * as THREE from 'three';
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#e9e6e0');
+const cam = new THREE.PerspectiveCamera(30, 1, .1, 200);
+const resize = () => {
+  renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+  const th = Math.tan(cam.fov * Math.PI / 360), d = Math.max(5.1 / th, 5.6 / (th * cam.aspect));   // たて長では引く
+  cam.position.set(.5 - d * .1, 3.9 + d * .03, d); cam.lookAt(.7, 3.95, 0);
+}; addEventListener('resize', resize); resize();
+
+// 白い壁と床、強い 1 灯
+const white = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1 });
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(90, 60), white); wall.position.z = -2.7; wall.receiveShadow = true;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(90, 40), white); floor.rotation.x = -Math.PI / 2; floor.position.z = 17.3; floor.receiveShadow = true; scene.add(wall, floor);
+scene.add(new THREE.AmbientLight(0xffffff, 1.55));
+const spot = new THREE.SpotLight(0xfff6e8, 2.5, 0, .95, .85, 0); spot.position.set(-7.5, 8.5, 11); spot.target.position.set(.6, 3.2, -2.7);
+spot.castShadow = true; spot.shadow.mapSize.set(2048, 2048); spot.shadow.camera.near = 5; spot.shadow.camera.far = 32; spot.shadow.bias = -.0004; spot.shadow.radius = 2.5; scene.add(spot, spot.target);
+
+// 針金: 点を通る曲線を、手のがたつきを足して細い管にする
+const wireMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0b, roughness: .4, metalness: .2 });
+let wid = 0;
+const tube = (v, r, n) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(v, false, 'catmullrom', .5), n, r, 5, false);
+function wire(parent, pts, jit = .035, r = .034) {
+  const id = ++wid, v = pts.map((p, i) => new THREE.Vector3(p[0] + (hash(id, i) - .5) * jit * 2, p[1] + (hash(id, i + 50) - .5) * jit * 2, (p[2] || 0) + (hash(id, i + 90) - .5) * jit * 2));
+  const m = new THREE.Mesh(tube(v, r, pts.length * 7), wireMat); m.castShadow = true; parent.add(m); return m;
+}
+// つなぎ目の「巻きつけ」（小さなばね）
+function coil(parent, x, y, z = 0, axis = 'y', R = .075, turns = 3.5) {
+  const p = []; for (let i = 0; i <= turns * 8; i++) { const a = i / 8 * Math.PI * 2, u = (i / (turns * 8) - .5) * .26, c = Math.cos(a) * R, s = Math.sin(a) * R; p.push(axis === 'y' ? [x + c, y + u, z + s] : [x + u, y + c, z + s]); }
+  return wire(parent, p, .008, .024);
+}
+const ring = (cx, cy, R, n = 14, z = 0, over = 2) => { const p = []; for (let i = 0; i <= n + over; i++) { const a = i / n * Math.PI * 2 + 1.6; p.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R, z + (i > n ? .05 : 0)]); } return p; };
+
+const stage = new THREE.Group(); scene.add(stage);
+const ROPE = 2.4, PX = 3.6, PH = 6.4;
+// 柱（床のうずまきの足 → まっすぐ上へ → てっぺんの輪）と、テントの波形の屋根を一筆で
+for (const sx of [-1, 1]) {
+  const p = []; for (let i = 0; i <= 20; i++) { const a = i / 8 * Math.PI * 2, r = .75 * (1 - i / 20); p.push([sx * PX + Math.cos(a) * r, .04, Math.sin(a) * r]); }
+  for (let y = .8; y <= PH; y += .8) p.push([sx * PX, y, 0]);
+  wire(stage, p.concat(ring(sx * PX, PH + .14, .14, 8).slice(2)), .03, .04);
+  coil(stage, sx * PX, ROPE, 0, 'y', .09);
+}
+{ const p = []; for (let k = 0; k <= 16; k++) { const x = -PX + k * PX / 8, top = PH + .15 + (1 - Math.abs(x) / PX) * 1.0; p.push([x, top - (k % 2 ? .24 : 0), 0]); } wire(stage, p, .03);
+  wire(stage, [[0, PH + 1.15], [0, PH + 1.9], [.5, PH + 1.72], [.02, PH + 1.52], [.04, PH + 1.7]], .02); coil(stage, 0, PH + 1.2, 0, 'y', .06, 2.5); }
+// 綱
+{ const p = []; for (let k = 0; k <= 12; k++) { const x = -PX + k * PX / 6; p.push([x, ROPE - .07 * (1 - (x / PX) ** 2), 0]); } wire(stage, p, .006, .028); }
+// 奥: 輪くぐりの輪と台
+{ const g = new THREE.Group(); g.position.set(-2.1, 0, -1.2); stage.add(g); const p = []; for (let i = 0; i <= 14; i++) { const a = i / 8 * Math.PI * 2, r = .5 * (1 - i / 14); p.push([Math.cos(a) * r, .04, Math.sin(a) * r]); }
+  p.push([0, .35], [0, .72]); wire(g, p.concat(ring(0, 1.42, .7, 16).map(q => [q[0], q[1], 0])), .03); coil(g, 0, .72, 0, 'y', .07); }
+// 手前: 一筆がきのぞう
+{ const g = new THREE.Group(); g.position.set(2.05, .02, 1.25); g.scale.setScalar(1.12); stage.add(g);
+  wire(g, [[1.3, 1.5], [1.42, 1.3], [1.4, 1.02], [1.22, .84], [1.03, .92], [.92, 1.2], [.62, 1.4], [.36, 1.22], [.28, .86], [.5, .72], [.64, 1.0], [.4, 1.32], [-.3, 1.34], [-.8, 1.14], [-.97, .7], [-.95, .02], [-.6, .02], [-.6, .5], [-.2, .58], [.2, .52], [.2, .02], [.55, .02], [.55, .58], [.8, .72], [.98, .8]], .03);
+  wire(g, [[-.9, 1.0], [-1.1, .8], [-1.18, .5], [-1.1, .42], [-1.2, .36]], .02, .026); coil(g, .82, 1.12, .03, 'x', .04, 2); }
+
+// 一輪車の曲芸師
+const rider = new THREE.Group(); stage.add(rider);
+const WR = .5, wheel = new THREE.Group(); wheel.position.y = WR + .03; rider.add(wheel);
+wire(wheel, ring(0, 0, WR, 16), .022); wire(wheel, [[-WR, 0], [0, .03], [WR, 0]], .02, .026); wire(wheel, [[0, -WR], [.03, 0], [0, WR]], .02, .026); coil(wheel, 0, 0, 0, 'x', .07, 2.5);
+wire(rider, [[0, WR, .09], [.02, 1.0, .05], [0, 1.5, 0], [-.2, 1.56, 0], [.2, 1.6, 0], [0, 1.5, 0]], .012);
+const upper = new THREE.Group(); upper.position.y = 1.58; rider.add(upper);
+wire(upper, [[0, 0], [.03, .4], [.02, .8]].concat(ring(.04, 1.03, .21, 12).map(q => [q[0], q[1], 0]), [[-.1, 1.22], [.1, 1.62], [.22, 1.2]]), .025);
+wire(upper, [[-.8, .98], [-.9, .9], [-.84, .82], [-.5, .78], [0, .72], [.5, .8], [.84, .86], [.92, .95], [.82, 1.02]], .025); coil(upper, .02, .74, 0, 'y', .06, 2.5);
+const legs = [0, 1].map(k => { const m = new THREE.Mesh(new THREE.BufferGeometry(), wireMat); m.castShadow = true; rider.add(m); return m; });
+function setLeg(m, k, ph) {
+  const hip = new THREE.Vector3(.02, 1.56, k ? -.1 : .1), a = ph + k * Math.PI, foot = new THREE.Vector3(Math.cos(a) * .25, WR + .03 + Math.sin(a) * .25, k ? -.13 : .13);
+  const L1 = .62, L2 = .66, dx = foot.x - hip.x, dy = foot.y - hip.y, d = Math.min(Math.hypot(dx, dy), L1 + L2 - .01), base = Math.atan2(dy, dx), ang = Math.acos((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d));
+  const knee = new THREE.Vector3(hip.x + Math.cos(base + ang) * L1, hip.y + Math.sin(base + ang) * L1, k ? -.16 : .16);
+  m.geometry.dispose(); m.geometry = tube([hip, hip.clone().lerp(knee, .5).add(new THREE.Vector3(.03, .02, 0)), knee, knee.clone().lerp(foot, .5).add(new THREE.Vector3(.02, 0, 0)), foot, foot.clone().add(new THREE.Vector3(.2, -.02, 0))], .033, 20);
+}
+// 赤い玉（色はこれ 1 つだけ）
+const ball = new THREE.Mesh(new THREE.SphereGeometry(.15, 20, 14), new THREE.MeshStandardMaterial({ color: '#e0201a', roughness: .45 })); ball.castShadow = true; stage.add(ball);
+
+// 空中ブランコ
+const trap = new THREE.Group(); trap.position.set(2.45, PH + .5, -.55); stage.add(trap);
+wire(trap, [[-.36, .04, .5], [-.36, 0, 0], [-.37, -.8], [-.36, -1.6], [0, -1.62], [.36, -1.6], [.37, -.8], [.36, 0, 0], [.36, .04, .5]], .014, .026); coil(trap, -.36, -1.56, 0, 'y', .055, 2.5); coil(trap, .36, -1.56, 0, 'y', .055, 2.5);
+const flyer = new THREE.Group(); flyer.position.y = -1.6; trap.add(flyer);
+wire(flyer, [[-.3, 0], [-.24, -.3], [-.03, -.52], [.24, -.3], [.3, 0]], .02);
+wire(flyer, ring(0, -.36, .16, 10).map(q => [q[0], q[1], .04]).concat([[.02, -.56], [.05, -.9], [.06, -1.22]]), .02);
+const fl = new THREE.Group(); fl.position.set(.06, -1.22, 0); flyer.add(fl);
+wire(fl, [[-.34, -.92], [-.3, -.82], [-.12, -.4], [0, 0], [.16, -.42], [.2, -.84], [.32, -.9]], .02); coil(fl, 0, -.02, 0, 'y', .055, 2.5);
+
+let last = performance.now(), t = 0;
+const tmp = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  stage.rotation.y = .5 * Math.sin((t + 1.2) * Math.PI * 2 / 16);                       // 回転台: 16 秒で一巡
+  const rx = -1.6 + .95 * Math.sin(t * Math.PI * 2 / 8), ph = -rx / WR;
+  rider.position.set(rx, ROPE - .07 * (1 - (rx / PX) ** 2), 0); rider.rotation.z = Math.sin(t * 2.3) * .05; wheel.rotation.z = ph;
+  upper.rotation.z = Math.sin(t * 2.3 + 1) * .09 - rider.rotation.z * 1.6;
+  setLeg(legs[0], 0, ph); setLeg(legs[1], 1, ph);
+  // お手玉: 右手 → 頭の上 → 左手 → …
+  const u = (t / .85) % 2, f = u < 1 ? u : 2 - u, hop = u % 1;
+  tmp.set(-.84 + 1.7 * f, 1.08 + 4 * hop * (1 - hop) * 1.35, .02); upper.localToWorld(tmp); stage.worldToLocal(tmp); ball.position.copy(tmp);
+  const sw = Math.sin(t * Math.PI * 2 / 3.4); trap.rotation.z = .4 * sw; flyer.rotation.z = .12 * Math.cos(t * Math.PI * 2 / 3.4); fl.rotation.z = -.5 * Math.cos(t * Math.PI * 2 / 3.4) - .1;
+  renderer.render(scene, cam); requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 20 追いかけっこ 無声映画</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6dcc2;opacity:.8}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 20 ─ 追いかけっこ / 無声映画　｜　見るだけ（自動でにげて、よける）</div>
+<script>
+// 100 年前の無声映画（どたばた喜劇）のフィルムに見立てる。色は墨から紙までのセピア 7 段だけ。人物は大きな身ぶりの影絵で、顔と小物だけ明るい。
+// 絵は 1 秒 14 コマでしか変わらず（手回しカメラの早回しでかくかく動く）、コマごとに上下のゆれ・明るさのちらつき・たてのきず・ほこりが入る。四すみは暗い。
+// 場面は丸いアイリスでひらいて閉じ、とちゅうに黒地に白い飾りわくの字幕カードがはさまる。画面は 4:3 で、左右は黒
+const cv = document.getElementById('c'), g = cv.getContext('2d'), D = Math.min(devicePixelRatio || 1, 2), PI = Math.PI;
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const ss = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+const INK = '#15120e', D1 = '#3a342b', D2 = '#6b6252', M = '#9a8f7a', L = '#c9bea4', PAPER = '#e6dcc2', WHITE = '#f6eeda';
+let W = 1, H = 1, K = 1, OX = 0, OY = 0;
+const resize = () => { W = innerWidth; H = innerHeight; cv.width = W * D; cv.height = H * D; const fw = H > W ? W * 1.42 : Math.min(W, H * .97 * 4 / 3); K = fw / 800; OX = (W - fw) / 2; OY = (H - fw * .75) / 2; lastK = -1; };
+// 粒子の板（粗い粒を 1 枚作っておき、ずらして使う）
+const grain = document.createElement('canvas'); grain.width = grain.height = 128; { const x = grain.getContext('2d'); for (let i = 0; i < 128 * 128; i++) { const r = Math.random(); x.fillStyle = r < .5 ? `rgba(0,0,0,${r * .09})` : `rgba(255,240,210,${(r - .5) * .08})`; x.fillRect(i % 128, i >> 7, 1, 1); } }
+const V = 340, HX = 540, GY = 510, T = 17.5, BAN = 3.6, BAR = 10.4;
+const COPS = [{ x: 330, ev: BAN + (HX - 330) / V, dir: -1 }, { x: 235, ev: BAR + (HX - 235) / V, dir: 1 }, { x: 140, ev: 99, dir: 0 }];
+const line = (pts, w, col) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.stroke(); };
+const dot = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); };
+const ell = (x, y, rx, ry, rot, col, a0 = 0, a1 = 7) => { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, a0, a1); g.fill(); };
+// 足 1 本（もも・すね・大きなくつ）
+function leg(hx, hy, a, bend, len, w, shoe) { const kx = hx + Math.sin(a) * len, ky = hy + Math.cos(a) * len, b = a - bend, fx = kx + Math.sin(b) * len, fy = ky + Math.cos(b) * len; line([hx, hy, kx, ky, fx, fy], w, INK); line([fx, fy, fx + Math.cos(b) * shoe, fy - Math.sin(b) * shoe], w * .72, INK); }
+// 山高帽の小男
+function hero(x, y, ph, o) {
+  g.save(); g.translate(x, y - o.j); g.scale(1.12, 1.12); g.lineCap = g.lineJoin = 'round';
+  const lean = .24 - o.look * .14 + o.air * .2, hip = [0, -50], sh = [Math.sin(lean) * 44, -50 - Math.cos(lean) * 44];
+  for (const sd of [1, 0]) { let a = Math.sin(ph + sd * PI) * 1.05, bend = .3 + 1.1 * Math.max(0, Math.sin(ph + sd * PI - 1.9)); if (o.air) { a += ((sd ? -1.25 : 1.35) - a) * o.air; bend += ((sd ? 1.5 : .15) - bend) * o.air; } leg(hip[0], hip[1], a, bend, 25, 16, 22); }
+  g.fillStyle = INK; g.beginPath(); g.moveTo(hip[0] + 4, hip[1] - 22); g.lineTo(hip[0] - 40 - 8 * Math.sin(ph * 2), hip[1] + 4 + 8 * Math.cos(ph * 2) - o.air * 18); g.lineTo(hip[0] - 4, hip[1] + 14); g.fill();   // 上着のすそ
+  ell((hip[0] + sh[0]) / 2, (hip[1] + sh[1]) / 2 + 2, 20, 29, lean, INK);
+  g.fillStyle = WHITE; g.beginPath(); g.moveTo(sh[0] + 2, sh[1] - 2); g.lineTo(sh[0] + 15, sh[1] + 3); g.lineTo(sh[0] + 9, sh[1] + 19); g.fill(); dot(sh[0] + 11, sh[1] + 5, 3.2, INK);
+  const hc = [sh[0] + Math.sin(lean) * 15 + 2, sh[1] - Math.cos(lean) * 15 - 3], hat = [hc[0] - 1, hc[1] - 9 - o.tip * 20], dir = 1 - 2 * o.look;
+  for (const sd of [0, 1]) { const b = -Math.sin(ph + sd * PI) * 1.2; let el = [sh[0] - 3 + Math.sin(b) * 18, sh[1] + 4 + Math.cos(b) * 18], hd = [el[0] + Math.sin(b + 1.3) * 18, el[1] + Math.cos(b + 1.3) * 18]; if (o.air) { const u = sd ? -1 : 1; el = [sh[0] + u * 16, sh[1] - 12]; hd = [sh[0] + u * 30, sh[1] - 34 + Math.sin(ph * 2 + sd) * 5]; } if (sd && o.tip > 0) { el = [sh[0] + 16, sh[1] - 10]; hd = [hat[0] + 12, hat[1] + 2]; } line([sh[0] - 2, sh[1] + 5, el[0], el[1], hd[0], hd[1]], 10, INK); dot(hd[0], hd[1], 5.5, PAPER); }
+  dot(hc[0], hc[1], 13, PAPER); dot(hc[0] + 12 * dir, hc[1] + 2, 3.4, PAPER); dot(hc[0] + 5 * dir, hc[1] - 2, 2, INK); line([hc[0] + 3 * dir, hc[1] + 6, hc[0] + 9 * dir, hc[1] + 5 + (o.air ? 3 : 0)], 1.6, INK);
+  g.save(); g.translate(hat[0], hat[1]); g.rotate(-.12 - o.tip * .5); ell(0, 0, 13.5, 13, 0, INK, PI, 0); line([-20, 0, 20, 0], 4.5, INK); line([-12, -3, 12, -3], 2, D2); g.restore();
+  g.restore();
+}
+// 警官（背が高く、ヘルメットと警棒）
+function cop(x, y, ph, o) {
+  g.save(); g.translate(x, y - o.j); g.scale(1.3, 1.3); g.translate(0, -52); g.rotate(o.rot); g.translate(0, 52); g.lineCap = g.lineJoin = 'round';
+  const lean = .34, hip = [0, -62], sh = [Math.sin(lean) * 50, -62 - Math.cos(lean) * 50];
+  for (const sd of [1, 0]) { let a = Math.sin(ph + sd * PI) * 1.0, bend = .25 + 1.0 * Math.max(0, Math.sin(ph + sd * PI - 1.9)); if (o.kick) { a = 1.1 + Math.sin(ph * 1.7 + sd * 2) * .5; bend = .3 + Math.sin(ph * 1.3 + sd) * .3; } leg(hip[0], hip[1], a, bend, 32, 11.5, 17); }
+  ell((hip[0] + sh[0]) / 2, (hip[1] + sh[1]) / 2, 14.5, 32, lean, INK);
+  for (let i = 0; i < 4; i++) dot(hip[0] + 7 + (sh[0] - hip[0]) * (.2 + i * .22), hip[1] + (sh[1] - hip[1]) * (.2 + i * .22) + 2, 2, WHITE);
+  line([hip[0] - 11, hip[1] - 9, hip[0] + 14, hip[1] - 4], 3.5, WHITE);
+  const hc = [sh[0] + Math.sin(lean) * 15, sh[1] - Math.cos(lean) * 15 - 2], wv = Math.sin(ph * 2) * .35;
+  const hd = o.kick ? [sh[0] + 26, sh[1] - 22 + wv * 20] : [sh[0] + 38, sh[1] + 2 + Math.sin(ph) * 5]; line([sh[0], sh[1] + 5, hd[0], hd[1]], 8.5, INK); dot(hd[0], hd[1], 5, PAPER);
+  const e2 = [sh[0] - 14, sh[1] - 12], h2 = [e2[0] + 6 + wv * 8, e2[1] - 20]; line([sh[0] - 2, sh[1] + 5, e2[0], e2[1], h2[0], h2[1]], 8.5, INK); line([h2[0], h2[1], h2[0] + Math.sin(.5 + wv) * 34, h2[1] - Math.cos(.5 + wv) * 34], 5.5, INK); dot(h2[0], h2[1], 5, PAPER);
+  dot(hc[0], hc[1], 11.5, PAPER); dot(hc[0] + 11, hc[1] + 2, 3, PAPER); dot(hc[0] + 5, hc[1] - 2, 1.8, INK); line([hc[0] + 4, hc[1] + 6, hc[0] + 13, hc[1] + 7.5], 3.4, INK);
+  g.save(); g.translate(hc[0] - 1, hc[1] - 6); g.rotate(.1); ell(0, 0, 12.5, 21, 0, INK, PI, 0); line([-13, 0, 17, 1], 4, INK); dot(0, -22, 3, INK); dot(6, -9, 3, WHITE); g.restore();
+  g.restore();
+}
+// 街の建物（番号から決まる形）
+const SIGN = ['パン', '床屋', 'くつ', '氷', '時計', '花'];
+function building(i, x) {
+  const w = 262, top = 96 + hash(i, 1) * 70, col = [PAPER, '#d8cdb2', '#cfc4a8'][((i % 3) + 3) % 3];
+  g.fillStyle = col; g.fillRect(x, top, w - 6, 440 - top); g.fillStyle = L; g.fillRect(x - 4, top - 10, w + 2, 12); g.fillRect(x, 318, w - 6, 5);
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const wx = x + 26 + c * 78, wy = top + 26 + r * 86; if (wy > 250) continue; g.fillStyle = M; g.fillRect(wx, wy, 44, 58); g.fillStyle = L; g.fillRect(wx + 3, wy + 3, 17, 24); g.fillRect(wx + 24, wy + 3, 17, 24); g.fillStyle = col; g.fillRect(wx - 5, wy + 58, 54, 6); }
+  g.fillStyle = M; g.fillRect(x + 22, 346, 132, 80); g.fillStyle = L; g.fillRect(x + 28, 352, 56, 68); g.fillRect(x + 92, 352, 56, 68); g.fillStyle = D2; g.fillRect(x + 176, 342, 54, 98); g.fillStyle = M; g.fillRect(x + 182, 348, 42, 40);
+  for (let s = 0; s < 7; s++) { g.fillStyle = s % 2 ? M : PAPER; g.beginPath(); g.moveTo(x + 14 + s * 21, 322); g.lineTo(x + 35 + s * 21, 322); g.lineTo(x + 32 + s * 21, 346); g.lineTo(x + 8 + s * 21, 346); g.fill(); }
+  g.fillStyle = D2; g.fillRect(x + 40, 286, 110, 30); g.fillStyle = PAPER; g.font = 'bold 22px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(SIGN[((i % 6) + 6) % 6], x + 95, 302);
+  g.fillStyle = 'rgba(154,143,122,.5)'; for (let b = 0; b < 9; b++) g.fillRect(x + 10 + hash(i, b + 5) * 220, top + 12 + hash(i, b + 20) * 180, 20, 3);
+}
+function sceneDraw(t) {
+  const wx = V * t, ph = t * 14.5;
+  g.fillStyle = PAPER; g.fillRect(-20, -20, 840, 640);
+  for (let i = Math.floor(wx * .35 / 150) - 1, n = 0; n < 8; n++, i++) { const x = i * 150 - wx * .35, h = 60 + hash(i, 40) * 110; g.fillStyle = '#d6ccb2'; g.fillRect(x, 300 - h, 120, h + 140); g.fillRect(x + 20 + hash(i, 41) * 60, 300 - h - 26, 16, 26); }
+  for (let i = Math.floor(wx / 262) - 1, n = 0; n < 5; n++, i++) building(i, i * 262 - wx);
+  g.fillStyle = L; g.fillRect(-20, 440, 840, 40); g.fillStyle = '#b3a88f'; g.fillRect(-20, 476, 840, 160); g.fillStyle = D2; g.fillRect(-20, 476, 840, 3);
+  g.fillStyle = 'rgba(107,98,82,.4)'; for (let r = 0; r < 4; r++) for (let i = Math.floor(wx / 70) - 1, n = 0; n < 14; n++, i++) g.fillRect(i * 70 - wx + r * 23, 500 + r * 28, 30 + hash(i, r) * 16, 3);
+  g.lineCap = 'round';
+  for (let i = Math.floor(wx / 620) - 1, n = 0; n < 3; n++, i++) { const x = i * 620 - wx + 200; line([x, 462, x, 232], 6, D1); line([x - 16, 250, x + 16, 250], 4, D1); g.fillStyle = D1; g.fillRect(x - 11, 196, 22, 34); g.fillStyle = WHITE; g.fillRect(x - 7, 202, 14, 22); g.fillStyle = D1; g.fillRect(x - 9, 462, 18, 14); }
+  // 通りがかりの婦人（日がさ）
+  for (let i = Math.floor(wx / 1150) - 1, n = 0; n < 3; n++, i++) { const x = i * 1150 - wx + 760; g.fillStyle = D1; g.beginPath(); g.moveTo(x, 372); g.lineTo(x + 26, 470); g.lineTo(x - 26, 470); g.fill(); ell(x, 362, 12, 20, 0, D1); dot(x, 334, 10, L); ell(x, 326, 22, 6, -.1, D1); line([x + 10, 368, x + 30, 350, x + 30, 290], 3, D1); ell(x + 30, 292, 40, 20, 0, D1, PI, 0); }
+  // バナナの皮と樽
+  { const bx = HX + V * (BAN - t), e = t - COPS[0].ev; g.save(); if (e > 0) { g.translate(COPS[0].x + e * 120, GY - 6 - 420 * e + 500 * e * e); g.rotate(e * 14); } else g.translate(bx, GY - 4); for (const a of [-.9, 0, .9]) { g.save(); g.rotate(a); g.fillStyle = WHITE; g.strokeStyle = INK; g.lineWidth = 2; g.beginPath(); g.moveTo(-4, 0); g.quadraticCurveTo(-6, -16, 0, -20); g.quadraticCurveTo(6, -16, 4, 0); g.fill(); g.stroke(); g.restore(); } g.restore(); }
+  { const bx = HX + V * (BAR - t), e = t - COPS[1].ev; g.save(); if (e > 0) { g.translate(COPS[1].x + 20 + e * 200, GY - 30 - 300 * e + 420 * e * e); g.rotate(e * 9); } else g.translate(bx, GY - 30); g.fillStyle = M; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(-19, -30); g.quadraticCurveTo(-28, 0, -19, 30); g.lineTo(19, 30); g.quadraticCurveTo(28, 0, 19, -30); g.closePath(); g.fill(); g.stroke(); line([-23, -14, 23, -14], 4, D1); line([-23, 14, 23, 14], 4, D1); line([-8, -29, -10, 29], 1.5, D2); line([8, -29, 10, 29], 1.5, D2); g.restore(); }
+  // 警官たち
+  COPS.forEach((c, i) => { const e = t - c.ev, p = ph * .94 + i * 2.1; let x = c.x + Math.sin(t * 2 + i) * 8, o = { j: 0, rot: 0, kick: 0 };
+    if (e > 0 && e < 4.4) { if (e < .45) { const q = e / .45; o.rot = c.dir * 1.57 * q; o.j = Math.sin(PI * q) * 46 - q * 30; o.kick = 1; x += 34 * q; } else if (e < 2.5) { o.rot = c.dir * 1.57; o.j = -30; o.kick = 1; x += 34 - V * (e - .45); } else { const q = ss(2.5, 4.4, e); x = -120 + (x + 120) * q; } }
+    else if (i === 0 && Math.abs(t - (BAR + (HX - c.x) / V)) < .28) o.j = Math.sin(PI * (t - (BAR + (HX - c.x) / V) + .28) / .56) * 78;
+    if (x > -110) { cop(x, GY + 2, p, o); if (!o.kick) for (let n = 0; n < 2; n++) { const a = (t * 3 + n / 2 + i * .3) % 1; dot(x - 30 - a * 60, GY - 2 - a * 12, 4 + a * 9, `rgba(246,238,218,${(1 - a) * .6})`); } if (o.kick && e < 1) for (let n = 0; n < 5; n++) { const a = n * 1.26 + e * 3, r = 46 + e * 30; g.fillStyle = WHITE; g.strokeStyle = INK; g.lineWidth = 1.5; g.beginPath(); for (let k = 0; k < 10; k++) { const rr = k % 2 ? 4 : 10, aa = k * PI / 5 + e * 5; g.lineTo(x + Math.cos(a) * r + Math.cos(aa) * rr, GY - 120 + Math.sin(a) * r * .6 + Math.sin(aa) * rr); } g.closePath(); g.fill(); g.stroke(); } } });
+  // 主役
+  const jb = Math.abs(t - BAN) < .3 ? Math.sin(PI * (t - BAN + .3) / .6) : 0, jr = Math.abs(t - BAR) < .36 ? Math.sin(PI * (t - BAR + .36) / .72) : 0, air = Math.max(jb, jr), look = ss(5.1, 5.4, t) * (1 - ss(6.2, 6.5, t)) + ss(12.2, 12.5, t) * (1 - ss(13.6, 13.9, t)), tip = ss(12.5, 12.8, t) * (1 - ss(13.3, 13.6, t));
+  const hx = HX + Math.sin(t * 1.7) * 12; for (let n = 0; n < 3; n++) { const a = (t * 3.2 + n / 3) % 1; if (!air) dot(hx - 26 - a * 80, GY - 2 - a * 14, 4 + a * 11, `rgba(246,238,218,${(1 - a) * .7})`); }
+  hero(hx, GY, ph, { j: jb * 62 + jr * 98, look, tip, air: Math.min(1, air * 1.6) });
+  for (let i = Math.floor(wx * 1.7 / 1300) - 1, n = 0; n < 3; n++, i++) { const x = i * 1300 - wx * 1.7 + 900; g.fillStyle = INK; g.fillRect(x - 26, 548, 52, 80); ell(x, 548, 26, 16, 0, INK); g.fillRect(x - 40, 566, 80, 12); }
+}
+// 字幕カード（黒地に白い飾りわく）
+function card(txt, sub) {
+  g.fillStyle = INK; g.fillRect(-20, -20, 840, 640); g.strokeStyle = WHITE; g.fillStyle = WHITE; g.lineCap = 'round';
+  g.lineWidth = 3; g.strokeRect(70, 70, 660, 460); g.lineWidth = 1.2; g.strokeRect(82, 82, 636, 436);
+  for (const [cx, cy, sx, sy] of [[70, 70, 1, 1], [730, 70, -1, 1], [730, 530, -1, -1], [70, 530, 1, -1]]) { g.save(); g.translate(cx, cy); g.scale(sx, sy); g.fillStyle = INK; g.fillRect(-8, -8, 44, 44); g.lineWidth = 2.4; g.beginPath(); g.arc(36, 36, 36, PI, PI * 1.5); g.stroke(); g.beginPath(); g.arc(30, 30, 16, 0, PI * 1.6); g.stroke(); g.beginPath(); g.arc(30, 30, 7, PI * .4, PI * 2.2); g.stroke(); g.beginPath(); g.arc(64, 14, 9, PI * .5, PI * 2); g.stroke(); g.beginPath(); g.arc(14, 64, 9, PI, PI * 2.5); g.stroke(); g.fillStyle = WHITE; g.beginPath(); g.moveTo(84, 12); g.lineTo(92, 6); g.lineTo(100, 12); g.lineTo(92, 18); g.fill(); g.beginPath(); g.moveTo(12, 84); g.lineTo(6, 92); g.lineTo(12, 100); g.lineTo(18, 92); g.fill(); g.restore(); }
+  for (const y of [150, 450]) { g.lineWidth = 1.6; line([300, y, 380, y], 1.6, WHITE); line([420, y, 500, y], 1.6, WHITE); g.fillStyle = WHITE; g.beginPath(); g.moveTo(400, y - 9); g.lineTo(412, y); g.lineTo(400, y + 9); g.lineTo(388, y); g.fill(); dot(290, y, 3, WHITE); dot(510, y, 3, WHITE); }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '600 58px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; g.fillText(txt, 400, sub ? 282 : 300); if (sub) { g.font = '26px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; g.fillText(sub, 400, 362); }
+}
+function film(fk) {                                   // フィルム 1 コマぶん
+  const t = (fk / 14) % T, fw = 800 * K, fh = 600 * K;
+  g.setTransform(D, 0, 0, D, 0, 0); g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  g.save(); g.translate(OX, OY); g.scale(K, K); g.beginPath(); g.roundRect(0, 0, 800, 600, 16); g.clip();
+  const big = hash(fk, 9) > .94 ? 3 : 1; g.save(); g.translate((hash(fk, 3) - .5) * 2.5, (hash(fk, 1) - .5) * 6 * big);
+  const isCard = (t >= 7 && t < 8.9) || t >= 15.6;
+  if (t >= 15.6) card('まだまだ、つかまらない', '― つづく ―'); else if (isCard) card('「こら、待てえ!」'); else sceneDraw(t);
+  if (!isCard) { const R = t < 1.1 ? ss(0, 1.1, t) * 760 : (1 - ss(14.3, 15.5, t)) * 760; if (R < 755) { const cx = HX - 20, cy = 430, gr = g.createRadialGradient(cx, cy, Math.max(0, R - 26), cx, cy, R + 1); gr.addColorStop(0, 'rgba(10,8,6,0)'); gr.addColorStop(1, 'rgba(10,8,6,1)'); g.fillStyle = gr; g.fillRect(-20, -20, 840, 640); } }
+  g.restore();
+  // 四すみの暗さ、ちらつき
+  const vg = g.createRadialGradient(400, 300, 230, 400, 300, 540); vg.addColorStop(0, 'rgba(10,8,6,0)'); vg.addColorStop(.7, 'rgba(10,8,6,.42)'); vg.addColorStop(1, 'rgba(10,8,6,.92)'); g.fillStyle = vg; g.fillRect(0, 0, 800, 600);
+  const fl = hash(fk, 2); g.fillStyle = fl < .8 ? `rgba(10,8,6,${fl * .13})` : `rgba(255,244,214,${(fl - .8) * .35})`; g.fillRect(0, 0, 800, 600);
+  // たてのきず
+  for (let i = 0; i < 3; i++) { const s = Math.floor(t * 1.4 + i * .37) + i * 17; if (hash(s, 60) < .3) continue; const x = hash(s, 61) * 800 + (hash(fk, 62 + i) - .5) * 5, y0 = hash(fk, 63 + i) < .3 ? hash(fk, 64) * 300 : 0; g.fillStyle = i === 2 ? 'rgba(10,8,6,.5)' : 'rgba(255,246,222,.5)'; g.fillRect(x, y0, i === 0 ? 1.4 : .9, 600); }
+  // ほこり、毛
+  for (let i = 0; i < 5; i++) { if (hash(fk, 70 + i) < .55) continue; const x = hash(fk, 80 + i) * 800, y = hash(fk, 90 + i) * 600, r = 1 + hash(fk, 100 + i) * 3.5; g.fillStyle = g.strokeStyle = hash(fk, 110 + i) < .7 ? 'rgba(10,8,6,.85)' : 'rgba(255,246,222,.8)'; if (hash(fk, 120 + i) < .3) { g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 14, y - 12, x + 22 * hash(fk, 130), y + 16); g.stroke(); } else { g.beginPath(); g.ellipse(x, y, r, r * .6, hash(fk, 140) * 3, 0, 7); g.fill(); } }
+  g.restore();
+  // 粒子（7 コマに 1 回だけ入れ替える）
+  g.save(); g.beginPath(); g.rect(Math.max(0, OX), Math.max(0, OY), Math.min(W, fw), Math.min(H, fh)); g.clip(); g.imageSmoothingEnabled = false; const gk = Math.floor(fk / 7), cs = Math.max(3, Math.round(K * 4.5)) * 128, gx = -hash(gk, 5) * cs, gy = -hash(gk, 6) * cs; for (let y = gy + Math.max(0, OY); y < H; y += cs) for (let x = gx + Math.max(0, OX); x < W; x += cs) g.drawImage(grain, x, y, cs, cs); g.restore();
+}
+let last = performance.now(), acc = 0, lastK = -1;
+addEventListener('resize', resize); resize();
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; acc += dt; const fk = Math.floor(acc * 14);
+  if (fk !== lastK) { lastK = fk; film(fk); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</html>

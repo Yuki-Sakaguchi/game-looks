@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOOK 49 夜景アドベンチャー 16 色のタイルパターン</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{position:fixed;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b8b8c8;background:#000;padding:0 6px;opacity:.85}
+</style>
+<canvas id="c"></canvas>
+<div id="cap">LOOK 49 ─ 夜景アドベンチャー / 昔のパソコンの 16 色とタイルパターン　｜　見るだけ（自動で読みすすむ）</div>
+<script>
+// 昔のパソコンの画面（640×400、決めた 16 色だけ）に見立てる。中間の色やぼかしは作れないので、
+// 2 色を市松・点々・しまにまぜる「タイルパターン」で、空のグラデーション・ビルの明暗・ネオンや電灯のにじみを作る。
+// 輪郭は 1 ドットの線、文字も 1 ドットの白黒。絵は上から線ごとにじわじわ描かれ、せりふは 1 文字ずつ出る
+const PAL = ['#000000', '#16163c', '#2a3c88', '#5078d8', '#5a2870', '#b03a90', '#ff5cac', '#7a1a2c', '#e83a3a', '#ff9a3a', '#ffe06a', '#1a6a5c', '#3ad4b4', '#6a6a80', '#b8b8cc', '#ffffff'];
+const LUT = new Uint32Array(PAL.map(h => { const n = parseInt(h.slice(1), 16); return 0xff000000 | (n & 255) << 16 | (n & 0xff00) | n >> 16; }));
+const B4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const hash = (a, b = 0) => { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); };
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+let W, H, scr, img, u32, pw, ph, s, TALL, MSGH, scenes;
+// ── 描く道具（色番号の配列に 1 ドットずつ置く） ──
+let T, TW, TH, mask = null, MK = 0;
+function pset(x, y, c) { if (c >= 0 && x >= 0 && y >= 0 && x < TW && y < TH) { const i = y * TW + x; T[i] = c; if (mask) mask[i] = MK; } }
+function rect(x, y, w, h, a, b = a, lv = 0) { x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h); for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) pset(i, j, B4[(j & 3) << 2 | (i & 3)] < lv ? b : a); }
+function line(x0, y0, x1, y1, c) { x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1); const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy; for (let n = 0; n < 4000; n++) { pset(x0, y0, c); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } } }
+function poly(p, a, b = a, lv = 0) { let y0 = 1e9, y1 = -1e9; for (const q of p) { y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); } for (let y = Math.round(y0); y <= Math.round(y1); y++) { const xs = []; for (let i = 0; i < p.length; i++) { const A = p[i], B = p[(i + 1) % p.length]; if ((A[1] <= y && B[1] > y) || (B[1] <= y && A[1] > y)) xs.push(A[0] + (y - A[1]) / (B[1] - A[1]) * (B[0] - A[0])); } xs.sort((m, n) => m - n); for (let k = 0; k + 1 < xs.length; k += 2) rect(xs[k], y, xs[k + 1] - xs[k] + 1, 1, a, b, lv); } }
+function edge(p, c, close = true) { for (let i = 0; i + (close ? 0 : 1) < p.length; i++) { const A = p[i], B = p[(i + 1) % p.length]; line(A[0], A[1], B[0], B[1], c); } }
+function ell(cx, cy, rx, ry, a, b = a, lv = 0, top = false) { for (let j = -Math.round(ry); j <= (top ? 0 : Math.round(ry)); j++) { const w = rx * Math.sqrt(Math.max(0, 1 - (j / ry) ** 2)); rect(cx - w, cy + j, 2 * w + 1, 1, a, b, lv); } }
+// にじみ: 四角のまわりに、遠いほどまばらな点々を置く
+function glow(x, y, w, h, c, R) { for (let j = Math.round(y - R); j < y + h + R; j++) for (let i = Math.round(x - R); i < x + w + R; i++) { const dx = Math.max(x - i, 0, i - (x + w - 1)), dy = Math.max(y - j, 0, j - (y + h - 1)), d = Math.hypot(dx, dy); if (d > 0 && d < R && i >= 0 && j >= 0 && i < TW && j < TH && B4[(j & 3) << 2 | (i & 3)] < 11 * (1 - d / R) ** 1.3) T[j * TW + i] = c; } }
+// 形をまとめて描いて、まわりに 1 ドットの輪郭をつける
+function sil(fn, edgeC) { const keep = [T, mask], tmp = new Uint8Array(TW * TH).fill(255); T = tmp; mask = null; fn(); [T, mask] = keep; for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) { const i = y * TW + x; if (tmp[i] !== 255) pset(x, y, tmp[i]); else if ((x > 0 && tmp[i - 1] !== 255) || (x < TW - 1 && tmp[i + 1] !== 255) || (y > 0 && tmp[i - TW] !== 255) || (y < TH - 1 && tmp[i + TW] !== 255)) pset(x, y, edgeC); } }
+// 文字: 端末のフォントを 16 ドットで描き、白か黒かに切りすてる
+const gc = document.createElement('canvas'); gc.width = gc.height = 20; const gx = gc.getContext('2d', { willReadFrequently: true }), GL = {};
+const FONT = '16px "MS Gothic","Osaka-Mono","Noto Sans Mono CJK JP","IPAGothic","Noto Sans CJK JP","Hiragino Kaku Gothic ProN","Yu Gothic",monospace';
+function glyph(ch) { if (GL[ch]) return GL[ch]; gx.clearRect(0, 0, 20, 20); gx.font = FONT; gx.textBaseline = 'top'; gx.fillStyle = '#fff'; const w = ch.charCodeAt(0) < 256 ? 8 : 16, mw = gx.measureText(ch).width; gx.fillText(ch, Math.max(0, (w - mw) / 2), 1); const d = gx.getImageData(0, 0, 16, 18).data, bits = new Uint8Array(288); for (let i = 0; i < 288; i++) bits[i] = d[i * 4 + 3] > 100 ? 1 : 0; return GL[ch] = { w, bits }; }
+function text(str, x, y, c, vert = false) { for (const ch of str) { const q = glyph(ch); for (let j = 0; j < 18; j++) for (let i = 0; i < 16; i++) if (q.bits[j * 16 + i]) pset(x + i, y + j, c); if (vert) y += 17; else x += q.w; } return x; }
+
+// ── 絵: 雨の夜の街（空のグラデーションと 2 列のビル） ──
+function sign(sg, on) { const c = on ? sg.c : 4; rect(sg.x, sg.y, sg.w, sg.h, 0); edge([[sg.x, sg.y], [sg.x + sg.w - 1, sg.y], [sg.x + sg.w - 1, sg.y + sg.h - 1], [sg.x, sg.y + sg.h - 1]], c); text(sg.str, sg.x + 3, sg.y + 2, on ? (sg.c === 6 ? 15 : 10) : 4, sg.vert); }
+function skyline(seed, hz) {
+  const st = [[0, 0], [.2, 1], [.48, 2], [.74, 4], [1, 5]], out = { beacons: [], signs: [] };
+  for (let y = 0; y < TH; y++) { const u = Math.min(.999, y / hz); let k = 0; while (st[k + 1][0] <= u) k++; const lv = Math.round((u - st[k][0]) / (st[k + 1][0] - st[k][0]) * 8) * 2; rect(0, y, pw, 1, st[k][1], st[k + 1][1], lv); }
+  for (let i = 0; i < 6; i++) ell(hash(i, seed) * pw, hz * (.12 + hash(i, seed + 1) * .4), (50 + hash(i, seed + 2) * 70) * s, (5 + hash(i, seed + 3) * 7) * s, -1, i % 2 ? 0 : 1, 7);      // 雨雲
+  for (let x = -6, i = 0; x < pw; i++) {                                                                                          // 遠いビル
+    const w = Math.round((14 + hash(i, seed + 4) * 22) * s), hh = Math.round((36 + hash(i, seed + 5) * 80) * s), top = hz - hh; rect(x, top, w, TH, 1, 4, 5); rect(x, top, 1, TH, 2);
+    for (let wy = top + 4; wy < hz - 2; wy += 5) for (let wx = x + 3; wx < x + w - 2; wx += 4) if (hash(wx, wy + seed) < .2) { pset(wx, wy, hash(wx, wy) < .7 ? 10 : 9); pset(wx, wy + 1, 9); }
+    x += w + Math.round(hash(i, seed + 6) * 5);
+  }
+  for (let x = -Math.round(12 * s), i = 0; x < pw; i++) {                                                                         // 手前のビル
+    const w = Math.round((40 + hash(i, seed + 7) * 44) * s), hh = Math.round(Math.min(hz * .82, (80 + hash(i, seed + 8) * 150) * s)), top = hz - hh;
+    rect(x, top, w, TH, 0); rect(x + Math.round(w * .7), top, w - Math.round(w * .7), TH, 0, 2, 6); line(x, top, x + w - 1, top, 2); line(x, top, x, TH, 2); line(x + w - 1, top, x + w - 1, TH, 1);
+    for (let wy = top + 6; wy < hz - 4; wy += 9) for (let wx = x + 5; wx < x + w - 6; wx += 7) { const r = hash(wx + seed, wy); if (r < .3) rect(wx, wy, 4, 5, r < .19 ? 10 : r < .25 ? 9 : 12, 15, r < .06 ? 8 : 0); else if (r < .4) rect(wx, wy, 4, 5, 0, 2, 8); }
+    if (hash(i, seed + 9) > .35) { const ah = Math.round((10 + hash(i, seed + 10) * 16) * s), ax = x + Math.round(w * (.25 + hash(i, seed + 11) * .5)); line(ax, top, ax, top - ah, 13); if (hash(i, seed + 12) > .4) out.beacons.push([ax, top - ah - 1]); }
+    const strs = [['ホテル', 6, 1], ['BAR', 12, 0], ['ゆ', 12, 1], ['カフェ', 6, 1], ['24h', 10, 0]], sg = strs[(i + seed) % 5];
+    if (hash(i, seed + 13) > .3 && w > 40 && hh > 100 * s) { const o = sg[2] ? { x: x + 4, y: top + 12, w: 22, h: [...sg[0]].length * 17 + 5 } : { x: x + 4, y: top + 14, w: sg[0].length * 8 + 7, h: 21 }; Object.assign(o, { str: sg[0], c: sg[1], vert: !!sg[2] }); glow(o.x, o.y, o.w, o.h, sg[1] === 6 ? 5 : sg[1] === 12 ? 11 : 9, 14 * s); sign(o, true); out.signs.push(o); }
+    x += w + Math.round(hash(i, seed + 14) * 16 * s);
+  }
+  return out;
+}
+// 1 枚め: 屋上。かさをさした人のうしろ姿
+function sceneA() {
+  const pic = new Uint8Array(pw * ph), mk = new Uint8Array(pw * ph); T = pic; TW = pw; TH = ph; mask = mk; MK = 1;
+  const fy = Math.round(ph * .82), ry = fy - Math.round(22 * s), u = s, sky = skyline(3, ry);
+  MK = 0;
+  for (let x = Math.round(10 * u); x < pw; x += Math.round(46 * u)) rect(x, ry - 24 * u, 2, 24 * u, 13);                              // 手すり
+  rect(0, ry - 24 * u, pw, 2, 14); rect(0, ry - 12 * u, pw, 1, 13);
+  rect(0, ry, pw, fy - ry, 0, 1, 8); rect(0, ry, pw, 1, 14); rect(0, ry + 1, pw, 2, 13, 0, 8);                                      // 立ち上がりの壁
+  MK = 2; rect(0, fy, pw, ph - fy, 1, 13, 3); rect(0, fy, pw, 1, 0);
+  ell(pw * .72, fy + 24 * u, 80 * u, 9 * u, 2, 3, 3); ell(pw * .16, fy + 38 * u, 50 * u, 6 * u, 2, 3, 3);                            // 水たまり
+  for (const sg of sky.signs) rect(sg.x, fy + 2, sg.w, 34 * u, -1, sg.c, 5);                                                       // ネオンのうつりこみ
+  MK = 0;
+  { const x = pw * .04, y = fy - 4 * u, w = 64 * u, h = 44 * u; rect(x, y - h, w, h, 0, 13, 6); rect(x + w * .7, y - h, w * .3, h, 13, 14, 5); edge([[x, y - h], [x + w, y - h], [x + w, y], [x, y]], 14); for (let k = 1; k < 5; k++) line(x + 4, y - h + k * 8 * u, x + w * .6, y - h + k * 8 * u, 0); rect(x + 6 * u, y, 4, 6 * u, 13); rect(x + w - 10 * u, y, 4, 6 * u, 13); }   // 室外機
+  const cx = Math.round(pw * (TALL ? .5 : .42)), F = fy + Math.round(32 * u), ux = cx + 7 * u, uy = F - 138 * u, rx = 60 * u, ryy = 36 * u;
+  ell(cx, F + 2, 30 * u, 4 * u, 0, 1, 4);
+  sil(() => {
+    rect(cx - 12 * u, F - 46 * u, 8 * u, 38 * u, 1, 2, 4); rect(cx + 3 * u, F - 46 * u, 8 * u, 38 * u, 1, 2, 6); rect(cx - 13 * u, F - 10 * u, 10 * u, 10 * u, 0); rect(cx + 2 * u, F - 10 * u, 10 * u, 10 * u, 0);
+    poly([[cx - 17 * u, F - 112 * u], [cx + 17 * u, F - 112 * u], [cx + 25 * u, F - 42 * u], [cx - 25 * u, F - 42 * u]], 7);
+    poly([[cx + 6 * u, F - 112 * u], [cx + 17 * u, F - 112 * u], [cx + 25 * u, F - 42 * u], [cx + 10 * u, F - 42 * u]], 7, 8, 8); poly([[cx + 13 * u, F - 110 * u], [cx + 17 * u, F - 112 * u], [cx + 25 * u, F - 42 * u], [cx + 20 * u, F - 42 * u]], 8, 6, 6);
+    rect(cx - 21 * u, F - 78 * u, 43 * u, 2, 0); line(cx, F - 76 * u, cx, F - 42 * u, 0);
+    rect(cx - 3 * u, F - 116 * u, 7 * u, 5 * u, 9, 15, 8); ell(cx, F - 126 * u, 12 * u, 12 * u, 0); rect(cx - 12 * u, F - 126 * u, 24 * u, 9 * u, 0);
+  }, 0);
+  for (let a = -.9; a < .5; a += .08) pset(Math.round(cx + Math.cos(a) * 10 * u), Math.round(F - 126 * u + Math.sin(a) * 10 * u), 4);
+  rect(ux - 1, uy - 2, 2, 44 * u, 14);
+  sil(() => {
+    for (let j = -Math.round(ryy); j <= 0; j++) { const w = rx * Math.sqrt(1 - (j / ryy) ** 2); for (let i = -Math.round(w); i <= w; i++) { const f = i / rx, b = B4[((uy + j) & 3) << 2 | ((ux + i) & 3)]; pset(Math.round(ux + i), Math.round(uy + j), f < -.35 ? (b < 10 ? 7 : 8) : f < .05 ? (b < 4 ? 7 : 8) : f > .3 && f < .62 && j < -ryy * .3 ? (b < 6 ? 9 : 8) : 8); } }
+    for (const f of [-.66, -.33, 0, .33, .66]) { line(ux, uy - ryy, ux + rx * f * .8, uy - ryy * .5, 0); line(ux + rx * f * .8, uy - ryy * .5, ux + rx * f, uy, 0); }
+  }, 0);
+  rect(ux - 1, uy - ryy - 6 * u, 2, 6 * u, 14);
+  const drips = [-.98, -.66, -.33, .33, .66, .98].map(f => [Math.round(ux + rx * f), Math.round(uy + 2)]);
+  return { pic, mk, sky, fy, drips };
+}
+// 2 枚め: 窓辺。電気スタンドと、外を見るねこ
+function sceneB() {
+  const pic = new Uint8Array(pw * ph), mk = new Uint8Array(pw * ph); T = pic; TW = pw; TH = ph; mask = mk; MK = 1; const u = s;
+  const wx0 = Math.round(pw * (TALL ? .08 : .1)), wx1 = Math.round(pw * (TALL ? .92 : .68)), wy0 = Math.round(ph * .07), wy1 = Math.round(ph * .68), dy = Math.round(ph * .84);
+  const sky = skyline(8, wy1 + 20); sky.beacons = sky.beacons.filter(b => b[0] > wx0 + 6 && b[0] < wx1 - 6 && b[1] > wy0 + 6); sky.signs = sky.signs.filter(q => q.x > wx0 + 4 && q.x + q.w < wx1 - 4 && q.y > wy0 + 4 && q.y + q.h < wy1 - 4);
+  for (let i = 0; i < 90; i++) { const x = wx0 + hash(i, 20) * (wx1 - wx0), y = wy0 + hash(i, 21) * (wy1 - wy0), l = hash(i, 22) < .3 ? 2 + hash(i, 23) * 9 : 1; rect(x, y, 1, l, i % 3 ? 3 : 14); if (l > 3) pset(Math.round(x) + 1, Math.round(y + l), 15); }   // ガラスの雨つぶ
+  MK = 0; const lx = Math.round(pw * (TALL ? .78 : .84)), ly = dy - Math.round(58 * u), R = 150 * u;
+  for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) if (x < wx0 || x >= wx1 || y < wy0 || y >= wy1) { const b = B4[(y & 3) << 2 | (x & 3)], d = Math.hypot(x - lx, (y - ly - 8 * u) * 1.25) / R; pset(x, y, d < 1 && b < 15 * (1 - d) ** 1.4 ? (d < .3 ? 10 : 9) : (b < 5 ? 4 : 0)); }
+  for (let k = 0; k < 4; k++) edge([[wx0 - k, wy0 - k], [wx1 - 1 + k, wy0 - k], [wx1 - 1 + k, wy1 - 1 + k], [wx0 - k, wy1 - 1 + k]], k === 0 ? 0 : k === 3 ? 13 : 14);
+  const mx = Math.round((wx0 + wx1) / 2), my = Math.round(wy0 + (wy1 - wy0) * .38); rect(mx - 1, wy0, 3, wy1 - wy0, 14); rect(mx + 2, wy0, 1, wy1 - wy0, 0); rect(wx0, my - 1, wx1 - wx0, 3, 14); rect(wx0, my + 2, wx1 - wx0, 1, 0);
+  for (let x = wx0 - 10; x < wx0 + (wx1 - wx0) * .2; x++) { const f = Math.sin(x * .42) + Math.sin(x * .17) * .5; rect(x, wy0 - 8, 1, wy1 - wy0 + 22 * u, 7, 8, Math.round(7 + f * 5)); if (f < -1.15) rect(x, wy0 - 8, 1, wy1 - wy0 + 22 * u, 0); }   // カーテン
+  rect(wx0 - 12, wy1 + 3, wx1 - wx0 + 24, 7 * u, 14, 13, 6); rect(wx0 - 12, wy1 + 3 + 7 * u, wx1 - wx0 + 24, 1, 0);
+  const cx = Math.round(wx0 + (wx1 - wx0) * (TALL ? .62 : .7)), by = wy1 + 3, c = u * 1.15;
+  sil(() => { ell(cx, by - 20 * c, 19 * c, 21 * c, 0); rect(cx - 19 * c, by - 20 * c, 39 * c, 20 * c, 0); ell(cx - 3 * c, by - 50 * c, 13 * c, 11 * c, 0); poly([[cx - 15 * c, by - 54 * c], [cx - 12 * c, by - 70 * c], [cx - 4 * c, by - 58 * c]], 0); poly([[cx + 9 * c, by - 54 * c], [cx + 6 * c, by - 70 * c], [cx - 2 * c, by - 58 * c]], 0);
+    for (let k = 0; k < 30; k++) { const a = k / 30; ell(cx + 18 * c + a * 26 * c, by - 4 * c - Math.sin(a * 3) * 5 * c, 3 * c, 3 * c, 0); } }, 14);
+  rect(0, dy, pw, ph - dy, 7, 0, 8); for (let y = dy; y < ph; y++) for (let x = 0; x < pw; x++) { const d = Math.hypot(x - lx, (y - dy) * 2.5) / (120 * u); if (d < 1 && B4[(y & 3) << 2 | (x & 3)] < 14 * (1 - d)) pset(x, y, 9); } rect(0, dy, pw, 1, 9); rect(0, dy + 1, pw, 1, 0);
+  rect(lx - 1, ly, 3, dy - ly, 14); ell(lx, dy, 14 * u, 3 * u, 14, 13, 6); sil(() => poly([[lx - 11 * u, ly - 22 * u], [lx + 11 * u, ly - 22 * u], [lx + 22 * u, ly], [lx - 22 * u, ly]], 10, 15, 6), 0); rect(lx - 6 * u, ly + 1, 12 * u, 3 * u, 15);
+  const gxm = Math.round(pw * (TALL ? .2 : .74)), gy = dy + Math.round(6 * u); sil(() => { rect(gxm, gy - 16 * u, 14 * u, 16 * u, 14, 13, 5); rect(gxm + 14 * u, gy - 12 * u, 4 * u, 2, 14); rect(gxm + 17 * u, gy - 12 * u, 2, 8 * u, 14); rect(gxm + 14 * u, gy - 5 * u, 4 * u, 2, 14); }, 0);
+  return { pic, mk, sky, steam: [gxm + Math.round(7 * u), gy - Math.round(18 * u)] };
+}
+// ── 画面の組み立て ──
+function build() {
+  const dpr = Math.min(devicePixelRatio || 1, 3), dw = innerWidth * dpr, dh = innerHeight * dpr;
+  TALL = innerHeight > innerWidth * 1.15;
+  const kk = Math.max(1, Math.round(TALL ? dh / 720 : Math.min(dw / 640, dh / 400)));     // 1 ドット = 画面の kk ピクセル（整数）。1280×800 なら 640×400 ドット
+  W = Math.floor(dw / kk); H = Math.floor(dh / kk);
+  cv.width = W; cv.height = H; cv.style.width = W * kk / dpr + 'px'; cv.style.height = H * kk / dpr + 'px'; cv.style.left = (innerWidth - W * kk / dpr) / 2 + 'px'; cv.style.top = (innerHeight - H * kk / dpr) / 2 + 'px';
+  img = g.createImageData(W, H); u32 = new Uint32Array(img.data.buffer); scr = new Uint8Array(W * H);
+  MSGH = 86; pw = W - 16; ph = H - 16 - MSGH - 8 - (TALL ? 26 + 40 : 0); s = Math.max(.8, Math.min(1.5, Math.sqrt(pw * ph / 181000) * (TALL ? 1.25 : 1)));
+  scenes = [sceneA(), sceneB()]; for (const sc of scenes) sc.work = new Uint8Array(pw * ph); prev = new Uint8Array(pw * ph);
+}
+let prev, cur = 0, shown = -1, revT = 0;
+const SCRIPT = [   // [時刻, 絵, 名前, せりふ, えらぶコマンド]
+  [0, 0, '', '', 3], [2.4, 0, '', 'ビルの屋上。雨はまだ降りつづいている。', 0], [6.4, 0, 'ミオ', '「……あの赤い灯、またたいてるね。」', 1],
+  [10.6, 1, '', '', 3], [13.0, 1, '', '事務所の窓辺。ねこが外を見ている。', 0], [16.8, 1, 'ねこ', '「にゃあ。」', 1]], LOOP = 19.6, CMD = ['みる', 'はなす', 'しらべる', 'いどう'];
+function drawScene(sc, t) {
+  const tick = Math.floor(t * 12), w = sc.work; w.set(sc.pic); T = w; TW = pw; TH = ph; mask = null;
+  for (const b of sc.sky.beacons) if (tick % 12 < 6) { pset(b[0], b[1], 8); pset(b[0] - 1, b[1], 8); pset(b[0] + 1, b[1], 8); pset(b[0], b[1] - 1, 8); pset(b[0], b[1] + 1, 8); }
+  const fs = sc.sky.signs[1] || sc.sky.signs[0]; if (fs && (tick % 37 === 3 || tick % 37 === 5 || tick % 53 === 20)) sign(fs, false);     // ネオンのちらつき
+  const NR = Math.round(pw * ph / 2000), span = ph + 40;
+  for (let i = 0; i < NR; i++) { const sp = 17 + (i % 5) * 3, y = Math.floor((hash(i, 30) * span + tick * sp) % span) - 20, x = Math.floor((hash(i, 31) * (pw + 120) - y * .3)), l = 4 + i % 4, c = i % 3 ? 3 : 14; for (let k = 0; k < l; k++) { const X = x - Math.round(k * .3), Y = y + k; if (X >= 0 && Y >= 0 && X < pw && Y < ph && sc.mk[Y * pw + X] === 1) w[Y * pw + X] = c; } }
+  if (sc.fy) { for (let i = 0; i < 10; i++) { const x = Math.floor(hash(tick, i) * pw), y = sc.fy + 3 + Math.floor(hash(tick, i + 40) * (ph - sc.fy - 4)); if (sc.mk[y * pw + x] === 2) { pset(x, y, 14); pset(x - 1, y - 1, 14); pset(x + 1, y - 1, 14); } }
+    sc.drips.forEach((d, i) => { const y = d[1] + ((tick + i * 5) % 14) * 4; if (y < sc.fy + 20) { pset(d[0], y, 15); pset(d[0], y + 1, 3); } }); }
+  if (sc.steam) for (let i = 0; i < 5; i++) { const a = (tick * .5 + i * 2.4) % 12; pset(sc.steam[0] + Math.round(Math.sin(a * .8 + i) * 2.5), sc.steam[1] - Math.round(a * 1.6), a < 7 ? 14 : 13); }
+}
+function frameBox(x, y, w, h) { rect(x, y, w, h, 1); edge([[x, y], [x + w - 1, y], [x + w - 1, y + h - 1], [x, y + h - 1]], 15); edge([[x + 2, y + 2], [x + w - 3, y + 2], [x + w - 3, y + h - 3], [x + 2, y + h - 3]], 3); }
+let last = performance.now(), t = 0;
+function frame(now) {
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; t += dt;
+  const lt = t % LOOP; let ev = SCRIPT[0]; for (const e of SCRIPT) if (lt >= e[0]) ev = e;
+  if (ev[1] !== cur || shown < 0) { if (shown >= 0) prev.set(scenes[cur].work); cur = ev[1]; shown = cur; revT = t; }
+  const sc = scenes[cur]; drawScene(sc, t);
+  const rev = Math.min(ph, Math.floor((t - revT) / 2.3 * ph / 4) * 4);                    // 上から 4 本ずつ線が描かれていく
+  T = scr; TW = W; TH = H; mask = null; scr.fill(0);
+  const py0 = 8 + (TALL ? 26 : 0);
+  if (TALL) { rect(8, 8, pw, 20, 1); text('アドベンチャー 「雨の街」', 14, 9, 12); }
+  edge([[6, py0 - 2], [W - 7, py0 - 2], [W - 7, py0 + ph + 1], [6, py0 + ph + 1]], 13);
+  for (let y = 0; y < ph; y++) { const src = y < rev ? sc.work : prev; scr.set(src.subarray(y * pw, y * pw + pw), (py0 + y) * W + 8); }
+  if (rev < ph) rect(8, py0 + rev, pw, 1, 15, 3, 8);
+  const my = H - 8 - MSGH - (TALL ? 40 : 0), cw = 92, mw = W - 16 - cw - 6; frameBox(8, my, mw, MSGH); frameBox(W - 8 - cw, my, cw, MSGH);
+  CMD.forEach((c, i) => { const y = my + 7 + i * 18, on = i === ev[4] && (lt - ev[0] > .7 || Math.floor(t * 8) % 2 === 0); if (on) rect(W - 8 - cw + 6, y, cw - 12, 18, 15); text(c, W - 8 - cw + 12, y, on ? 1 : 15); });
+  const per = Math.max(6, Math.floor((mw - 24) / 16)), n = Math.floor((lt - ev[0]) * 13); let ty = my + 8;
+  if (ev[2]) { text('【' + ev[2] + '】', 16, ty, 10); ty += 19; }
+  const chars = [...ev[3]]; for (let i = 0; i < Math.min(n, chars.length); i++) text(chars[i], 20 + (i % per) * 16, ty + Math.floor(i / per) * 19, 15);
+  if (chars.length && n > chars.length + 2 && Math.floor(t * 3) % 2) text('▼', mw - 14, my + MSGH - 24, 12);
+  if (!chars.length) text('……', 20, ty, 13);
+  for (let i = 0; i < u32.length; i++) u32[i] = LUT[scr[i]];
+  g.putImageData(img, 0, 0); requestAnimationFrame(frame);
+}
+build(); addEventListener('resize', () => { build(); shown = -1; });
+requestAnimationFrame(frame);
+</script>
+</html>
