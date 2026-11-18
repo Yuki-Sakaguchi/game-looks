@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-00 部品の一覧 こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#e9eef0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a4a5a;background:#f4f1e8;padding:0 6px}
+#nav{position:fixed;left:12px;top:10px;font:12px/1.8 ui-monospace,Menlo,monospace;background:#f4f1e8;padding:0 6px}
+#nav a{color:#3a6a9a;margin-right:8px}
+</style>
+<div id="nav"></div>
+<div id="cap">7-00 ─ 部品の一覧 / model.js の部品をならべて回す　｜　見るだけ（自動で回る）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// model.js（方向 A「こまかいローポリ」の部品集）を全部ならべて、1 つずつその場でゆっくり回して見せる確認用のページ。
+// ?s=people / trees / houses / props / animals / vehicles で種類を選ぶ（何もつけないと全部）。&mood=evening などで光を変える。&z=倍率 で寄る
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), q = new URLSearchParams(location.search), sec = q.get('s') || 'all', zoom = +(q.get('z') || 1), only = q.get('i');
+const { scene, cam, renderer } = K.stage({ fov: 30, fitAspect: 1.6, maxFov: 80 });
+const L = M.look(scene, renderer, q.get('mood') || 'morning', { range: 16, fog: [80, 300] });
+document.getElementById('nav').innerHTML = ['all', 'people', 'trees', 'houses', 'props', 'animals', 'vehicles'].map(s => `<a href="?s=${s}">${s}</a>`).join('');
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), K.flat('#cfe0c4', { flatShading: false })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+// 部品の表：[名前, 作る関数, 場所の広さ(m), 毎コマの動き]
+const S = {
+  people: [
+    ['大人 歩く', () => M.person({ top: '#e8563e', collar: '#f6ead2', belt: '#5a4030', buttons: '#f6ead2', hairStyle: 'short' }), 1.6, (g, t) => M.pose(g, 'walk', t * 6)],
+    ['子ども 走る', () => M.person({ age: 'child', top: '#f2c84a', bottom: '#3f7fb0', legs: 'shorts', sleeves: 'short', hat: 'cap', hatColor: '#e8563e', pack: '#4a8a6a', hairStyle: 'short' }), 1.6, (g, t) => M.pose(g, 'run', t * 9)],
+    ['スカート 立つ', () => M.person({ top: '#f6ead2', bottom: '#c8563e', legs: 'skirt', hairStyle: 'bob', hair: '#3a2a2a', collar: '#c8563e', sleeves: 'short' }), 1.6, (g, t) => M.pose(g, 'stand', t * 2)],
+    ['むぎわら 手をふる', () => M.person({ top: '#7ab0d8', legs: 'dress', hairStyle: 'long', hair: '#c8843a', hat: 'straw', hatBand: '#e8563e' }), 1.6, (g, t) => M.pose(g, 'wave', t * 2)],
+    ['上着 すわる', () => M.person({ top: '#5a7a5a', bottom: '#6a5a4a', coat: true, scarf: '#e8c04a', hairStyle: 'bun', hair: '#d8d4cc', wide: 1.12, h: 1.5 }), 1.6, (g, t) => { M.pose(g, 'sit', t * 2); g.position.y = .0; }],
+    ['子ども ふたつ結び', () => M.person({ age: 'child', top: '#f09ab0', legs: 'dress', hairStyle: 'twin', hair: '#4a3020' }), 1.4, (g, t) => M.pose(g, 'walk', t * 7)],
+    ['ぼうし リュック', () => M.person({ top: '#4a8ac0', bottom: '#e8dcc0', hat: 'beanie', hatColor: '#e8563e', hatBand: '#f6ead2', scarf: '#f6ead2', pack: '#c8843a', hairStyle: 'pony', hair: '#2a2420' }), 1.6, (g, t) => M.pose(g, 'walk', t * 6)],
+    ['つんつん 立つ', () => M.person({ top: '#f6ead2', bottom: '#4a5a4a', hairStyle: 'spiky', hair: '#e8a03a', sleeves: 'short', skin: '#c89070' }), 1.6, (g, t) => M.pose(g, 'stand', t * 2)],
+  ],
+  trees: [
+    ['広葉樹 夏', () => M.tree({ h: 5, seed: 1 }), 3.6],
+    ['広葉樹 秋・横広', () => M.tree({ h: 4.6, kind: 'wide', leaf: M.LEAF.autumn, seed: 4, blobs: 6 }), 4.2],
+    ['細長い木', () => M.tree({ h: 6, kind: 'tall', leaf: M.LEAF.spring, seed: 2 }), 2.6],
+    ['さくら', () => M.tree({ h: 4.6, leaf: M.LEAF.sakura, trunk: '#6a4640', seed: 7, blobs: 7 }), 3.8],
+    ['実のなる木', () => M.tree({ h: 3.6, leaf: M.LEAF.deep, fruit: '#e8563e', seed: 9 }), 3],
+    ['針葉樹', () => M.conifer({ h: 6, seed: 1 }), 3],
+    ['針葉樹 雪', () => M.conifer({ h: 5, snow: '#f6fafc', tiers: 5, seed: 5, leaf: M.LEAF.dusk }), 2.6],
+    ['しげみ', () => M.bush({ r: .8, seed: 1 }), 2],
+    ['花のしげみ', () => M.bush({ r: .7, leaf: M.LEAF.deep, flowers: ['#ffffff', '#f6a0b8'], seed: 3, n: 4 }), 2],
+  ],
+  houses: [
+    ['切妻 1 階', () => M.house({ w: 5, d: 4, shutters: '#5f8a7a', flowerBox: '#8a5a44', lit: L.lit, seed: 1 }), 7],
+    ['寄棟 2 階', () => M.house({ w: 5.5, d: 4.6, floors: 2, roof: 'hip', wall: '#f6e4c8', wall2: '#f6efe0', roofColor: '#4f7f9a', timber: '#7a5a44', door: '#c8563e', lit: L.lit, seed: 2 }), 8],
+    ['切妻を前に・店', () => M.house({ w: 4.4, d: 5, floors: 2, h: 2.4, gableFront: true, wall: '#f0d8b8', roofColor: '#6a8a5a', awning: '#e8563e', shutters: '#fbf6ea', door: '#7a5a44', lit: L.lit, seed: 3 }), 7],
+    ['小屋', () => M.house({ w: 3.2, d: 3, h: 2.3, pitch: 1.1, wall: '#d8b890', roofColor: '#8a5a4a', chimney: false, windows: 'front', porch: false, lit: L.lit, seed: 4 }), 5],
+  ],
+  props: [
+    ['岩', () => M.rock({ r: .8, n: 3, seed: 2 }), 2.6],
+    ['こけの岩', () => M.rock({ r: 1.1, moss: '#8fba6a', seed: 5 }), 2.6],
+    ['草と花', () => { const g = new THREE.Group(), a = [], b = []; for (let i = 0; i < 40; i++) { const x = (K.hash(i, 1) - .5) * 2.2, z = (K.hash(i, 2) - .5) * 2.2; (i % 3 ? a : b).push([x, 0, z, .8 + K.hash(i, 3) * .6]); } g.add(M.tufts(a), M.flowers(b)); return g; }, 2.6],
+    ['さく', () => M.fence([[-1.6, 0], [1.6, 0]]), 3.6],
+    ['白いさく', () => M.fence([[-1.5, -.5], [.6, -.5], [1.5, .6]], { kind: 'picket' }), 3.6],
+    ['街灯', () => M.lamp({ lit: 1 }), 1.6],
+    ['街灯 うで', () => M.lamp({ kind: 'arm', lit: 1 }), 2],
+    ['ベンチ', () => M.bench(), 2.2],
+    ['道しるべ', () => M.sign(), 1.8],
+    ['つり看板', () => M.sign({ kind: 'hang' }), 2],
+    ['立て看板', () => M.sign({ kind: 'board' }), 2.2],
+    ['井戸', () => M.well(), 3],
+    ['橋', () => { const g = M.bridge(); g.rotation.y = Math.PI / 2; const w = new THREE.Group(); w.add(g); return w; }, 7.4],
+    ['雲', () => { const g = M.cloud({ s: .28, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); g.position.y = 1.2; const w = new THREE.Group(); w.add(g); return w; }, 3.4],
+  ],
+  animals: [
+    ['犬 歩く', () => M.animal('dog', { collar: '#e8563e' }), 1.3, (g, t) => M.gait(g, 'walk', t * 9)],
+    ['犬 すわる', () => M.animal('dog', { color: '#f4eee0', color2: '#c8a070' }), 1.3, (g, t) => M.gait(g, 'sit', t * 3)],
+    ['ねこ 歩く', () => M.animal('cat'), 1.1, (g, t) => M.gait(g, 'walk', t * 9)],
+    ['ねこ すわる', () => M.animal('cat', { color: '#e8a05a', color2: '#b8703a' }), 1.1, (g, t) => M.gait(g, 'sit', t * 3)],
+    ['ひつじ', () => M.animal('sheep'), 1.6, (g, t) => M.gait(g, 'graze', t * 2)],
+    ['ひつじ 歩く', () => M.animal('sheep', { color: '#e8dcc8' }), 1.6, (g, t) => M.gait(g, 'walk', t * 7)],
+    ['鳥 飛ぶ', () => { const b = M.bird({ s: 2 }); b.position.y = .6; const w = new THREE.Group(); w.add(b); w.userData.b = b; return w; }, 1.2, (g, t) => M.flap(g.userData.b, t * 14)],
+    ['鳥 立つ', () => M.bird({ s: 2, color: '#5a7ab0', belly: '#f4d8a0' }), 1.0, (g, t) => M.flap(g, 0, 0)],
+  ],
+  vehicles: [
+    ['車', () => M.car({ lit: L.lit, rack: true }), 4.2, (g, t) => g.userData.wheels.forEach(w => w.rotation.x = t * 4)],
+    ['小さなトラック', () => M.car({ kind: 'truck', body: '#7ab0d8' }), 4.2],
+    ['自転車と人', () => { const b = M.bicycle(), p = M.person({ top: '#f2c84a', bottom: '#3d4c6e', hat: 'straw' }); b.userData.p = p; M.ride(b, p, 0); return b; }, 2.4, (g, t) => M.ride(g, g.userData.p, t * 3)],
+    ['小舟 かい', () => M.boat(), 4, (g, t) => g.userData.oars.forEach((o, i) => o.rotation.y = (i ? -1 : 1) * (.35 + Math.sin(t * 2) * .4))],
+    ['帆かけ舟', () => M.boat({ sail: '#fbf6ea', hull: '#c8563e', trim: '#f4eee0' }), 4],
+    ['電車', () => M.train({ lit: L.lit }), 9.5],
+  ],
+};
+if (window.SHEET_MORE) window.SHEET_MORE(S, M, K, THREE);
+let items = sec === 'all' ? Object.values(S).flat() : (S[sec] || []); if (only != null) { const [a, b] = only.split('-').map(Number); items = items.slice(a, (b ?? a) + 1); }
+// 広さに合わせて行にならべる
+const W = sec === 'all' ? 34 : Math.min(26, items.reduce((a, i) => a + i[2] + .6, 0)) + .01, rows = [[]]; let x = 0;
+for (const it of items) { if (x + it[2] > W && rows[rows.length - 1].length) { rows.push([]); x = 0; } rows[rows.length - 1].push(it); x += it[2] + .6; }
+const live = []; let z = 0, total = 0;
+rows.forEach(r => { const w = r.reduce((a, i) => a + i[2] + .6, 0), d = Math.max(...r.map(i => i[2])) * 1.5; let px = -w / 2; z += d / 2;
+  for (const [name, make, size, tick] of r) { const g = make(), piv = new THREE.Group(); piv.add(g); piv.position.set(px + size / 2 + .3, 0, z); scene.add(piv); live.push([piv, g, tick]); px += size + .6; total += M.tris(g); console.log(name, M.tris(g)); }
+  z += d / 2 + .8; });
+console.log('三角形の合計', total);
+const cz = z / 2, dist = Math.max(W * 1.22, z * (rows.length > 1 ? 1.4 : 1.9), 4) / zoom;
+K.loop((dt, t) => {
+  for (const [piv, g, tick] of live) { piv.rotation.y = t * .45 - .7; if (tick) tick(g, t); }
+  L.follow(0, 0, cz); cam.position.set(0, dist * (rows.length > 1 ? .6 : .34) + .6, cz + dist * (rows.length > 1 ? .85 : 1)); cam.lookAt(0, Math.min(1.2, dist * .08), cz + (rows.length > 1 ? z * .08 : -z * .05));
+  renderer.render(scene, cam);
+});
+</script>
+</html>

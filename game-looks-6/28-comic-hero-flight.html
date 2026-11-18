@@ -32,10 +32,10 @@ band.count = wi; bld.castShadow = bld.receiveShadow = true; band.receiveShadow =
 for (let i = 0; i < 5; i++) { const c = K.cloud(3 + hash(i, 4) * 2); c.position.set((i - 2) * 46 + hash(i, 5) * 10, 78 + hash(i, 6) * 30, -196); c.userData.cl = 1; scene.add(c); }
 // 主役：マントのヒーロー（−z へ飛ぶ）
 const hero = new THREE.Group(), BL = '#2f6bff', RD = '#ff3a2e', SK = '#ffd2a8', YL = '#ffe14a', cape = [];
-box(hero, .8, .46, 1.3, BL, 0, 0, 0); box(hero, .84, .5, .16, YL, 0, 0, .58); box(hero, .82, .48, .36, RD, 0, 0, .84);                       // 胴・ベルト・パンツ
-box(hero, .46, .46, .46, SK, 0, .12, -.98); box(hero, .5, .2, .5, '#16141e', 0, .38, -.94);                                                   // 頭とかみ
-for (const s of [-1, 1]) { box(hero, .22, .22, 1.5, BL, s * .46, .02, -1.4); box(hero, .28, .28, .32, RD, s * .46, .02, -2.3); box(hero, .32, .32, 1.5, BL, s * .18, 0, 1.75); box(hero, .36, .36, .56, RD, s * .18, 0, 2.75); }   // のばした両うで、そろえた足
-{ let par = hero; for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .27, i ? .8 : -.55); box(g, 1.1 + i * .45, .07, .84, RD, 0, 0, .4).castShadow = false; par.add(g); cape.push(g); par = g; } }   // 体から浮いてなびくマント
+box(hero, 1, .5, 1.2, BL, 0, 0, 0); box(hero, .5, .06, .5, YL, 0, .27, -.2); box(hero, 1.02, .52, .16, YL, 0, 0, .56); box(hero, .98, .5, .36, RD, 0, 0, .82);   // 胴・胸のしるし・ベルト・パンツ
+box(hero, .62, .62, .62, SK, 0, .16, -1); box(hero, .66, .26, .66, '#16141e', 0, .5, -.96);                                                   // 頭とかみ（大きめ）
+for (const s of [-1, 1]) { box(hero, .3, .3, 1.15, BL, s * .58, .04, -1.2); box(hero, .38, .38, .4, RD, s * .58, .04, -1.95); box(hero, .4, .4, 1.15, BL, s * .24, 0, 1.55); box(hero, .46, .46, .6, RD, s * .24, 0, 2.4); }   // のばした両うで、そろえた足（太く短く）
+{ let par = hero; for (let i = 0; i < 3; i++) { const g = new THREE.Group(); g.position.set(0, i ? 0 : .3, i ? .8 : -.5); box(g, 1.1 + i * .3, .07, .84, RD, 0, 0, .4).castShadow = false; par.add(g); cape.push(g); par = g; } }   // 体から浮いてなびくマント（短め）
 hero.scale.setScalar(1.2); scene.add(hero);
 const post = K.post(renderer, `uniform vec3 L;mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 void main(){vec2 p=vUv*res;vec3 c=src(vUv),col=c,ink=vec3(.07,.06,.1);float d=dep(vUv);
@@ -52,7 +52,7 @@ K.loop((dt, t) => {
   hero.position.set(x, y, z); hero.rotation.set(.05 + Math.cos(t * .9) * .05, 0, -Math.cos(t * .7) * .25); cape.forEach((g, i) => g.rotation.x = Math.sin(t * 9 - i * 1.4) * (.08 + i * .07) + (i ? .16 : -.5));
   scene.children.forEach(o => { if (o.userData.cl) o.position.z = z - 196; });
   sun.target.position.set(0, 10, z - 45); sun.position.copy(sun.target.position).add(O);
-  cam.position.set(x + 8, y + 4, z + 6); cam.lookAt(x - (tall ? .6 : 3), y + .4, z - (tall ? .6 : 4));   // 斜めうしろ上から。体が横に長く見える
+  cam.position.set(x + 6.4, y + 2.4, z + 3.2); cam.lookAt(x - (tall ? 0 : .6), y + .1, z - (tall ? .2 : 1.2));   // 斜めうしろの横から。体が横に長く見える
   cam.updateMatrixWorld(); post.u.L.value.copy(O).transformDirection(cam.matrixWorldInverse);
   post.render(scene, cam, t);
 });

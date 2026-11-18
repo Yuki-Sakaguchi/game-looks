@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-17 夜の商店街を歩く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">7-17 ─ 夜の商店街を歩く / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script src="retro.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 B。面の少ない形に、その場で打ったドット絵のテクスチャ（アスファルト・コンクリート・シャッター・あかりの窓・光る看板）をはり、横 320 ドットほどの粗い絵に描く。
+// 色数を落としてディザにかけ、ブラウン管に映す（横のにじみ・走査線・明るい所のにじみ）ので、窓や ちょうちんのあかりがやわらかく ともる。
+// 紺色の夜の商店街：閉まった店と開いている店がまざる通りを、主人公が歩く。うしろから追うカメラ。部品はぜんぶ retro.js（R.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 900, aa: false, fitAspect: .9, maxFov: 74 });
+scene.add(R.skyDome([[0, '#0a1034'], [.55, '#162256'], [.85, '#2c3a7c'], [1, '#4a4c92']], { r: 380 })); scene.fog = new THREE.Fog('#222a60', 28, 150);
+const { sun } = K.lights(scene, renderer, { sky: 0x6c7cd8, ground: 0x4a3c58, amb: 1.25, sun: 0x9ab0ff, power: .7, range: 30 }), SUN = new THREE.Vector3(.3, .62, -.72).normalize();
+
+// ---- 地面：歩道の石（あかりの色を焼きこむ）と、アスファルトの道の帯 ----
+const LAMPS = [-40, -30, -20, -10, 0, 10, 20, 30, 40].map((x, i) => [x + 2, i % 2 ? 3.65 : -3.65, i % 3 === 1]);   // [x, z, 寒色か]
+const OPEN = i => hash(i, 41) < .56, WD = [6, 5.2, 6.6, 5.6, 7, 5.4], LOTS = [];   // 店の区画（北がわ・南がわ）
+for (const s of [-1, 1]) for (let x = -47, i = 0; x < 46; i++) { const w = WD[(i + (s > 0 ? 2 : 0)) % 6]; LOTS.push({ x: x + w / 2, s, w, i: LOTS.length, open: OPEN(LOTS.length) }); x += w + .12; }
+const land = R.ground({ w: 130, d: 40, cell: 1, layers: [T.cobble({ kind: 'slab', c: '#8c8a96' })], shade: (x, z) => { let r = .62, g = .62, b = .74;
+  for (const [lx, lz, cold] of LAMPS) { const k = Math.max(0, 1 - Math.hypot(x - lx, z - lz) / 5) ** 2; r += k * (cold ? .5 : 1.1); g += k * (cold ? .75 : .7); b += k * (cold ? 1 : .15); }
+  for (const L of LOTS) if (L.open) { const k = Math.max(0, 1 - Math.abs(x - L.x) / (L.w * .6)) * Math.max(0, 1 - Math.abs(z - L.s * 4.6) / 2.2); r += k * .9; g += k * .6; b += k * .15; } return [r, g, b]; } });
+scene.add(land.mesh, R.strip([[-64, 0, 0], [-32, 0, 0], [0, 0, 0], [32, 0, 0], [64, 0, 0]], 7, T.road({ line: 'center', c: '#54525e' })));
+
+// ---- 看板のドット絵（字のような もよう。ほんとうの字ではない）----
+const SIGNC = [['#c2382e', '#fff2c8'], ['#f4ead2', '#b8302a'], ['#2a6ab0', '#ffffff'], ['#f2b83a', '#5a2a1a'], ['#2f8a5a', '#fff4c0'], ['#e8e8f0', '#2a3a8a'], ['#8a3a8a', '#ffd8f0']];
+const signT = (i, v) => { const w = v ? 16 : 64, h = v ? 48 : 16, P = R.Px(w, h), [bg, fg] = SIGNC[i % 7], Bg = R.ramp(bg); P.each((x, y) => (x < 1 || y < 1 || x > w - 2 || y > h - 2) ? Bg[1] : (x < 2 || y < 2) ? Bg[4] : Bg[3]);
+  const n = v ? 4 : 3 + i % 3, st = v ? 11 : 12, x0 = v ? 4 : (64 - n * st) / 2 + 2, y0 = v ? 3 : 4; for (let k = 0; k < n; k++) { const gx = v ? x0 : x0 + k * st, gy = v ? y0 + k * st : y0;
+    for (let j = 0; j < 4; j++) { const a = hash(i, k * 7 + j), b = hash(k, i * 5 + j); if (a < .5) P.rect(gx, gy + Math.floor(b * 4) * 2, 8, 1 + (j & 1), fg); else P.rect(gx + Math.floor(b * 4) * 2, gy, 1 + (j & 1), 8, fg); } } return T.from(P, { m: 1 }); };
+
+// ---- 店：2 階建て（しっくい・コンクリート・れんが）。1 階は シャッター か、あかりのついた店先 ----
+const glass = '#5a6a8a', fr = '#5a626a', win = T.window({ frame: fr, curtain: '#c8d0dc' }), winL = T.window({ frame: fr, lit: 1 }), winG = T.window({ frame: fr, bars: 'grid', curtain: false }), winGL = T.window({ frame: fr, bars: 'grid', lit: 1 });
+const shopWin = T.window({ frame: '#3a3a44', bars: 'cross', lit: 1 }), shopDoor = T.door({ style: 'glass', lit: 1, frame: '#3a3a44', c: '#6a5a4a' }), flatR = T.concrete({ c: '#5a5a66' });
+const WALL = [{ wall: T.concrete(), roofKind: 'flat', roof: flatR, win, winLit: winL }, { wall: T.plaster({ c: '#e0d4b8' }), roof: T.roof({ kind: 'slate', c: '#4a5878' }), win: winG, winLit: winGL },
+  { wall: T.brick({ c: '#a0604a' }), wall2: T.plaster({ c: '#d8d0c4' }), roofKind: 'flat', roof: flatR, win, winLit: winL }, { wall: T.plaster({ c: '#c8d4cc' }), roof: T.roof({ kind: 'wave', c: '#5a5a66' }), win: winG, winLit: winGL },
+  { wall: T.concrete({ c: '#b8a894' }), wall2: T.concrete({ c: '#b8a894' }), roofKind: 'flat', roof: flatR, win, winLit: winL, h2: 5.6 }];
+const SHUT = ['#a9b0b4', '#8a9aa8', '#b4a890', '#9aa89a'], AWN = ['#c2453a', '#2f7a5a', '#3f6ab0', '#d8a03a'], fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (const { x, s, w, i, open } of LOTS) { const o = WALL[(i * 3 + (s > 0 ? 1 : 0)) % 5], g = new THREE.Group(), B = R.parts(), z0 = 3.06, a = -w / 2 + .45, b = w / 2 - .45;
+  g.add(R.house({ w, d: 6, h: 3.4, h2: 2.8, jut: 0, base: false, door: false, wins: { f: [], l: [], r: [], b: [] }, wins2: { l: [], r: [], b: [] }, lit: .6, seed: i, eave: .25, pitch: .5, ...o, awning: open ? T.fabric({ c: AWN[i % 4], scallop: 1 }) : undefined, awningW: w - .6, awningX: 0 }));
+  if (open) { B.g(shopWin, { glow: true, offset: true }).quad([a, .7, z0], [b - 1.3, .7, z0], [b - 1.3, 2.2, z0], [a, 2.2, z0], [0, 0, Math.round((b - 1.3 - a) / 1.4), 1]); B.g(shopDoor, { glow: true, offset: true }).quad([b - 1.1, 0, z0], [b, 0, z0], [b, 2.2, z0], [b - 1.1, 2.2, z0]); }
+  else B.g(T.shutter({ c: SHUT[i % 4] }), { offset: true }).quad([a, 0, z0], [b, 0, z0], [b, 2.6, z0], [a, 2.6, z0], [0, 0, Math.max(1, Math.round((b - a) / 3)), .87], [.8, .8, 1, 1]);
+  B.g(signT(i, 0), { glow: open || i % 3 === 0, offset: true }).quad([-1.3, 2.78, z0 + .04], [1.3, 2.78, z0 + .04], [1.3, 3.43, z0 + .04], [-1.3, 3.43, z0 + .04], [0, 0, 1, 1], open || i % 3 === 0 ? 1 : .7);
+  if (i % 3 !== 1) { const sx = (i % 2 ? 1 : -1) * (w / 2 - .25), S = B.g(signT(i + 3, 1), { glow: true, side: true }); S.quad([sx, 3.7, z0], [sx, 3.7, z0 + .7], [sx, 5.8, z0 + .7], [sx, 5.8, z0]); }   // そで看板
+  g.add(B.group()); put(g, x, s * -8, s < 0 ? Math.PI : 0); }
+
+// ---- 街灯・標識・車・自動販売機・小物・ちょうちん ----
+const lamps = LAMPS.map(([x, z, cold], i) => put(R.lamp({ h: 4.2, arm: .9, cold, light: Math.abs(x) < 36, power: cold ? 16 : 20, range: 12, c: '#5a626a' }), x, z, z > 0 ? Math.PI / 2 : -Math.PI / 2));
+[[-17, 3.9, 'no'], [-3, -3.9, 'arrow'], [13, 3.9, 'warn'], [24.5, -3.9, 'stop'], [-27, -3.9, 'plate'], [33, 3.9, 'no']].forEach(([x, z, kind]) => put(R.roadSign({ kind }), x, z, z > 0 ? Math.PI : 0));
+const cars = [[-6.5, 2.72, '#d8503c', 'sedan', 1], [7, -2.72, '#e8e4dc', 'van', -1], [19, 2.72, '#3f7ab0', 'sedan', 1], [-22, -2.6, '#e0b040', 'sedan', -1], [34, -2.6, '#5a8a6a', 'sedan', -1]].map(([x, z, c, kind, d]) => put(R.car({ c, kind }), x, z, d * Math.PI / 2));
+{ const P = R.Px(32, 64), M = R.ramp('#e8ecf4'), cs = ['#e2503c', '#f2a23a', '#3f8ac0', '#8ab84a', '#f4f0e0']; P.each((x, y) => (x < 2 || x > 29 || y < 2 || y > 61) ? M[2] : y < 36 ? '#fff8dc' : y > 44 && y < 50 && x > 5 && x < 20 ? '#2a2a34' : M[4]);
+  for (let j = 0; j < 3; j++) for (let k = 0; k < 6; k++) { P.rect(4 + k * 4, 5 + j * 10, 3, 6, cs[(k + j * 2) % 5]); P.rect(4 + k * 4, 5 + j * 10, 3, 1, '#ffffff'); P.rect(4 + k * 4, 12 + j * 10, 3, 1, k % 3 ? '#3f8ac0' : '#e2503c'); }
+  const vt = T.from(P, { m: 1 }); for (const [x, s, c] of [[-12.6, 1, '#d8dce4'], [15.8, -1, '#c2453a'], [-11.5, 1, '#3f6ab0']]) { const B = R.parts(); B.g(T.metal({ c })).box(1, 1.85, .7, 0, 0, 0, { m: .5, taper: .97, c0: .7 }); B.g(vt, { glow: true, offset: true }).quad([-.46, .06, .351], [.46, .06, .351], [.45, 1.8, .34], [-.45, 1.8, .34]); put(B.group(), x, s * -4.55, s < 0 ? Math.PI : 0); } }
+put(R.crate({ s: .6 }), -13.7, 4.5, .3); put(R.bench(), 4.4, 4.5, Math.PI); put(R.barrel({ h: .7, r: .3, c: '#5a7a9a' }), -1.2, -4.5); put(R.crate({ s: .7, kind: 'x' }), 22.3, -4.5, .5); put(R.tree({ kind: 'bush', h: 1, seed: 2 }), 9, 4.5); put(R.tree({ kind: 'bush', h: 1.1, flowers: .5, seed: 5 }), -24, 4.5); put(R.tree({ kind: 'round', h: 5.5, seed: 3 }), 28.6, 4.3);
+{ const G = R.geo().smooth(1); for (let x = -44, r = 0; x <= 44; x += 8, r++) for (let k = 0; k < 9; k++) { const q = (k - 4) / 4; G.tint(k % 2 ? [1, .62, .5] : [1, 1, .9]).at(R.TR(x + q * 1.2 * (r % 2 ? 1 : -1), 5 - (1 - q * q) * .7, q * 4.7)).loft(6, [[-.17, .05, .05, 0], [-.07, .15, .15, .35], [.07, .15, .15, .65], [.17, .05, .05, 1]], { cap: 'both', ur: 3 }); } scene.add(G.mesh(T.lamp(), { glow: true })); }   // 通りをわたす ちょうちん
+scene.add(R.merge(fixed));
+for (const L of LOTS) if (L.open && Math.abs(L.x) < 30 && L.i % 2) { const l = new THREE.PointLight('#ffb060', 14, 9, 1.5); l.position.set(L.x, 2, L.s * -3.9); scene.add(l); }
+
+// ---- 空：月・雲・遠くの山 ----
+scene.add(R.backdrop({ c: '#141a44', haze: '#3a4486', r: 230, y: -4 }));
+for (let i = 0; i < 6; i++) { const c = R.cloud({ s: 36 + hash(i, 8) * 22, c: '#4a5a9c', shade: '#2a3470', seed: i }), a = i * 1.05; c.position.set(Math.cos(a) * 200, 50 + hash(i, 9) * 30, Math.sin(a) * 200); c.lookAt(0, 20, 0); scene.add(c); }
+const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 16), new THREE.MeshBasicMaterial({ color: '#f4f0d0', fog: false })); moon.position.set(250, 78, -40); moon.lookAt(0, 10, 0); scene.add(moon);
+
+// ---- 人・ねこ ----
+const hero = R.person({ face: 1, cloth: 'jacket', top: '#e0a030', top2: '#f4ead2', bottom: '#3a4a7a', pack: true, hair: '#3a2a30', hat: 'cap', acc: '#c2453a', s: 1.05 }); scene.add(hero);
+const npc = (o, x, z, ry) => { const p = R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const walkers = [npc({ face: 6, cloth: 'jacket', top: '#5a6a8a', bottom: '#3a3a4a', hair: '#2a2a2a' }, 0, 0, 0), npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#6e4628', bun: true }, 0, 0, 0), npc({ face: 5, cloth: 'stripe', top: '#4a9a8a', shorts: 1, s: .78, head: 1.14, hair: '#2a2a2a' }, 0, 0, 0)];
+const open1 = LOTS.find(L => L.open && L.s > 0 && L.x > 0 && L.x < 14) || LOTS[20], chatA = npc({ face: 4, cloth: 'apron', top: '#f0e8d8', hair: '#8a8a8a', hat: 'cap', acc: '#f0e8d8' }, open1.x - .4, -3.9 * open1.s, open1.s > 0 ? Math.PI - 2 : 1), chatB = npc({ face: 2, cloth: 'shirt', top: '#8a5a9a', skirt: .7, hair: '#c8843a' }, open1.x - 1.5, -4.2 * open1.s, open1.s > 0 ? Math.PI + 2 : 2);
+const cat = R.cat({ c: '#3a3a44', belly: '#e8e4dc' }); cat.position.set(-13.7, .6, 4.5); cat.rotation.y = 2.4; scene.add(cat); const cat2 = R.cat(); scene.add(cat2);
+
+// ---- 主人公の道（通りを東へ → はしで折り返して西へ） ----
+const path = new THREE.CatmullRomCurve3([[-27, .9], [-12, .9], [8, .9], [27, .9], [29.4, 0], [27, -.9], [8, -.9], [-12, -.9], [-27, -.9], [-29.4, 0]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 2.2, S0 = 9 / LEN, cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.5)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
+  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.5, p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 歩く人（歩道を行ったり来たり）・立ち話・ねこ
+  walkers.forEach((w, i) => { const sp = [1.3, 1.1, 1.9][i], ph = t * sp / 50 + [.12, .58, .3][i], k = ph % 2 < 1 ? ph % 1 : 1 - ph % 1, d = ph % 2 < 1 ? 1 : -1; w.position.set(-25 + k * 50, 0, [4, -3.9, -4.3][i] * d); w.rotation.y = d * Math.PI / 2; R.walk(w, t * sp * 3.6, i === 2 ? 1.2 : .85); });
+  R.idle(chatA, t, Math.sin(t * .5) * .2); R.idle(chatB, t + 2, Math.sin(t * .6) * .2); chatB.userData.J.armL.rotation.x = -.5 - Math.max(0, Math.sin(t * 2.2)) * .5; chatB.userData.J.foreL.rotation.x = -1.1;
+  R.catPose(cat, 'sit', t); const cu = (t * .9 / 60 + .3) % 1, cx = -30 + cu * 60; cat2.position.set(cx, 0, 4.7); cat2.rotation.y = Math.PI / 2; R.catPose(cat2, 'walk', t * 9);
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

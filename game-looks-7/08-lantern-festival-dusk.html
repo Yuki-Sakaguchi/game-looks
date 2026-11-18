@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-08 たそがれの灯ろう祭り こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#b98aa0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe2c0;background:#3a3a66;padding:0 6px}
+</style>
+<div id="cap">7-08 ─ たそがれの灯ろう祭り / 形を作りこんだローポリを、紺の夕やみと だいだい・ももの あかりで　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 A「こまかいローポリ」。人・家・木・橋は部品集の形（回転体・先細りの管・面取りした箱）で、面はカクカクのまま頂点の色でぬる。
+// 色は紺〜むらさきの夕やみ（mood: dusk）に、灯ろうのだいだい・もも・クリームだけ。灯ろうは光を受けない明るい色の面、
+// 足もとと水面には あかりの輪（足し算の色）を重ね、主役の手の灯ろうだけ本物の点の光にする。
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), { hash } = K, { lerp, smooth } = M;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .95, maxFov: 72, far: 400 });
+const L = M.look(scene, renderer, 'dusk', { set: { amb: 1.35 }, range: 28, fog: [26, 150], dir: [.75, .24, -.5] });
+
+// ── 地形：道は x の方向へ。右（+z）に川がならんで流れる。PER ごとに同じ形 ──
+const PER = 160, k1 = Math.PI * 2 / PER, mod = (a, n) => ((a % n) + n) % n;
+const road = x => Math.sin(x * k1) * 5 + Math.sin(x * k1 * 2 + 1) * 1.5, RC = 10, RW = 4.2, WL = -.5;   // RC = 道から川のまん中まで
+const H = (x, z) => { const d = z - road(x), r = Math.abs(d - RC); return -1.9 * smooth(RW + 1.6, RW - .6, r) + smooth(9, 50, -d) * (4 + 2 * Math.sin(x * k1 * 3 + z * .05)) + smooth(RC + 10, RC + 50, d) * 5 + Math.sin(x * k1 * 4 + z * .2) * .1 * smooth(2, 6, Math.abs(d)); };
+const G = M.ground(H, { nx: 96, nz: 64, cell: 2, grass: ['#86b070', '#74a268', '#92b878', '#6a9666'], patch: .05,
+  paths: [{ d: (x, z) => Math.abs(z - road(x)), w: 2.6, color: '#d8c0a0', edge: '#a8b080' }], shore: { level: WL, sand: '#b8a890', wet: '#8a7f88', band: .7 }, under: '#4a5488' });
+scene.add(G.mesh);
+const roadPts = [...Array(PER / 2 + 1)].map((_, i) => [i * 2, road(i * 2)]);
+const roads = [0, 1].map(() => { const r = M.ribbon(roadPts, { w: 4.2, H: G.h, color: '#e2cca8', edge: '#c4ac8a', ew: .3, lift: .06 }); scene.add(r); return r; });
+const river = M.water({ level: WL, size: 420, color: '#56609e', opacity: .9 }); scene.add(river);
+
+const CH = 40, chunks = [...Array(PER / CH)].map(() => { const g = new THREE.Group(); scene.add(g); return g; }), ci = x => Math.floor(mod(x, PER) / CH), chunkOf = x => chunks[ci(x)];
+const put = (obj, x, z, ry = 0, dy = 0) => { obj.position.set(x, G.h(x, z) + dy, z); obj.rotation.y = ry; chunkOf(x).add(obj); return obj; };
+const side = (x, d) => [x, road(x) + d], face = (x, s) => (s > 0 ? Math.PI : 0) - Math.atan(road(x + .5) - road(x - .5));
+
+// ── 灯ろう：1 つの形を InstancedMesh でたくさん。色は 3 色（だいだい・もも・クリーム）──
+const LC = ['#ffae52', '#ff8ea2', '#ffe2a0'], GLOW = new THREE.MeshBasicMaterial({ vertexColors: true });
+const lantern = M.join([M.P(M.lathe([[0, 0], [.09, .01], [.17, .13], [.18, .3], [.11, .42], [0, .44]], 6), '#ffffff', 0, 0, 0, { grad: .22, jit: .03 })], GLOW); lantern.castShadow = false;
+// あかりの輪：まん中が明るく、ふちで消える円（足し算でぬる）
+const poolGeo = M.lathe([[0, 0], [.35, 0], [.7, 0], [1, 0]], 12); { const p = poolGeo.attributes.position, c = new Float32Array(p.count * 3), w = new THREE.Color('#ff9a50'); for (let i = 0; i < p.count; i++) { const k = Math.pow(1 - Math.min(1, Math.hypot(p.getX(i), p.getZ(i))), 1.6); c.set([w.r * k, w.g * k, w.b * k], i * 3); } poolGeo.setAttribute('color', new THREE.BufferAttribute(c, 3)); }
+const pool = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); pool.renderOrder = 2;
+const LN = chunks.map(() => []), PL = chunks.map(() => []), POLE = chunks.map(() => []), addL = (x, y, z, s = 1) => LN[ci(x)].push([x, y, z, hash(x, z) * 6, s, LC[Math.floor(hash(z, x + y) * 3)]]);
+const string = (a, b, sag, n, x0) => { const pts = [...Array(9)].map((_, i) => { const u = i / 8; return [lerp(a[0], b[0], u), lerp(a[1], b[1], u) - sag * 4 * u * (1 - u), lerp(a[2], b[2], u)]; }); POLE[ci(x0)].push(M.P(M.tube(pts, .014, 3), '#4a3a4a'));
+  for (let k = 1; k <= n; k++) { const u = k / (n + 1); addL(lerp(a[0], b[0], u), lerp(a[1], b[1], u) - sag * 4 * u * (1 - u) - .46, lerp(a[2], b[2], u)); } };
+for (let i = 0; i < PER / 8; i++) { const x = i * 8, tops = [-1, 1].map(s => { const [px, pz] = side(x, s * 2.75), y = G.h(px, pz); POLE[ci(x)].push(M.P(M.tube([[px, y, pz], [px, y + 3.15, pz]], [.07, .045], 5), '#5a4050'), M.P(M.blob(.08, { d: 0, j: 0 }), '#e8a060', px, y + 3.2, pz)); PL[ci(x)].push([px, y + .09, pz, 0, 3.3]); return [px, y + 3.1, pz]; });
+  [-1, 1].forEach((s, k) => { const [nx, nz] = side(x + 8, s * 2.75); string(tops[k], [nx - .01, G.h(nx, nz) + 3.1, nz], .5, 4, x); }); if (i % 2 === 0) string(tops[0], tops[1], .45, 3, x); }
+// 橋：川をわたる そり橋。手すりの柱の上にも灯ろう、たもとに街灯
+[58, 138].forEach((bx, i) => { const bz = road(bx) + RC, b = M.bridge({ len: 12.4, w: 2.8, rise: 1.0, color: '#a8744a', rail: '#c8503e' }); b.position.set(bx, .12, bz); chunkOf(bx).add(b);
+  for (const s of [-1, 1]) for (let k = 0; k <= 6; k++) addL(bx + s * 1.38, .12 + b.userData.y(k / 6) + 1.16, bz + (k / 6 - .5) * 12.4, .8);
+  chunkOf(bx).add(M.ribbon([[bx, road(bx) + 1.8], [bx, bz - 6]], { w: 2.4, H: G.h, color: '#e2cca8', lift: .07 }));
+  for (const s of [-1, 1]) { const l = put(M.lamp({ lit: L.lit, kind: 'top', h: 2.9 }), bx + s * 2.1, bz - 6.3); PL[ci(bx)].push([l.position.x, l.position.y + .09, l.position.z, 0, 3]); }
+  const p = M.person(i ? { top: '#f0b0a0', legs: 'dress', bottom: '#f0b0a0', hairStyle: 'bun', hair: '#3a2a3a' } : { top: '#6a78c0', bottom: '#3a3a5a', hairStyle: 'short', hat: 'straw' }); p.position.set(bx + .5, .12 + b.userData.y(.42) + .04, bz - 1); p.rotation.y = 1.9; chunkOf(bx).add(p); M.pose(p, 'stand', i); });
+
+// 家：左は道ぞいの屋台（しまのひさし）、右は川の向こう岸。窓あかりは L.lit
+const CREAM = '#f4e6d0', houses = [];
+[[14, -1, 7.6, { w: 5.4, d: 4.2, roofColor: '#5a5a8a', awning: '#e86a5a', door: '#c8503e' }], [34, -1, 8, { w: 5, d: 4.4, floors: 2, roof: 'hip', wall: '#f0dcc0', roofColor: '#b8504a', awning: '#f0a040', timber: '#6a4a44' }],
+ [52, -1, 7.4, { w: 4.4, d: 4, gableFront: true, roofColor: '#4a6a8a', awning: '#e86a8a', wall: CREAM }], [74, -1, 8, { w: 5.6, d: 4.4, floors: 2, roofColor: '#5a5a8a', wall: CREAM, awning: '#e86a5a', shutters: '#6a78a8' }],
+ [94, -1, 7.6, { w: 4.8, d: 4, roof: 'hip', roofColor: '#b8504a', awning: '#f0a040', wall: '#f0dcc0' }], [114, -1, 8, { w: 5.2, d: 4.2, floors: 2, gableFront: true, h: 2.5, roofColor: '#4a6a8a', awning: '#e86a8a', wall: CREAM }], [134, -1, 7.6, { w: 5, d: 4, roofColor: '#b8504a', awning: '#e86a5a', timber: '#6a4a44' }], [152, -1, 8, { w: 4.6, d: 4, floors: 2, roof: 'hip', roofColor: '#5a5a8a', awning: '#f0a040' }],
+ [24, 1, 22, { w: 5.5, d: 4.4, floors: 2, roofColor: '#5a5a8a', wall: CREAM }], [44, 1, 21, { w: 4.6, d: 4, roofColor: '#b8504a', roof: 'hip' }], [76, 1, 22, { w: 5, d: 4.2, floors: 2, gableFront: true, roofColor: '#4a6a8a', wall: '#f0dcc0' }], [100, 1, 21.5, { w: 5.4, d: 4.2, roofColor: '#b8504a', timber: '#6a4a44' }], [122, 1, 22, { w: 4.8, d: 4, floors: 2, roof: 'hip', roofColor: '#5a5a8a' }], [156, 1, 21.5, { w: 5, d: 4.2, roofColor: '#4a6a8a', wall: CREAM }],
+].forEach(([x, s, d, o], i) => { const [hx, hz] = side(x, s * d), ry = face(x, s), h = put(M.house({ windows: s < 0 ? [1] : 'front', ...o, lit: L.lit, found: 1, seed: i + 1 }), hx, hz, ry); houses.push([hx, hz, Math.max(o.w, o.d)]);
+  if (s < 0) { PL[ci(x)].push([hx + .4, G.h(hx, hz + o.d / 2 + 1.6) + .09, hz + o.d / 2 + 1.6, 0, 3.4]); for (let k = 0; k < 3; k++) addL(hx + (k - 1) * 1.5, h.position.y + 2.05, hz + o.d / 2 + 1.15, .75); chunkOf(x).add(M.ribbon([[hx, hz + o.d / 2], [x, road(x) - 2]], { w: 1.6, H: G.h, color: '#d8c0a0', lift: .05 })); } });
+// 木・しげみ・草・花・岩
+const free = (x, z, r) => houses.every(([hx, hz, hs]) => Math.hypot(x - hx, z - hz) > hs * .75 + r) && Math.abs(z - road(x) - RC) > RW + 2.2 + r * .3 && Math.abs(z - road(x)) > 3.6;
+const TV = [M.tree({ h: 5.4, seed: 2, leaf: M.LEAF.dusk, d: .5 }), M.tree({ h: 4.6, seed: 5, kind: 'wide', leaf: M.LEAF.sakura, d: .5, blobs: 6 }), M.tree({ h: 6, seed: 3, kind: 'tall', leaf: M.LEAF.deep, d: .5 }), M.conifer({ h: 7, seed: 1, seg: 6, leaf: M.LEAF.dusk }), M.bush({ r: .8, seed: 2, d: .5, flowers: ['#ffd0e0', '#ffe6a8'] })];
+const TL = chunks.map(() => TV.map(() => [])), TF = chunks.map(() => []);
+for (let i = 0; i < 150; i++) { const x = hash(i, 11) * PER, d = (hash(i, 12) < .5 ? -1 : 1) * (4 + Math.pow(hash(i, 13), 1.3) * 52), z = road(x) + d, v = Math.abs(d) < 7 ? 4 : d > 4 && d < 17 ? 1 : i % 4; if (free(x, z, v === 4 ? .6 : 2.4)) TL[ci(x)][v].push([x, G.h(x, z) - .05, z, hash(x, z) * 6.28, .8 + hash(i, 14) * .5, null, .9 + hash(i, 15) * .25]); }
+for (let i = 0; i < 420; i++) { const x = hash(i, 71) * PER, [tx, tz] = side(x, (hash(i, 72) < .5 ? -1 : 1) * (2.9 + Math.pow(hash(i, 73), 2) * 16)); if (free(tx, tz, -3) && G.h(tx, tz) > WL + .1) TF[ci(x)].push([tx, G.h(tx, tz), tz, .6 + hash(i, 74) * .7, ['#ffffff', '#e0e8ff', '#ffe8d0'][i % 3]]); }
+chunks.forEach((g, c) => { TL[c].forEach((list, v) => { if (list.length) g.add(M.scatter(TV[v].children[0], list)); }); g.add(M.tufts(TF[c], { color: '#5a8a5c', tip: '#a8c888' }), M.join(POLE[c]), M.scatter(lantern, LN[c], { cast: false, recv: false }), M.scatter(pool, PL[c], { cast: false, recv: false })); });
+put(M.bench(), ...side(44, 3.6), Math.PI); put(M.sign({ kind: 'hang', color: '#f6ead2', mark: '#e86a5a' }), ...side(31, -5.4), 1.2); put(M.sign({ kind: 'board' }), ...side(86, 3.7), Math.PI + .2);
+const sky = new THREE.Group(); scene.add(sky);
+for (let i = 0; i < 7; i++) { const c = M.cloud({ s: 1.5 + hash(i, 121) * 1.4, seed: i, n: 4 + i % 3, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); c.position.set(50 + hash(i, 122) * 220, 34 + hash(i, 123) * 22, (hash(i, 124) - .5) * 280); sky.add(c); }
+
+// ── 川を流れる灯ろう（毎コマ、主役の前後へ送りなおす）──
+const NF = 64, flo = new THREE.InstancedMesh(lantern.geometry, GLOW, NF), floP = new THREE.InstancedMesh(poolGeo, pool.material, NF), dm = new THREE.Object3D(), tc = new THREE.Color();
+for (let i = 0; i < NF; i++) flo.setColorAt(i, tc.set(LC[i % 3])); flo.frustumCulled = floP.frustumCulled = false; floP.renderOrder = 2; scene.add(flo, floP);
+
+// ── 人 ──
+const hero = M.person({ age: 'child', h: 1.16, top: '#f2a0b0', legs: 'dress', bottom: '#f2a0b0', belt: '#c8503e', collar: '#fff4e0', hairStyle: 'twin', hair: '#4a3040', tie: '#ffd27a', shoes: '#c8503e', socks: '#fff4e0' }); scene.add(hero);
+const hl = new THREE.Group(), hlL = new THREE.Group(); scene.add(hl); hl.add(M.join([M.P(M.tube([[0, 0, 0], [0, .16, .34]], .012, 4), '#6a4a44')]), hlL); hlL.position.set(0, .16, .34);
+{ const m = M.join([M.P(lantern.geometry.clone(), '#ffffff', 0, -.6, 0, { grad: 0, jit: 0, s: 1.25 })], new THREE.MeshBasicMaterial({ vertexColors: true, color: '#ffc468' })); m.castShadow = false; hlL.add(m, M.join([M.P(M.tube([[0, 0, 0], [0, -.09, 0]], .008, 3), '#6a4a44'), M.P(M.cyl(.07, .1, .03, 6), '#6a4a44', 0, -.08, 0), M.P(M.cyl(.1, .07, .03, 6), '#6a4a44', 0, -.61, 0)])); const pl = new THREE.PointLight('#ffb060', 9, 9, 1.5); pl.position.y = -.3; hlL.add(pl); }
+const hpool = new THREE.Mesh(poolGeo, pool.material); hpool.scale.setScalar(2.2); hpool.renderOrder = 2; scene.add(hpool);
+const VIL = [[{ top: '#5a68b0', bottom: '#f0dcc0', legs: 'skirt', hairStyle: 'bun', hair: '#3a2a3a', scarf: '#ffd27a' }, 18, -1.2, 1.5], [{ top: '#e8a05a', bottom: '#4a4a70', hairStyle: 'short', hair: '#5a4030', coat: true, buttons: '#fff4e0' }, 40, -1.0, 1.2], [{ top: '#f4e6d0', bottom: '#8a5a6a', legs: 'dress', hairStyle: 'long', hair: '#7a4a3a' }, 9, .95, -1.6],
+  [{ age: 'child', top: '#ffd27a', bottom: '#5a68b0', legs: 'shorts', hairStyle: 'spiky', hair: '#3a2a3a', sleeves: 'short' }, 30, -1.5, -1.1], [{ top: '#8a6aa8', bottom: '#3a3a5a', hairStyle: 'bob', hair: '#2a2030', hat: 'beanie', hatColor: '#e86a5a' }, 62, -1.1, .5], [{ top: '#6a9a8a', bottom: '#f0dcc0', legs: 'skirt', hairStyle: 'pony', hair: '#c8843a', wide: 1.08 }, 52, .8, 1.7]]
+  .map(([o, x0, v, d], i) => { const p = M.person(o); scene.add(p); const l = new THREE.Mesh(lantern.geometry, new THREE.MeshBasicMaterial({ vertexColors: true, color: LC[i % 3] })); l.scale.setScalar(.62); l.position.set(-.3, p.userData.rig.h * .32, .2); if (i % 2 === 0) p.add(l); return { p, x0, v, d }; });
+
+// ── 毎コマ ──
+const X0 = +new URLSearchParams(location.search).get('x') || 28, SPD = 1.3, hv = new THREE.Vector3(); let dist = 0, px = X0, pz = road(X0), tall = false;
+onResize((w, h) => { tall = w < h; });
+K.loop((dt, t) => {
+  const x = X0 + t * SPD, z = road(x) - .5, y = G.h(x, z); dist += Math.hypot(x - px, z - pz); px = x; pz = z;
+  const yaw = Math.atan2(1, (road(x + .3) - road(x - .3)) / .6), r = hero.userData.rig; hero.position.set(x, y, z); hero.rotation.y = yaw; M.pose(hero, 'walk', dist / r.stride * Math.PI);
+  r.armR.rotation.set(-.8, 0, .55); r.elbowR.rotation.x = -.55;                                   // 右手を前に出して、灯ろうのさおを持つ
+  hero.updateMatrixWorld(true); r.elbowR.localToWorld(hv.set(0, -.15, 0)); hl.position.copy(hv); hl.rotation.y = yaw; hlL.rotation.set(Math.sin(dist * 2.7) * .12, 0, Math.sin(dist * 1.35) * .1);
+  hpool.position.set(hv.x + Math.sin(yaw) * .3, y + .1, hv.z + Math.cos(yaw) * .3);
+  // 村人：行く人・来る人。主役のまわり（うしろ 25m 〜 前 70m）をめぐる
+  VIL.forEach(({ p, x0, v, d }) => { const wx = x + mod(x0 + v * t - x + 25, 95) - 25, wz = road(wx) + d, s = Math.sign(v); p.position.set(wx, G.h(wx, wz), wz); p.rotation.y = Math.atan2(s, s * (road(wx + .3) - road(wx - .3)) / .6); M.pose(p, 'walk', (x0 + Math.abs(v) * t) / p.userData.rig.stride * Math.PI); });
+  // 流れる灯ろうと、水にうつる あかり
+  for (let i = 0; i < NF; i++) { const fx = x + mod(i * 2.2 + hash(i, 3) * 2 + t * .55 - x + 30, NF * 2.2) - 30, fz = road(fx) + RC + (hash(i, 5) - .5) * 5.6 + Math.sin(t * .3 + i) * .3, bob = Math.sin(t * 1.6 + i * 1.7) * .02;
+    dm.position.set(fx, WL - .05 + bob, fz); dm.rotation.set(0, i + t * .1, Math.sin(t * 1.2 + i) * .05); dm.scale.setScalar(1.15); dm.updateMatrix(); flo.setMatrixAt(i, dm.matrix); dm.position.y = WL + .03; dm.rotation.set(0, 0, 0); dm.scale.setScalar(2.1); dm.updateMatrix(); floP.setMatrixAt(i, dm.matrix); }
+  flo.instanceMatrix.needsUpdate = floP.instanceMatrix.needsUpdate = true;
+  // 地面・道・まとまり・川・空を主役の前後へ送る
+  G.follow(x + 46, z); chunks.forEach((g, c) => { g.position.x = Math.round((x + 50 - (c + .5) * CH) / PER) * PER; }); roads.forEach((rd, i) => { rd.position.x = (Math.floor((x - 55) / PER) + i) * PER; }); river.position.x = Math.round(x / 40) * 40; sky.position.x = x - (t * .5) % 60;
+  L.follow(x + 5, y, z);
+  const back = tall ? 3.6 : 4.4, cx = x - back, cz = lerp(road(cx), z, .5) + (tall ? -.1 : -.35) + Math.sin(t * .13) * .3, cy = y + (tall ? 1.75 : 1.9);
+  cam.position.set(cx, cy, cz); cam.lookAt(x + 5, y + (tall ? 1.3 : .95), lerp(road(x + 5), z, .4) + (tall ? .3 : .7));
+  renderer.render(scene, cam);
+});
+</script>
+</html>
