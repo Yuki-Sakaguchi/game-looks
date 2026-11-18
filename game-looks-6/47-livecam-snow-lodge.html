@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-47 スキー場 雪山ロッジの定点ライブカメラ</title>
+<style>
+html,body{margin:0;height:100%;background:#f0c8c8;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;left:0;top:0;pointer-events:none}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#4a3a5a;background:#f4e4e8;padding:0 6px}
+</style>
+<div id="cap">6-47 ─ スキー場 / 夕方の雪山ロッジを、定点ライブカメラの映像で見る　｜　見るだけ（自動ですべる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：高い所に固定したカメラから、ローポリの雪山をふつうに描き、仕上げで「ライブカメラの映像」にする。
+// 半分の解像度、1 秒 10 コマのかくつき、レンズについた雪のつぶ 3 個のぼけ、すみの白い文字（2D の Canvas）。
+// 汚しはごく弱く、もも色の夕空と青い雪の影がきれいに見えることを優先する
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 42 }), { add, box, hash } = K;
+scene.background = K.sky([[0, '#b49ad8'], [.12, '#f2a8b8'], [.26, '#ffd2b0'], [1, '#ffe8d8']]); scene.fog = new THREE.Fog('#f4c4c0', 80, 260);
+const { sun } = K.lights(scene, renderer, { sky: '#e4d8ff', ground: '#b4b4f0', amb: 1.7, sun: '#ffc09a', power: 3.4, pos: [-44, 30, -22], range: 62 }); sun.target.position.set(0, 0, -20);
+const SL = z => 22 * (1 - Math.exp(Math.min(0, z + 4) / 60));                          // 手前は平ら、奥へ行くほど高い丘
+const H = (x, z) => SL(z) + Math.sin(x * .09 + 1) * Math.cos(z * .07) * 1.1 * Math.min(1, Math.max(.15, -z / 25));
+const C = K.colors('#fbf8ff', '#efeafa', '#e6e2f6');
+const land = K.terrain(H, 50, 50, 5, (y, x, z) => Math.abs(x) < 10 ? C[0] : C[1 + (hash(Math.round(x * .2), Math.round(z * .2)) > .5)]); land.follow(0, -70); land.mesh.receiveShadow = true; scene.add(land.mesh);
+for (let i = 0; i < 5; i++) add(scene, new THREE.ConeGeometry(80 + hash(i, 1) * 40, 70 + hash(i, 2) * 50, 6), K.glow(['#e8aec4', '#d89cc0'][i % 2], { fog: false }), -200 + i * 100, 20, -330 - hash(i, 3) * 40).rotation.y = i;   // 遠くの山
+// ロッジと、リフト乗り場の小屋
+const lodge = K.shadow(K.house(9, 4, 11, '#9a6a48', '#f8f6ff', '#ffd070', true)); lodge.position.set(-10, H(-10, 0), 0); lodge.rotation.y = .5; scene.add(lodge); box(lodge, 1, 2.4, 1, '#7a5040', 2.4, 6.4, -2);
+const hut = K.shadow(K.house(4, 3, 4, '#7a5a4a', '#f8f6ff', '#ffd070', true)); hut.position.set(11.5, H(11.5, 12), 12); scene.add(hut);
+[[-4, 5, '#3aa8c8'], [-2.6, 5.6, '#f2c84a'], [-5.5, 7, '#e86a9a']].forEach(([x, z, c], i) => { const p = K.shadow(K.person({ top: c, bottom: '#2a3050', hat: '#ffffff', s: 1.5 })); p.position.set(x, H(x, z), z); p.rotation.y = i * 2 + 1; scene.add(p); });
+// 雪をかぶった木（コースとリフトの通り道はあける）
+const liftX = z => 11 + (8 - z) * .057;
+for (let i = 0; i < 44; i++) { const x = (hash(i, 4) - .5) * 130, z = 6 - hash(i, 5) * 160; if (Math.abs(x) < 13 || Math.abs(x - liftX(z)) < 5 || (x < -3 && x > -18 && z > -10)) continue; const p = K.shadow(K.pine(5 + hash(i, 6) * 4, '#3a6a5a', '#5a4030', '#f8f6ff')); p.position.set(x, H(x, z), z); scene.add(p); }
+// リフト：柱、たるんだ線、動くいす
+const pts = []; for (let z = 10; z >= -150; z -= 8) pts.push(new THREE.Vector3(liftX(z), H(liftX(z), z) + 6.6, z));
+for (const dx of [-.9, .9]) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: '#4a4660' })); l.position.x = dx; scene.add(l); }
+for (let z = 8; z >= -150; z -= 32) { const x = liftX(z), y = H(x, z); box(scene, .45, 6.8, .45, '#6a6680', x, y + 3.4, z).castShadow = true; box(scene, 2.8, .3, .45, '#6a6680', x, y + 6.7, z); }
+const chairs = []; for (let i = 0; i < 10; i++) { const g = new THREE.Group(); box(g, .1, 1.8, .1, '#4a4660', 0, -.9, 0); box(g, 1.4, .14, .6, '#e8503a', 0, -1.8, 0); box(g, 1.4, .6, .1, '#e8503a', 0, -1.45, .3);
+  const r = new THREE.Group(); box(r, .55, .7, .35, ['#3aa8c8', '#f2c84a', '#e86a9a'][i % 3], 0, -1.35, 0); box(r, .36, .36, .36, '#f2c8a0', 0, -.8, 0); g.add(r); g.userData.r = r; scene.add(K.shadow(g)); chairs.push(g); }
+// すべる人たち：板をはいて、左右に曲がりながら下りてくる
+const skiers = ['#e8503a', '#f2c84a', '#3aa8c8', '#e86a9a', '#5a6ae0'].map(c => { const g = K.shadow(K.person({ top: c, bottom: '#2a3050', hat: '#ffffff', s: 2 })), P = g.userData.P; for (const x of [-.22, .22]) box(g, .2, .06, 3.2, '#3a3a50', x, .04, .3);
+  P.body.rotation.x = .3; P.armL.rotation.x = P.armR.rotation.x = .7; g.rotation.order = 'YXZ'; scene.add(g); return g; });
+const fx = K.fx(scene, 120);
+// すみの文字（2D の Canvas を重ねる）
+const hud = Object.assign(document.createElement('canvas'), { id: 'hud' }), hx = hud.getContext('2d'); document.body.append(hud); let sec = -1; onResize((w, h) => { hud.width = w; hud.height = h; sec = -1; });
+function drawHud(s) { const w = hud.width, h = hud.height, f = Math.max(13, Math.min(w, h) * .034), n = 16 * 3600 + 42 * 60 + 8 + s, p = v => String(v | 0).padStart(2, '0'); hx.clearRect(0, 0, w, h);
+  hx.font = `600 ${f}px ui-monospace,Menlo,monospace`; hx.fillStyle = '#fff'; hx.shadowColor = 'rgba(50,30,70,.7)'; hx.shadowBlur = 3; hx.textBaseline = 'top'; hx.textAlign = 'left'; hx.fillText('● LIVE  しらゆき平ロッジ前 CAM-2', f, f);
+  const d = `2026-01-18 ${p(n / 3600)}:${p(n / 60 % 60)}:${p(n % 60)}  -6℃`; if (w < h) hx.fillText(d, f, f * 2.5); else { hx.textBaseline = 'bottom'; hx.textAlign = 'right'; hx.fillText(d, w - f, h - f); } }   // たて長では 2 行めに置く
+const post = K.post(renderer, `float blob(vec2 uv,vec2 b,float r){vec2 d=(uv-b)*res/min(res.x,res.y);return 1.-smoothstep(r*.45,r,length(d)+(vn(uv*14.+b*9.)-.5)*r*.5);}
+void main(){vec2 uv=vUv;float m=max(blob(uv,vec2(.88,.8),.11),max(blob(uv,vec2(.07,.36),.085),blob(uv,vec2(.63,.07),.07)));   // レンズの雪のつぶ
+vec3 c=src(uv),bl=vec3(0.);for(int i=0;i<12;i++){float a=float(i)*2.4,rr=.01+.03*fract(float(i)*.37);bl+=src(uv+vec2(cos(a)*res.y/res.x,sin(a))*rr);}
+c=mix(c,bl/12.*.8+.22,m*.92);                                                     // つぶの所だけ、ぼけて白っぽい
+c=mix(c,vec3(luma(c)),.06)*vec3(1.05,1.02,1.06);vec2 v=uv-.5;c*=1.-.4*dot(v,v);
+c+=(h(floor(uv*size)+floor(time*10.)*7.)-.5)*.014;gl_FragColor=vec4(c,1.);}`, {}, { scale: .5 }); onResize(post.resize);
+cam.position.set(0, 15, 34); onResize((w, h) => cam.lookAt(0, w < h ? -3 : 6, -10));
+function step(t) {                                                              // 1 秒に 10 回だけ場面を進める
+  skiers.forEach((g, i) => { const u = (t / 14 + i * .2 + .05 * hash(i, 9)) % 1, z = -150 + u * 170, ph = u * 26 + i * 2, x = Math.sin(ph) * 6 + (i - 2) * 1.2, y = H(x, z);
+    g.position.set(x, y, z); g.rotation.set(Math.atan(22 / 60 * Math.exp(Math.min(0, z + 4) / 60)) * (z < -4), Math.atan2(Math.cos(ph) * .92, 1), -Math.cos(ph) * .3);
+    fx.emit('puff', x, y + .4, z - 1.2, { vy: 1.2, spread: 1.6, life: .8, size: 1.3, grow: 1.5 }); });
+  chairs.forEach((g, i) => { const u = (t * .025 + i / 10) % 1, up = u < .5, s = up ? u * 2 : 2 - u * 2, z = 10 - s * 160, x = liftX(z) + (up ? -.9 : .9); g.position.set(x, H(liftX(z), z) + 6.6, z); g.userData.r.visible = up; });
+  fx.emit('puff', -10 + 2.6, H(-10, 0) + 8, -1.2, { vy: 1.5, vx: .5, life: 2.4, size: .8, grow: 2, tint: '#ffe4e4' }); fx.update(.1);
+  if ((t | 0) !== sec) drawHud(sec = t | 0);
+}
+let tick = -1;
+K.loop((dt, t) => { const q = Math.floor(t * 10); if (q !== tick) { tick = q; step(q / 10); } post.render(scene, cam, q / 10); });
+</script>
+</html>

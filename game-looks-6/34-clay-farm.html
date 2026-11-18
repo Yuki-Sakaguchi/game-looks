@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-34 ねんどの農場 粘土のコマ撮り</title>
+<style>
+html,body{margin:0;height:100%;background:#f2d6a4;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#7a4a2c;background:#f2d6a4;padding:0 6px}
+</style>
+<div id="cap">6-34 ─ ねんどの農場 / 丸くふっくらした粘土の箱庭を、1 秒 12 コマのコマ撮りで見せる　｜　見るだけ（自動で回る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 粘土のコマ撮りの決まり：形は球・カプセル・角を丸めた箱だけ。表面には指でおしたような浅いでこぼこ（凹凸の模様）をつけ、
+// つやは少なく、光はやわらかく、影はうすい。絵は 1 秒に 12 回しか描きかえず、コマごとに形がほんの少しふるえる。背景は 1 色の紙
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 34, fitAspect: 1.35, maxFov: 100 }), { add, hash } = K;
+scene.background = new THREE.Color('#f2d6a4');
+K.lights(scene, renderer, { range: 15, amb: 1.7, power: 1.9, pos: [-12, 24, 10], sky: 0xfff6ea, ground: 0xe8c8a0 });
+// 指のあと：やわらかい丸いへこみを散らした凹凸の模様
+const fp = document.createElement('canvas'); fp.width = fp.height = 256; { const g = fp.getContext('2d'); g.fillStyle = '#808080'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 90; i++) for (const [ox, oy] of [[0, 0], [256, 0], [0, 256], [-256, 0], [0, -256]]) { const x = hash(i, 1) * 256 + ox, y = hash(i, 2) * 256 + oy, r = 10 + hash(i, 3) * 26, q = g.createRadialGradient(x, y, 0, x, y, r), v = i % 3 ? 40 : 200; q.addColorStop(0, `rgba(${v},${v},${v},.34)`); q.addColorStop(1, `rgba(${v},${v},${v},0)`); g.fillStyle = q; g.fillRect(x - r, y - r, r * 2, r * 2); } }
+const bump = new THREE.CanvasTexture(fp); bump.wrapS = bump.wrapT = THREE.RepeatWrapping;
+const mats = {}, clay = c => mats[c] || (mats[c] = K.flat(c, { flatShading: false, roughness: .8, bumpMap: bump, bumpScale: 1.5 }));
+// 角を丸めた箱（箱の点を、角のところだけ球のように寄せる）
+const rbox = (w, h, d, r) => { const g = new THREE.BoxGeometry(2, 2, 2, 5, 5, 5), p = g.attributes.position, n = g.attributes.normal, v = new THREE.Vector3(), k = a => Math.abs(a) < .3 ? 0 : Math.abs(a) < .8 ? Math.sign(a) * .75 : Math.sign(a), s = [w / 2 - r, h / 2 - r, d / 2 - r];
+  for (let i = 0; i < p.count; i++) { const a = [p.getX(i), p.getY(i), p.getZ(i)]; v.set(k(a[0]), k(a[1]), k(a[2])).normalize(); n.setXYZ(i, v.x, v.y, v.z); p.setXYZ(i, Math.sign(a[0]) * s[0] + v.x * r, Math.sign(a[1]) * s[1] + v.y * r, Math.sign(a[2]) * s[2] + v.z * r); } return g; };
+const S = m => { m.castShadow = m.receiveShadow = true; return m; }, RB = (p, w, h, d, r, c, x, y, z) => S(add(p, rbox(w, h, d, r), clay(c), x, y, z));
+const ball = (p, r, c, x, y, z, sx = 1, sy = 1, sz = 1) => { const m = S(add(p, new THREE.SphereGeometry(r, 18, 12), clay(c), x, y, z)); m.scale.set(sx, sy, sz); return m; };
+const cap = (p, r, l, c, x, y, z) => S(add(p, new THREE.CapsuleGeometry(r, l, 5, 12), clay(c), x, y, z));
+const RED = '#d9503c', CREAM = '#f6ecd6', BROWN = '#8a5a3c', GREEN = '#86bd62', DGREEN = '#4f9a54', BLUE = '#3f7fd0', YEL = '#f2c23e', DARK = '#4a3f4a', G = .45;
+// 土台と草、紙の上の影
+RB(scene, 18, 1.8, 18, .7, '#b8794e', 0, -.75, 0); RB(scene, 17, .6, 17, .3, GREEN, 0, .15, 0);
+const fl = add(scene, new THREE.PlaneGeometry(90, 90), new THREE.ShadowMaterial({ opacity: .2 }), 0, -1.66, 0); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true;
+// 畑：土の板、うね、芽、かぼちゃ
+RB(scene, 6.4, .5, 8, .25, BROWN, 4.2, G + .1, -2.2); for (let i = 0; i < 5; i++) cap(scene, .36, 6.4, '#a06a44', 1.9 + i * 1.15, G + .36, -2.2).rotation.x = Math.PI / 2;
+const sp = new THREE.InstancedMesh(new THREE.SphereGeometry(.26, 10, 8), clay(DGREEN), 40), dm = new THREE.Object3D(); for (let i = 0; i < 40; i++) { dm.position.set(1.9 + (i % 5) * 1.15, G + .78, -5.4 + Math.floor(i / 5) * .92); dm.scale.set(1, 1.2 + hash(i, 4) * .5, 1); dm.updateMatrix(); sp.setMatrixAt(i, dm.matrix); } sp.castShadow = true; scene.add(sp);
+for (const [x, z, r] of [[7.6, 3.4, .55], [6.6, 3.9, .42], [7.4, 4.5, .36]]) { ball(scene, r, '#f08a2e', x, G + r * .8, z, 1, .8, 1); cap(scene, .06, .14, DGREEN, x, G + r * 1.65, z); }
+// 納屋とサイロ、干し草
+const barn = new THREE.Group(); barn.position.set(-4.6, G, -4.4); RB(barn, 5, 3.2, 4, .5, RED, 0, 1.6, 0); const roof = RB(barn, 3.4, 3.4, 5.6, .45, DARK, 0, 3.2, 0); roof.rotation.z = Math.PI / 4; roof.scale.set(1, .62, 1); roof.rotation.order = 'YZX'; roof.rotation.y = Math.PI / 2;
+RB(barn, 1.7, 2.1, .3, .14, CREAM, 0, 1.05, 2); ball(barn, .42, CREAM, 0, 3.1, 2.05, 1, 1, .3); scene.add(barn);
+cap(scene, 1.05, 3, CREAM, -7.3, G + 2.4, -1.2); ball(scene, 1.1, BLUE, -7.3, G + 4.1, -1.2, 1, .55, 1);
+for (const [x, z] of [[-2.2, -1.2], [-1.3, -1.4], [-1.75, -1.3]]) cap(scene, .45, .5, YEL, x, G + (z === -1.3 ? 1.1 : .42), z).rotation.z = Math.PI / 2;
+// さくで囲んだ庭と、にわとり
+for (let i = 0; i < 22; i++) { const u = i / 22 * 4, e = Math.floor(u), f = u - e, x = -4.2 + [f * 6 - 3, 3, 3 - f * 6, -3][e], z = 4.6 + [-2.6, f * 5.2 - 2.6, 2.6, 2.6 - f * 5.2][e]; cap(scene, .15, .8, CREAM, x, G + .5, z); }
+for (const [x, z, l, ry] of [[-4.2, 2, 6, 0], [-4.2, 7.2, 6, 0], [-7.2, 4.6, 5.2, 1], [-1.2, 4.6, 5.2, 1]]) { const r = cap(scene, .1, l, CREAM, x, G + .72, z); r.rotation.z = Math.PI / 2; r.rotation.y = ry * Math.PI / 2; }
+const hens = [...Array(5)].map((_, i) => { const g = new THREE.Group(), hd = new THREE.Group(); ball(g, .42, i === 2 ? '#c8804a' : CREAM, 0, .5, 0, .9, .9, 1.2); ball(g, .2, i === 2 ? '#c8804a' : CREAM, 0, .7, -.5, 1, 1.3, .7); hd.position.set(0, .8, .35); ball(hd, .26, i === 2 ? '#c8804a' : CREAM, 0, .22, .1); ball(hd, .1, RED, 0, .5, .1, .6, 1, 1.4); S(add(hd, new THREE.ConeGeometry(.08, .22, 8), clay(YEL), 0, .2, .4)).rotation.x = Math.PI / 2; g.add(hd); g.userData = { hd, a: i * 1.9, x: -4.2 + (hash(i, 5) - .5) * 4, z: 4.6 + (hash(i, 6) - .5) * 3.4 }; scene.add(g); return g; });
+// 木とりんご、池
+for (const [x, z, s] of [[6.6, 6.4, 1], [-.2, -7, .8]]) { cap(scene, .3 * s, 1.4 * s, BROWN, x, G + 1 * s, z); ball(scene, 1.5 * s, DGREEN, x, G + 3 * s, z, 1, .9, 1); ball(scene, 1 * s, DGREEN, x + .9 * s, G + 2.5 * s, z + .5 * s); for (let k = 0; k < 4; k++) ball(scene, .2 * s, RED, x + Math.cos(k * 1.7) * 1.3 * s, G + (3 + Math.sin(k * 2.3) * .7) * s, z + Math.sin(k * 1.7) * 1.3 * s); }
+ball(scene, 1.5, '#7cc4ea', 2.6, G + .12, 5.6, 1.2, .14, .9);
+// トラクター：青い車体と大きな丸いタイヤ。畑のまわりを回る
+const tr = new THREE.Group(); RB(tr, 1.3, .9, 2.3, .3, BLUE, 0, 1, .1); RB(tr, 1.25, 1.2, 1.1, .3, CREAM, 0, 1.9, -.5); RB(tr, 1.5, .25, 1.4, .12, RED, 0, 2.6, -.5); cap(tr, .1, .7, DARK, .35, 1.8, .8);
+const wheels = [[-.85, -.5, .68], [.85, -.5, .68], [-.75, .9, .42], [.75, .9, .42]].map(([x, z, r]) => { const w = new THREE.Group(); w.position.set(x, r + .05, z); S(add(w, new THREE.TorusGeometry(r * .62, r * .4, 10, 18), clay(DARK))).rotation.y = Math.PI / 2; ball(w, r * .34, YEL, 0, 0, 0, 1.3, 1, 1); ball(w, r * .16, DARK, 0, r * .5, 0); tr.add(w); return w; });
+scene.add(tr); const puffs = [0, 1, 2].map(() => ball(scene, .3, '#ffffff', 0, 0, 0));
+let last = -1;
+K.loop((dt, t) => {
+  const f = Math.floor(t * 12), ts = f / 12; if (f === last) { renderer.render(scene, cam); return; } last = f;   // 1 秒 12 コマ：コマが変わったときだけ形とカメラを動かす
+  const a = ts * .5 + 1.2, tx = 4.2 + Math.cos(a) * 4.7, tz = -2.2 + Math.sin(a) * 5.4; tr.position.set(tx, G - .02 + hash(f, 7) * .04, tz); tr.rotation.y = Math.atan2(-Math.sin(a) * 4.7, Math.cos(a) * 5.4); wheels.forEach(w => w.rotation.x = ts * 3); tr.scale.set(1 + (hash(f, 8) - .5) * .03, 1 + (hash(f, 9) - .5) * .04, 1);
+  puffs.forEach((p, i) => { const k = (ts * .9 + i / 3) % 1; p.position.set(tx + Math.sin(tr.rotation.y) * .8 + .35 * Math.cos(tr.rotation.y), G + 2.9 + k * 1.6, tz + Math.cos(tr.rotation.y) * .8 - .35 * Math.sin(tr.rotation.y)); p.scale.setScalar((.5 + k) * (1 - k * k) + .01); });
+  hens.forEach((h, i) => { const u = h.userData, ph = ts * .7 + i * 1.3, hop = Math.max(0, Math.sin(ph * 2)); u.a += Math.sin(ph) * .08; h.position.set(u.x + Math.sin(ph) * .9, G + hop * .12, u.z + Math.cos(ph * .8) * .7); h.rotation.y = u.a; u.hd.rotation.x = Math.max(0, Math.sin(ts * 3 + i * 2)) * 1.1; h.scale.setScalar(1 + (hash(f, 10 + i) - .5) * .05); });
+  const ca = ts * .14 + .7; cam.position.set(Math.sin(ca) * 31, 20, Math.cos(ca) * 31); cam.lookAt(0, .2, 0);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

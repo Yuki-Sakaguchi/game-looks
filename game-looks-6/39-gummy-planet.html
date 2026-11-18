@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-39 星の散歩 グミの惑星</title>
+<style>
+html,body{margin:0;height:100%;background:#f9efd8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b05a70;background:#f9efd8;padding:0 6px}
+</style>
+<div id="cap">6-39 ─ 星の散歩 / 星も木も岩も、半透明でぷるぷるのグミで作る　｜　見るだけ（自動で星を一周する）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// グミの決まり：色は もも・黄緑・水色・だいだい の 4 つ。どれも色つきの半透明で、向こうがうっすら透ける。
+// ふち（視線と面がななめの所）ほど明るく光り、光の当たる所に強い丸いハイライトが 1 つ。全部がゆっくり ぷるぷる ゆれる。影や模様は付けない
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .92, maxFov: 54 }), { add, box, hash } = K;
+scene.background = new THREE.Color('#f9efd8'); K.lights(scene, renderer, { amb: 1.6, power: 1.8, pos: [-10, 16, 12] });
+const PINK = '#ff8fae', LIME = '#b6e04a', AQUA = '#7ad4f0', ORANGE = '#ffa63e', LD = new THREE.Vector3(-.5, .8, .6).normalize();
+const gummy = (color, op = .8) => new THREE.ShaderMaterial({ transparent: true, uniforms: { col: { value: new THREE.Color(color) }, ld: { value: LD }, op: { value: op } },
+  vertexShader: `varying vec3 vN,vV;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vN=normalize(normalMatrix*normal);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}`,
+  fragmentShader: `uniform vec3 col,ld;uniform float op;varying vec3 vN,vV;void main(){vec3 n=normalize(vN),v=normalize(vV),l=normalize((viewMatrix*vec4(ld,0.)).xyz);
+float f=pow(1.-max(dot(n,v),0.),2.2),d=dot(n,l)*.5+.5,hl=max(dot(n,normalize(l+v)),0.);
+vec3 c=col*(.5+.62*d);c=mix(c,col*1.35+.3,f*.8);c+=col*.3*pow(max(dot(n,-l),0.),2.);   // 中は色が濃く、ふちと光の反対がわは明るく透ける
+float s=smoothstep(.988,.996,hl);c=mix(c,vec3(1.),s*.92)+pow(hl,10.)*.1;gl_FragColor=vec4(c,mix(op,1.,max(f*.8,s)));}` });
+const M = { [PINK]: gummy(PINK, .86), [LIME]: gummy(LIME), [AQUA]: gummy(AQUA), [ORANGE]: gummy(ORANGE) };
+// 星と、その上の物（星の子にして、いっしょに回す）。a＝道にそった角度、b＝道から横へそれる角度
+const R = 5, planet = new THREE.Group(), UP = new THREE.Vector3(0, 1, 0), wob = []; scene.add(planet); add(planet, new THREE.SphereGeometry(R, 56, 36), M[PINK]);
+const dir = (a, b) => new THREE.Vector3(-Math.sin(a) * Math.cos(b), Math.cos(a) * Math.cos(b), Math.sin(b));
+const put = (g, a, b, lift = 0) => { const d = dir(a, b); g.position.copy(d).multiplyScalar(R - .06 + lift); g.quaternion.setFromUnitVectors(UP, d); g.userData = { a, ph: a * 3 + b }; planet.add(g); wob.push(g); return g; };
+const dome = (r, h, c) => { const g = new THREE.Group(), m = add(g, new THREE.SphereGeometry(r, 20, 12, 0, 6.2832, 0, 1.5708), M[c]); m.scale.y = h; return g; };
+const gtree = (s, c) => { const g = new THREE.Group(); add(g, new THREE.CylinderGeometry(.16 * s, .22 * s, 1.1 * s, 12), M[ORANGE], 0, .5 * s, 0); add(g, new THREE.SphereGeometry(.7 * s, 18, 14), M[c], 0, 1.5 * s, 0).scale.y = 1.25; return g; };
+for (let i = 0; i < 26; i++) { const a = i / 26 * 6.2832 + hash(i, 1) * .15, near = i % 3 === 0, b = near ? .75 + hash(i, 2) * .5 : -(.36 + hash(i, 2) * .9), k = i % 4;
+  put(k === 0 ? dome(.5 + hash(i, 3) * .3, .8, AQUA) : k === 2 ? dome(.7 + hash(i, 3) * .4, 1.5, ORANGE) : gtree(.8 + hash(i, 3) * .5, k === 1 ? LIME : AQUA), a, b); }
+const drops = [...Array(8)].map((_, i) => put(new THREE.Mesh(new THREE.SphereGeometry(.34, 14, 10), M[i % 2 ? LIME : ORANGE]), -(i + .5) / 8 * 6.2832, 0, 1.7));
+const moon = add(scene, new THREE.SphereGeometry(.8, 20, 14), M[AQUA]);
+// 背景：砂糖のつぶのような四角い点（白・もも・水色）
+[['#ffffff', 7], ['#ffc0ce', 5], ['#b4e2f2', 5]].forEach(([c, size], k) => { const g = new THREE.BufferGeometry(), p = []; for (let i = 0; i < 70; i++) p.push((hash(i, k * 3 + 1) - .5) * 70, (hash(i, k * 3 + 2) - .5) * 60 + 4, -18 - hash(i, k * 3 + 3) * 10); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: c, size: size * Math.min(devicePixelRatio, 2), sizeAttenuation: false }))); });
+// 主人公：白い宇宙服。こん色のバイザー、水色のせなかの箱、だいだいのアンテナ
+const hero = K.person({ top: '#ffffff', bottom: '#ffffff', skin: '#ffffff', s: 1.7 }), HP = hero.userData.P; hero.rotation.y = Math.PI / 2; scene.add(hero);
+add(HP.head, new THREE.SphereGeometry(.52, 20, 14), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: .5 }), 0, .36, 0); box(HP.head, .62, .36, .3, '#3a4a7a', 0, .36, .34); box(HP.body, .7, .8, .4, AQUA, 0, .52, -.42); box(HP.head, .06, .4, .06, '#ffffff', .2, 1, 0); add(HP.head, new THREE.SphereGeometry(.13, 8, 6), K.glow(ORANGE), .2, 1.24, 0);
+for (const n of ['legL', 'legR']) box(HP[n], .4, .3, .46, ORANGE, 0, -1.22, .04); hero.traverse(m => { if (m.isMesh && m.material.emissive) m.material.emissive.copy(m.material.color).multiplyScalar(.22); });
+const blob = add(scene, new THREE.CircleGeometry(.75, 20), new THREE.MeshBasicMaterial({ color: '#b03a60', transparent: true, opacity: .3, depthWrite: false }), 0, R + .03, 0); blob.rotation.x = -Math.PI / 2;
+const fx = K.fx(scene, 40), TOP = new THREE.Vector3();
+// 仕上げは軽く：明るい所をほんの少しにじませ、すみを落とす
+const post = K.post(renderer, `void main(){vec3 c=src(vUv),g=vec3(0.);for(int i=0;i<8;i++){float a=float(i)*.785;g+=src(vUv+vec2(cos(a),sin(a))*px*5.);}c=mix(c,max(c,g/8.),.35);c=mix(vec3(luma(c)),c,1.08);c*=1.-.14*pow(length(vUv-.5)*1.3,2.6);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const rot = t * .3927 + .2, w = Math.sin(t * 3.1) * .012; planet.rotation.z = rot; planet.scale.set(1 + w, 1 - w, 1 + w);
+  hero.position.y = R * (1 - w) + Math.abs(Math.sin(t * 7)) * .12; K.walk(hero, t * 7, .55); blob.position.y = R * (1 - w) + .03;
+  for (const g of wob) { const u = g.userData, near = Math.cos(u.a + rot), s = Math.sin(t * 5 + u.ph) * (.05 + .1 * Math.max(0, near) ** 6); g.scale.set(1 - s * .6, 1 + s, 1 - s * .6); }
+  drops.forEach((g, i) => { const u = g.userData, c = Math.cos(u.a + rot), sgn = Math.sin(u.a + rot); if (c < -.3) u.got = false; if (!u.got && c > .985 && sgn < .1) { u.got = true; for (let k = 0; k < 5; k++) fx.emit('spark', 0, R + 1.8, .2, { spread: 4, vy: 2, life: .6, size: .9, tint: i % 2 ? '#d8f060' : '#ffb04a' }); }
+    g.scale.setScalar(u.got ? 0 : 1 + Math.sin(t * 4 + i) * .12); });
+  moon.position.set(Math.cos(t * .5) * 8.6, 3 + Math.sin(t * .5) * 2.5, Math.sin(t * .5) * 8.6 - 1); moon.scale.set(1, 1 + Math.sin(t * 4) * .06, 1); fx.update(dt);
+  cam.position.set(Math.sin(t * .25) * 2, 9.4, 22.5); cam.lookAt(0, 2.3, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

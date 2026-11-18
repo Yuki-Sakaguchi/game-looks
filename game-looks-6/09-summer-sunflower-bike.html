@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-09 夏休み ひまわり畑の道をローポリの真夏の光で</title>
+<style>
+html,body{margin:0;height:100%;background:#a8d8f8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#1a4a8a;background:#fff8e0;padding:0 6px}
+</style>
+<div id="cap">6-09 ─ 夏休み / ひまわり畑の一本道を、黄・緑・青・白と短くこい影だけで描く　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：仕上げの加工は使わない。色は ひまわりの黄・葉の緑・空の青・雲と道の白 の 4 つだけ。差し色は自転車の赤。
+// 真上に近い太陽で、影は短くこく落とす。ひまわりは 4 つの形（くき・葉・花・花のしん）を同じ並びでまとめて描き、道のくり返しの長さだけ手前へ流す
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 45 }), { add, box, flat, glow, hash } = K;
+scene.background = K.sky([[0, '#1262d6'], [.36, '#3f95f0'], [.5, '#a8d8f8'], [1, '#a8d8f8']]); scene.fog = new THREE.Fog('#a8d8f8', 70, 230);
+const { sun } = K.lights(scene, renderer, { sky: 0xffffff, ground: 0x7ab050, amb: 1.05, sun: 0xfff6e0, power: 3.4, pos: [9, 40, 10], range: 26 }); sun.target.position.set(0, 0, -8);
+add(scene, new THREE.PlaneGeometry(700, 700), '#3f9a3a').rotation.x = -Math.PI / 2; scene.children.at(-1).receiveShadow = true;
+box(scene, 5, .06, 420, '#f4ead0', 0, .03, -180).receiveShadow = true;
+// ひまわり：道の両がわに 28 列 × 90 段。ずらし方は 8 段ごとに同じなので、8 段ぶん（P）流したら元にもどせる
+const P = 13.6, NF = 2 * 28 * 90, field = new THREE.Group(), dm = new THREE.Object3D(); scene.add(field);
+const hg = new THREE.CylinderGeometry(.47, .47, .08, 8); hg.rotateX(Math.PI / 2); const cg = new THREE.CylinderGeometry(.21, .21, .1, 6); cg.rotateX(Math.PI / 2); cg.translate(0, 0, .04);
+const sg = new THREE.CylinderGeometry(.05, .06, 1, 4); sg.translate(0, .5, 0); const lg = new THREE.IcosahedronGeometry(.5, 0); lg.scale(1.75, .8, 1.75);
+const [stem, leaf, head, core] = [[sg, '#3a8a34'], [lg, '#46a63c'], [hg, flat('#ffc91e', { emissive: '#7a5600' })], [cg, '#6a4020']].map(([g, m]) => { const q = new THREE.InstancedMesh(g, typeof m === 'string' ? flat(m) : m, NF); q.frustumCulled = false; field.add(q); return q; });
+let n = 0; for (const side of [-1, 1]) for (let i = 0; i < 28; i++) for (let j = 0; j < 90; j++) { const jj = j % 8, x = side * (3.7 + i * 1.5 + (hash(i, jj) - .5) * .8), z = 14 - j * 1.7 + (hash(jj, i + 40) - .5) * .8, h = 1.9 + hash(i * 3 + side, jj + 9) * .7;
+  dm.position.set(x, 0, z); dm.rotation.set(0, 0, 0); dm.scale.set(1, h, 1); dm.updateMatrix(); stem.setMatrixAt(n, dm.matrix);
+  dm.position.y = h * .42; dm.rotation.y = hash(i, jj + 20) * 6; dm.scale.set(1, 1, 1); dm.updateMatrix(); leaf.setMatrixAt(n, dm.matrix);
+  dm.position.set(x, h, z + .08); dm.rotation.set(-.3, (hash(i + 7, jj) - .5) * .9 - side * .3, 0); dm.updateMatrix(); head.setMatrixAt(n, dm.matrix); core.setMatrixAt(n++, dm.matrix); }
+leaf.castShadow = head.castShadow = true; leaf.receiveShadow = true;
+// 電柱の列（27.2 ごと）と電線、遠くの入道雲
+const poles = new THREE.Group(); for (let k = 0; k < 8; k++) { const z = -21 - k * 27.2; add(poles, new THREE.CylinderGeometry(.09, .12, 6.4, 6), '#6a5040', 3.1, 3.2, z); box(poles, 1.7, .12, .12, '#6a5040', 3.1, 5.7, z); for (const dx of [-.7, .7]) box(poles, .035, .035, 27.2, '#3a3a40', 3.1 + dx, 5.8, z - 13.6); } K.shadow(poles, true, false); scene.add(poles);
+const wh = glow('#ffffff', { fog: false }), bl = glow('#d4e8fa', { fog: false });
+for (const [cx, cz, s] of [[-70, -330, 1], [95, -360, .7], [-190, -300, .6]]) for (let k = 0; k < 16; k++) { const u = k / 15, r = (26 - u * 12) * s * (.8 + hash(k, cx) * .4), q = add(scene, new THREE.IcosahedronGeometry(r, 1), u < .3 ? bl : wh, cx + (hash(k, 1) - .5) * 110 * s * (1 - u * .7), (8 + u * 95 + hash(k, 2) * 10) * s, cz + (u < .3 ? 20 : 0) + hash(k, 3) * 10); q.scale.y = .8; }
+// 自転車と子ども。前は −z
+const bike = new THREE.Group(), wheels = []; for (const z of [-.56, .56]) { const w = new THREE.Group(); w.position.set(0, .37, z); add(w, new THREE.TorusGeometry(.33, .05, 5, 14), '#2a2a30').rotation.y = Math.PI / 2; for (let k = 0; k < 2; k++) box(w, .03, .62, .04, '#d8d8e0', 0, 0, 0).rotation.x = k * Math.PI / 2; bike.add(w); wheels.push(w); }
+box(bike, .07, .07, 1.05, '#e8402a', 0, .66, 0).rotation.x = .12; box(bike, .07, .6, .07, '#e8402a', 0, .78, .24); box(bike, .22, .07, .32, '#2a2a30', 0, 1.08, .26); box(bike, .07, .8, .07, '#e8402a', 0, .8, -.5).rotation.x = -.15; box(bike, .62, .05, .05, '#2a2a30', 0, 1.2, -.44); box(bike, .4, .26, .28, '#fff8e0', 0, .98, -.76);
+const kid = K.person({ top: '#ffffff', bottom: '#2a5ac8', skin: '#f2c8a0', hat: '#f2d060', s: .8 }), KP = kid.userData.P; kid.position.set(0, .44, .26); box(KP.head, .66, .04, .66, '#f2d060', 0, .3, 0); KP.body.rotation.x = -.2; KP.head.position.z = -.1; KP.armL.rotation.x = KP.armR.rotation.x = 1.05; bike.add(kid); K.shadow(bike); scene.add(bike);
+const fx = K.fx(scene, 40); let dT = 0;
+K.loop((dt, t) => {
+  const d = t * 7; field.position.z = d % P; poles.position.z = d % 27.2;
+  bike.position.x = Math.sin(t * .5) * .6; bike.rotation.z = -Math.cos(t * .5) * .05 + Math.sin(t * 5) * .015; bike.rotation.y = -Math.cos(t * .5) * .04;
+  wheels.forEach(w => { w.rotation.x = -d / .37; }); KP.legL.rotation.x = .75 + Math.sin(t * 6) * .45; KP.legR.rotation.x = .75 - Math.sin(t * 6) * .45;
+  if ((dT -= dt) < 0) { dT = .16; fx.emit('puff', bike.position.x, .15, .7, { vz: 3, vy: .4, spread: .4, life: .45, size: .3, grow: 1, tint: '#f4ead0' }); }
+  fx.update(dt);
+  cam.position.set(.9 + Math.sin(t * .3) * .5, 1.9, 5.7); cam.lookAt(bike.position.x * .5, 1.55, -12);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

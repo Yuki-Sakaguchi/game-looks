@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-12 配達 夕焼け 8 色のドット絵</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1a4a;overflow:hidden}
+canvas{display:block;image-rendering:pixelated}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fdf0c0;background:#2a1a4a;padding:0 6px}
+</style>
+<div id="cap">6-12 ─ 配達 / 夕焼けの坂の町を 8 色だけのドット絵で描く　｜　見るだけ（自動で坂を下る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 海へ下る坂の町をローポリの立体でふつうに描いてから、横 240 ドットの粗い絵にして、夕焼けの 8 色
+// （こい紫・紫・赤紫・だいだい・黄・クリーム・こい青・青緑）のいちばん近い色に丸める。色の境目は点の並び（ディザ）で混ぜる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 45, far: 1600 }), { add, box, hash, flat, glow } = K;
+cam.near = .5; cam.updateProjectionMatrix();
+const PAL = ['#2a1a4a', '#5a2a6a', '#a83a6a', '#f07a3a', '#fcc84a', '#fdf0c0', '#1f3a6a', '#3a9a9a'];
+scene.fog = new THREE.Fog('#f08a4a', 90, 800);
+// 空は大きな球の内がわ。地平線（まん中）に色の帯を集める
+const dome = add(scene, new THREE.SphereGeometry(900, 16, 24), new THREE.MeshBasicMaterial({ map: K.sky([[0, '#1f3a6a'], [.4, '#1f3a6a'], [.44, '#5a2a6a'], [.468, '#a83a6a'], [.484, '#f07a3a'], [.495, '#fcc84a'], [.51, '#fcc84a'], [1, '#f07a3a']]), side: THREE.BackSide, fog: false, depthWrite: false }));
+const sunDisc = add(scene, new THREE.CircleGeometry(52, 24), glow('#fdf0c0', { fog: false })); sunDisc.rotation.y = -Math.PI / 2;
+for (let i = 0; i < 5; i++) { const c = K.cloud(5 + hash(i, 1) * 4, i % 2 ? '#a83a6a' : '#f07a3a'); c.scale.set(1, .45, 2.2); c.position.set(560 + hash(i, 2) * 200, 60 + hash(i, 3) * 90, (hash(i, 4) - .5) * 900); scene.add(c); }
+const { sun } = K.lights(scene, renderer, { sky: '#8a6ac8', ground: '#5a3a7a', amb: 1.7, sun: '#ffb070', power: 3.8, range: 36 });
+// 坂は x の方向へ下って海に入る。左（z の小さい側）は少し高い
+const road = x => Math.sin(x * .035) * 7, dr = x => Math.cos(x * .035) * .245;
+const hill = x => Math.max(-4, (172 - x) * .22);
+const H = (x, z) => { const d = z - road(x); return hill(x) + (hill(x) > 0 ? Math.max(0, -d - 8) * .13 - Math.max(0, d - 8) * .05 : 0); };
+const P = (x, o, y = 0) => { const s = dr(x), l = Math.hypot(1, s), ax = x - o * s / l, az = road(x) + o / l; return [ax, H(ax, az) + y, az]; };
+const C = K.colors('#3a9a9a', '#2f8a8a', '#f0c0a0');
+const land = K.terrain(H, 80, 80, 3, (y, x, z) => y < 1.2 ? C[2] : C[hash(Math.round(x * .2), Math.round(z * .2)) > .5 ? 0 : 1]); land.mesh.receiveShadow = true; scene.add(land.mesh);
+const sea = add(scene, new THREE.PlaneGeometry(4000, 4000), glow('#3a9a9a'), 600, 0, 0); sea.rotation.x = -Math.PI / 2;
+const glit = [...Array(22)].map((_, i) => { const u = hash(i, 5), m = box(scene, 1 + u * 3, .1, 5 + u * 26, glow(i % 3 ? '#fcc84a' : '#fdf0c0', { fog: false }), 200 + u * 520, .1, 0); m.userData.o = (hash(i, 6) - .5) * (10 + u * 50); return m; });
+// 道の帯
+{ const p = [], ix = []; let n = 0; for (let x = -40; x <= 178; x += 2, n++) { p.push(...P(x, -3, .12), ...P(x, 3, .12)); if (n) ix.push(n * 2 - 2, n * 2 - 1, n * 2, n * 2 - 1, n * 2 + 1, n * 2); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setIndex(ix); g.computeVertexNormals(); add(scene, g, flat('#f4c4c4', { side: THREE.DoubleSide })).receiveShadow = true; }
+// 家（あかりのついた窓）、木、電柱と電線
+const ROOF = ['#a83a6a', '#3a9a9a', '#1f3a6a', '#f07a3a'];
+for (let i = 0; i < 52; i++) { const row = i % 3 === 2, x = -24 + i * 3.9 + hash(i, 7) * 2, side = i % 2 ? 1 : -1, off = row ? 19 + hash(i, 8) * 16 : 8 + hash(i, 8) * 2.5, z = road(x) + side * off; if (hill(x) < 2.5) continue;
+  const wd = 3.6 + hash(i, 9) * 1.4, ht = 2.6 + (i % 5 === 0 ? 2.2 : 0), g = K.shadow(K.house(wd, ht, 4.6, i % 4 ? '#fdf0c0' : '#f6d0b0', ROOF[i % 4], '#fcc84a', true)); box(g, wd + .3, 5, 4.9, '#5a2a6a', 0, -2.5, 0); g.position.set(x, H(x, z) - .15, z); g.rotation.y = side > 0 ? Math.PI : 0; scene.add(g); }
+for (let i = 0; i < 26; i++) { const x = -20 + hash(i, 10) * 180, z = road(x) + (i % 2 ? 1 : -1) * (13 + hash(i, 11) * 40); if (hill(x) < 2) continue; const t = K.shadow(K.tree(3 + hash(i, 12) * 2.5, '#2f8a8a', '#5a2a6a', '#1f3a6a')); t.position.set(x, H(x, z), z); scene.add(t); }
+const wire = [[], []]; for (let x = -30; x <= 162; x += 24) { const g = new THREE.Group(), p = P(x, 4.9); g.position.set(...p); g.rotation.y = -Math.atan(dr(x)); add(g, new THREE.CylinderGeometry(.13, .16, 6.4, 5), '#2a1a4a', 0, 3.2, 0).castShadow = true; box(g, .14, .14, 1.9, '#2a1a4a', 0, 5.7, 0); scene.add(g);
+  for (const k of [0, 1]) for (let f = 0; f < 6; f++) { const q = P(x + f * 4, 4.9 + (k ? .8 : -.8)), q0 = P(x, 4.9), q1 = P(x + 24, 4.9); wire[k].push(new THREE.Vector3(q[0], q0[1] + (q1[1] - q0[1]) * f / 6 + 5.8 - Math.sin(f / 6 * Math.PI) * .8, q[2])); } }
+for (const w of wire) scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(w), new THREE.LineBasicMaterial({ color: '#2a1a4a' })));
+// スクーターと乗り手（うしろに配達の箱）。前は +z。主役は影に沈まないよう、べた塗りにする
+const sc = new THREE.Group(); { box(sc, .5, .12, 1.6, '#3a9a9a', 0, .44, .05); box(sc, .58, .5, .8, '#3a9a9a', 0, .72, -.45); box(sc, .5, .12, .8, '#2a1a4a', 0, 1.03, -.4); box(sc, .58, .95, .12, '#3a9a9a', 0, .9, .7).rotation.x = -.2; box(sc, .08, .6, .08, '#2a1a4a', 0, 1.5, .62); box(sc, 1, .08, .08, '#2a1a4a', 0, 1.78, .6);
+  sc.userData.w = [.92, -.78].map(z => { const q = add(sc, new THREE.CylinderGeometry(.32, .32, .18, 10), '#2a1a4a', 0, .32, z); q.rotation.z = Math.PI / 2; return q; });
+  box(sc, .74, .46, .56, '#fdf0c0', 0, 1.26, -1.04); box(sc, .78, .12, .6, '#a83a6a', 0, 1.54, -1.04); box(sc, .3, .14, .06, glow('#fcc84a'), 0, .9, -.88);
+  const r = K.person({ s: .95, top: '#1f3a6a', bottom: '#2a1a4a', skin: '#fcc84a', hat: '#fdf0c0' }), R = r.userData.P; r.position.set(0, .32, -.3); R.legL.rotation.x = R.legR.rotation.x = -1.25; R.armL.rotation.x = R.armR.rotation.x = -1.15; sc.add(r); K.shadow(sc, true, false); sc.traverse(m => { if (m.isMesh) m.material = glow(m.material.color); }); scene.add(sc); }
+const post = K.post(renderer, K.PALETTE(PAL, .11), {}, { width: 240 }); onResize(post.resize);
+K.loop((dt, t) => {
+  const x = 4 + (t % 15.2) * 9.5, o = Math.sin(t * .6) * 1 + .6, p = P(x, o);
+  sc.position.set(...p); sc.rotation.set(.2, Math.atan2(1, dr(x)), Math.cos(x * .035) * -.12 + Math.cos(t * .6) * .1, 'YXZ'); sc.userData.w.forEach(q => q.rotation.x = t * 24);
+  land.follow(x, road(x)); sun.position.set(p[0] + 60, p[1] + 24, p[2] + 46); sun.target.position.set(...p);
+  const tall = cam.aspect < 1, D = tall ? 5.6 : 7.2, c = P(x - D, o * .7); cam.position.set(c[0], p[1] + D * .22 + (tall ? 2.6 : 3), c[2]); cam.lookAt(p[0] + 14, p[1] - 1.6, road(x + 14) * .6 + p[2] * .4);
+  dome.position.copy(cam.position); sunDisc.position.set(cam.position.x + 860, 34, cam.position.z + 120);
+  glit.forEach((m, i) => { m.position.z = sunDisc.position.z * (m.position.x - cam.position.x) / 860 + cam.position.z + m.userData.o; m.visible = hash(i, Math.floor(t * 5)) > .35; });
+  post.render(scene, cam, t);
+});
+</script>
+</html>

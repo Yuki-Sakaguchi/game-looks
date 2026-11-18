@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-04 ローカル線 桜並木の春の光</title>
+<style>
+html,body{margin:0;height:100%;background:#e4f2f4;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#b0507a;background:#fdf4f4;padding:0 6px}
+</style>
+<div id="cap">6-04 ─ ローカル線 / 桜のトンネルと菜の花の土手を、やわらかい春の光と少ない色で描く　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 仕上げの加工は使わない。ローポリの面を、やわらかい春の太陽（影つき）と淡い水色の霧だけでぬる。
+// 色は 桜のもも・菜の花の黄・電車のクリームと緑、空の淡い水色。花びらは小さな四角の点で舞わせる。
+// 線路は同じ形をくり返すので、1 両の電車がずっと走り続ける
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 40, maxFov: 70 }), { add, box, hash, glow, flat } = K;
+scene.background = K.sky([[0, '#a4d8f4'], [.55, '#dcf0f8'], [1, '#f6f8f0']]); scene.fog = new THREE.Fog('#e2f1f5', 45, 190);
+const { sun } = K.lights(scene, renderer, { sky: '#ffffff', ground: '#f0c8d4', amb: 2.1, sun: '#fff0dc', power: 2.2, range: 30 });
+const k0 = .025, PER = Math.PI * 2 / k0, tr = x => Math.sin(x * k0) * 7, mod = (a, n) => ((a % n) + n) % n, TOP = 2.4, CELL = 1.6;   // 線路のまん中の線。PER ごとに同じ形
+const H = (x, z) => { const a = Math.abs(z - tr(x)), s = Math.min(1, Math.max(0, (a - 6.5) / 6.5)); return TOP * (1 - s * s * (3 - 2 * s)) + Math.sin(x * k0 * 2 + z * .06) * .7 * Math.min(1, Math.max(0, (a - 13) / 10)); };
+const C = K.colors('#cdbca8', '#a9d67c', '#f7dc48', '#f2cd38', '#c2e294', '#b0da86');
+const land = K.terrain(H, 128, 84, CELL, (y, x, z) => { const xc = (Math.floor(x / CELL) + .5) * CELL, zc = (Math.floor(z / CELL) + .5) * CELL, a = Math.abs(zc - tr(xc)); return a < 2 ? C[0] : a < 6.3 ? C[1] : a < 14 ? C[a > 12 ? 3 : 2] : C[Math.sin(xc * k0 * 3) * Math.sin(zc * .08) > 0 ? 4 : 5]; }); land.mesh.receiveShadow = true; scene.add(land.mesh);   // 色はマスごとに決める
+// 桜並木・レール・まくら木：同じ形をまとめて描く（InstancedMesh）
+const M = new THREE.Object3D(), inst = (geo, mat, list) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach(([x, y, z, sx, sy, sz, ry, c], i) => { M.position.set(x, y, z); M.scale.set(sx, sy, sz); M.rotation.set(c ? ry * 1.3 : 0, ry, 0); M.updateMatrix(); m.setMatrixAt(i, M.matrix); if (c) m.setColorAt(i, c); }); m.castShadow = true; scene.add(m); return m; };
+const PINK = K.colors('#ffb9d2', '#ffcee0', '#ffa9c6', '#7cc474'), blobs = [], trunks = [], rails = [], ties = [];
+for (let i = -10; i < 62; i++) for (const side of [-1, 1]) {
+  const x = i * PER / 40 + (side > 0 ? 3 : 0), j = mod(i, 40); if (side > 0 && Math.sin(x * k0 + 1.2) < -.25) continue;     // 右がわは所どころ開けて、土手の菜の花を見せる
+  const z = tr(x) + side * (4.7 + hash(j, 1) * .7), y = H(x, z), h = 6.6 + hash(j, 2 + side) * 1.6;
+  trunks.push([x, y + h * .22, z, h * .05, h * .46, h * .05, 0]);
+  blobs.push([x, y + h * .68, z, h * .3, h * .27, h * .3, j + side, PINK[j % 3]], [x + h * .18, y + h * .54, z + h * .07, h * .22, h * .2, h * .22, j * 2, PINK[(j + 1) % 3]], [x - h * .16, y + h * .58, z - h * .1, h * .2, h * .19, h * .2, j * 3, PINK[(j + 2) % 3]]);
+}
+for (let c = -1; c <= 1; c++) for (let i = 0; i < 26; i++) { const x = hash(i, 5) * PER + c * PER; if (x < -50 || x > PER + 120) continue; const z = tr(x) + (i % 2 ? 1 : -1) * (20 + hash(i, 6) * 34), y = H(x, z), h = 4 + hash(i, 7) * 3; trunks.push([x, y + h * .22, z, h * .05, h * .46, h * .05, 0]); blobs.push([x, y + h * .66, z, h * .3, h * .28, h * .3, i, PINK[i % 5 ? 3 : 0]]); }
+for (let i = -40; i < 250; i++) { const x = i * PER / 160, m = Math.cos(x * k0) * 7 * k0, ry = -Math.atan(m); ties.push([x, TOP + .06, tr(x), .3, .12, 2.3, ry]); if (i % 2 === 0) for (const s of [-.75, .75]) rails.push([x, TOP + .2, tr(x) + s, PER / 80 + .05, .14, .12, ry]); }
+inst(new THREE.CylinderGeometry(1, 1.5, 1, 5), flat('#6a4438'), trunks); inst(new THREE.IcosahedronGeometry(1, 0), flat('#ffffff'), blobs);
+inst(new THREE.BoxGeometry(1, 1, 1), flat('#8a7868'), ties).castShadow = false; inst(new THREE.BoxGeometry(1, 1, 1), flat('#6a6a78'), rails).castShadow = false;
+// 1 両の電車：下が緑、上がクリーム。前は +z（うしろから追うので、うしろの顔と尾灯も作る）
+const train = new THREE.Group(), GREEN = '#3f8f5e', CREAM = '#f8eed2', GLASS = flat('#4a6878'); scene.add(train);
+box(train, 2.7, 1.05, 9, GREEN, 0, 1.2, 0); box(train, 2.7, 1.55, 9, CREAM, 0, 2.5, 0); box(train, 2.72, .14, 9.02, GREEN, 0, 3.2, 0); box(train, 2.4, .3, 8.6, '#dcd8cc', 0, 3.42, 0); box(train, 1.4, .3, 2.2, '#c8c4b8', 0, 3.7, -1);
+for (const z of [-2.9, 2.9]) box(train, 2.1, .6, 2.2, '#4a4650', 0, .42, z);
+for (const s of [-1, 1]) { for (let k = 0; k < 5; k++) box(train, .06, .8, 1.25, GLASS, s * 1.36, 2.6, (k - 2) * 1.7); box(train, 1.9, .85, .06, GLASS, 0, 2.6, s * 4.51); box(train, .7, .14, .06, glow('#fff0b0'), 0, 3.05, s * 4.52);
+  for (const q of [-.9, .9]) box(train, .3, .2, .06, glow(s > 0 ? '#fff6c0' : '#ff5a48'), q, 1.3, s * 4.52); }
+box(train, .08, .6, .08, '#4a4650', 0, 3.9, 1.6); box(train, 1.3, .06, .06, '#4a4650', 0, 4.2, 1.6); K.shadow(train, true, false);
+const clouds = new THREE.Group(); scene.add(clouds); for (let i = 0; i < 5; i++) { const c = K.cloud(1.5); c.position.set(60 + i * 45, 38 + hash(i, 8) * 12, (hash(i, 9) - .5) * 180); clouds.add(c); }
+// 花びら：電車のまわりの箱の中を、ゆれながら落ちる小さな点
+const FN = 600, fb = new Float32Array(FN * 3), fp = new Float32Array(FN * 3), fg = new THREE.BufferGeometry(); for (let i = 0; i < FN * 3; i++) fb[i] = Math.random();
+fg.setAttribute('position', new THREE.BufferAttribute(fp, 3)); const petals = new THREE.Points(fg, new THREE.PointsMaterial({ color: '#ffdcea', size: .17 })); petals.frustumCulled = false; scene.add(petals);
+K.loop((dt, t) => {
+  const x = (t * 11 + PER - 12) % PER, z = tr(x), m = Math.cos(x * k0) * 7 * k0; train.position.set(x, TOP + .26 + Math.sin(t * 9) * .012, z); train.rotation.y = Math.atan2(1, m); train.rotation.z = Math.sin(t * 2.6) * .012;
+  land.follow(x + 20, z); clouds.position.x = x;
+  for (let i = 0; i < FN; i++) { const q = i * 3; fp[q] = x - 16 + mod(fb[q] * PER / 4 - x, PER / 4) + Math.sin(t * .8 + i) * .6; fp[q + 1] = mod(fb[q + 1] * 11 - t * (.7 + fb[q] * .5), 11) + .4; fp[q + 2] = z - 13 + mod(fb[q + 2] * 26 - z + Math.sin(t * .6 + i * 1.7) * .8, 26); } fg.attributes.position.needsUpdate = true;
+  sun.position.set(x - 16, 42, z + 20); sun.target.position.set(x + 4, 0, z);
+  cam.position.set(x - 15, TOP + 8.6, tr(x - 15) * .8 + z * .2 - 2); cam.lookAt(x + 3, TOP + 1.2, tr(x + 3) * .5 + z * .5);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

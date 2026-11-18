@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-03 川下り 蛍の夜</title>
+<style>
+html,body{margin:0;height:100%;background:#0c2c38;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8ff8a;background:#0c2c38;padding:0 6px}
+</style>
+<div id="cap">6-03 ─ 川下り / 夜の森の川を、こい青緑の面と 黄緑の蛍の光（水にも映る）だけで描く　｜　見るだけ（自動で下る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 仕上げの加工は使わない。森も岸も水も、こい青緑の濃淡だけのローポリの面。そこへ足し算の小さな光（蛍）をゆっくり明滅させて舞わせる。
+// 水は少しすける板で、蛍と舟のランタンを上下さかさまにした写しを水の下に置いて「映りこみ」にする。
+// 差し色は舟のランタンのだいだい 1 つ。川は同じ形をくり返すので、ずっと下り続ける
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 42, maxFov: 66 }), { add, box, hash, glow, flat } = K;
+scene.background = K.sky([[0, '#082030'], [.45, '#12444e'], [1, '#1e6862']]); scene.fog = new THREE.Fog('#12424c', 28, 125);
+const { sun } = K.lights(scene, renderer, { sky: '#62a8bc', ground: '#144a44', amb: 2.1, sun: '#a8e8dc', power: 1.3, range: 30 });
+const PER = Math.PI * 2 / .04, rz = x => Math.sin(x * .04) * 8, mod = (a, n) => ((a % n) + n) % n;   // 川のまん中の線。PER ごとに同じ形
+const H = (x, z) => { const d = Math.abs(z - rz(x)); return Math.max(-3, Math.min(.7 + Math.max(0, d - 8) * .1 + (d > 8 ? Math.sin(x * .12 + z * .17) * .4 : 0), -3 + (d - 4.5) * 1.5)); };
+const C = K.colors('#0c3a46', '#3a9a70', '#1f6a5c', '#1a5c56');
+const land = K.terrain(H, 90, 64, 2, (y, x, z) => { const d = Math.abs(z - rz(x)); return y < -.2 ? C[0] : d < 10.5 ? C[1] : C[Math.sin(x * .2) * Math.sin(z * .23) > 0 ? 2 : 3]; }); land.mesh.receiveShadow = true; scene.add(land.mesh);
+const water = add(scene, new THREE.PlaneGeometry(420, 420).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1a8a84', transparent: true, opacity: .72, roughness: .5, depthWrite: false })); water.renderOrder = 1;
+// 森と草むら：同じ形をまとめて描く（InstancedMesh）。x は PER でくり返す
+const M = new THREE.Object3D(), inst = (geo, mat, list) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach(([x, y, z, sx, sy, ry, c], i) => { M.position.set(x, y, z); M.scale.set(sx, sy, sx); M.rotation.set(0, ry, 0); M.updateMatrix(); m.setMatrixAt(i, M.matrix); if (c) m.setColorAt(i, c); }); m.castShadow = true; scene.add(m); return m; };
+const LEAF = K.colors('#1f6e64', '#2a8270', '#185650'), cones = [], blobs = [], trunks = [], reeds = [];
+for (let c = -1; c <= 1; c++) for (let i = 0; i < 110; i++) {
+  const x = hash(i, 1) * PER + c * PER; if (x < -50 || x > PER + 115) continue; const side = i % 2 ? 1 : -1, d = 10 + hash(i, 2) * hash(i, 2) * 34, z = rz(x) + side * d, y = H(x, z), h = 6 + hash(i, 3) * 6, col = LEAF[i % 3];
+  trunks.push([x, y + h * .2, z, h * .05, h * .4, 0]);
+  if (i % 3) for (let k = 0; k < 3; k++) cones.push([x, y + h * (.42 + k * .2), z, h * (.3 - k * .07), h * .36, k + i, col]);
+  else { blobs.push([x, y + h * .64, z, h * .3, h * .3, i, col]); blobs.push([x + h * .16, y + h * .5, z + h * .08, h * .2, h * .2, i * 2, LEAF[(i + 1) % 3]]); }
+}
+for (let c = -1; c <= 1; c++) for (let i = 0; i < 150; i++) { const x = hash(i, 5) * PER + c * PER; if (x < -30 || x > PER + 90) continue; const z = rz(x) + (i % 2 ? 1 : -1) * (6.6 + hash(i, 6) * 3), s = .5 + hash(i, 7) * .5; reeds.push([x, H(x, z) + s * .8, z, s * .5, s * 1.8, i, null]); }
+inst(new THREE.CylinderGeometry(1, 1.4, 1, 5), flat('#123c40'), trunks); inst(new THREE.ConeGeometry(1, 1, 6), flat('#ffffff'), cones); inst(new THREE.IcosahedronGeometry(1, 0), flat('#ffffff'), blobs); inst(new THREE.ConeGeometry(1, 1, 4), flat('#4ab87a'), reeds).castShadow = false;
+// 小舟：さおを持つ人と、へさきのランタン。水の下に、さかさまのランタンの写しも持つ
+const boat = new THREE.Group(), hull = K.boat('#8a5a3c', null), LAMP = glow('#ffb450'), HALO = new THREE.MeshBasicMaterial({ color: '#ff9a3a', transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false });
+boat.add(hull); box(boat, .08, 1.5, .08, '#5a3a2a', 0, 1.2, 1.5); box(boat, 1.2, .1, .5, '#a8744c', 0, .5, -.3);
+for (const s of [1, -1]) { box(boat, .36, .44, .36, LAMP, 0, s * 2.05, 1.5); add(boat, new THREE.IcosahedronGeometry(s > 0 ? 1.1 : .8, 1), HALO, 0, s * 2.05, 1.5); }
+const streak = box(boat, .7, .02, 3.4, HALO, 0, .08, 3.6); streak.renderOrder = 3;
+const man = K.person({ top: '#e8e2cc', bottom: '#2c4c5c', hat: '#d8c888', s: .8 }); man.position.set(0, .5, -1.1); boat.add(man); const pole = box(man.userData.P.armR, .07, 3.6, .07, '#a8744c', 0, -.6, .1);
+const lamp = new THREE.PointLight('#ffa850', 30, 20); lamp.position.set(0, 2.2, 1.5); boat.add(lamp); boat.scale.setScalar(1.4); scene.add(boat);
+// 蛍：足し算の丸い光の点。1 つずつ別の調子でゆっくり明滅。さかさまにした写しを水の下に置く
+const dot = document.createElement('canvas'); dot.width = dot.height = 32; { const g = dot.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(.25, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); }
+const FN = 300, fb = new Float32Array(FN * 4), fp = new Float32Array(FN * 3), fc = new Float32Array(FN * 3), fg = new THREE.BufferGeometry(); for (let i = 0; i < FN * 4; i++) fb[i] = Math.random();
+fg.setAttribute('position', new THREE.BufferAttribute(fp, 3)); fg.setAttribute('color', new THREE.BufferAttribute(fc, 3));
+const fm = o => new THREE.PointsMaterial({ map: new THREE.CanvasTexture(dot), size: .95, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, ...o });
+const flies = new THREE.Points(fg, fm({})), mirror = new THREE.Points(fg, fm({ opacity: .55 })); mirror.scale.y = -1; flies.renderOrder = 4; mirror.renderOrder = 2; flies.frustumCulled = mirror.frustumCulled = false; scene.add(flies, mirror);
+const stars = K.stars(140, 300, 1.5); scene.add(stars); const moon = add(scene, new THREE.SphereGeometry(8, 14, 10), glow('#e8ffe0', { fog: false }));
+const fx = K.fx(scene, 30); let sT = 0;
+K.loop((dt, t) => {
+  const x = (t * 2.6 + 30) % PER, z = rz(x), m = Math.cos(x * .04) * .32; boat.position.set(x, -.12 + Math.sin(t * 1.3) * .04, z); boat.rotation.y = Math.atan2(1, m); boat.rotation.z = Math.sin(t * .9) * .03;
+  man.userData.P.armR.rotation.x = -.5 + Math.sin(t * .8) * .25; man.userData.P.armL.rotation.x = -.3;
+  land.follow(x + 16, z); water.position.set(x, 0, z); stars.position.set(x, 0, z); moon.position.set(x + 200, 80, z + 70);
+  for (let i = 0; i < FN; i++) { const a = fb[i * 4] * 6.283, q = i * 3, px = x - 16 + mod(fb[i * 4] * PER / 2 - x, PER / 2) + Math.sin(t * .5 + a * 7) * .9, side = i % 2 ? 1 : -1, b = Math.pow(.5 + .5 * Math.sin(t * (.9 + fb[i * 4 + 3] * .8) + a * 11), 2) * .9 + .1;
+    fp[q] = px; fp[q + 1] = .5 + fb[i * 4 + 1] * fb[i * 4 + 1] * 3.6 + Math.sin(t * .7 + a * 5) * .35; fp[q + 2] = rz(px) + side * (3.5 + fb[i * 4 + 2] * 9) + Math.cos(t * .4 + a * 3) * .9; fc[q] = .8 * b; fc[q + 1] = b; fc[q + 2] = .16 * b; }
+  fg.attributes.position.needsUpdate = fg.attributes.color.needsUpdate = true;
+  if ((sT -= dt) < 0) { sT = .5; fx.emit('splash', x - 2.6, .2, rz(x - 2.6) + (Math.random() - .5), { life: 1.1, size: .45, grow: 1.2, tint: '#6ac4b4' }); } fx.update(dt);
+  sun.position.set(x - 20, 40, z + 26); sun.target.position.set(x + 4, 0, z);
+  cam.position.set(x - 11, 5.2, rz(x - 11) * .7 + z * .3); cam.lookAt(x + 5, .2, rz(x + 5) * .6 + z * .4);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

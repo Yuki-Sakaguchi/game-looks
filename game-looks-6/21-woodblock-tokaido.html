@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-21 街道の旅 木版画</title>
+<style>
+html,body{margin:0;height:100%;background:#f0e6cc;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#22335f;background:#f0e6cc;padding:0 6px}
+</style>
+<div id="cap">6-21 ─ 街道の旅 / 木版画（藍の輪郭線・平らな色・ぼかし摺り）　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 木版画（浮世絵ふう）の決まり：場面には光を当てず、藍・黄土・緑・朱と和紙の色だけの平らな色で塗る。
+// 仕上げで、太さのそろった こい藍の輪郭線を引き、空と水だけ「ぼかし摺り」（空は上のふち、水は沖へ向かって藍がこくなる）にする。
+// 街道は x の方向へどこまでも続く（96 ごとに同じ景色をくり返す）。カメラは横から少し引いて旅人についていく
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 35, far: 800 }), { add, box, hash } = K;
+const AI = '#34507f', KI = '#e8d49a', SHU = '#d85a3a', KAMI = '#f0e6cc', MIZU = '#7aa6cc', SUMI = '#5a4a48', HADA = '#f0d0a8';
+scene.background = new THREE.Color(KAMI);
+const P = 96, TAU = Math.PI * 2, xs = x => ((x % P) + P) % P, wrapx = (bx, hx) => bx + Math.round((hx - bx) / P) * P, sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+const arch = x => Math.abs(xs(x) - 66) < 9 ? 1 + 1.3 * Math.cos((xs(x) - 66) / 9 * Math.PI / 2) : -9;      // 太鼓橋の高さ
+// 地面：手前は草地、まん中に街道、奥は入り江に落ちて、向こう岸に低い山。x=66 のあたりを小川が横切る
+const H = (x, z) => { const y = 1 - sm(3, 8, z) * .7 + sm(6, 16, Math.abs(z)) * Math.sin(x * TAU / P * 3 + z * .3) * .4 - sm(-12, -20, z) * 3.5 + sm(-90, -150, z) * (15 + 7 * Math.sin(x * TAU / P * 2)), s = z > -16 ? sm(8, 3, Math.abs(xs(x) - 66)) : 0; return y * (1 - s) - 2 * s; };
+const C = K.colors('#b4c2cc', KI, '#8fb47a', '#6f9a68');
+const land = K.terrain(H, 80, 80, 3, (y, x, z) => z < -60 ? C[0] : y < .2 ? C[1] : z < 3.5 ? C[2] : C[3]); scene.add(land.mesh);
+const sea = box(scene, 1400, .1, 800, MIZU, 0, -.55, -300);
+const W = [], put = (o, bx, z, y = H(bx, z)) => { o.position.set(bx, y, z); scene.add(o); W.push([o, bx]); return o; };
+{ const g = new THREE.Group(); for (const k of [-1, 0, 1]) box(g, 79, .12, 4.6, KI, k * P, 1, 0); put(g, 18, 0, 0); }      // 街道（橋の所だけ切れる）
+// 松：ななめの幹と、平たい葉のかたまり
+const matsu = (h, lean) => { const g = new THREE.Group(), t = add(g, new THREE.CylinderGeometry(h * .035, h * .065, h, 5), SUMI, lean * h * .12, h * .5, 0); t.rotation.z = -lean * .24; for (const [x, y, r] of [[.24, .98, .3], [-.14, .84, .32], [.52, .78, .22], [-.44, .68, .2]]) add(g, new THREE.IcosahedronGeometry(h * r, 0), y > .9 || x < -.3 ? '#3f7a58' : '#2f5f4a', (x + .2) * lean * h * .8, y * h, (r - .26) * h).scale.y = .36; return g; };
+for (let i = 0; i < 10; i++) { const bx = i * 9.6 + hash(i, 2) * 4; if (Math.abs(bx - 66) > 10 && Math.abs(bx - 36) > 6.5) put(matsu(6 + hash(i, 1) * 3, i % 2 ? 1 : -1), bx, -4.2 - hash(i, 3) * 3); }
+for (let i = 0; i < 12; i++) { const r = put(K.rock(.5 + hash(i, 7) * .7, i % 3 ? '#6f9a68' : '#b4c2cc'), i * 8 + hash(i, 8) * 5, 6 + hash(i, 9) * 7); r.scale.y = i % 3 ? 1.3 : 1; }      // 手前の草むらと石
+for (let i = 0; i < 3; i++) put(matsu(9.5, i % 2 ? -1 : 1), i * 32 + 14, 4.8);
+{ const g = put(new THREE.Group(), 36, -8.5), h = K.house(5, 3, 7, KI, AI, AI); h.rotation.y = Math.PI / 2; g.add(h); box(g, 3, .35, 1, SHU, 5.8, .5, 1.5); box(g, .12, 4.2, .12, SUMI, -4.6, 2.1, 2.6); box(g, .9, 2.2, .06, KAMI, -5.1, 3, 2.6); }      // 茶屋と縁台、のぼり
+{ const g = new THREE.Group(); for (let k = -4; k <= 4; k++) { const x = 66 + k * 2, y = arch(x), a = Math.atan(arch(x + .5) - arch(x - .5)); box(g, 2.3, .3, 4.4, '#c8a070', k * 2, y - .15, 0).rotation.z = a; for (const s of [-1, 1]) { box(g, .2, 1.1, .2, SHU, k * 2, y + .5, s * 2.1); box(g, 2.3, .14, .14, SHU, k * 2, y + 1, s * 2.1).rotation.z = a; } } put(g, 66, 0, 0); }
+for (let i = 0; i < 2; i++) { const b = put(K.boat(SUMI, KAMI), 22 + i * 50, -36 - i * 24, -.5); b.scale.setScalar(2.4); b.rotation.y = Math.PI / 2; }
+const fuji = new THREE.Group(); add(fuji, new THREE.CylinderGeometry(7, 110, 62, 20), '#5a78a8', 0, 31, 0); add(fuji, new THREE.CylinderGeometry(7.4, 43.6, 21.5, 20), KAMI, 0, 51.25, 0); scene.add(fuji);
+// 旅人：かさ、背の荷、つえ
+const kasa = (p, s) => { add(p.userData.P.head, new THREE.ConeGeometry(.62 * s, .34 * s, 8), '#d8b060', 0, .5 * s, 0); return p; };
+const hero = kasa(K.person({ s: 1.5, top: AI, bottom: KAMI, skin: HADA }), 1.5); box(hero.userData.P.body, .62, .55, .36, SHU, 0, .6, -.44); box(hero.userData.P.armR, .09, 2.9, .09, SUMI, 0, -.5, .36); hero.rotation.y = Math.PI / 2; scene.add(hero);
+const others = [0, 1].map(i => { const p = kasa(K.person({ s: 1.4, top: i ? '#6f9a68' : SHU, bottom: AI, skin: HADA }), 1.4); p.rotation.y = -Math.PI / 2; scene.add(p); return p; });
+scene.traverse(m => { if (m.isMesh && m.material.isMeshStandardMaterial) m.material = new THREE.MeshBasicMaterial({ color: m.material.color, vertexColors: m.material.vertexColors, side: m.material.side }); });      // 光を当てない平らな色に
+const post = K.post(renderer, `void main(){vec3 c=src(vUv);float d=dep(vUv),y=vUv.y,s=res.y/600.;vec3 kami=vec3(.94,.9,.8),ai=vec3(.13,.2,.38),mizu=vec3(.48,.65,.8);
+if(d>nf.y*.9){c=mix(kami,mizu,smoothstep(.6,.88,y)*.7);c=mix(c,ai,smoothstep(.85,1.,y)*.92);}          // 空のぼかし（上のふちが こい藍）
+else if(distance(c,mizu)<.07){c=mix(mix(kami,mizu,.55),mizu,smoothstep(18.,60.,d));c=mix(c,ai*1.25,smoothstep(60.,150.,d)*.6);}   // 水のぼかし（沖が藍）
+c=mix(c,ai*.75,edge(vUv,size.y/420.,.9,.09)*.94);
+vec2 q=abs((vec2(1.)-vUv)*res-vec2(30.,40.)*s);if(q.x<7.*s&&q.y<17.*s)c=vec3(.8,.3,.2);                     // 右上の朱の印
+c*=.975+.035*vn(vUv*res*vec2(.012,.45));gl_FragColor=vec4(c,1.);}`, {}, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const x = 22 + t * 3.2, tall = innerHeight > innerWidth; hero.position.set(x, Math.max(1.06, arch(x)), .4); K.walk(hero, t * 7, .6);
+  others.forEach((p, i) => { const ox = wrapx(64 + i * 37 - t * 2, x + 3); p.position.set(ox, Math.max(1.06, arch(ox)), -1.2); K.walk(p, t * 6 + i, .5); });
+  for (const [o, bx] of W) o.position.x = wrapx(bx, x + 3);
+  land.follow(x, 0, -69); sea.position.x = x; fuji.position.set(x + 19, -1, -340); fuji.scale.setScalar(tall ? 1.6 : 1);
+  cam.position.set(x + 3, tall ? 4.8 : 6, tall ? 13 : 22); cam.lookAt(x + 3, tall ? 4.4 : 5.4, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

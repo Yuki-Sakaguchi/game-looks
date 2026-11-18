@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-01 夜歩き 雪の温泉街のあかり</title>
+<style>
+html,body{margin:0;height:100%;background:#1c1c4a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffd9a0;background:#1c1c4a;padding:0 6px}
+</style>
+<div id="cap">6-01 ─ 夜歩き / 雪の温泉街を、夜の青紫と雪の白、あかりのだいだいだけで描く　｜　見るだけ（自動で坂をのぼる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 仕上げの加工は使わない。ローポリの面を、月の青紫の光と霧だけでぬり、あかりは「光る面」と「足し算の光の輪」で置く。
+// 色は 夜の青紫・雪の白・あかりのだいだい の 3 つだけ。湯けむりは 8×8 のドット絵、雪は小さな四角の点。
+// 宿とちょうちんは主役の前へ送りなおして、坂道がずっと続くようにしている
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 40, maxFov: 66 }), { add, box, hash, glow, flat } = K;
+scene.background = K.sky([[0, '#10103a'], [.5, '#2a2a6c'], [1, '#5a4a90']]); scene.fog = new THREE.Fog('#34327c', 18, 88);
+const { sun } = K.lights(scene, renderer, { sky: '#8088ea', ground: '#3a3478', amb: 1.9, sun: '#b0bcff', power: 1.2, range: 26 });
+// 地面：x の方向へのぼる坂。右に一段低い川、その外がわは雪の山
+const S = .06, H = (x, z) => x * S + (z > 4.5 && z < 10 ? -1.7 : 0) + Math.max(0, Math.abs(z - 4) - 21) * .5 * (1 + .4 * Math.sin(x * .07 + z * .1));
+const C = K.colors('#f2f4ff', '#d6daf6', '#3848bc', '#7c7ab8', '#4458cc');
+const land = K.terrain(H, 76, 56, 1.5, (y, x, z) => { const k = Math.floor(z / 1.5); return k === 4 || k === 5 ? C[Math.sin(x * 1.3 + k * 2) > .2 ? 4 : 2] : k === 3 || k === 6 ? C[3] : k >= -2 && k < 2 ? C[1] : C[0]; }); land.mesh.receiveShadow = true; scene.add(land.mesh);
+// あかりの材料：光る面、足し算の光の輪（ちょうちんのまわり、雪の上、水の上）
+const WOOD = flat('#4a2e3a'), DARK = flat('#2e2440'), SNOW = flat('#f2f4ff'), NOREN = flat('#3a4ab8'), WARM = glow('#ffa040'), WARM2 = glow('#ffd088');
+const HALO = new THREE.MeshBasicMaterial({ color: '#ff8a30', transparent: true, opacity: .2, blending: THREE.AdditiveBlending, depthWrite: false });
+const POOL = new THREE.MeshBasicMaterial({ color: '#ff9a48', transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false });
+const haloG = new THREE.IcosahedronGeometry(1, 1), discG = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2);
+function lantern(g, x, y, z, r = 1) { box(g, .46, .62, .46, WARM, x, y, z); box(g, .5, .08, .5, DARK, x, y + .35, z); add(g, haloG, HALO, x, y, z).scale.setScalar(r); }
+function disc(g, x, y, z, r, tilt) { const m = add(g, discG, POOL, x, y, z); m.scale.setScalar(r); m.rotation.z = tilt; }
+// 宿：木のかべ、雪の屋根とひさし、光る窓、のれん、ちょうちん。正面は +z
+function inn(i, side) {
+  const g = new THREE.Group(), w = 7.6, d = 6, h = 4.4 + hash(i, side + 2) * 1.8;
+  K.shadow(box(g, w, h + 1.2, d, WOOD, 0, h / 2 - .6, 0)); box(g, w, 1.5, d * .5, WOOD, 0, h + .6, 0);
+  for (const s of [-1, 1]) { const r = box(g, w + 1.4, .5, d * .74, SNOW, 0, h + 1, s * d * .3); r.rotation.x = s * .5; r.castShadow = true; }
+  box(g, w + .8, .3, 1.8, SNOW, 0, h * .52, d / 2 + .7).rotation.x = .22;
+  for (let k = 0; k < 4; k++) box(g, 1.1, 1, .1, (i + k) % 3 ? WARM2 : WARM, (k - 1.5) * 1.75, h * .78, d / 2 + .03);
+  box(g, 1.7, 1.9, .1, WARM2, -1.7, .95, d / 2 + .03); box(g, 1.8, .6, .12, NOREN, -1.7, 1.75, d / 2 + .1); box(g, 2.6, 1.2, .1, WARM, 1.7, 1.2, d / 2 + .03);
+  lantern(g, -3.3, 2.2, d / 2 + 1.2, 1.1); disc(g, -1.2, .12, d / 2 + 2.4, 3.4, side * Math.atan(S));
+  g.rotation.y = side > 0 ? 0 : Math.PI; g.userData = { i, sp: 10, off: side > 0 ? 0 : 5, z: side > 0 ? -7.6 : 15.2 }; scene.add(g); return g;
+}
+// 川べりの灯ろうと手すり、水にうつるあかり
+function lamp(i) {
+  const g = new THREE.Group(), a = Math.atan(S); box(g, .16, 2.6, .16, DARK, 0, 1.3, 0); lantern(g, 0, 2.8, 0, 1.3); box(g, .7, .1, .7, SNOW, 0, 3.22, 0);
+  box(g, 10, .12, .12, DARK, 0, 1, 0).rotation.z = a; for (const x of [-2.5, 2.5]) box(g, .12, 1.1, .12, DARK, x, .5 + x * S, 0);
+  disc(g, 0, .12, -1, 2.6, a); const r = box(g, .8, .04, 3, POOL, 0, -1.55, 3.9); r.rotation.z = a;
+  g.userData = { i, sp: 10, off: 2, z: 3.6 }; scene.add(g); return g;
+}
+function pine(i) { const g = K.pine(6 + hash(i, 9) * 4, '#2c3a78', '#3a2a40', '#eef0ff'); g.userData = { i, sp: 7, off: hash(i, 8) * 4, z: i % 2 ? -24 - hash(i, 7) * 14 : 31 + hash(i, 7) * 14 }; scene.add(g); return g; }
+const N = 11, pool = []; for (let i = 0; i < N; i++) pool.push(inn(i, 1), inn(i, -1), lamp(i), pine(i), pine(i + N));
+// ゆかたの人：白いゆかたに赤い帯、手にちょうちん（まわりを暖かく照らす）
+const YU = '#e8ecff', hs = 1.15, hero = K.person({ top: YU, bottom: YU, hat: '#2a2244', s: hs }), P = hero.userData.P; scene.add(hero); hero.rotation.y = Math.PI / 2;
+box(P.body, .58 * hs, .76 * hs, .38 * hs, YU, 0, -.3 * hs, 0).castShadow = true; box(P.body, .56 * hs, .16 * hs, .36 * hs, '#e0503a', 0, .16 * hs, 0); box(P.armR, .26, .34, .26, WARM, 0, -.92, .12);
+const light = new THREE.PointLight('#ffa050', 13, 15); light.position.set(.6, 1.1, .5); hero.add(light);
+const moon = add(scene, new THREE.SphereGeometry(7, 14, 10), glow('#fff2d0', { fog: false })), stars = K.stars(160, 300, 1.5); scene.add(stars);
+// 雪：主役のまわりの箱の中を、落ちては上へもどる小さな点
+const FN = 700, fb = new Float32Array(FN * 3), fg = new THREE.BufferGeometry(), fp = new Float32Array(FN * 3); for (let i = 0; i < FN * 3; i++) fb[i] = Math.random();
+fg.setAttribute('position', new THREE.BufferAttribute(fp, 3)); const flakes = new THREE.Points(fg, new THREE.PointsMaterial({ color: '#ffffff', size: .15 })); flakes.frustumCulled = false; scene.add(flakes);
+const fx = K.fx(scene, 120), mod = (a, n) => ((a % n) + n) % n; let sT = 0;
+K.loop((dt, t) => {
+  const x = t * 2.3 + 40, y = x * S; hero.position.set(x, y, 0); K.walk(hero, t * 6.5, .38); land.follow(x + 14, 4);
+  for (const g of pool) { const u = g.userData, per = N * u.sp, gx = u.i * u.sp + u.off + Math.round((x + 24 - u.i * u.sp) / per) * per; g.position.set(gx, H(gx, u.z) - (u.sp === 10 && u.off !== 2 ? .25 : 0), u.z); }
+  for (let i = 0; i < FN; i++) { const fy = mod(fb[i * 3 + 1] * 14 - t * (1.3 + fb[i * 3] * .6), 14); fp[i * 3] = x - 12 + mod(fb[i * 3] * 60 - x - t * .4, 60); fp[i * 3 + 1] = y + fy; fp[i * 3 + 2] = -18 + mod(fb[i * 3 + 2] * 42 + Math.sin(t * .6 + i) * .5, 42); } fg.attributes.position.needsUpdate = true;
+  if ((sT -= dt) < 0) { sT = .1; const px = x + 5 + Math.random() * 44; fx.emit('puff', px, px * S - 1.5, 6.2 + Math.random() * 2.6, { vy: 1.1, vx: .3, spread: .4, life: 4, size: .8, grow: 1.7, tint: '#b8bef4' }); } fx.update(dt);
+  sun.position.set(x - 14, y + 40, 26); sun.target.position.set(x + 4, y, 2); moon.position.set(x + 190, y + 78, -70); stars.position.set(x, y, 0);
+  const tall = innerWidth < innerHeight;   // たて長では主役をまん中へ寄せる
+  cam.position.set(x - 8, y + 3.6, (tall ? -.3 : .5) + Math.sin(t * .15) * .4); cam.lookAt(x + 8, y + (tall ? 2.6 : 1.7), tall ? .6 : 2.3);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

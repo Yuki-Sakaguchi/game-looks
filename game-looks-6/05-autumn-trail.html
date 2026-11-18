@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-05 ハイキング 紅葉の木もれ日</title>
+<style>
+html,body{margin:0;height:100%;background:#e8eef0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#a8442a;background:#fbf4e6;padding:0 6px}
+</style>
+<div id="cap">6-05 ─ ハイキング / 紅葉の山道を、赤・だいだい・黄の葉と 木もれ日のまだらな影、遠い青い山で描く　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 仕上げの加工は使わない。葉は 赤・だいだい・黄 の 3 色だけのローポリのかたまり。影つきの太陽を木の間から落として、
+// 道の上にまだらな木もれ日を作る。遠くの山なみは霧を受けない平らな青の重なり（差し色）で、谷は白い霧の面。
+// 落ち葉は小さな四角の点で舞わせる。道は同じ形をくり返すので、ずっと歩き続ける
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer } = K.stage({ fov: 42, maxFov: 68 }), { add, box, hash, glow, flat } = K;
+scene.background = K.sky([[0, '#96caf0'], [.5, '#dcecf4'], [1, '#f6f2e2']]); scene.fog = new THREE.Fog('#e8eef0', 40, 170);
+const { sun } = K.lights(scene, renderer, { sky: '#fff6e4', ground: '#e8b070', amb: 1.5, sun: '#fff0d0', power: 3, range: 24 });
+const PER = 180, k1 = Math.PI * 2 / PER, pz = x => Math.sin(x * k1 * 2) * 5, mod = (a, n) => ((a % n) + n) % n, CELL = 2;   // 道のまん中の線。PER ごとに同じ形
+const H = (x, z) => { const u = z - pz(x), a = Math.abs(u); return Math.sin(x * k1 * 2 + 1) * 1.2 + (u < -2 ? (-u - 2) * .15 : u > 6 ? -(Math.min(u, 54) - 6) * .32 : 0) + (a > 3 ? Math.sin(x * k1 * 5 + z * .15) * .3 : 0); };
+const C = K.colors('#fbeecb', '#ecc886', '#e4b974');
+const land = K.terrain(H, 96, 70, CELL, (y, x, z) => { const xc = (Math.floor(x / CELL) + .5) * CELL, zc = (Math.floor(z / CELL) + .5) * CELL; return Math.abs(zc - pz(xc)) < 1.9 ? C[0] : C[Math.sin(xc * k1 * 7) * Math.sin(zc * .3) > 0 ? 1 : 2]; }); land.mesh.receiveShadow = true; scene.add(land.mesh);
+// 紅葉の木：同じ形をまとめて描く（InstancedMesh）。幹は高く、葉のかたまりは道の上へ張り出す
+const M = new THREE.Object3D(), inst = (geo, mat, list) => { const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach(([x, y, z, sx, sy, ry, c], i) => { M.position.set(x, y, z); M.scale.set(sx, sy, sx); M.rotation.set(c ? ry * 1.3 : 0, ry, 0); M.updateMatrix(); m.setMatrixAt(i, M.matrix); if (c) m.setColorAt(i, c); }); m.castShadow = true; scene.add(m); return m; };
+const LEAF = K.colors('#dc4a2c', '#f08a2c', '#f6c63a'), blobs = [], trunks = [];
+for (let c = -1; c <= 1; c++) for (let i = 0; i < 150; i++) {
+  const x = hash(i, 1) * PER + c * PER; if (x < -45 || x > PER + 100) continue; const left = i % 10 < 8, u = left ? -4.6 - hash(i, 2) * hash(i, 2) * 38 : 5 + hash(i, 2) * 7, z = pz(x) + u, y = H(x, z), h = 7 + hash(i, 3) * 3.5, col = LEAF[Math.floor(hash(i, 4) * 3)];
+  trunks.push([x, y + h * .26, z, h * .04, h * .56, 0]);
+  blobs.push([x, y + h * .74, z, h * .27, h * .25, i, col], [x + h * .17, y + h * .62, z + h * .08, h * .19, h * .18, i * 2, LEAF[(i + 1) % 3]], [x - h * .15, y + h * .64, z - h * .1, h * .18, h * .17, i * 3, col]);
+}
+inst(new THREE.CylinderGeometry(1, 1.5, 1, 5), flat('#5c382a'), trunks); inst(new THREE.IcosahedronGeometry(1, 0), flat('#ffffff'), blobs);
+// 遠くの青い山なみ（霧を受けない平らな色の重なり）と、谷の白い霧の面
+const BLUE = ['#5c84c6', '#86a8dc', '#b2caee'];
+for (let c = -2; c <= 3; c++) for (let i = 0; i < 8; i++) { const L = i % 3, r = 55 + hash(i, 5) * 40, m = add(scene, new THREE.ConeGeometry(r, 60 + hash(i, 6) * 40 + L * 16, 5), glow(BLUE[L], { fog: false }), c * PER + i * PER / 8 + hash(i, 7) * 12, -14, 120 + L * 70 + hash(i, 8) * 30); m.rotation.y = i * 1.3; }
+const valley = add(scene, new THREE.PlaneGeometry(1600, 1600).rotateX(-Math.PI / 2), glow('#eef3f4', { fog: false }), 0, -16.5, 0);
+// リュックの人
+const hs = 1.1, hero = K.person({ top: '#f6f0e0', bottom: '#3c4c6c', hat: '#3a78b8', s: hs }), P = hero.userData.P; scene.add(hero);
+box(P.body, .46 * hs, .58 * hs, .28 * hs, '#3a78b8', 0, .33 * hs, -.28 * hs).castShadow = true; box(P.body, .5 * hs, .16 * hs, .2 * hs, '#f6c63a', 0, .7 * hs, -.28 * hs);
+// 落ち葉：主役のまわりの箱の中を、ゆれながら落ちる小さな点（赤・だいだい・黄）
+const FN = 360, fb = new Float32Array(FN * 3), fp = new Float32Array(FN * 3), fc = new Float32Array(FN * 3), fg = new THREE.BufferGeometry(); for (let i = 0; i < FN * 3; i++) fb[i] = Math.random();
+for (let i = 0; i < FN; i++) LEAF[i % 3].toArray(fc, i * 3); fg.setAttribute('position', new THREE.BufferAttribute(fp, 3)); fg.setAttribute('color', new THREE.BufferAttribute(fc, 3));
+const leaves = new THREE.Points(fg, new THREE.PointsMaterial({ size: .2, vertexColors: true })); leaves.frustumCulled = false; scene.add(leaves);
+const fx = K.fx(scene, 20); let sT = 0;
+K.loop((dt, t) => {
+  const x = (t * 2.6 + 20) % PER, z = pz(x), y = H(x, z), m = Math.cos(x * k1 * 2) * 5 * k1 * 2; hero.position.set(x, y, z); hero.rotation.y = Math.atan2(1, m); K.walk(hero, t * 7.5, .6);
+  land.follow(x + 14, z + 6); valley.position.set(x, -16.5, z);
+  for (let i = 0; i < FN; i++) { const q = i * 3; fp[q] = x - 12 + mod(fb[q] * PER / 3 - x, PER / 3) + Math.sin(t * .9 + i) * .7; fp[q + 1] = y - 1 + mod(fb[q + 1] * 10 - t * (.9 + fb[q] * .6), 10); fp[q + 2] = z - 12 + mod(fb[q + 2] * 28 - z + Math.sin(t * .7 + i * 1.7) * .9, 28); } fg.attributes.position.needsUpdate = true;
+  if ((sT -= dt) < 0) { sT = .42; fx.emit('puff', x - .3, y + .15, z, { vy: .5, spread: .6, life: .7, size: .3, grow: 1.2, tint: '#f0a040' }); } fx.update(dt);
+  sun.position.set(x + 8, y + 34, z - 16); sun.target.position.set(x + 2, y, z);
+  const cx = x - 8, tx = x + 8; cam.position.set(cx, H(cx, pz(cx)) * .5 + y * .5 + 3.5, pz(cx) + .4); cam.lookAt(tx, H(tx, pz(tx)) * .5 + y * .5 + 1.2, pz(tx) + 2.4);
+  renderer.render(scene, cam);
+});
+</script>
+</html>

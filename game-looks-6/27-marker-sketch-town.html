@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-27 街歩き 建築の手描きパース</title>
+<style>
+html,body{margin:0;height:100%;background:#fbfaf6;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#2a2a34;background:#fbfaf6;padding:0 6px}
+</style>
+<div id="cap">6-27 ─ 街歩き / 黒いペンの線と、影にだけ塗るマーカー　｜　見るだけ（自動で坂をのぼる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 建築の手描きパースの決まり：白い紙に、太さのそろった黒いペンの線。角では線が少しはみ出して交差する（箱のへりを長めに引く）。
+// 色は淡いマーカーを「影の面」と「落ちた影」と空の一部にだけ塗り、日なたは紙の白のまま残す（強い日ざしで白くとばす）。
+// マーカーは斜めの帯で、帯の重なりが少し濃い筋になる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 42 }), { add, box, hash } = K;
+scene.background = new THREE.Color('#ffffff'); scene.fog = new THREE.Fog('#ffffff', 35, 125);
+const { sun } = K.lights(scene, renderer, { amb: 1.6, ground: 0xffffff, sun: 0xffffff, power: 6, range: 40 });
+const SL = .12, P = 63, Y = z => -z * SL, town = new THREE.Group(); scene.add(town);
+const st = box(town, 70, .4, 330, '#e8dccc', 0, 0, 0); st.geometry.translate(0, -.2, -110); st.rotation.x = Math.atan(SL); st.receiveShadow = true;   // 石だたみの坂（−z へのぼる）
+// ペンの線：箱の 12 本のへりを、両はしを少し長くして引く
+let ik = 0; const penMat = new THREE.LineBasicMaterial({ color: '#0c0c10' });
+function pen(arr, cx, cy, cz, w, h, d) { const s = [w / 2 + .03, h / 2 + .03, d / 2 + .03], c = [cx, cy, cz]; for (let a = 0; a < 3; a++) for (let m = 0; m < 4; m++) for (const e of [-1, 1]) { const p = [0, 0, 0], b = (a + 1) % 3, q = (a + 2) % 3; p[a] = c[a] + e * (s[a] + .12 + hash(ik++, 3) * .4); p[b] = c[b] + (m & 1 ? 1 : -1) * s[b]; p[q] = c[q] + (m & 2 ? 1 : -1) * s[q]; arr.push(...p); } }
+const lines = (parent, arr) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); const l = new THREE.LineSegments(g, penMat); l.frustumCulled = false; parent.add(l); return l; };
+const WALL = ['#f2dcc0', '#ecc8b8', '#d4dcec', '#f0e2b4', '#e0d2c2'], ROOF = ['#dc8a68', '#c07a68', '#8c9cb4'], ink = [];
+for (let i = 0; i < 27; i++) for (const s of [-1, 1]) { const k = i % 9, z = 14 - i * 7, h = 5 + Math.floor(hash(k, s) * 4) * 1.2, y = Y(z + 3.5) - .4, x = s * 8;
+  const g = K.shadow(K.house(6, h, 7, WALL[(k * 2 + (s > 0 ? 1 : 0)) % 5], ROOF[(k + (s > 0 ? 2 : 0)) % 3], '#86a4c4')); g.position.set(x, y, z); town.add(g);
+  box(g, .1, 2.2, 1.2, '#b08a6a', -s * 3.02, 1.5, 0); for (const zz of [-1.75, 1.75]) { if (h > 6) box(g, .1, h * .2, 1.4, '#86a4c4', -s * 3.02, h * .26, zz); box(g, .3, .25, 1.5, '#f08a78', -s * 3.12, h * .56 - h * .14 - .15, zz).castShadow = true; }
+  pen(ink, x, y + h / 2, z, 6, h, 7); ink.push(x, y + h + 4, z - 4.3, x, y + h + 4, z + 4.3);                                           // かべの箱と、屋根のむね
+  if (k % 3 === 1 && s > 0) { const ly = Y(z) + 1.9; box(town, .16, 3.8, .16, '#5a5a66', 4.3, ly, z).castShadow = true; box(town, .5, .6, .5, '#f0e2b4', 4.3, ly + 2.2, z); pen(ink, 4.3, ly + 2.2, z, .5, .6, .5); } }
+for (let j = -1; j < 3; j++) for (let i = 0; i < 80; i++) { const x = (hash(i, 6) - .5) * 9.4, z = -hash(i, 7) * P - j * P + 20, w = .3 + hash(i, 8) * .5, y = Y(z) + .04; ink.push(x - w, y, z, x + w, y, z); if (i % 3 === 0) ink.push(x - w, y, z, x - w - .1, y + .22 * SL, z - .22, x + w, y, z, x + w + .1, y + .22 * SL, z - .22); }   // 石だたみの目
+lines(town, ink);
+// 坂の上の時計塔（いつも遠くに見える）
+const tower = new THREE.Group(), tk = []; box(tower, 7, 30, 7, '#e0d2c2', 0, 15, 0); add(tower, new THREE.ConeGeometry(5.6, 9, 4), '#8c9cb4', 0, 34.5, 0).rotation.y = Math.PI / 4; add(tower, new THREE.CylinderGeometry(1.8, 1.8, .3, 16), '#f0e2b4', 0, 24, 3.6).rotation.x = Math.PI / 2; pen(tk, 0, 15, 0, 7, 30, 7); lines(tower, tk); scene.add(tower);
+// 主役：リュックの旅行者
+const hero = K.person({ top: '#e8705a', bottom: '#6a7a9a', hat: '#e8d8b0', s: 1.25 }); box(hero, .56, .7, .32, '#7ab0a0', 0, 1.35, .34).castShadow = true; scene.add(hero);
+const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+void main(){vec2 p=vUv*res;vec3 c=src(vUv),paper=vec3(.985,.98,.965);float d=dep(vUv),w=min(c.r,min(c.g,c.b));
+vec2 q=rot(.45)*p;float row=floor(q.y/20.),ov=clamp(smoothstep(.16,0.,fract(q.y/20.))+.5*step(.62,vn(vec2(q.x*.012,row*3.1))),0.,1.);   // マーカーの帯と、重なりの筋
+vec3 mk=mix(vec3(1.),min(c*1.3,1.),.72)*(1.-.09*ov);vec3 col=mix(paper,mk,smoothstep(.9,.8,w));                                                           // 日なた（白くとんだ所）は紙のまま
+if(d>nf.y*.9){float s=smoothstep(.5,.58,vn(vUv*vec2(2.5,5.)+1.7))*smoothstep(.48,.66,vUv.y);col=mix(paper,vec3(.72,.86,.96)*(1.-.08*ov),s);}   // 空は一部だけ塗る
+float ink=max(edge(vUv,1.3,.6,.05)*smoothstep(120.,50.,d),smoothstep(.3,.14,luma(c)));
+gl_FragColor=vec4(mix(col,vec3(.09,.09,.13),ink),1.);}`, {}, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const z = -((t * 3.15) % P), x = 1.6 + Math.sin(t * .4) * .8, y = Y(z), k = innerHeight > innerWidth ? .68 : 1; hero.position.set(x, y, z); K.walk(hero, t * 8);
+  tower.position.set(0, Y(z - 112) - 2, z - 112); sun.position.set(x - 25, y + 30, z - 22); sun.target.position.set(x, y, z - 10);
+  cam.position.set(x * .5 + .6, y + 3.6, z + 11 * k); cam.lookAt(x * .4, y + 2.2, z - 12);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

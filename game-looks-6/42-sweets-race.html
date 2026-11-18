@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-42 レース お菓子の国のケーキの上</title>
+<style>
+html,body{margin:0;height:100%;background:#bfe8d8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6a4434;background:#bfe8d8;padding:0 6px}
+</style>
+<div id="cap">6-42 ─ レース / ケーキの上のコースを、パステル 4 色とつやのあるクリームで　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：色は「もも・クリーム・ミント・チョコ茶」の 4 つと、いちごの赤だけ。背景はミント 1 色。
+// クリームはつやのある丸い面、焼き菓子とチョコは平らな面で、材質のちがいを光の当たり方だけで見せる。
+// 仕上げは軽く：画面の上下を少しぼかして小さな模型に見せ、色を少しだけ濃くする
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 44 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#bfe8d8'); scene.fog = new THREE.Fog('#bfe8d8', 40, 110);
+K.lights(scene, renderer, { pos: [-18, 34, 14], range: 24, sky: 0xffffff, ground: 0xf4c8c0, amb: 2.1, power: 2.6 });
+const PINK = '#f8b4ac', CREAM = '#fff6e0', MINT = '#8ed8b8', CHOCO = '#6a4030', BISC = '#e8b878', RED = '#e8443a';
+const gloss = (c, r = .28) => new THREE.MeshStandardMaterial({ color: c, roughness: r }), S = m => { m.castShadow = m.receiveShadow = true; return m; };
+const RR = 13, at = (a, r, y = 0) => new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+// ケーキ（上は y=0）、皿、クリームの道
+S(add(scene, new THREE.CylinderGeometry(21, 21, 7, 48), gloss(PINK, .6), 0, -3.5, 0)); add(scene, new THREE.CylinderGeometry(21.1, 21.1, 1.2, 48), gloss(CREAM, .5), 0, -3.5, 0);
+add(scene, new THREE.CylinderGeometry(29, 26, .8, 48), gloss('#ffffff', .3), 0, -7.4, 0).receiveShadow = true;
+{ const r = add(scene, new THREE.RingGeometry(RR - 3, RR + 3, 64), gloss(CREAM, .35), 0, .03, 0); r.rotation.x = -Math.PI / 2; r.receiveShadow = true;
+  const d = new THREE.InstancedMesh(new THREE.BoxGeometry(.9, .04, .22), flat(PINK), 40), o = new THREE.Object3D(); for (let i = 0; i < 40; i++) { const a = i / 40 * 6.283; o.position.copy(at(a, RR, .06)); o.rotation.y = -a + Math.PI / 2; o.updateMatrix(); d.setMatrixAt(i, o.matrix); } scene.add(d); }
+// ふちのしぼりクリームといちご、内がわのビスケットのかべ
+{ const n = 36, cr = new THREE.InstancedMesh(new THREE.SphereGeometry(1.5, 12, 8), gloss('#ffffff', .22), n * 2), o = new THREE.Object3D(); for (let i = 0; i < n; i++) { const a = i / n * 6.283; o.position.copy(at(a, 18.8, .5)); o.scale.set(1, .75, 1); o.updateMatrix(); cr.setMatrixAt(i * 2, o.matrix); o.position.y = 1.5; o.scale.setScalar(.55); o.updateMatrix(); cr.setMatrixAt(i * 2 + 1, o.matrix);
+    if (i % 3 == 0) { const b = S(add(scene, new THREE.ConeGeometry(1.05, 1.9, 8), gloss(RED, .3), ...at(a, 18.8, 2.7).toArray())); add(scene, new THREE.ConeGeometry(.75, .3, 5), flat(MINT), ...at(a, 18.8, 1.95).toArray()); } } cr.castShadow = cr.receiveShadow = true; scene.add(cr); }
+for (let i = 0; i < 12; i++) { if (i % 4 == 3) continue; const a = i / 12 * 6.283 + .1, b = S(add(scene, new THREE.BoxGeometry(4, 1.5, .7), flat(BISC), ...at(a, 9.1, .75).toArray())); b.rotation.y = -a + Math.PI / 2; for (let k = -1; k <= 1; k++) add(b, new THREE.CylinderGeometry(.13, .13, .72, 6), flat('#c89858'), k * 1.2, .2, 0).rotation.x = Math.PI / 2; }
+// まん中：チョコの板、ろうそく、ミントのマカロン
+for (const [x, z, ry, rz] of [[-2.5, 1, .4, .25], [1.5, -2.6, -1, -.2], [3.2, 2.4, 2, .3]]) { const c = S(box(scene, 3.4, 4.6, .4, gloss(CHOCO, .35), x, 2.2, z)); c.rotation.set(0, ry, rz); }
+const candles = [[0, 0, PINK, 7], [-4.6, -2.8, MINT, 5], [4.8, -.6, CREAM, 5.6], [-.6, 5, MINT, 4.4]].map(([x, z, c, h]) => { S(add(scene, new THREE.CylinderGeometry(.5, .5, h, 10), gloss(c, .4), x, h / 2, z)); add(scene, new THREE.CylinderGeometry(.04, .04, .5, 4), CHOCO, x, h + .2, z); add(scene, new THREE.SphereGeometry(.34, 8, 6), glow('#ffd070'), x, h + .7, z).scale.y = 1.6; return [x, h + .8, z]; });
+for (const [x, z] of [[6.2, 3.4], [-5.8, 3], [2, -6.2]]) { for (const y of [.4, 1.3]) S(add(scene, new THREE.SphereGeometry(1.3, 12, 6), gloss(MINT, .5), x, y, z)).scale.y = .42; add(scene, new THREE.CylinderGeometry(1.2, 1.2, .36, 12), gloss(CREAM), x, .85, z); }
+// スタートの門（チョコの棒とビスケットの板）
+for (const r of [RR - 3.4, RR + 3.4]) S(add(scene, new THREE.CylinderGeometry(.28, .28, 5.4, 8), gloss(CHOCO, .35), ...at(4.2, r, 2.7).toArray())); { const g = S(box(scene, 7.6, 1.3, .4, flat(BISC), ...at(4.2, RR, 5.2).toArray())); g.rotation.y = -4.2 + Math.PI / 2; for (let k = 0; k < 8; k++) box(g, .95, 1.32, .42, k % 2 ? PINK : CREAM, -3.33 + k * .95, 0, 0); }
+// カップケーキの車 3 台：紙カップ、うずまきクリーム、さくらんぼ、ビスケットの車輪
+const cup = (wrap, cream) => { const g = new THREE.Group(), cg = new THREE.CylinderGeometry(.95, .68, .95, 12); add(g, cg, flat(wrap), 0, .72, 0); [[1.02, 1.3], [.76, 1.78], [.48, 2.16], [.24, 2.44]].forEach(([r, y]) => add(g, new THREE.SphereGeometry(r, 12, 8), gloss(cream, .22), 0, y, 0).scale.y = .62); add(g, new THREE.SphereGeometry(.24, 8, 6), gloss(RED, .2), 0, 2.72, 0);
+  g.userData.w = [[-.82, .6], [.82, .6], [-.82, -.6], [.82, -.6]].map(([x, z]) => { const w = add(g, new THREE.CylinderGeometry(.36, .36, .26, 10), flat(BISC), x, .36, z); w.rotation.z = Math.PI / 2; return w; }); scene.add(K.shadow(g)); return g; };
+const cars = [cup(MINT, CREAM), cup(CHOCO, PINK), cup(PINK, '#ffffff')], lane = [RR, RR + 2, RR - 2];
+const fx = K.fx(scene, 80); let pT = 0;
+const post = K.post(renderer, `void main(){float b=smoothstep(.2,.52,abs(vUv.y-.42));vec3 c=vec3(0.);for(int i=0;i<12;i++){float a=float(i)*2.4,r=sqrt(float(i)+.5)*.29;c+=src(vUv+vec2(cos(a)*res.y/res.x,sin(a))*r*b*.011);}c/=12.;
+c=mix(vec3(luma(c)),c,1.16);c*=1.-.3*dot(vUv-.5,vUv-.5);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const a0 = 1.1 + t * .42; pT -= dt;
+  cars.forEach((c, i) => { const a = a0 - [0, .15 + .05 * Math.sin(t * .9), .25 + .06 * Math.sin(t * .6 + 2)][i], r = lane[i] + Math.sin(t * .7 + i * 2) * .3; c.position.copy(at(a, r, Math.abs(Math.sin(t * 13 + i)) * .05)); c.rotation.y = -a; c.rotation.z = Math.sin(t * 5 + i) * .05; c.userData.w.forEach(w => w.rotation.x = t * 12);
+    if (pT < 0) fx.emit('puff', ...at(a - .09, r, .4).toArray(), { vy: .8, spread: .6, life: .5, size: .4, grow: 1.2, tint: '#fff0e8' }); });
+  if (pT < 0) { pT = .12; for (const [x, y, z] of candles) fx.emit('flame', x, y, z, { vy: 1.2, life: .45, size: 1.1, add: true }); } fx.update(dt);
+  const h = cars[0].position, p = at(a0 - .8, RR + 1.5 + Math.sin(t * .3) * .8, 6.6); cam.position.copy(p); const l = at(a0 + .3, RR - 1.5, 1.2); cam.lookAt(l.lerp(h, .5).setY(1.8));
+  post.render(scene, cam, t);
+});
+</script>
+</html>

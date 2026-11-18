@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-37 城ぜめ ブロック玩具の箱庭</title>
+<style>
+html,body{margin:0;height:100%;background:#f4ecd8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a4a5a;background:#f4ecd8;padding:0 6px}
+</style>
+<div id="cap">6-37 ─ 城ぜめ / ポッチつきブロックの城を、つやのあるプラスチックの原色で見せる　｜　見るだけ（自動で投石機がうつ）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ブロック玩具の決まり：すべての形を「1 目もり＝ポッチ 1 個」のブロックで組む。色は 赤・黄・青・灰・緑の板 の原色だけ、
+// 材質はつやのあるプラスチック（白い丸いハイライト）。ブロックとポッチは InstancedMesh で、当たった所の数個だけ簡単な物理ではじけ、もとへ戻る
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 38, fitAspect: 1.3, maxFov: 70 }), { add, box } = K, BG = '#f4ecd8';
+scene.background = new THREE.Color(BG);
+const { sun } = K.lights(scene, renderer, { range: 24, amb: 1.05, power: 2.1, pos: [-16, 30, 18], ground: 0xd8d0c0 }); sun.shadow.radius = 4;
+const RED = '#e23a2e', YEL = '#f6c21c', BLUE = '#2a6ad0', G1 = '#cdd2d7', G2 = '#b6bcc4', GREEN = '#3fa64a', DARK = '#4c535c';
+const mats = {}, P = c => mats[c] || (mats[c] = new THREE.MeshPhongMaterial({ color: c, shininess: 90, specular: '#777777' }));
+const gloss = g => { g.traverse(m => { if (m.isMesh) { m.material = P('#' + m.material.color.getHexString()); m.castShadow = true; } }); return g; };
+// ブロックの表：B(x, 段, z, 幅, 奥行き, 色)。城壁（門つき）・塔 2 つ・奥の館・投石機の台
+const defs = [], B = (x, k, z, w, d, c, hit) => defs.push({ x, y: k * 1.2 + .6, z, w, d, c, hit });
+for (let k = 0; k < 5; k++) for (let j = -(k % 2); j < 8; j += 2) { const cs = [j, j + 1].filter(c => c >= 0 && c < 8 && !(k < 3 && (c === 3 || c === 4))); if (cs.length) B(8, k, -7 + cs[0] * 2 + cs.length - 1, 2, cs.length * 2, (k + (j >> 1)) & 1 ? G1 : G2, k > 1 && cs[0] < 3); }
+for (const z of [-7, -3, 1, 5]) B(8, 5, z + (z > 0 ? 1 : 0), 2, 2, G1, z < 0);
+for (const zc of [-10, 10]) { for (let k = 0; k < 7; k++) { const c = k === 5 ? BLUE : k & 1 ? G2 : G1; if (k & 1) { B(8, k, zc - 1, 4, 2, c); B(8, k, zc + 1, 4, 2, c); } else { B(7, k, zc, 2, 4, c); B(9, k, zc, 2, 4, c); } } for (const [a, b] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) B(8 + a, 7, zc + b, 1, 1, G1); }
+for (let k = 0; k < 8; k++) { const c = k === 7 ? RED : k & 1 ? G1 : G2; if (k & 1) for (const z of [-3, -1, 1, 3]) B(14, k, z, 4, 2, c); else for (const [x, z] of [[13, -2], [13, 2], [15, -2], [15, 2]]) B(x, k, z, 2, 4, c); }
+B(14, 8, 0, 2, 4, RED); for (const z of [-1.5, 1.5]) { B(-9, 0, z, 6, 1, YEL); B(-8, 1, z, 1, 1, RED); B(-8, 2, z, 1, 1, RED); } B(-11.5, 0, 0, 1, 2, YEL); B(-6.5, 0, 0, 1, 2, YEL);
+const nS = defs.reduce((n, b) => n + b.w * b.d, 0) + 30 * 22, white = P('#ffffff'), col = new THREE.Color(), M = new THREE.Matrix4(), V = new THREE.Vector3(), ONE = new THREE.Vector3(1, 1, 1), QI = new THREE.Quaternion();
+const bm = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), white, defs.length), sm = new THREE.InstancedMesh(new THREE.CylinderGeometry(.3, .3, .22, 12), white, nS); let si = 0;
+for (const m of [bm, sm]) { m.castShadow = m.receiveShadow = true; m.frustumCulled = false; scene.add(m); }
+const bricks = defs.map((b, i) => { Object.assign(b, { i, s0: si, h: new THREE.Vector3(b.x, b.y, b.z), p: new THREE.Vector3(b.x, b.y, b.z), q: new THREE.Quaternion(), e: new THREE.Euler(), v: new THREE.Vector3(), wv: new THREE.Vector3(), p0: new THREE.Vector3(), q0: new THREE.Quaternion(), sc: new THREE.Vector3(b.w - .05, 1.2, b.d - .05), live: false });
+  bm.setColorAt(i, col.set(b.c)); for (let k = 0; k < b.w * b.d; k++) sm.setColorAt(si++, col); return b; });
+function setB(b) { bm.setMatrixAt(b.i, M.compose(b.p, b.q, b.sc)); let k = b.s0; for (let i = 0; i < b.w; i++) for (let j = 0; j < b.d; j++) sm.setMatrixAt(k++, M.compose(V.set(i - (b.w - 1) / 2, .71, j - (b.d - 1) / 2).applyQuaternion(b.q).add(b.p), b.q, ONE)); }
+bricks.forEach(setB); col.set(GREEN); for (let i = 0; i < 30; i++) for (let j = 0; j < 22; j++) { sm.setColorAt(si, col); sm.setMatrixAt(si++, M.compose(V.set(i - 14.5, .11, j - 10.5), QI, ONE)); }
+box(scene, 30, .5, 22, P(GREEN), 0, -.25, 0).receiveShadow = true; const tbl = add(scene, new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: .16 }), 0, -.5, 0); tbl.rotation.x = -Math.PI / 2; tbl.receiveShadow = true;
+// 投石機のうで・玉・旗・人形
+const PIV = new THREE.Vector3(-8, 3.4, 0), Z = new THREE.Vector3(0, 0, 1), arm = new THREE.Group(); arm.position.copy(PIV); scene.add(arm);
+box(arm, 7, .4, .7, P(DARK), -1.75, 0, 0); box(arm, 1.5, .3, 1.5, P(DARK), -5, .15, 0); box(arm, 1.6, 1.6, 1.6, P(BLUE), 1.7, -.7, 0); add(arm, new THREE.CylinderGeometry(.25, .25, 3.6, 10), P(DARK)).rotation.x = Math.PI / 2; K.shadow(arm, true, false);
+for (const [x, z] of [[-11, 2.3], [-11, -2.3], [-7, 2.3], [-7, -2.3]]) { const w = add(scene, new THREE.CylinderGeometry(.9, .9, .5, 16), P(DARK), x, .9, z); w.rotation.x = Math.PI / 2; w.castShadow = true; }
+const ball = add(scene, new THREE.SphereGeometry(.75, 20, 14), P(DARK)); ball.castShadow = true; const bv = new THREE.Vector3(), b0 = new THREE.Vector3(), cup = new THREE.Vector3(), REL = new THREE.Vector3(-5, .9, 0).applyAxisAngle(Z, -1.1).add(PIV), HIT = new THREE.Vector3(6.4, 4.6, -5);
+const flags = [[14, 10.8, 0], [8, 8.4, -10]].map(([x, y, z]) => { const g = new THREE.Group(); g.position.set(x, y, z); add(g, new THREE.CylinderGeometry(.1, .1, 3.4, 6), P(DARK), 0, 1.7, 0); box(g, 1.8, 1, .08, P(YEL), .9, 2.8, 0); K.shadow(g, true, false); scene.add(g); return g; });
+const men = [[-13, 0, -1, RED, 1.57], [-5, 0, 4, RED, 1.2], [-3.5, 0, -6.5, RED, 1.4], [8, 8.4, 10, BLUE, -1.57], [14, 10.8, -2.4, BLUE, -1.57], [10.5, 0, 0, BLUE, -1.57]].map(([x, y, z, c, r]) => { const g = gloss(K.person({ top: c, bottom: DARK, skin: YEL, hat: c === RED ? DARK : G2, s: 2 })); g.position.set(x, y, z); g.rotation.y = r; g.userData.y = y; scene.add(g); return g; });
+const fx = K.fx(scene, 40), ease = k => { k = Math.min(1, Math.max(0, k)); return k * k * (3 - 2 * k); }, T = 7; let pu = 9, fired = false, back = false, tall = false; onResize((w, h) => tall = w < h);
+// 仕上げは軽く：すみを少し落とし、色をわずかにあざやかにするだけ
+const post = K.post(renderer, `void main(){vec3 c=src(vUv);c=mix(vec3(luma(c)),c,1.1);c*=1.-.2*pow(length(vUv-.5)*1.25,2.6);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const u = t % T; if (u < pu) { fired = back = false; for (const b of bricks) if (b.live) { b.live = false; b.p.copy(b.h); b.q.identity(); setB(b); } } pu = u;
+  const th = u < 1.3 ? .45 : u < 1.5 ? .45 - (u - 1.3) / .2 * 1.55 : u < 3.4 ? -1.1 + Math.sin((u - 1.5) * 16) * Math.exp(-(u - 1.5) * 4) * .25 : -1.1 + ease((u - 3.4) / 2.4) * 1.55; arm.rotation.z = th; cup.set(-5, .9, 0).applyAxisAngle(Z, th).add(PIV);
+  if (u < 1.5) ball.position.copy(cup); else if (u < 2.2) { const s = (u - 1.5) / .7; ball.position.lerpVectors(REL, HIT, s).y += Math.sin(s * Math.PI) * 2.6; }
+  else { if (!fired) { fired = true; bv.set(-5, 7, 3); let n = 0; for (const b of bricks) if (b.hit) { b.live = true; b.e.set(0, 0, 0); b.v.set(K.hash(++n, 1) * 9 - 5, 7 + K.hash(n, 2) * 8, K.hash(n, 3) * 10 - 5); b.wv.set(K.hash(n, 4) * 12 - 6, K.hash(n, 5) * 6 - 3, K.hash(n, 6) * 12 - 6); } for (let i = 0; i < 9; i++) fx.emit(i % 3 ? 'puff' : 'spark', HIT.x, HIT.y, HIT.z, { spread: 9, vy: 3, life: .8, size: 1.6, grow: 1.4 }); }
+    if (u < 5.4) { bv.y -= 24 * dt; ball.position.addScaledVector(bv, dt); if (ball.position.y < .75) { ball.position.y = .75; bv.y *= -.4; bv.x *= .7; bv.z *= .7; }
+      for (const b of bricks) if (b.live) { b.v.y -= 24 * dt; b.p.addScaledVector(b.v, dt); b.e.x += b.wv.x * dt; b.e.y += b.wv.y * dt; b.e.z += b.wv.z * dt;
+        if (b.p.y < .6) { b.p.y = .6; b.v.y = b.v.y < -2 ? b.v.y * -.38 : 0; b.v.x *= .8; b.v.z *= .8; b.wv.multiplyScalar(.8); const a = Math.min(1, dt * 10); b.e.x += (Math.round(b.e.x / Math.PI) * Math.PI - b.e.x) * a; b.e.z += (Math.round(b.e.z / Math.PI) * Math.PI - b.e.z) * a; } b.q.setFromEuler(b.e); setB(b); } }
+    else { if (!back) { back = true; b0.copy(ball.position); for (const b of bricks) if (b.live) { b.p0.copy(b.p); b.q0.copy(b.q); } } const k = ease((u - 5.4) / 1.2), up = Math.sin(k * Math.PI) * 2.5; ball.position.lerpVectors(b0, cup, k).y += up; for (const b of bricks) if (b.live) { b.p.lerpVectors(b.p0, b.h, k).y += up; b.q.slerpQuaternions(b.q0, QI, k); setB(b); } } }
+  bm.instanceMatrix.needsUpdate = sm.instanceMatrix.needsUpdate = true; fx.update(dt);
+  const joy = u > 2.2 && u < 4.6; men.forEach((m, i) => { const red = i < 3; m.position.y = m.userData.y + (joy ? Math.abs(Math.sin(t * (red ? 9 : 14) + i)) * (red ? .7 : .25) : 0); m.userData.P.armL.rotation.x = m.userData.P.armR.rotation.x = joy ? Math.PI : i === 0 && u < 1.3 ? -1.2 : 0; });
+  flags.forEach((f, i) => f.rotation.y = Math.sin(t * 2.4 + i) * .35);
+  const a = Math.sin(t * .22) * .12; if (tall) { cam.position.set(-31 + a * 8, 28, 13); cam.lookAt(1.5, 3, 0); } else { cam.position.set(-12 + a * 30, 25, 29); cam.lookAt(.5, 4.6, -.5); }
+  post.render(scene, cam, t);
+});
+</script>
+</html>

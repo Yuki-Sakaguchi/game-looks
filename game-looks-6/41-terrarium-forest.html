@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-41 探検 びんの中の森</title>
+<style>
+html,body{margin:0;height:100%;background:#ecd9b8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a4030;background:#ecd9b8;padding:0 6px}
+</style>
+<div id="cap">6-41 ─ 探検 / 丸いガラスびんの中の、こけの森の箱庭　｜　見るだけ（自動で歩いて旗を立てる）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵の決まり：色は「こけの緑・土と机の茶・クリーム」だけ、差し色は赤（きのこ・旗・服）。
+// びんは、ふちだけ明るく光る半透明の球（見る角度が浅い所ほど白い）と、窓の映りこみの白い面で表す。
+// 仕上げは軽く：画面の上下だけ少しぼかして模型らしく見せ、色を少しだけ濃くする
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 36 }), { add, box, flat, glow, hash } = K;
+scene.background = new THREE.Color('#ecd9b8'); scene.fog = new THREE.Fog('#ecd9b8', 34, 80);
+K.lights(scene, renderer, { pos: [-14, 22, 8], range: 8, sky: 0xfff4e0, ground: 0xb89a70, amb: 1.5, power: 2.6 });
+const GREEN = '#7ab85a', GREEN2 = '#4f9a50', SOIL = '#8a5a3c', RED = '#e8503a', CREAM = '#f8eed8';
+// 机と、うしろの窓のあかり（にじんだ白い四角）
+const desk = add(scene, new THREE.CircleGeometry(90, 40), flat('#c49466'), 0, 0, 0); desk.rotation.x = -Math.PI / 2; desk.receiveShadow = true;
+for (let i = -6; i <= 6; i++) box(scene, 180, .02, .12, '#b08256', 0, .01, i * 7 + 2);
+{ const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.shadowColor = '#fffdf4'; x.shadowBlur = 14; x.fillStyle = '#fffdf4'; for (const [a, b] of [[22, 20], [68, 20], [22, 66], [68, 66]]) x.fillRect(a, b, 38, 40);
+  const w = add(scene, new THREE.PlaneGeometry(40, 40), glow('#ffffff', { map: new THREE.CanvasTexture(c), transparent: true, fog: false, depthWrite: false }), -10, 15, -46); w.rotation.y = .2; }
+{ const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 4, 32, 32, 32); g.addColorStop(0, 'rgba(60,30,10,.55)'); g.addColorStop(1, 'rgba(60,30,10,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  add(scene, new THREE.PlaneGeometry(13, 13), glow('#ffffff', { map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }), 1, .03, -.6).rotation.x = -Math.PI / 2; }
+// びんの中身：土のおわん、こけの丘、池
+const Y0 = 3, R = 4.4, hill = (x, z, cx, cz, h, w) => h * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / w);
+const H = (x, z) => Y0 + (hill(x, z, 1.2, -1.6, 1.2, 3) + hill(x, z, -2.2, -.6, .8, 2.4) - hill(x, z, .3, 1, .46, 1.2)) * Math.max(0, 1 - (x * x + z * z) / (R * R));
+add(scene, new THREE.SphereGeometry(4.85, 20, 8, 0, 6.283, 2, 1.142), flat(SOIL, { emissive: '#5a3420' }), 0, 5, 0).castShadow = true;
+{ const g = new THREE.RingGeometry(.001, R + .05, 30, 7); g.rotateX(-Math.PI / 2); const p = g.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, H(p.getX(i), p.getZ(i)) - Y0); const m = add(scene, g.toNonIndexed(), flat(GREEN), 0, Y0, 0); m.geometry.computeVertexNormals(); m.receiveShadow = true; }
+add(scene, new THREE.CircleGeometry(1.05, 9), new THREE.MeshStandardMaterial({ color: '#6ac8d8', roughness: .1 }), .3, Y0 - .2, 1).rotation.x = -Math.PI / 2;
+const put = (g, x, z, s = 1) => { g.position.set(x, H(x, z) - .03, z); g.scale.setScalar(s); g.rotation.y = x * 5; scene.add(K.shadow(g, true, false)); return g; };
+put(K.tree(2.4, GREEN2, '#6a4a34', '#63a84e'), 1.2, -1.7); put(K.tree(1.8, GREEN2, '#6a4a34', '#63a84e'), -2.3, -.7); put(K.pine(2.2, '#3f8a52'), -.6, -2.6); put(K.pine(1.6, '#3f8a52'), 2.6, .2); put(K.rock(.45, '#b8b0a0'), 1.5, 1.2); put(K.rock(.3, '#b8b0a0'), -1, .6);
+for (const [x, z, s] of [[-.9, 1.9, 1], [-1.4, 1.5, .6], [1.9, 2.1, .8], [-3.5, .6, .7], [.2, -3.6, .7]]) { const g = new THREE.Group(); add(g, new THREE.CylinderGeometry(.09, .12, .4, 6), CREAM, 0, .2, 0); add(g, new THREE.SphereGeometry(.32, 8, 4, 0, 6.283, 0, 1.57), flat(RED), 0, .36, 0); for (let k = 0; k < 3; k++) add(g, new THREE.SphereGeometry(.06, 5, 4), glow(CREAM), Math.cos(k * 2.1) * .18, .58, Math.sin(k * 2.1) * .18); put(g, x, z, s); }
+// ガラスのびん：ふちだけ明るい球と首、コルクのふた、窓の映りこみ
+const glass = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexShader: 'varying vec3 n,v;void main(){vec4 p=modelViewMatrix*vec4(position,1.);n=normalize(normalMatrix*normal);v=normalize(-p.xyz);gl_Position=projectionMatrix*p;}', fragmentShader: 'varying vec3 n,v;void main(){float f=pow(1.-abs(dot(normalize(n),normalize(v))),2.6);gl_FragColor=vec4(vec3(.9,1.,.96),f*.75+.035);}' });
+add(scene, new THREE.SphereGeometry(5, 40, 24, 0, 6.283, .3, 2.85), glass, 0, 5, 0); add(scene, new THREE.CylinderGeometry(1.5, 1.5, .8, 24, 1, true), glass, 0, 10.15, 0);
+add(scene, new THREE.TorusGeometry(1.5, .1, 6, 24), glow('#f4fff8', { transparent: true, opacity: .7 }), 0, 10.55, 0).rotation.x = Math.PI / 2; add(scene, new THREE.CylinderGeometry(1.5, 1.3, 1, 12), flat('#d0a878'), 0, 10.9, 0);
+for (const [ph, w, o] of [[2.2, .34, .34], [2.62, .12, .22], [5.3, .2, .12]]) add(scene, new THREE.SphereGeometry(5.03, 10, 10, ph, w, .75, .6), glow('#ffffff', { transparent: true, opacity: o, depthWrite: false, side: THREE.DoubleSide }), 0, 5, 0);
+// 探検家と、立てていく旗 3 本
+const hero = K.shadow(K.person({ top: RED, bottom: '#6a4a34', hat: '#e8c890', s: .8 })); scene.add(hero);
+const FU = [.1, .43, .76], flags = FU.map(u => { const a = u * 6.283, x = Math.cos(a) * 3.55, z = Math.sin(a) * 3.55, g = new THREE.Group(); add(g, new THREE.CylinderGeometry(.04, .04, 1.5, 5), CREAM, 0, .75, 0).castShadow = true; box(g, .6, .36, .04, flat(RED, { side: THREE.DoubleSide }), .32, 1.3, 0).castShadow = true; g.position.set(x, H(x, z), z); scene.add(g); return g; });
+const fx = K.fx(scene, 40), up = [0, 0, 0];
+const post = K.post(renderer, `void main(){float b=smoothstep(.2,.52,abs(vUv.y-.47));vec3 c=vec3(0.);for(int i=0;i<12;i++){float a=float(i)*2.4,r=sqrt(float(i)+.5)*.29;c+=src(vUv+vec2(cos(a)*res.y/res.x,sin(a))*r*b*.011);}c/=12.;
+c=mix(vec3(luma(c)),c,1.14);c*=1.-.4*dot(vUv-.5,vUv-.5);gl_FragColor=vec4(c,1.);}`); onResize(post.resize);
+K.loop((dt, t) => {
+  const u = (t / 16) % 1, a = u * 6.283, x = Math.cos(a) * 2.95, z = Math.sin(a) * 2.95; hero.position.set(x, H(x, z), z); hero.rotation.y = -a; K.walk(hero, t * 9);
+  flags.forEach((f, i) => { const on = u > FU[i] && u < .97; if (on && up[i] < .01) for (let k = 0; k < 5; k++) fx.emit('spark', f.position.x, f.position.y + 1.4, f.position.z, { spread: 1.6, vy: .8, life: .7, size: .5, add: true, fog: false });
+    up[i] = Math.max(0, Math.min(1, up[i] + (on ? dt * 4 : -dt * 3))); f.scale.set(1, up[i] * (1 + .25 * Math.sin(up[i] * 3.14)), 1); f.visible = up[i] > .01; f.rotation.y = Math.sin(t * 2 + i) * .3; });
+  fx.update(dt);
+  const ca = .3 + Math.sin(t * .21 + .4) * .75; cam.position.set(Math.sin(ca) * 19.5, 8.2 + Math.sin(t * .17) * .8, Math.cos(ca) * 19.5); cam.lookAt(0, 5.3, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

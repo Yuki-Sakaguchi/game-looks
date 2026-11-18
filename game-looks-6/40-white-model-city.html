@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-40 路面電車の街 白い建築模型</title>
+<style>
+html,body{margin:0;height:100%;background:#e9e9e6;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#c8382c;background:#f4f3f0;padding:0 6px}
+</style>
+<div id="cap">6-40 ─ 路面電車の街 / まっ白な建築模型の街に、赤い電車と赤い服の人だけが動く　｜　見るだけ（自動で電車を追う）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 白い模型の決まり：街は全部おなじ白 1 色（箱のビル、白い球の木、道、橋）。色も線も模様も使わず、
+// やわらかい影と、仕上げで奥行きから作る「すみの暗がり」（面と面が接する所が少し暗い）だけで形を見せる。色がつくのは赤い電車と赤い服の主人公だけ
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 34, maxFov: 60, far: 300 }), { add, box, hash } = K, BG = '#e9e9e6', RED = '#e2362a';
+scene.background = new THREE.Color(BG); scene.fog = new THREE.Fog(BG, 55, 150);
+const { sun } = K.lights(scene, renderer, { range: 34, amb: 1.95, power: 1.65, sun: 0xffffff, sky: 0xffffff, ground: 0xc8c8c8, pos: [-18, 26, 14] }); sun.shadow.radius = 7;
+const W = new THREE.MeshStandardMaterial({ color: '#f4f3f0', roughness: 1 }), P = 72, BX = [], SP = [];
+const bx = (w, h, d, x, y, z) => BX.push([w, h, d, x, y + h / 2, z]);                 // 箱：y は底の高さ。x は 0〜72 でくり返す 1 区画ぶん（川と橋が x=0）
+// 土地・川底・歩道・レール・橋（上にアーチのある橋）
+bx(61, 3, 150, 36, -3, -20); bx(11.4, .2, 150, 0, -2.3, -20); bx(61, .25, 62, 36, 0, -34.2); bx(61, .25, 47, 36, 0, 26.7); for (const z of [-.7, .7]) bx(72, .07, .16, 36, 0, z);
+bx(11, .5, 12.4, 0, -.5, 0); bx(1.4, 1.8, 12.4, 0, -2.3, 0); for (const z of [-4.7, 4.7]) { bx(11, .25, 3, 0, 0, z); bx(11, .9, .16, 0, .25, z * 1.3); }
+for (const z of [-3.25, 3.25]) for (let x = -4; x <= 4; x += 2) bx(.12, Math.sqrt(36 - x * x) - 2, .12, x, 0, z);
+// むこう側のビル 3 列（上に小さな箱をのせる）、こちら側の低い建物と白い球の木、街灯、停留所
+for (let r = 0; r < 3; r++) for (let i = 0; i < 7; i++) { const x = 10 + i * 8.6 + hash(i, r) * 1.2, w = 5 + hash(i, r + 3) * 2.4, d = 6.5 + hash(i, r + 6) * 2, h = [4, 7, 9][r] + hash(i, r + 9) ** 2 * [9, 13, 16][r], z = -11 - r * 11.5;
+  bx(w, h, d, x, .25, z); if (hash(i, r + 12) > .4) bx(w * .6, h * .28, d * .6, x - w * .1, h + .25, z + d * .1); else bx(1.4, .8, 1.4, x + w * .2, h + .25, z); if (r === 0 && h > 6) bx(w + .5, .2, .7, x, 3, z + d / 2 + .3); }
+for (let i = 0; i < 6; i++) { const x = 11 + i * 10, h = 1.6 + hash(i, 20) * 1.8; if (i === 3) { for (let k = 0; k < 6; k++) { const r = .9 + hash(k, 21) * .7, px = x - 3 + hash(k, 22) * 7, pz = 11.5 + hash(k, 23) * 6; bx(.16, 1.2, .16, px, .25, pz); SP.push([r, px, 1.4 + r, pz]); } continue; } bx(6.5, h, 6, x, .25, 14.5); bx(2, .7, 2, x - 1.4, h + .25, 13.5); }
+for (let i = 0; i < 11; i++) { const x = 8 + i * 5.6, r = .85 + hash(i, 24) * .35; for (const z of [-5.3, 8.6]) { bx(.16, 1.3, .16, x, .25, z); SP.push([z < 0 ? r * .85 : r, x, 1.5 + r, z]); } }
+for (let i = 0; i < 7; i++) { const x = 10.8 + i * 8.4; bx(.1, 3, .1, x, .25, -3.7); bx(.1, .1, 1, x, 3.2, -3.3); SP.push([.18, x, 3.2, -2.8]); }
+bx(4.4, .14, 1.7, 30, 2.6, -4.3); for (const x of [28, 32]) bx(.12, 2.4, .12, x, .25, -4.9); bx(3, .4, .5, 30, .25, -4.7);
+// 3 区画ぶんを 1 つの InstancedMesh にまとめ、電車に合わせて 72 ずつ送る
+const city = new THREE.Group(), dm = new THREE.Object3D(); scene.add(city);
+const inst = (geo, list, fn) => { const m = new THREE.InstancedMesh(geo, W, list.length * 3); list.forEach((v, i) => { for (let k = 0; k < 3; k++) { fn(v, (k - 1) * P); dm.updateMatrix(); m.setMatrixAt(i * 3 + k, dm.matrix); } }); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; city.add(m); };
+inst(new THREE.BoxGeometry(1, 1, 1), BX, ([w, h, d, x, y, z], o) => { dm.position.set(x + o, y, z); dm.scale.set(w, h, d); }); inst(new THREE.SphereGeometry(1, 20, 14), SP, ([r, x, y, z], o) => { dm.position.set(x + o, y, z); dm.scale.setScalar(r); });
+for (let k = -1; k < 2; k++) for (const z of [-3.25, 3.25]) { const a = add(city, new THREE.TorusGeometry(6, .26, 6, 24, 2.46), W, k * P, -2, z); a.rotation.z = .34; a.castShadow = a.receiveShadow = true; }
+// 赤い路面電車（窓の帯だけ白）と、赤い服の主人公
+const red = new THREE.MeshStandardMaterial({ color: RED, roughness: .6 }), tram = new THREE.Group(); scene.add(tram);
+for (const x of [-2.9, 2.9]) { box(tram, 5.6, 2.3, 2.2, red, x, 1.5, 0); box(tram, 4.8, .7, 2.26, W, x, 1.95, 0); box(tram, 5, .22, 1.7, red, x, 2.76, 0); box(tram, 2, .5, 1.5, red, x, .25, 0); } box(tram, .5, 1.9, 1.8, red, 0, 1.5, 0); box(tram, .3, .5, 2.28, W, 5.6, 1.95, 0);
+{ const p = box(tram, 1.6, .08, .08, red, 2.3, 3.3, 0); p.rotation.z = .6; box(tram, .1, .08, 1.3, red, 2.95, 3.76, 0); } K.shadow(tram, true, false);
+const hero = K.person({ top: RED, bottom: RED, skin: '#f4f3f0', hat: RED, s: 1.4 }); hero.rotation.y = Math.PI / 2; scene.add(hero);
+// 仕上げ：奥行きを、まわり 16 方向で向かい合う 2 点ずつ比べ、どちらのがわよりも手前でない所（すみ・接する所）だけを暗くする。ざらつきは付けない
+const post = K.post(renderer, `void main(){vec3 c=src(vUv);float d0=dep(vUv),s=0.;vec2 asp=vec2(res.y/res.x,1.);
+for(int i=0;i<16;i++){float a=float(i)*2.39996,rad=.1+float(i)*.035;vec2 o=vec2(cos(a),sin(a))*asp*rad*1.5/d0;float x1=d0-dep(vUv+o),x2=d0-dep(vUv-o);s+=clamp((x1+x2)/rad-.12,0.,1.)*smoothstep(-.5*rad,-.1*rad,min(x1,x2))*step(max(abs(x1),abs(x2)),rad*2.);}
+float ao=min(.42,s/16.*1.9)*(1.-smoothstep(60.,140.,d0));c*=1.-ao*(1.-.5*smoothstep(.1,.5,c.r-c.g));c*=1.-.1*pow(length(vUv-.5)*1.3,2.6);gl_FragColor=vec4(c,1.);}`, {}, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const tx = -15 + t * 3.4, hx = tx + 4.5 + Math.sin(t * .4) * 2.5; tram.position.set(tx, .08 + Math.sin(t * 9) * .01, 0); city.position.x = Math.round(tx / P) * P;
+  hero.position.set(hx, .25, 4.6); K.walk(hero, t * 9, .75);
+  sun.position.set(tx - 18, 26, 14); sun.target.position.set(tx, 0, 0);
+  cam.position.set(tx + 3 + Math.sin(t * .13 + .6) * 8, 15.5 + Math.sin(t * .2) * 1.2, 23); cam.lookAt(tx + 3, 1.8, 0);
+  post.render(scene, cam, t);
+});
+</script>
+</html>

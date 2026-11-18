@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-26 動物園 クレヨン画</title>
+<style>
+html,body{margin:0;height:100%;background:#fbf8ee;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3a44;background:#fbf8ee;padding:0 6px}
+</style>
+<div id="cap">6-26 ─ 動物園 / 画用紙に 8 色のクレヨンでぬる　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// クレヨン画の決まり：場面は 8 色（赤・だいだい・黄・緑・青・茶・もも・黒）だけで、光をあてずにべた塗りで描く。
+// 仕上げで、面を「斜めの線でぬった」むらにする（ぬり残しの白い筋。面の向きで線の角度が変わる）。白は画用紙の地のまま。
+// 輪郭は太くてがたがたの黒いクレヨン。線は 1 秒に 4 回だけ少しゆれる
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 42 }), { add, box, hash } = K;
+const RED = '#e8483a', ORG = '#f29a3a', YEL = '#f6d04a', GRN = '#6ab85a', BLU = '#5aa8e0', BRN = '#8a5a3a', PNK = '#f4b0b8', BLK = '#3a3a44', WHT = '#fbf8ee';
+scene.background = new THREE.Color(WHT); scene.add(new THREE.AmbientLight(0xffffff, Math.PI));   // 光は一様。かげは仕上げで面の向きからつける
+box(scene, 400, .2, 36, GRN, 0, -.1, -6); box(scene, 400, .2, 4.4, WHT, 0, -.08, 0);              // しばふと、紙の白のままの道
+const anim = [];
+function giraffe(x, z, s, ry) { const g = new THREE.Group(), n = new THREE.Group(); box(g, 1.2, 1.3, 2.6, YEL, 0, 3, 0); for (const [a, b] of [[-.4, -1], [.4, -1], [-.4, 1], [.4, 1]]) box(g, .3, 2.4, .3, YEL, a, 1.2, b);
+  for (const b of [-.8, 0, .8]) box(g, 1.26, .5, .5, BRN, 0, 3 + b * .3, b); n.position.set(0, 3.4, 1); box(n, .6, 3.4, .6, YEL, 0, 1.7, 0); for (const y of [.8, 1.7, 2.6]) box(n, .66, .4, .3, BRN, 0, y, 0);
+  box(n, .7, .7, 1.4, YEL, 0, 3.6, .35); box(n, .5, .34, .3, BRN, 0, 3.45, 1.1); for (const a of [-.2, .2]) box(n, .12, .5, .12, BRN, a, 4.15, 0); g.add(n); g.position.set(x, 0, z); g.scale.setScalar(s); g.rotation.y = ry; scene.add(g); anim.push(t => n.rotation.x = .25 + Math.sin(t * 1.1 + x) * .16); }
+function elephant(x, z, s, ry) { const g = new THREE.Group(), tr = new THREE.Group(); box(g, 2.8, 2.4, 4, BLU, 0, 2.6, 0); for (const [a, b] of [[-.9, -1.4], [.9, -1.4], [-.9, 1.4], [.9, 1.4]]) box(g, .9, 1.5, .9, BLU, a, .75, b);
+  box(g, 2.2, 2.2, 1.6, BLU, 0, 3, 2.6); for (const a of [-1, 1]) { box(g, .25, 1.9, 1.5, PNK, a * 1.3, 3.1, 2.3); box(g, .2, .2, .8, WHT, a * .6, 2.1, 3.6); } tr.position.set(0, 2.6, 3.5); box(tr, .6, 2.2, .6, BLU, 0, -1, 0); g.add(tr);
+  g.position.set(x, 0, z); g.scale.setScalar(s); g.rotation.y = ry; scene.add(g); anim.push(t => tr.rotation.x = Math.sin(t * 1.6 + x) * .45); }
+function penguin(x, z, i) { const g = new THREE.Group(); box(g, .8, 1.2, .7, BLK, 0, .8, 0); box(g, .56, .85, .12, WHT, 0, .75, .32); box(g, .6, .5, .56, BLK, 0, 1.65, 0); box(g, .2, .14, .3, ORG, 0, 1.6, .4); for (const a of [-.2, .2]) box(g, .28, .12, .5, ORG, a, .06, .15);
+  g.position.set(x, .1, z); g.rotation.y = (hash(i, 9) - .5) * 1.4; scene.add(g); anim.push(t => { g.position.y = .1 + Math.abs(Math.sin(t * 4 + i * 1.7)) * .22; g.rotation.z = Math.sin(t * 4 + i * 1.7) * .14; }); }
+// おり（さく）を 24 ごとに。きりん → ぞう → ペンギン のくり返し（72 で一巡）
+for (let k = -3; k <= 5; k++) { const cx = 12 + k * 24, ty = ((k % 3) + 3) % 3;
+  for (let j = -3; j <= 3; j++) box(scene, .3, 1.5, .3, BRN, cx + j * 3, .75, -4); for (const y of [.6, 1.2]) box(scene, 18.4, .22, .16, BRN, cx, y, -4); for (const s of [-1, 1]) { box(scene, .16, .22, 13, BRN, cx + s * 9, 1.2, -10.5); box(scene, .3, 1.5, .3, BRN, cx + s * 9, .75, -17); }
+  if (ty === 0) { giraffe(cx - 3, -10, 1, Math.PI / 2); giraffe(cx + 4.5, -14, .7, -1.1); }
+  if (ty === 1) { elephant(cx - 1, -11, 1, .9); elephant(cx + 5.5, -8, .5, -.5); box(scene, 6, .1, 4, BLU, cx - 5, .03, -15); }
+  if (ty === 2) { box(scene, 17, .1, 12, WHT, cx, .03, -11); box(scene, 8, .1, 5, BLU, cx + 3, .06, -8.5); for (let i = 0; i < 6; i++) penguin(cx - 6 + i * 1.9 + hash(i, 1), -9 - hash(i, 2) * 5 - (i > 3 ? 3 : 0), i); }
+  for (const dx of [12, 6, 0, -6]) { const tr = K.tree(5 + (dx === 12 ? 1 : hash(dx, 3)), GRN, BRN); tr.position.set(cx + dx, 0, dx === 12 ? -9 : -21); scene.add(tr); } }
+for (let i = 0; i < 128; i++) { const j = i % 48, x = -60 + i * 1.5 + hash(j, 4); if (j % 6 === 0) add(scene, new THREE.IcosahedronGeometry(.9, 0), GRN, x, .5, 4.6); else box(scene, .4, .4, .4, [RED, YEL, PNK][j % 3], x, .4, 3.2 + hash(j, 5) * 2.4); }
+// おひさま（空の白い紙のところに）
+const sunG = new THREE.Group(); add(sunG, new THREE.CylinderGeometry(1.5, 1.5, .2, 12), YEL).rotation.x = Math.PI / 2; for (let k = 0; k < 8; k++) { const r = box(sunG, .3, 1, .1, ORG, Math.sin(k * .785) * 2.5, Math.cos(k * .785) * 2.5, 0); r.rotation.z = -k * .785; } scene.add(sunG);
+// 主役：赤い風船を持った子ども
+const hero = K.person({ top: RED, bottom: BLU, hat: YEL, skin: PNK, s: 1.3 }); box(hero, .05, 2, .05, BLK, .5, 2.4, 0); add(hero, new THREE.IcosahedronGeometry(.6, 1), RED, .5, 3.8, 0); hero.rotation.y = Math.PI / 2; scene.add(hero);
+const Lw = new THREE.Vector3(-.5, .8, .4).normalize();
+const post = K.post(renderer, `uniform vec3 L;mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+void main(){vec2 p=vUv*res;float tj=floor(time*4.);
+vec2 uv=vUv+(vec2(vn(p*.03+tj*7.3),vn(p*.03+41.+tj*3.7))-.5)*5./res;                 // 線のゆれ（数コマに 1 回かわる）
+vec3 c=src(uv),n=nrm(uv),paper=vec3(.985,.972,.93);float sh=clamp(dot(n,L)*.5+.5,0.,1.);
+vec2 q=rot(.8+n.x*.7+n.y*.4)*p;                                                      // 面の向きで、ぬる線の角度を変える
+float st=sin(q.y*.8+vn(q*vec2(.012,.1))*4.)*.5+.5,press=vn(q*vec2(.006,.05)+c.rg*9.);
+float cov=smoothstep(0.,.3,st-(.06+.34*sh*press));                                    // ぬり残しの白い筋
+cov*=1.-step(.93,min(c.r,min(c.g,c.b)));                                              // 白は紙のまま
+vec3 col=mix(paper,c*mix(.84,1.,sh),cov);
+float e=edge(uv,3.2,.9,.05)*(.72+.28*step(.3,vn(p*.6+tj)));
+gl_FragColor=vec4(mix(col,vec3(.2,.17,.2),e*.92),1.);}`, { L: { value: new THREE.Vector3() } }, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const x = (t * 3 + 2) % 72, tall = innerHeight > innerWidth; hero.position.set(x, 0, 0); K.walk(hero, t * 8); hero.children[hero.children.length - 1].position.x = (.5 + Math.sin(t * 2) * .12) * 1; anim.forEach(f => f(t));
+  sunG.position.set(x + 11, 8.2, -45); sunG.rotation.z = t * .3;
+  if (tall) { cam.position.set(x + .6, 9, 9.5); cam.lookAt(x + 1.5, 2.5, -6); } else { cam.position.set(x + 1, 10, 15); cam.lookAt(x + 2, 2.5, -4); }
+  cam.updateMatrixWorld(); post.u.L.value.copy(Lw).transformDirection(cam.matrixWorldInverse);
+  post.render(scene, cam, t);
+});
+</script>
+</html>
