@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>6-23 山岳鉄道 観光ポスターの平塗り</title>
+<style>
+html,body{margin:0;height:100%;background:#f6e9c8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#24445a;background:#f6e9c8;padding:0 6px}
+</style>
+<div id="cap">6-23 ─ 山岳鉄道 / 昔の観光ポスターの平塗り（日なたと日かげの 2 段・7 色）　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昔の観光ポスターの平塗りの決まり：場面には光を当てず、決めた 7 色のべた塗りだけで描く（グラデーションも輪郭線もなし）。
+// 仕上げで、面の向きから「日なた」と「日かげ」の 2 段だけにくっきり分け、色ごとに決めた影の色へ置きかえる。
+// 遠くの物は距離を 4 段に切って、段ごとに淡い色の層にする。赤い登山電車を うしろ斜めから追う（線路は 200 ごとにくり返す）
+import * as THREE from 'three';
+const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 40, far: 1400 }), { add, box, hash } = K;
+const CREAM = '#f6e9c8', OCHRE = '#e8b870', RED = '#d8452e', GREEN = '#5e9a6a', TEAL = '#7fb6c4', NAVY = '#24445a', BROWN = '#9a4a38';
+const P = 200, TAU = Math.PI * 2, sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+const vz = z => Math.pow(.5 - .5 * Math.cos(z * TAU / P), 1.3);      // 谷の深さ（0〜1）。深い所に石の橋がかかる
+const H = (x, z) => { const m = Math.max(0, x - 10), l = Math.max(0, -x - 14); return -1.5 - 24 * vz(z) * (1 - sm(40, 130, m)) + m * .5 + sm(0, 30, m) * Math.sin(x * .06 + z * TAU / P) * 5 - l * .45; };
+const C = K.colors(CREAM, OCHRE, GREEN);
+const land = K.terrain(H, 80, 80, 5, (y, x, z) => y > 30 ? C[0] : y > 16 || y < -21.5 ? C[1] : C[2]); scene.add(land.mesh);
+const lake = box(scene, 4000, .1, 4000, TEAL, 0, -23, 0), bed = box(scene, 4.6, 1.8, 1000, OCHRE, 0, -.6, 0), rail = box(scene, 1.7, .1, 1000, NAVY, 0, .34, 0);
+// 石の高架橋：横から見た形（アーチの穴つき）を押し出して作る。2 つ用意して、電車の前後へ送りなおす
+const sh = new THREE.Shape(); sh.moveTo(-80, -28); sh.lineTo(80, -28); sh.lineTo(80, 0); sh.lineTo(-80, 0); for (let i = 0; i < 8; i++) { const cx = -70 + i * 20, h = new THREE.Path(); h.moveTo(cx - 7, -27.5); h.lineTo(cx - 7, -9); h.absarc(cx, -9, 7, Math.PI, 0, true); h.lineTo(cx + 7, -27.5); sh.holes.push(h); }
+const vg = new THREE.ExtrudeGeometry(sh, { depth: 3.6, bevelEnabled: false, curveSegments: 10 }); vg.translate(0, 0, -1.8); vg.rotateY(Math.PI / 2);
+const bridges = [0, 1].map(() => { const g = new THREE.Group(); add(g, vg, OCHRE); box(g, 4.8, .5, 164, OCHRE, 0, .1, 0); scene.add(g); return g; });
+// 針葉樹（1 周期ぶんを 2 組）、架線の柱、遠くの山なみ
+const pg = new THREE.ConeGeometry(1, 1, 6); pg.translate(0, .5, 0); const pm = new THREE.MeshBasicMaterial({ color: GREEN }), dm = new THREE.Object3D();
+const woods = [0, 1].map(() => { const im = new THREE.InstancedMesh(pg, pm, 320); let n = 0; for (let i = 0; n < 320 && i < 900; i++) { const x = -60 + hash(i, 1) * 170, z = hash(i, 2) * P, y = H(x, z); if (Math.abs(x) < 5 || (x > 0 && x < 36) || y > 27 || y < -22.5) continue; dm.position.set(x, y - .3, z); dm.scale.set(1.7 + hash(i, 3), 6 + hash(i, 4) * 5, 1.7 + hash(i, 3)); dm.rotation.y = i; dm.updateMatrix(); im.setMatrixAt(n++, dm.matrix); } im.count = n; im.frustumCulled = false; scene.add(im); return im; });
+const poles = [...Array(10)].map((_, i) => { const g = new THREE.Group(); box(g, .22, 6, .22, NAVY, -2.7, 3, 0); box(g, 2.6, .14, .14, NAVY, -1.5, 5.6, 0); g.userData.z = -i * 24; scene.add(g); return g; });
+const far = new THREE.Group(); for (const [x, z, r, h] of [[-460, -560, 270, 250], [-170, -660, 300, 310], [150, -720, 320, 340], [-680, -380, 230, 190], [420, -540, 270, 280], [-330, -340, 130, 110]]) { add(far, new THREE.ConeGeometry(r, h, 7), NAVY, x, h / 2 - 30, z).rotation.y = x; add(far, new THREE.ConeGeometry(r * .47, h * .45, 7), CREAM, x, h * .775 - 30, z).rotation.y = x; } scene.add(far);
+const train = new THREE.Group(); for (const z of [0, -8.3]) { box(train, 2.6, 2.3, 7.6, RED, 0, 1.75, z); box(train, 2.66, .8, 7, CREAM, 0, 2.2, z); for (let k = -1; k <= 1; k++) box(train, 2.7, .55, 1.3, NAVY, 0, 2.2, z + k * 2.1); box(train, 2.3, .3, 7.2, NAVY, 0, 3.05, z); box(train, 2.2, .5, 7, NAVY, 0, .4, z); } box(train, 1.6, .7, .1, CREAM, 0, 2.2, 3.82); scene.add(train);
+scene.traverse(m => { if (m.isMesh && m.material.isMeshStandardMaterial) m.material = new THREE.MeshBasicMaterial({ color: m.material.color, vertexColors: m.material.vertexColors }); });
+const v3 = h => `vec3(${[1, 3, 5].map(i => (parseInt(h.slice(i, i + 2), 16) / 255).toFixed(3))})`;
+const pick = [[CREAM, TEAL], [OCHRE, BROWN], [RED, BROWN], [GREEN, NAVY], [TEAL, TEAL], [NAVY, NAVY]].map(([b, s]) => `{vec3 p=${v3(b)};float dd=distance(a,p);if(dd<bd){bd=dd;L1=p;S1=${v3(s)};}}`).join('');   // 色ごとの「日なた → 日かげ」の組
+const L = new THREE.Vector3(), post = K.post(renderer, `uniform vec3 L;void main(){vec3 a=src(vUv),c,L1,S1,cream=${v3(CREAM)},haze=mix(${v3(TEAL)},cream,.6);float d=dep(vUv),bd=9.;
+if(d>nf.y*.9){c=haze;if(length((vUv-vec2(.2,.84))*res/res.y)<.065)c=cream;}
+else{${pick}c=mix(S1,L1,step(.1,dot(normalize(nrm(vUv)),L)));c=mix(c,haze,floor(clamp((d-170.)/150.,0.,3.))*.27);}
+gl_FragColor=vec4(c,1.);}`, { L: { value: L } }, { gbuf: true }); onResize(post.resize);
+K.loop((dt, t) => {
+  const z = 5 - t * 14, n = Math.floor(z / P), tall = innerHeight > innerWidth, k = tall ? .7 : 1;
+  train.position.set(0, .4 + Math.sin(t * 18) * .02, z); land.follow(0, z); lake.position.z = bed.position.z = rail.position.z = far.position.z = z;
+  bridges.forEach((b, i) => b.position.z = (n - i) * P + 100); woods.forEach((w, i) => w.position.z = (n - i) * P);
+  for (const p of poles) p.position.z = p.userData.z + Math.round((z - 70 - p.userData.z) / 240) * 240;
+  cam.position.set(20 * k, 10 * k + 1, z + 15 * k); cam.lookAt(-7, -3, z - 20); cam.updateMatrixWorld(); L.set(.7, .6, -.25).normalize().transformDirection(cam.matrixWorldInverse);
+  post.render(scene, cam, t);
+});
+</script>
+</html>
