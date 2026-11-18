@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-06 夜明けの湖の小舟 こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#f6d9bc;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a4a52;background:#fdeedc;padding:0 6px}
+</style>
+<div id="cap">7-06 ─ 夜明けの湖の小舟 / 面を増やして形を作りこんだローポリを、朝焼けの空と、水面にのびる光の道で　｜　見るだけ（自動でこぐ）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 A「こまかいローポリ」。箱は使わず、回転体・先細りの管・でこぼこの多面体で形を作り、面はカクカクのまま頂点の色でぬる。
+// 色は、朝焼けの桃色とだいだい・水の青緑・針葉樹の深緑・舟と上着の赤。太陽は行く手の低い所にあり、水面に光の道がのびる。
+// 光は model.js の「いつもの光」（morning を朝焼けの色に）：正面の低い太陽の長い影と、うしろからの青いふちの光
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), { hash } = K, { lerp, smooth } = M;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .95, maxFov: 72, far: 520 });
+const FOG = '#f8d8ba', SAZ = .15, SUN = [Math.cos(SAZ), Math.sin(SAZ)];   // SAZ = 太陽の方位（進む向き +x から少し右）
+const L = M.look(scene, renderer, 'morning', { range: 24, fog: [30, 150], dir: [SUN[0], .34, SUN[1]], set: { sky: [[0, '#7fb0dc'], [.15, '#b4cbe6'], [.3, '#f4d6c8'], [.42, '#ffc79c'], [1, '#ffe4c0']], fog: FOG, sun: '#ffd9a8', pw: 2.5, hs: '#e4e6ff', hg: '#d8b89a', amb: 1.75, rim: '#a8ccff', rp: .7, cloud: ['#fff0dc', '#f6a8a0'] } });
+
+// ── 地形：細長い湖。舟の道 road(x) は湖のまん中を x の方向へのびる。PER ごとに同じ形なので、ずっとこぎ続けられる ──
+const PER = 200, k1 = Math.PI * 2 / PER, mod = (a, n) => ((a % n) + n) % n, wrap = dx => mod(dx + PER / 2, PER) - PER / 2, HX = 80, IX = 158;
+const road = x => Math.sin(x * k1) * 6, wl = x => 12.5 - 4 * Math.sin((x - HX) * k1 * 2), wr = x => 34 + 9 * Math.sin(x * k1 * 3 + 2);   // wl, wr = 道から左右の岸までの遠さ
+const inland = (x, z) => { const a = z - road(x); return Math.max(-a - wl(x), a - wr(x)); };                                              // 岸から陸へ入った長さ（水の上は負）
+const IZ = road(IX) + 13;
+const H = (x, z) => { const d = inland(x, z), land = .75 + smooth(3, 42, d) * (5 + 3.5 * Math.sin(x * k1 * 3 + z * .05)) + .45 * Math.sin(x * k1 * 7 + z * .17) * smooth(4, 12, d);
+  return lerp(-2.4, land, smooth(-7, 6, d)) + 4.3 * Math.exp(-(wrap(x - IX) ** 2 + (z - IZ) ** 2) / 30); };                               // 小島
+const G = M.ground(H, { nx: 96, nz: 64, cell: 2, grass: ['#86b86a', '#74a862', '#96c272', '#689a5e'], patch: .05, slope: { color: '#a89c84', from: .8, to: 1.4 }, shore: { level: 0, sand: '#ead6a8', wet: '#c2ae86', band: .8 }, under: '#6c98a4' });
+scene.add(G.mesh);
+const WCOL = '#86b6c2', water = M.water({ level: 0, size: 400, color: WCOL, opacity: .84 }); water.material.roughness = .62; scene.add(water);   // 水のてかりは弱めて、光の道は自分で描く
+
+// ── 置く物は 40m ごとのまとまりに入れ、舟が進んだら 1 周先へ送りなおす ──
+const CH = 40, chunks = [...Array(PER / CH)].map(() => { const g = new THREE.Group(); scene.add(g); return g; }), ci = x => Math.floor(mod(x, PER) / CH), chunkOf = x => chunks[ci(x)];
+const put = (obj, x, z, ry = 0, dy = 0) => { obj.position.set(x, G.h(x, z) + dy, z); obj.rotation.y = ry; chunkOf(x).add(obj); return obj; };
+// 湖畔の家と桟橋（左の岸）。桟橋は、板・くい・つなぎ柱を 1 つの形にまとめる
+const RZ = road(HX), house = put(M.house({ w: 5.6, d: 4.4, wall: '#f5e4c6', roofColor: '#c0523e', shutters: '#4f7f98', door: '#4f7f98', flowerBox: '#8a5a44', windows: [1, 3], lit: 1, found: 1.5, seed: 2 }), HX - .6, RZ - 23.5);
+put(M.house({ w: 3.4, d: 3, h: 2.3, pitch: 1, wall: '#e9d2a8', roofColor: '#5f8478', door: '#c0523e', windows: 'front', lit: .8, found: 1.5, seed: 5 }), HX + 112, road(HX + 112) - wl(HX + 112) - 9, .3);
+const smokeAt = new THREE.Vector3(...house.userData.chimney).add(house.position);
+const PZ0 = RZ - 16.6, PL = 12.4, PY = .5, pq = [];
+for (let i = 0; i < PL / .34; i++) pq.push(M.P(M.cbox(1.6 + hash(i, 3) * .08, .07, .3, .02), i % 3 ? '#b88a5c' : '#a67c52', (hash(i, 4) - .5) * .05, PY, i * .34 + .15, { jit: .06 }));
+for (let i = 0; i <= 5; i++) for (const s of [-1, 1]) { const z = .4 + i * (PL - .8) / 5, top = i === 5 || (i === 3 && s > 0); pq.push(M.P(M.cyl(.075, .09, top ? 3.3 : 2.6, 6), '#7a5a44', s * .78, top ? -.35 : -.85, z, { jit: .07 })); if (top) pq.push(M.P(M.lathe([[.1, 0], [.12, .03], [.09, .07], [0, .1]], 6), '#e8dcc0', s * .78, 1.3, z)); }
+for (const s of [-1, 1]) pq.push(M.P(M.tube([[s * .78, PY - .1, .3], [s * .78, PY - .1, PL - .3]], .04, 4, { sq: .6 }), '#8a6848'));
+const pier = new THREE.Group(); pier.add(M.join(pq)); pier.position.set(HX, 0, PZ0); chunkOf(HX).add(pier);
+chunkOf(HX).add(M.ribbon([...Array(6)].map((_, k) => [HX - .6 * (1 - k / 5), lerp(RZ - 21, PZ0 + .6, k / 5)]), { w: 1.2, H: G.h, color: '#e6d3a4', lift: .06 }));
+const plamp = M.lamp({ h: 2.5, lit: 1.3, kind: 'arm' }); plamp.position.set(HX - .78, PY, PZ0 + PL - .5); plamp.rotation.y = Math.PI / 2; chunkOf(HX).add(plamp);
+const moored = M.boat({ len: 3, hull: '#4f7f98', trim: '#f4ecd8', oars: false }); moored.position.set(HX + 1.9, -.12, PZ0 + 7); moored.rotation.y = .12; chunkOf(HX).add(moored);
+const friend = M.person({ top: '#f2c84a', bottom: '#4a5a78', coat: true, hairStyle: 'bob', hair: '#5a3a2a', scarf: '#f4ecd8', buttons: '#6a4a3a' }); friend.position.set(HX + .15, PY + .04, PZ0 + PL - 1.2); chunkOf(HX).add(friend);
+const sail = M.boat({ hull: '#f4ecd8', trim: '#4f7f98', sail: '#fff6e6' }); sail.position.set(HX + 66, -.12, road(HX + 66) + 17); sail.rotation.y = 1.9; chunkOf(HX + 66).add(sail);
+// 木：岸は針葉樹の森。形のちがう 6 本を作っておき、同じ形はまとめて描く。ところどころに金色の木
+const DARK = ['#4a8a68', '#3c7860', '#32695a'], TV = [M.conifer({ h: 8, seed: 1, seg: 6, leaf: DARK }), M.conifer({ h: 6.4, seed: 3, tiers: 5, seg: 6, leaf: M.LEAF.deep }), M.conifer({ h: 9.5, seed: 5, tiers: 5, seg: 6, wide: .85, leaf: DARK }), M.conifer({ h: 5.2, seed: 7, seg: 6, leaf: M.LEAF.dusk }), M.tree({ h: 5.4, seed: 4, kind: 'tall', leaf: M.LEAF.gold, d: .5 }), M.bush({ r: .8, seed: 2, d: .5, leaf: M.LEAF.deep })];
+const TL = chunks.map(() => TV.map(() => [])), nearHouse = (x, z, r) => (Math.abs(wrap(x - HX)) < 4.5 + r && z > RZ - 28 - r && z < RZ - 14) || (Math.abs(wrap(x - HX - 112)) < 3 + r && Math.abs(z - (road(HX + 112) - wl(HX + 112) - 9)) < 3.5 + r);
+for (let i = 0; i < 520; i++) { const x = hash(i, 11) * PER, z = road(x) + (hash(i, 12) - .5) * 124, h = G.h(x, z), r = hash(i, 14); if (h < .62 || nearHouse(x, z, 1.5)) continue;
+  const v = h < .9 ? 5 : r < .09 ? 4 : Math.floor(hash(i, 15) * 4); TL[ci(x)][v].push([x, h - .06, z, r * 6, .75 + hash(i, 16) * .55, ['#ffffff', '#f2f0dc', '#e2f0e4', '#fff0e0'][i % 4], .9 + hash(i, 17) * .3]); }
+// 岩（岸と浅せ）・あしのしげみ・花
+for (let i = 0; i < 46; i++) { const x = hash(i, 51) * PER, sd = hash(i, 52) < .6 ? -1 : 1, z = road(x) + (sd < 0 ? -wl(x) : wr(x)) * 1 + sd * (hash(i, 53) * 5 - 1.5); if (!nearHouse(x, z, 1) && Math.abs(wrap(x - HX)) > 3) put(M.rock({ r: .4 + hash(i, 54) * (i % 4 ? .7 : 1.4), n: 1 + i % 3, d: i % 3 ? .5 : 1, seed: i, color: '#a8a096', moss: i % 2 ? '#8fae6c' : null }), x, z, i, Math.max(0, -.25 - G.h(x, z)) - .08); }
+[[IX - 1, IZ + 1.4, 6.5, 1], [IX + 1.6, IZ - .8, 4.6, 3], [IX - 2.2, IZ - 1.6, 3.6, 7]].forEach(([x, z, h, seed]) => put(M.conifer({ h, seed, leaf: DARK }), x, z, seed, -.08));
+const TF = chunks.map(() => []), FL = chunks.map(() => []);
+for (let i = 0; i < 1500; i++) { const x = hash(i, 71) * PER, z = road(x) + (hash(i, 72) - .5) * 110, h = G.h(x, z); if (h < -.22 || h > 2.4 || nearHouse(x, z, -.5) && h > .3) continue; const reed = h < .3;
+  TF[ci(x)].push([x, Math.max(h, -.04), z, reed ? 1.7 + hash(i, 74) * 1.5 : .7 + hash(i, 74) * .7, reed ? ['#f4e6a0', '#e2e69a', '#fff0b4'][i % 3] : '#ffffff']); if (!reed && i % 9 === 0 && h < 1.6) FL[ci(x)].push([x, h, z, 1.1 + hash(i, 75) * .5, i % 3]); }
+chunks.forEach((g, c) => { TV.forEach((v, k) => { if (TL[c][k].length) g.add(M.scatter(v.children[0], TL[c][k])); }); if (TF[c].length) g.add(M.tufts(TF[c], { color: '#5f9a60', tip: '#b8d484' })); if (FL[c].length) g.add(M.flowers(FL[c], { colors: ['#ffffff', '#f7d560', '#f6a0b0'] })); });
+// 水にうかぶ鳥（羽をたたむ）
+const ducks = [[HX - 14, -5], [HX - 12.6, -5.8], [HX - 15.2, -6.4], [HX + 40, 7], [HX + 41.5, 7.6], [IX - 9, 6]].map(([x, a], i) => { const b = M.flap(M.bird({ s: 1.7, color: i % 3 ? '#f4f0e6' : '#8a7a6a', belly: '#f4f0e6' }), 0, 0); b.position.set(x, -.1, road(x) + a); b.rotation.y = 1.2 + i; chunkOf(x).add(b); return b; });
+
+// ── 遠景：山の影絵（下は霧の色にとける）、朝日、雲。水面には朝日の「光の道」 ──
+const far = new THREE.Group(); scene.add(far);
+{ const q = []; for (let i = 0; i < 15; i++) { const a = (i / 14 - .5) * 3.2 + (hash(i, 3) - .5) * .1, near = i % 2, d = near ? 230 : 320, low = lerp(.34, 1, smooth(.12, .6, Math.abs(a - SAZ))), r = (near ? 60 : 95) * (.8 + hash(i, 4) * .5), h = (near ? 46 : 80) * (.7 + hash(i, 5) * .6) * low;
+    q.push(M.P(M.lathe([[r, 0, .12], [r * .62, h * .42, .2, h * .06], [r * .26, h * .8, .25, h * .05], [0, h]], 7, { rot: i }), '#fbd2b0', Math.cos(a) * d, -5, Math.sin(a) * d, { top: near ? '#8f9cc0' : '#b0b0d0', grad: 0, jit: .025 })); }
+  const m = M.join(q, M.MATSKY); m.castShadow = m.receiveShadow = false; far.add(m); }
+const disc = (r, color, opacity = 1) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 18), new THREE.MeshBasicMaterial({ color, fog: false, transparent: opacity < 1, opacity, depthWrite: false })); m.position.set(SUN[0] * 400, 31, SUN[1] * 400); m.rotation.y = -Math.PI / 2 - SAZ; far.add(m); return m; };
+disc(50, '#ffe6c0', .13).renderOrder = -3; disc(32, '#ffe9c4', .22).renderOrder = -2; disc(17, '#fff6dc').renderOrder = -1;
+for (let i = 0; i < 9; i++) { const a = (hash(i, 121) - .5) * 2.4, d = 240 + hash(i, 122) * 60, c = M.cloud({ s: 2.2 + hash(i, 123) * 1.8, seed: i, n: 4 + i % 3, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); c.position.set(Math.cos(a) * d, 52 + hash(i, 124) * 50, Math.sin(a) * d); c.rotation.y = -a + Math.PI / 2; far.add(c); }
+const GL = new THREE.MeshBasicMaterial({ color: '#fff2cc', fog: false, transparent: true, opacity: .8, depthWrite: false, side: THREE.DoubleSide });
+const band = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([3, 0, -.5, 320, 0, -6, 320, 0, 6, 3, 0, -.5, 320, 0, 6, 3, 0, .5], 3)), new THREE.MeshBasicMaterial({ color: '#ffdca8', fog: false, transparent: true, opacity: .26, depthWrite: false, side: THREE.DoubleSide })); band.rotation.y = -SAZ; band.renderOrder = 1; scene.add(band);
+const NG = 210, glit = new THREE.InstancedMesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([-.5, 0, 0, 0, 0, .13, .5, 0, 0, -.5, 0, 0, .5, 0, 0, 0, 0, -.13], 3)), GL, NG), dm = new THREE.Object3D(); glit.frustumCulled = false; glit.renderOrder = 2; scene.add(glit);
+// 水の輪（かいの入った所と、舟のうしろ）
+const NR = 28, ringM = new THREE.InstancedMesh(M.lathe([[.84, 0], [1, 0]], 12), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .45, depthWrite: false, side: THREE.DoubleSide }), NR), rings = [...Array(NR)].map(() => ({ age: 9, life: 1 })), CA = new THREE.Color('#fff6e4'), CB = new THREE.Color(WCOL), cc = new THREE.Color();
+ringM.frustumCulled = false; ringM.renderOrder = 1; scene.add(ringM); for (let i = 0; i < NR; i++) ringM.setColorAt(i, CA);
+const ripple = (x, z, size, life = 2.4) => { const r = rings.find(q => q.age >= q.life); if (r) Object.assign(r, { age: 0, life, x, z, size }); };
+const birds = [...Array(5)].map((_, i) => { const b = M.bird({ s: 2.4, color: i % 2 ? '#fbf6ea' : '#5a6a8a' }); scene.add(b); return b; });
+
+// ── 小舟・こぐ人（船尾を向いてすわる）・へさきの犬・荷物 ──
+const boat = M.boat({ len: 3.7, hull: '#f4ead4', trim: '#cf5b44', inside: '#c8a070' }), BK = 3.7 / 3.4; scene.add(boat);
+const rower = M.person({ h: 1.5, top: '#d9523c', bottom: '#3d4c6e', collar: '#f7ecd6', hairStyle: 'bob', hair: '#5a3a2a', hat: 'beanie', hatColor: '#f2c84a', hatBand: '#f7ecd6', scarf: '#f7ecd6', shoes: '#6a4a3a' }), R = rower.userData.rig;
+rower.position.set(0, .34 * BK - rower.userData.seatY, .36 * BK); rower.rotation.y = Math.PI; boat.add(rower);
+const dog = M.animal('dog', { color: '#f1e6cf', color2: '#c8935a', collar: '#4f7f98', s: .9 }); dog.position.set(0, .2 * BK, 1.12 * BK); boat.add(dog);
+boat.add(M.join([M.P(M.lathe([[0, 0], [.2, 0], [.26, .26, .04], [.22, .28], [0, .28]], 8), '#c8a06a', -.12, .15, -1.12, { jit: .08 }), M.P(M.blob(.2, { d: .5, j: .1, sy: .7 }), '#e8dcc0', -.12, .44, -1.12), M.P(M.blob(.2, { d: .5, j: .15, sy: .8, sx: 1.3 }), '#6f8f5c', .22, .3, -.95)]));
+
+// ── 毎コマ ──
+const smoke = M.puffs(scene, { n: 14, color: '#fff0e0' }), X0 = +new URLSearchParams(location.search).get('x') || 30, SPD = 1.7, RATE = 2.3;   // ?x=数 でこぎはじめる場所を変えられる（確かめ用）
+let tall = false, smokeT = 0, wakeT = 0, dipped = false;
+onResize((w, h) => { tall = w < h; });
+K.loop((dt, t) => {
+  // こぐ：ph の前半（sin > 0）でかいが水をかき、舟がぐっと進む。後半はかいを上げて前へもどす
+  const ph = t * RATE, sn = Math.sin(ph), sweep = -Math.cos(ph), u = (sweep + 1) / 2, x = X0 + t * SPD - Math.cos(ph) * .1, z = road(x), hd = Math.atan2(1, road(x + .5) - road(x - .5));
+  boat.position.set(x, -.12 + Math.sin(t * 1.3) * .015, z); boat.rotation.set(-.012 - sn * .016, hd, Math.sin(t * .9) * .025);
+  boat.userData.oars.forEach((o, i) => { const s = i ? 1 : -1; o.rotation.set(0, s * sweep * .52, s * (.06 + Math.max(0, -sn) * .3)); });
+  M.pose(rower, 'sit', t); R.legL.rotation.x = R.legR.rotation.x = -1.32; R.kneeL.rotation.x = R.kneeR.rotation.x = .8 + .3 * u; R.torso.rotation.x = .16 - .3 * sweep; R.head.rotation.set(-.1 + .2 * sweep, .12 * Math.sin(t * .4), 0);
+  R.armL.rotation.set(lerp(-1.2, -.5, u), 0, -.14); R.armR.rotation.set(lerp(-1.2, -.5, u), 0, .14); R.elbowL.rotation.x = R.elbowR.rotation.x = lerp(-.12, -1.3, u);
+  M.gait(dog, 'sit', t * 2);
+  // 水の輪：かいが水に入るたび左右に 1 つずつ、船尾から少しずつ
+  if (sn > .15 && !dipped) { dipped = true; for (const s of [-1, 1]) ripple(x + Math.sin(hd) * .5 - Math.cos(hd) * s * 1.95, z + Math.cos(hd) * .5 + Math.sin(hd) * s * 1.95, 1.1, 3); } if (sn < 0) dipped = false;
+  wakeT += dt; if (wakeT > .5) { wakeT = 0; ripple(x - Math.sin(hd) * 1.9, z - Math.cos(hd) * 1.9, .9, 2.6); }
+  rings.forEach((r, i) => { r.age += dt; const k = Math.min(1, r.age / r.life), s = k >= 1 ? 0 : r.size * (.25 + k * 1.3); dm.position.set(r.x || 0, .03, r.z || 0); dm.rotation.set(0, i, 0); dm.scale.set(s, 1, s); dm.updateMatrix(); ringM.setMatrixAt(i, dm.matrix); ringM.setColorAt(i, cc.copy(CA).lerp(CB, k * k)); }); ringM.instanceMatrix.needsUpdate = true; ringM.instanceColor.needsUpdate = true;
+  // 桟橋の人は舟のほうを向いて手をふる。うかぶ鳥、もやい舟、帆かけ舟はゆれる
+  const fx = friend.position.x + friend.parent.position.x; friend.rotation.y = Math.atan2(x - fx, z - friend.position.z); M.pose(friend, Math.abs(x - fx) < 34 ? 'wave' : 'stand', t * 2.2);
+  ducks.forEach((b, i) => { b.position.y = -.1 + Math.sin(t * 1.4 + i * 2) * .02; b.rotation.y += Math.sin(t * .3 + i) * dt * .2; }); moored.rotation.z = Math.sin(t * 1.1) * .03; sail.rotation.z = Math.sin(t * .8) * .04; sail.position.z += Math.sin(t * .2) * dt * .3;
+  birds.forEach((b, i) => { const row = Math.ceil(i / 2), s = i % 2 ? 1 : -1; b.position.set(x + 30 - mod(t * 3.2, 46) - row * 1.6, 6.5 + Math.sin(t * .7 + i) * .4 + row * .2, z - 9 + mod(t * 3.2, 46) * .25 + s * row * 1.5); b.rotation.set(0, -1.33, 0); M.flap(b, t * 11 + i * 1.3); });
+  smokeT += dt; const sx = smokeAt.x + house.parent.position.x; if (smokeT > .6 && Math.abs(sx - x) < 90) { smokeT = 0; smoke.emit(sx, smokeAt.y, smokeAt.z, { life: 5, size: .17, grow: 2.8, vy: .65, vx: -.2 }); } smoke.update(dt);
+  // 地面・水・まとまり・遠景を舟の前後へ送る
+  G.follow(x + 46, z); water.position.set(Math.round((x + 60) / (400 / 24)) * (400 / 24), 0, Math.round(z / (400 / 24)) * (400 / 24)); chunks.forEach((g, c) => { g.position.x = Math.round((x + 55 - (c + .5) * CH) / PER) * PER; }); far.position.set(x, 0, z);
+  L.follow(x + 4, 0, z);
+  // 舟のうしろ斜め上から追うカメラ（たて長では少し寄る）
+  const cx = x - (tall ? 5.9 : 7.6), cz = z + (tall ? 1.1 : 2.9) + Math.sin(t * .11) * (tall ? .2 : .5), cy = (tall ? 3.5 : 3.7) + Math.sin(t * .17) * .15;
+  cam.position.set(cx, cy, cz); cam.lookAt(x + 7, tall ? 1.7 : .85, z - (tall ? 0 : .4));
+  // 光の道：見る人と朝日の間の水面に、きらめきの帯。きらめきは水面の決まった場所で明るくなったり消えたりする
+  band.position.set(cx, .02, cz);
+  for (let i = 0; i < NG; i++) { const d = 4 + Math.pow(i / NG, 1.7) * 230, w = .45 + d * .019, gx = Math.round((cx + SUN[0] * d - SUN[1] * (hash(i, 7) - .5) * 2 * w) / .9) * .9, gz = Math.round((cz + SUN[1] * d + SUN[0] * (hash(i, 7) - .5) * 2 * w) / .9) * .9, f = Math.sin(t * (1.5 + hash(gx, gz) * 3) + hash(gz, gx) * 40), s = G.h(gx, gz) > -.1 ? 0 : Math.max(0, f * .6 + .4) * (.4 + d * .013);
+    dm.position.set(gx, .04, gz); dm.rotation.set(0, -SAZ + Math.PI / 2, 0); dm.scale.set(s, 1, s); dm.updateMatrix(); glit.setMatrixAt(i, dm.matrix); } glit.instanceMatrix.needsUpdate = true;
+  renderer.render(scene, cam);
+});
+</script>
+</html>

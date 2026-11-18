@@ -1,3 +1,61 @@
+// game-looks-7 方向 B「描きこんだテクスチャと、ブラウン管」の部品集。kit.js のあとに読み、 const K = KIT(THREE), R = RETRO(THREE, K)  として使う。
+// 見本は 11-plaza-town-rpg.html、全部の部品を見るページは retro-sheet.html（?p=tex でテクスチャ、?p=parts&i=0〜2 で形）。
+//
+// ■ 考え方：形は面を少なく（初期〜2 代めの家庭用 3D ゲーム機くらい）、細部は Canvas でその場で打ったドット絵のテクスチャが受け持つ。
+//   場面を横 320 ドットほどの粗い絵に描き（頂点はドットに丸めるのでふるえる）、色数を落としてディザにかけ、ブラウン管に映してにじませる。
+//
+// ■ いちばん短い使い方
+//   const { scene, cam, renderer, onResize } = K.stage({ fov: 44, aa: false });
+//   scene.add(R.skyDome([[0, '#2e3474'], [1, '#ffe2a0']]));  K.lights(scene, renderer, { ... });          // 光は K.lights（空の光＋太陽＋影）でよい。あかりは PointLight を少数
+//   scene.add(R.ground({ layers: [R.tex.cobble(), R.tex.grass()], mix: (x, z) => [x > 5 ? 1 : 0, 0] }).mesh);
+//   const h = R.house({ wall: R.tex.brick(), roof: R.tex.roof() }), p = R.person({ cloth: 'tunic' });  scene.add(R.merge([h]), p);   // 動かない物は R.merge でまとめる
+//   const crt = R.crt(renderer, {});  onResize(crt.resize);
+//   K.loop((dt, t) => { R.walk(p, t * 8);  crt.render(scene, cam, t); });
+//
+// ■ 決まり：どの形も 足もとが y=0、正面が +z（R.cart だけ持ち手が +x）、大きさは m。テクスチャは 64 ドットで 3 m（1 m ≒ 21 ドット）が既定。
+//   粗い絵の 1 ドットは、うしろから追うカメラの主役の位置で 3 cm ほどなので、これより細かく描いても見えない（{ m: 2 } などで変えられる）。
+//   色は '#rrggbb'。1 色わたすと、影は青むらさき寄り・光は黄寄りの 6 段（R.ramp）を自動で作って打つ。
+//
+// ■ テクスチャ  R.tex.名前({ ... }) → THREE.Texture（同じ引数なら同じ物を返す。どれも c（もとの色）と seed（模様ちがい）と m（1 枚が何 m か）を取れる）
+//   地面：grass { flowers 0〜1, fc: [花の色…], blades }   dirt { pebbles }   sand   snow   cobble { kind: 'round'/'slab', n（石の数）, moss 0〜1 }   brickFloor { mortar }
+//         planks（板の床）{ w（板のはば）, len }   road { line: 'none'/'center'/'edge'/'both'/'zebra' }（よこ 64 ドット＝道のはば 6 m）   water { frames: 4 } → コマの並び（R.flip で送る）
+//   かべ：brick { mortar }   stone { moss }   plaster { frame: 'none'/'box'/'cross'/'diag'/'beam', wood, patch }（しっくい＋木組み）   boards（板ばり）   concrete   shutter { rail }
+//         window { h: 32/48, lit, curtain: 色/false, bars: 'cross'/'grid'/'none', arch, shutters, box（花の箱）, frame, glass }（抜き色つき。1 m 角。lit は光る材質で使う）
+//         windowWall { wall: 'brick' など, wallO: {…}, ＋ window の引数 }（窓 1 つ入りのかべ。大きな面にくり返すと窓がならぶ。ビル向き）
+//         door { style: 'plank'/'panel'/'glass', arch, lit, frame }（32×64 ＝ 1 m × 2 m）
+//   屋根：roof { kind: 'scale'/'wave'/'slate', moss }   shingle（板ぶき）   thatch（わらぶき）
+//   自然：bark   leaves { shape: 'tile'/'blob'/'fringe', flowers, fc }（blob・fringe は抜き色つき）   tuft { kind: 'grass'/'flower'/'reed'/'wheat'/'bush' }（抜き）   rock { moss }   hills { haze }（遠景）   cloud { shade }
+//   小物：crate { kind: 'slash'/'x'/'plain' }   barrel   sign { kind: 'mug'/'sword'/'potion'/'bread'/'star'/'blank' }   roadSign { kind: 'no'/'arrow'/'warn'/'stop'/'plate' }
+//         fabric { c2, pattern: 'stripe'/'check'/'plain', w, scallop }   fence { kind: 'picket'/'rail'/'iron' }   metal   lamp { cold }   goods   wheel { kind: 'wood'/'car' }   fall（落ちる水）
+//   人・動物・車：person { … }（R.person が使う 128×64 の 1 枚）   cat   bird   car
+//   自分で打つ：const P = R.Px(64); P.set(x, y, 色) / P.rect / P.line / P.disc / P.block / P.bits / P.each(f) …  R.tex.from(P, { m, cut }) でテクスチャに。R.paint.名前(o) は Px を返す（上から描き足せる）
+//   遠くの見え方：R.cfg.filter = 'nearest' をテクスチャを作る前に入れると、遠くもドットのまま（ちらつくが、より古い感じ）。既定の 'mip' は遠くをなめらかにまとめる
+//
+// ■ 材質  R.mat(テクスチャ か 色, { cut（抜き色で切りぬく。抜き色つきテクスチャなら自動）, glow（光に関係なく光る：窓のあかり）, vc（頂点の色を使う）, side（両面）, smooth（法線どおりになめらかに）, offset（かべにはる絵がちらつくとき）, color, emissive, fog })
+//   Lambert＋頂点のふるえ。THREE の形（BoxGeometry など）にはそのまま使える。R.geo() で作った形は g.mesh(テクスチャ) が材質もつける
+//
+// ■ ブラウン管  const crt = R.crt(renderer, { width: 320, tall: .62, levels: 24, dither: 1, blur: 1, bleed: 1, scan: .3, bloom: .35, curve: .05, vignette: .3, mask: .1, noise: .012, jitter: 1, bright: 1 })
+//   crt.resize(w, h)（K.stage の onResize にわたす）、crt.render(scene, cam, t)、crt.set({ … })。くわしくは下の「4. ブラウン管の仕上げ」。強くしすぎると中の世界が見づらくなるので、既定から大きく動かさない
+//
+// ■ 形を作る道具（くわしくは下の「5. 形を作る道具」）
+//   R.geo() … quad / tri / box / loft（輪をつないだ筒：先細りの手足・ふくらんだたる・木の幹）を足していき、g.mesh(テクスチャ)   R.parts() … いくつかの材質にまたがる物
+//   R.merge([物, …]) → 動かない物を材質ごとに 1 つにまとめた Group（userData.dyn = true の物は残す）   R.TR(x, y, z, ry, rx, rz, s) 置き場所の行列
+//
+// ■ 地面・空
+//   R.ground({ w, d, cell, H(x,z), layers: [下地, 2 枚め, 3 枚め], mix(x,z) → [重み2, 重み3], shade(x,z) → 明るさ か [r,g,b] }) → { mesh, follow(cx, cz), mat }   境目はドットのギザギザ＋影
+//   R.strip([[x,y,z], …], はば, テクスチャ) 道・川の帯   R.blob(r) 足もとの丸い影   R.flip(材質, R.tex.water(), t, fps) 水のコマ送り
+//   R.skyDome([[0, てっぺんの色], …, [1, 地平線の色]], { r })   R.backdrop({ c, haze, r, h, y, rep }) 遠くの山なみ   R.cloud({ s, c, shade })
+//
+// ■ 物（どれも Group か Mesh を返す）
+//   R.house({ w, d, h, h2, jut, wall, wall2, base, roof, trim, roofKind: 'gable'/'hip'/'flat', ridge: 'x'/'z', pitch, eave, door, doorX, win, winLit, lit, wins, wins2, chimney, sign, awning, seed })
+//   R.tree({ kind: 'round'/'pine'/'tall'/'bush', h, c, flowers, fc, seed })   R.rock({ s, c, moss, seed })   R.tuft({ kind, s })
+//   R.barrel({ h, r, c })   R.crate({ s, c, kind })   R.lamp({ h, arm, light, cold })   R.fence({ len, kind, h, c })   R.fountain({ r })（userData.tick(t) を毎コマ）   R.well()
+//   R.stall({ w, c, c2, fc })（屋台）   R.bench({ w, c })   R.roadSign({ kind, h })   R.cart({ load: 'barrels'/'crates' })   R.car({ c, kind: 'sedan'/'van' })（userData.wheels）   R.boat({ c, sail })
+//
+// ■ 人・動物
+//   R.person({ skin, hair, top, top2, bottom, belt, shoe, acc, cape, face: 0〜7, eyes, mouth, eye, hairStyle, tail, bun, cloth, sleeve, skirt: 0〜1, boots, shorts, hat: 'straw'/'cap'/'cone', pack, s, head })
+//   R.walk(人, 位相, 強さ)   R.idle(人, t, 首の向き)   関節は 人.userData.J（hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape）
+//   R.cat({ c, belly, plain, s }) と R.catPose(ねこ, 'walk'/'sit', t)   R.bird({ c, belly, neck, s }) と R.birdPose(鳥, 'peck'/'fly'/'stand', t)
 window.RETRO = (THREE, K) => {
   // ================= 1. 色とドット絵の道具 =================
   const hash = (a, b = 0, s = 0) => { const n = Math.sin(a * 127.1 + b * 311.7 + s * 74.7) * 43758.5453; return n - Math.floor(n); };
@@ -328,11 +386,11 @@ window.RETRO = (THREE, K) => {
   // hairStyle: 'short'/'bangs'/'part'/'long'/'bob'/'bald'、cloth: 'shirt'/'tunic'/'vest'/'apron'/'jacket'/'stripe'/'robe'、sleeve: 'long'/'short'、skirt>0 でこしから下が服の色、boots, shorts
   const FACES = [['anime', 'smile', 'short'], ['dot', 'small', 'bangs'], ['anime', 'line', 'part'], ['closed', 'smile', 'long'], ['dot', 'mustache', 'short'], ['anime', 'open', 'bob'], ['sleepy', 'beard', 'bald'], ['anime', 'small', 'long']];
   def('person', 1, (o = {}) => { const P = Px(128, 64), sd = o.seed || 0; P.clip = true;
-    const Sk = ramp(o.skin || '#f0c49c', 6, { cool: .99 }), Hr = ramp(o.hair || '#5c3c28'), C = ramp(o.top || '#3f7ab8'), C2 = ramp(o.top2 || '#f0e6d0'), Bt = ramp(o.bottom || '#5a4a3c'), Bl = ramp(o.belt || '#6a4428'), Sh = ramp(o.shoe || '#5a3a26'), Ac = ramp(o.acc || '#9a6a3c');
+    const Sk = ramp(o.skin || '#f0c49c', 6, { cool: .99, contrast: .62 }), Hr = ramp(o.hair || '#5c3c28'), C = ramp(o.top || '#3f7ab8'), C2 = ramp(o.top2 || '#f0e6d0'), Bt = ramp(o.bottom || '#5a4a3c'), Bl = ramp(o.belt || '#6a4428'), Sh = ramp(o.shoe || '#5a3a26'), Ac = ramp(o.acc || '#9a6a3c');
     const fk = FACES[(o.face || 0) % FACES.length], eyes = o.eyes || fk[0], mouth = o.mouth || fk[1], hs = o.hairStyle || fk[2], long = hs === 'long' || hs === 'bob', eyeC = o.eye || '#3a5a8a', DK = '#2a2028';
     // 頭（0..63 × 0..31）。よこは頭をぐるりと 1 周（まん中の x=32 が顔の正面、両はしが後ろ）。上の行がつむじ
     P.rect(0, 0, 64, 32, Sk[3]);
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { const a = Math.abs(x - 32); let c = Sk[3]; if (x > 42 && a < 22) c = Sk[2]; if (a < 7 && y > 11 && y < 15) c = Sk[4]; if (x < 27 && x > 22 && y > 18 && y < 23) c = Sk[4]; if (y > 28) c = Sk[2]; if (y > 29 && a > 5) c = Sk[1]; if (a >= 22) c = Sk[2]; P.set(x, y, c); }
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { const a = Math.abs(x - 32); let c = Sk[3]; if (a < 7 && y > 11 && y < 15) c = Sk[4]; if (x < 27 && x > 22 && y > 18 && y < 23) c = Sk[4]; if (y > 28) c = Sk[2]; if (y > 29 && a > 5) c = Sk[1]; if (a >= 22) c = Sk[2]; P.set(x, y, c); }
     const hl = x => { const a = Math.abs(x - 32); if (hs === 'bald') return a > 24 ? 22 : a > 12 ? 14 - (24 - a) * .9 : 3; if (a > 24) return long ? 40 : 23; if (a > 18) return long ? 40 : hs === 'bob' ? 40 : 15 + (a - 18) * .7; if (a > 10) return (hs === 'bangs' ? 14 : 12) + (a - 10) * .35 + (long ? (a - 10) * 1.6 : 0);
       if (hs === 'bangs') return 13 + ((x >> 1) % 2); if (hs === 'part') return 9 + Math.abs(x - 28) * .45; if (hs === 'long') return 10 + Math.abs(x - 32) * .25; if (hs === 'bob') return 13 + ((x + 1 >> 1) % 3 === 0 ? 1 : 0); return 10 + ((x >> 1) % 3 === 0 ? 1 : 0) + a * .12; };
     for (let x = 0; x < 64; x++) { const e = Math.round(hl(x)); for (let y = 0; y < Math.min(32, e); y++) { let c = Hr[3]; const zz = 5 + ((x >> 1) % 2); if (y === zz || y === zz + 1) c = Hr[y === zz ? 5 : 4]; else if (y < 3) c = Hr[4]; else if (x % 5 === 0 && y > 8) c = Hr[2]; else if (x % 5 === 2 && y > 12) c = Hr[4]; if (y === e - 1 && e < 32) c = Hr[1]; P.set(x, y, c); } if (e < 31) P.set(x, e, Sk[2]); }
@@ -365,7 +423,7 @@ window.RETRO = (THREE, K) => {
     else { P.bits(30, oy + 16, ['.ggg.', 'gh.hg', 'g...g', 'gh.hg', '.ddd.'], { g: '#f2d27a', h: '#fff4c0', d: '#a8782a' });
       if (cs === 'shirt' || cs === 'stripe' || cs === 'vest') { const K2 = cs === 'vest' ? C2 : C; for (let j = 0; j < 4; j++) { for (const s of [-1, 1]) { TP(32 + s * (1 + j) + (s < 0 ? 0 : 0), j, tone(K2, 5)); TP(32 + s * (2 + j), j, tone(K2, 5)); TP(32 + s * (3 + j), j + 1, tone(K2, 1)); } } TP(32, 0, Sk[3]); TP(31, 0, Sk[3]); TP(33, 0, Sk[3]); TP(32, 1, Sk[2]); for (const y of [5, 9, 13]) { TP(32, y, '#fff8e8'); TP(32, y + 1, tone(K2, 1)); } for (let y = 3; y < 17; y++) if (y % 4 !== 1 && y % 4 !== 2) TP(33, y, tone(K2, 2)); }
       if (cs === 'vest') for (let y = 0; y < 17; y++) { TP(27, y, C[1]); TP(37, y, C[1]); TP(26, y, C[4]); TP(38, y, C[4]); }
-      if (cs === 'tunic' || cs === 'robe') { for (let j = 0; j < 7; j++) { const hw = Math.max(0, 3 - (j >> 1)); for (let i = -hw; i <= hw; i++) TP(32 + i, j, j < 2 ? Sk[3] : Sk[2]); TP(32 - hw - 1, j, C2[4]); TP(32 + hw + 1, j, C2[3]); TP(32 - hw - 2, j, C2[3]); TP(32 + hw + 2, j, C2[2]); } for (const y of [2, 4, 6]) { TP(31, y, Bl[2]); TP(33, y, Bl[2]); TP(32, y + 1, Bl[2]); } if (cs === 'robe') for (let y = 8; y < 32; y++) if (y < 17 || y > 19) { TP(31, y, C2[4]); TP(32, y, C2[3]); TP(33, y, C2[2]); } }
+      if (cs === 'tunic' || cs === 'robe') { for (let j = 0; j < 6; j++) { const hw = Math.max(0, 2 - (j >> 1)); for (let i = -hw; i <= hw; i++) TP(32 + i, j, j < 2 ? Sk[3] : Sk[2]); TP(32 - hw - 1, j, C2[4]); TP(32 + hw + 1, j, C2[3]); TP(32 - hw - 2, j, C2[3]); TP(32 + hw + 2, j, C2[2]); } for (const y of [3, 5]) { TP(31, y, C2[5]); TP(33, y, C2[5]); TP(32, y + 1, C2[4]); } if (cs === 'robe') for (let y = 8; y < 32; y++) if (y < 17 || y > 19) { TP(31, y, C2[4]); TP(32, y, C2[3]); TP(33, y, C2[2]); } }
       if (cs === 'apron') { const A = ramp(o.apron || '#f4efe2'); for (let y = 3; y < 32; y++) { if (y >= 17 && y <= 19) continue; const hw = y < 17 ? 6 : 9; for (let i = -hw; i <= hw; i++) TP(32 + i, y, i === -hw ? A[5] : i === hw ? A[1] : (y > 19 && (i + 20) % 5 === 0) ? A[2] : y === 3 || y === 20 ? A[5] : y === 30 ? A[2] : A[3]); } for (let y = 0; y < 3; y++) { TP(27 + y, y, A[3]); TP(37 - y, y, A[3]); } P.block(29, oy + 23, 7, 5, A, 3, { hi: -1, lo: 1 }); for (let x = 0; x < 64; x++) if (Math.abs(x - 32) > 9) { TP(x, 18, A[3]); } TP(32, 0, Sk[3]); TP(31, 0, Sk[3]); TP(33, 0, Sk[3]); } }
     // そで（64..95 × 0..31）。上＝かた、下＝手くび
     const SlR = cs === 'vest' ? C2 : C, short = o.sleeve === 'short';
@@ -586,7 +644,7 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
       const i = x % 4; if (i === 1 && y >= 3) return y < 6 ? W[4] : W[3]; if (i === 2 && y >= 5) return W[1]; if ((i === 0 || i === 2) && y === 5) return W[3]; if (y === 9 || y === 27) return W[4]; if (y === 10 || y === 28) return W[1]; return null; });
     return P; }, true);
   // 落ちる水（16×32 の切りぬき。たてにくり返す。offset.y を動かして流す）
-  def('fall', .5, (o = {}) => { const P = Px(16, 32), W = ramp(o.c || '#8cc8ec'); P.each((x, y) => { const h1 = hash(x, 0, 3), ph = (y + Math.floor(h1 * 32)) % 16; if (h1 < .25) return null; return ph < 9 ? (h1 > .7 ? '#ffffff' : W[5]) : ph < 12 ? W[4] : null; }); return P; }, true);
+  def('fall', .5, (o = {}) => { const P = Px(16, 32), W = ramp(o.c || '#8cc8ec'); P.each((x, y) => { const h1 = hash(x, 0, 3), ph = (y + Math.floor(h1 * 32)) % 16; if (h1 < .25) return null; return ph < 8 ? (h1 > .82 ? '#ffffff' : h1 > .55 ? W[5] : W[4]) : ph < 11 ? W[3] : null; }); return P; }, true);
   // 売り物（32×32。木の盆にくだものが並ぶ）
   def('goods', 1, (o = {}) => { const P = Px(32), W = ramp('#a8804e'), cs = o.fc || ['#e2503c', '#f2a23a', '#8ab84a', '#f2d24a']; P.each((x, y) => (x < 2 || x > 29 || y < 2 || y > 29) ? W[x < 2 || y < 2 ? 4 : 1] : W[2]);
     for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const R = ramp(cs[(i + j * 2 + (o.seed || 0)) % cs.length]), cx = 7 + i * 9, cy = 7 + j * 9; P.disc(cx + .5, cy + 1, 4.4, W[0]); P.disc(cx, cy, 4.2, R[3]); P.disc(cx - .8, cy - .8, 2.6, R[4]); P.set(cx - 2, cy - 2, '#ffffff'); P.set(cx + 2, cy + 2, R[2]); P.set(cx + 1, cy + 3, R[2]); P.set(cx, cy - 4, '#5a3a20'); } return P; });
@@ -601,7 +659,7 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     const trunk = (ht, r) => B.g(barkT).smooth(1).loft(5, [[0, r * 1.7, r * 1.7, 0, .75], [ht * .12, r * 1.1, r * 1.1, ht * .06, .85], [ht * .8, r * .85, r * .85, ht * .4, 1], [ht, r * .6, r * .6, ht * .5, 1]], { ur: 1 });
     if (kind === 'pine') { trunk(h * .3, h * .035); const G = B.g(tex.leaves({ ...lo, shape: 'fringe' }), { side: true }).smooth(2); for (let k = 0; k < 4; k++) { const y0 = h * (.16 + k * .19), r = h * (.25 - k * .048), t = y0 + h * .36; G.loft(6, [[y0, r, r, .02, .7], [y0 + (t - y0) * .5, r * .48, r * .48, .6, .95], [t, .02, .02, 1, 1.12]], { ur: 2, rot: k * .5 }); } return B.group(); }
     const lump = (cx, cy, cz, rx, ry, n = 7) => { const G = B.g(tex.leaves({ ...lo, shape: 'tile' })).smooth(3 + cx), rings = [[-1, .3], [-.62, .8], [-.12, 1], [.42, .86], [.82, .5], [1, .04]].map(([t, r], i) => [cy + t * ry, r * rx * (1 + (hash(i, 1, sd + cx) - .5) * .16), r * rx * (1 + (hash(i, 2, sd + cx) - .5) * .16), (t + 1) * .5 * Math.max(1, Math.round(ry / 1.2)), .6 + (t + 1) * .28, cx + (hash(i, 3, sd) - .5) * rx * .16, cz + (hash(i, 4, sd) - .5) * rx * .16]); G.loft(n, rings, { ur: Math.max(2, Math.round(rx * 1.6)), rot: hash(cx, 5, sd) }); };
-    const cards = (cy, rx, ry, k = 2) => { const G = B.g(tex.leaves({ ...lo, shape: 'blob' }), { side: true }).normal([0, 1, 0]); for (let i = 0; i < k; i++) { const a = hash(i, 9, sd) * .6 + i * Math.PI / k, cx = Math.cos(a) * rx * 1.28, cz = Math.sin(a) * rx * 1.28; G.quad([-cx, cy - ry * 1.22, -cz], [cx, cy - ry * 1.22, cz], [cx, cy + ry * 1.3, cz], [-cx, cy + ry * 1.3, -cz], [0, 0, 1, 1], [.66, .66, 1.1, 1.1]); } G.normal(null); };
+    const cards = (cy, rx, ry, k = 2) => { const G = B.g(tex.leaves({ ...lo, shape: 'blob' }), { side: true }).normal([0, 1, 0]); for (let i = 0; i < k; i++) { const a = hash(i, 9, sd) * .6 + i * Math.PI / k, cx = Math.cos(a) * rx * 1.62, cz = Math.sin(a) * rx * 1.62; G.quad([-cx, cy - ry * 1.5, -cz], [cx, cy - ry * 1.5, cz], [cx, cy + ry * 1.6, cz], [-cx, cy + ry * 1.6, -cz], [0, 0, 1, 1], [.66, .66, 1.1, 1.1]); } G.normal(null); };
     if (kind === 'bush') { lump(0, h * .42, 0, h * .62, h * .5, 6); cards(h * .45, h * .62, h * .5); return B.group(); }
     if (kind === 'tall') { trunk(h * .3, h * .03); lump(0, h * .6, 0, h * .15, h * .42, 6); cards(h * .6, h * .15, h * .4); return B.group(); }
     const R0 = h * .3; trunk(h * .52, h * .042); lump(0, h * .7, 0, R0, h * .27); const a = hash(1, 7, sd) * 6.28; lump(Math.cos(a) * R0 * .72, h * .56, Math.sin(a) * R0 * .72, R0 * .62, h * .17, 6); cards(h * .69, R0, h * .27, 2); return B.group(); }
@@ -625,7 +683,7 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     S.loft(n, [[0, r + .08, r + .08, 0, .7], [.5, r, r, .25, 1]], { ur: 6 }).loft(n, [[.5, r, r, 0, 1.05], [.5, r - .22, r - .22, .11, 1.05]], { ur: 6 }).loft(n, [[.5, r - .22, r - .22, .12, .8], [.3, r - .22, r - .22, .22, .6]], { ur: 6 });
     S.smooth(1).loft(n, [[.2, .34, .34, 0, .8], [.5, .22, .22, .15, .95], [1.25, .14, .14, .5, 1], [1.4, .62, .62, .6, 1.05], [1.52, .7, .7, .7, 1.1]], { ur: 2 }).smooth(0).loft(n, [[1.52, .7, .7, 0, 1.1], [1.52, .56, .56, .1, 1.1]], { ur: 2 }).loft(n, [[1.52, .56, .56, .1, .8], [1.42, .2, .2, .3, .7]], { ur: 2 }).smooth(1).loft(6, [[1.42, .1, .1, 0, .9], [1.85, .07, .07, .2, 1], [1.95, .13, .13, .25, 1.1], [2.05, .03, .03, .3, 1.1]], { cap: 'top' });
     const g = B.group(), wm = mat(wf[0], { vc: true, smooth: true }).clone(); wm.onBeforeCompile = snapPatch; const W = geo().normal([0, 1, 0]); W.loft(n, [[.36, r - .22, r - .22, 0, 1]], { cap: 'top', capRect: true }).loft(n, [[1.47, .56, .56, 0, 1.1]], { cap: 'top', capRect: true }); const pts = W._raw(); for (let i = 0; i < pts.uv.length; i++) pts.uv[i] *= r * 1.2; const wmesh = new THREE.Mesh(W.build(), wm); wmesh.userData.dyn = true; wmesh.receiveShadow = true; g.add(wmesh);
-    const ft = tex.fall().clone(); ft.needsUpdate = true; const fm = new THREE.MeshBasicMaterial({ map: ft, alphaTest: .5, side: THREE.DoubleSide, color: '#e8f6ff' }); fm.onBeforeCompile = snapPatch; const F = geo(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + .4, c = Math.cos(a), s = Math.sin(a), px = -s * .17, pz = c * .17; F.quad([c * .86 - px, .36, s * .86 - pz], [c * .86 + px, .36, s * .86 + pz], [c * .68 + px, 1.5, s * .68 + pz], [c * .68 - px, 1.5, s * .68 - pz], [0, 0, 1, 2.2]); }
+    const ft = tex.fall().clone(); ft.needsUpdate = true; const fm = new THREE.MeshBasicMaterial({ map: ft, alphaTest: .5, side: THREE.DoubleSide, color: '#d4e8f4' }); fm.onBeforeCompile = snapPatch; const F = geo(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + .4, c = Math.cos(a), s = Math.sin(a), px = -s * .17, pz = c * .17; F.quad([c * .86 - px, .36, s * .86 - pz], [c * .86 + px, .36, s * .86 + pz], [c * .68 + px, 1.5, s * .68 + pz], [c * .68 - px, 1.5, s * .68 - pz], [0, 0, 1, 2.2]); }
     const fmesh = new THREE.Mesh(F.build(), fm); fmesh.userData.dyn = true; g.add(fmesh); g.userData.dyn = false; g.userData.tick = t => { flip(wm, wf, t, 5); ft.offset.y = t * 1.6; }; g.userData.r = r; return g; }
   // 井戸（石のつつ＋屋根＋つるべ）
   function well(o = {}) { const B = parts(), S = B.g(o.stone || tex.stone()), W = B.g(tex.planks({ c: '#7a5638' })), r = .75; S.loft(8, [[0, r + .06, r + .06, 0, .7], [.85, r, r, .42, 1]], { ur: 3 }).loft(8, [[.85, r, r, 0, 1.05], [.85, r - .2, r - .2, .1, 1.05]], { ur: 3 }).loft(8, [[.85, r - .2, r - .2, 0, .5], [.3, r - .2, r - .2, .3, .25]], { ur: 3 });
@@ -642,6 +700,132 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
   function roadSign(o = {}) { const B = parts(), h = o.h || 2.4; B.g(tex.metal({ c: '#9a9ea8' })).smooth(1).loft(5, [[0, .04, .04, 0, .8], [h, .035, .035, 4, 1]], { cap: 'top' }); B.g(tex.roadSign({ kind: o.kind }), { side: true }).quad([-.32, h - .6, .05], [.32, h - .6, .05], [.32, h + .04, .05], [-.32, h + .04, .05]); return B.group(); }
   // 雲（空にうかべる板。光に関係なく明るい）
   function cloud(o = {}) { const s = o.s || 14, t = tex.cloud({ c: o.c, shade: o.shade, seed: o.seed }), m = new THREE.Mesh(new THREE.PlaneGeometry(s, s / 2), new THREE.MeshBasicMaterial({ map: t, alphaTest: .5, fog: false, side: THREE.DoubleSide })); return m; }
+  // 遠くの山なみ（128×32 の切りぬき）。c = 手前の山の色、haze = かすむ先の色（空の下のほうの色に合わせる）
+  def('hills', 60, (o = {}) => { const P = Px(128, 32), c = o.c || '#4a6a5a', hz = o.haze || '#e8b898', sd = o.seed || 0, L = [mix(c, hz, .72), mix(c, hz, .45), c]; P.clip = true;
+    for (let k = 0; k < 3; k++) for (let x = 0; x < 128; x++) { const hgt = [20, 13, 7][k] + (tn(x, k * 9, 32, 8, 128, 32, sd + k) - .5) * [16, 12, 8][k] + (tn(x, k * 9, 8, 8, 128, 32, sd + 9 + k) - .5) * [4, 4, 5][k] + (k === 2 && hash(x >> 1, 3, sd) > .6 ? 2 : 0); for (let y = 31 - Math.round(hgt); y < 32; y++) P.set(x, y, y === 31 - Math.round(hgt) && k < 2 ? mix(L[k], hz, .3) : L[k]); }
+    return P; }, true);
+  // 遠景の輪（山なみ）。r（半径）、h（高さ）、y（下のはしの高さ）、rep（1 周のくり返し数）
+  function backdrop(o = {}) { const r = o.r || 180, h = o.h || r * .16, t = tex.hills({ c: o.c, haze: o.haze, seed: o.seed }), g = new THREE.CylinderGeometry(r, r, h, 24, 1, true), u = g.attributes.uv; for (let i = 0; i < u.count; i++) u.setX(i, u.getX(i) * (o.rep || 4)); const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: t, alphaTest: .5, side: THREE.BackSide, fog: false })); m.position.y = (o.y ?? -1) + h / 2; return m; }
+  // 空の丸天井。stops = [[0, てっぺんの色], …, [1, 地平線の色]]（K.sky の背景とちがい、色が地平線の高さに合う。夕焼け・朝焼けに）。r は cam の far より小さく
+  function skyDome(stops, o = {}) { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128); for (const [p, col] of stops) g.addColorStop(p, col); x.fillStyle = stops[stops.length - 1][1]; x.fillRect(0, 0, 4, 256); x.fillStyle = g; x.fillRect(0, 0, 4, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(o.r || 300, 16, 12), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })); m.renderOrder = -10; m.frustumCulled = false; return m; }
 
-  return { hash, mix, ramp, tone, tn, Px, paint: T, tex, mat, crt, U, cfg, TR, ngon, SEC9, geo, parts, merge, ground, strip, blob, flip, house, tree, barrel, crate, rock, tuft, lamp, fence, fountain, well, stall, bench, roadSign, cloud };
+  // ================= 9. 人 =================
+  const SEC4 = { pts: [[-1, -1], [-1, 1], [1, 1], [1, -1]], u: [0, .25, .5, .75, 1] };   // 四角の断面（うで）
+  const PKEYS = ['skin', 'hair', 'top', 'top2', 'bottom', 'belt', 'shoe', 'acc', 'face', 'eyes', 'mouth', 'eye', 'blush', 'hairStyle', 'cloth', 'sleeve', 'skirt', 'skirtC', 'boots', 'shorts', 'apron', 'seed'];
+  // R.person({ ... }) → Group（正面は +z、足もとが y=0、s=1 で身長 1.6 m ほど。三角形は 260〜300）
+  //   色：skin, hair, top（服）, top2（さし色・えり・すそ）, bottom（ズボン）, belt, shoe, acc（帽子・かばんの色）, cape（マントの色。つけると背中にマント）
+  //   顔：face 0〜7（目・口・かみ型の組み合わせ）。個別に eyes: 'anime'/'dot'/'closed'/'sleepy'、mouth: 'smile'/'line'/'open'/'small'/'beard'/'mustache'、eye（ひとみの色）
+  //   かみ：hairStyle: 'short'/'bangs'/'part'/'long'/'bob'/'bald'、tail: true（うしろで結ぶ）、bun: true（おだんご）
+  //   服：cloth: 'shirt'/'tunic'/'vest'/'apron'/'jacket'/'stripe'/'robe'、sleeve: 'long'/'short'、skirt: 0〜1（すその長さ。0 はズボン）、boots, shorts
+  //   hat: 'straw'（つば広）/ 'cap' / 'cone'（とんがり）、pack: true（背中のかばん）、s（大きさ）、head（頭の大きさの倍率。子どもは 1.15 など）
+  // 動かす：R.walk(人, 位相, 強さ)、R.idle(人, t)。関節は 人.userData.J = { hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape }（rotation を自分で入れて、すわる・手をふる等も作れる）
+  function person(o = {}) { const s = o.s || 1, to = {}; for (const k of PKEYS) if (o[k] !== undefined) to[k] = o[k]; const t = tex.person(to), m = mat(t, { vc: true, smooth: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, hs = (o.head || 1) * 1.14, W = 128, Hh = 64, hipY = .74, sk = o.skirt || 0;
+    const part = (G, parent, x, y, z, mm = m) => { const me = new THREE.Mesh(G.build(), mm); me.castShadow = me.receiveShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
+    root.scale.setScalar(s); g.add(root); J.hips = new THREE.Group(); J.hips.position.y = hipY; root.add(J.hips);
+    // 胴
+    const Gt = geo().smooth(1).px(0, 32, 64, 32, W, Hh).loft(SEC9, [...(sk ? [[-.6 * sk - .02, .17 + .16 * sk, .125 + .19 * sk, 0, .82], [.03, .19, .13, .36, 1]] : [[-.06, .155, .11, .27, .85], [.03, .185, .125, .38, 1]]), [.15, .155, .105, .47, 1], [.3, .2, .13, .76, 1], [.42, .215, .12, .93, 1], [.475, .085, .075, 1, 1]], { cap: 'both', capUV: [.5, .3] });
+    if (o.pack) Gt.smooth(0).px(96, 48, 32, 16, W, Hh).box(.27, .3, .13, 0, .1, -.2, { c0: .85 });
+    J.torso = part(Gt, J.hips, 0, 0, 0);
+    // 頭（＋はな・かみ・帽子）
+    const H = y => y * hs, hr = (y, a, b, v, c, oz) => [H(y), a * hs, b * hs, v, c ?? 1, 0, (oz || 0) * hs], Gh = geo().smooth(1).px(0, 0, 64, 32, W, Hh);
+    Gh.loft(SEC9, [hr(-.02, .06, .06, 0), hr(.045, .1, .105, .1), hr(.13, .148, .15, .38), hr(.245, .155, .162, .68), hr(.325, .118, .13, .9), hr(.365, .05, .055, .985)], { cap: 'top', capUV: [.5, .99] });
+    const nA = [-.017 * hs, H(.172), .15 * hs], nB = [.017 * hs, H(.172), .15 * hs], nC = [0, H(.126), .15 * hs], nT = [0, H(.142), .176 * hs]; Gh.smooth(0).px(28, 19, 2, 2, W, Hh).tri(nA, nC, nT, [0, 0], [1, 0], [0, 1], 1.02).tri(nC, nB, nT, [0, 0], [1, 0], [0, 1], .92).tri(nB, nA, nT, [0, 0], [1, 0], [0, 1], 1.05);
+    const hst = o.hairStyle || FACES[(o.face || 0) % FACES.length][2]; Gh.smooth(2).px(65, 33, 30, 30, W, Hh);
+    if (hst === 'long' || hst === 'bob') { const rg = [hr(hst === 'bob' ? -.01 : -.2, .15, .12, 0, .8, -.03), hr(.02, .172, .165, .5, .95, -.02), hr(.21, .166, .174, 1, 1)]; Gh.loft(SEC9, rg, { seg: [0, 3] }).loft(SEC9, rg, { seg: [6, 9] }); }
+    if (o.tail) Gh.loft(4, [hr(-.12, .008, .008, 0, .8, -.22), hr(.02, .045, .045, .3, .9, -.25), hr(.2, .06, .06, .7, 1, -.23), hr(.275, .045, .045, 1, 1, -.16)], { cap: 'top' });
+    if (o.bun) Gh.loft(6, [hr(.3, .05, .05, .5, .9, -.1), hr(.36, .085, .085, .75, 1, -.1), hr(.42, .06, .06, 1, 1.05, -.1)], { cap: 'top' });
+    Gh.px(97, 49, 30, 14, W, Hh);
+    if (o.hat === 'straw') Gh.smooth(0).loft(8, [hr(.262, .33, .33, 0, .85), hr(.3, .16, .16, .55, 1)]).loft(8, [hr(.3, .16, .16, .55, .95), hr(.41, .135, .135, 1, 1.05)], { cap: 'top' }).loft(8, [hr(.3, .16, .16, .55, .6), hr(.262, .33, .33, 0, .6)]);
+    if (o.hat === 'cap') { Gh.smooth(3).loft(8, [hr(.262, .168, .178, .3, .9), hr(.35, .14, .15, .75, 1), hr(.395, .04, .04, 1, 1.05)], { cap: 'top' }); Gh.smooth(0).quad([-.11 * hs, H(.27), .15 * hs], [.11 * hs, H(.27), .15 * hs], [.08 * hs, H(.255), .31 * hs], [-.08 * hs, H(.255), .31 * hs], [0, .6, 1, 1], .9).quad([.11 * hs, H(.268), .15 * hs], [-.11 * hs, H(.268), .15 * hs], [-.08 * hs, H(.253), .31 * hs], [.08 * hs, H(.253), .31 * hs], [0, .6, 1, 1], .55); }
+    if (o.hat === 'cone') Gh.smooth(0).loft(8, [hr(.255, .3, .3, 0, .8), hr(.29, .155, .155, .3, 1)]).loft(8, [hr(.29, .155, .155, .3, .55), hr(.255, .3, .3, 0, .55)]).smooth(3).loft(8, [hr(.29, .155, .155, .3, .95), hr(.5, .085, .085, .7, 1, -.02), hr(.7, .01, .01, 1, 1.08, -.07)]);
+    J.head = part(Gh, J.torso, 0, .47, 0);
+    if (o.cape) { const Gc = geo().normal([0, .2, -1]), cm = mat(tex.fabric({ pattern: 'plain', c: o.cape }), { vc: true, smooth: true, side: true }), row = (y, w2, z) => [[-w2, y, z], [w2, y, z]], r0 = row(0, .2, 0), r1 = row(-.34, .25, -.07), r2 = row(-.66, .3, -.1); Gc.quad(r1[1], r1[0], r0[0], r0[1], [0, .5, 1, 1], [.9, .9, 1, 1]).quad(r2[1], r2[0], r1[0], r1[1], [0, 0, 1, .5], [.74, .74, .9, .9]); J.cape = part(Gc, J.torso, 0, .44, -.125, cm); }
+    for (const [n, sx] of [['L', 1], ['R', -1]]) {
+      const Ga = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.25, .05, .056, .5], [-.03, .064, .068, .92], [.025, .04, .045, 1]], { cap: 'top' }); J['arm' + n] = part(Ga, J.torso, sx * .245, .425, 0);
+      const Gf = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.22, .042, .046, .12], [0, .05, .056, .5]]).smooth(2).px(96, 32, 16, 16, W, Hh).loft(SEC4, [[-.335, .022, .04, 0, .95], [-.28, .034, .058, .45], [-.22, .04, .046, 1]], { cap: 'bot' }); J['fore' + n] = part(Gf, J['arm' + n], 0, -.25, 0);
+      const Gl = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.36, .074, .078, .5], [-.03, .104, .106, .95], [.04, .09, .095, 1]]); J['leg' + n] = part(Gl, J.hips, sx * .095, 0, 0);
+      const Gs = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.31, .052, .056, .07], [-.14, .074, .078, .32], [0, .074, .078, .5]]).smooth(0).px(112, 32, 16, 16, W, Hh).box(.125, .1, .25, 0, -.38, .045, { taper: [.88, .56], topUV: [0, .5, 1, 1] }); J['shin' + n] = part(Gs, J['leg' + n], 0, -.36, 0); }
+    g.userData = { J, skirt: sk, hipY, kind: 'person' }; idle(g, 0); return g; }
+  // 歩く。ph = 位相（t×8 くらい）、amp = 歩はばの強さ（走るなら 1.4 ほど）
+  function walk(g, ph, amp = 1) { const J = g.userData.J, k = (1 - .68 * Math.min(1, g.userData.skirt * 1.3)) * amp, a = Math.sin(ph), b = Math.cos(ph);
+    J.legL.rotation.x = -a * .62 * k; J.legR.rotation.x = a * .62 * k; J.shinL.rotation.x = (Math.max(0, b) * .95 + .08) * k; J.shinR.rotation.x = (Math.max(0, -b) * .95 + .08) * k;
+    J.armL.rotation.set(a * .55 * amp, 0, .07); J.armR.rotation.set(-a * .55 * amp, 0, -.07); J.foreL.rotation.x = -(.28 + Math.max(0, -a) * .5) * amp; J.foreR.rotation.x = -(.28 + Math.max(0, a) * .5) * amp;
+    J.hips.position.y = g.userData.hipY + (b * b - .6) * .03 * amp; J.torso.rotation.set(.07 * amp, a * .1 * amp, 0); J.head.rotation.set(-.03, -a * .08 * amp, 0); if (J.cape) J.cape.rotation.x = -(.22 + .1 * Math.sin(ph * 2 + 1)) * amp - .04; }
+  // 立つ（ゆっくり息をして、ときどき首をふる）。look = 首を向ける角度（省くと自動）
+  function idle(g, t, look) { const J = g.userData.J, br = Math.sin(t * 2.1); for (const n of ['legL', 'legR', 'shinL', 'shinR']) J[n].rotation.x = 0;
+    J.armL.rotation.set(br * .03, 0, .09); J.armR.rotation.set(-br * .03, 0, -.09); J.foreL.rotation.x = -.14; J.foreR.rotation.x = -.14; J.hips.position.y = g.userData.hipY + br * .004; J.torso.rotation.set(0, 0, 0); J.head.rotation.set(Math.sin(t * .7) * .04, look ?? Math.sin(t * .45) * .3, 0); if (J.cape) J.cape.rotation.x = -.05 - br * .02; }
+
+  // ================= 10. 動物・乗りもの =================
+  def('cat', 1, (o = {}) => { const P = Px(64, 32), C = ramp(o.c || '#d89a4a'), Wt = ramp(o.belly || '#f4ead8'), plain = o.plain; P.clip = true;
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const a = Math.abs(x - 16), st = !plain && a > 5 && (y + Math.round(Math.sin(x * .8) * 1.2)) % 6 < 2; P.set(x, y, a < 4 ? Wt[4] : a < 5 ? Wt[3] : st ? C[2] : (a > 13 ? C[4] : C[3])); }
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(32 + x, y, y > 9 && Math.abs(x - 7.5) < 4.5 ? Wt[4] : (!plain && y < 4 && (x === 5 || x === 7 || x === 8 || x === 10)) ? C[2] : C[3]);
+    for (const ex of [35, 41]) { P.bits(ex, 5, ['ddd', 'gkg', 'ghg'], { d: '#2a2028', g: o.eye || '#8ac84a', k: '#1a1418', h: '#d8f08a' }); } P.set(39, 9, '#f08a8a'); P.set(40, 9, '#f08a8a'); P.bits(38, 10, ['.dd.', 'd..d'], { d: '#6a4a3a' }); P.set(33, 10, '#ffffff'); P.set(46, 10, '#ffffff'); P.set(33, 12, '#ffffff'); P.set(46, 12, '#ffffff');
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(48 + x, y, x < 8 ? (Math.abs(x - 3.5) < 2.5 - y * .0 && y > 3 ? '#f0a0a0' : C[3]) : (y > 10 ? (x % 3 === 0 && y > 12 ? Wt[2] : Wt[4]) : (x > 13 ? C[2] : C[3])));
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) P.set(32 + x, 16 + y, !plain && y % 5 < 2 ? C[2] : y > 13 ? C[1] : C[3]);
+    return P; });
+  // ねこ。c（毛の色）, belly（腹・足先の色）, plain（しまなし）, s（大きさ）。R.catPose(ねこ, 'walk' か 'sit', t)
+  function cat(o = {}) { const s = o.s || 1, t = tex.cat({ c: o.c, belly: o.belly, plain: o.plain, eye: o.eye }), m = mat(t, { vc: true, smooth: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, W = 64, H = 32; root.scale.setScalar(s); g.add(root);
+    const part = (G, parent, x, y, z) => { const me = new THREE.Mesh(G.build(), m); me.castShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
+    const Gb = geo().smooth(1).px(0, 0, 32, 32, W, H).at(TR(0, 0, 0, 0, Math.PI / 2)).loft(6, [[-.05, .045, .055, 0, .9], [.02, .085, .09, .15], [.17, .09, .095, .5], [.31, .08, .09, .85], [.4, .05, .06, 1]], { cap: 'both', rot: 0 }); J.body = part(Gb, root, 0, .2, -.14);
+    const Gh = geo().smooth(0).px(34, 1, 4, 2, W, H).box(.15, .12, .12, 0, -.05, 0, { taper: [.86, .9] }).px(32, 0, 16, 16, W, H).quad([-.075, -.05, .061], [.075, -.05, .061], [.065, .07, .055], [-.065, .07, .055]).px(48, 0, 8, 12, W, H);
+    for (const sx of [-1, 1]) { const a = [sx * .07, .06, .0], b = [sx * .02, .065, .0], c = [sx * .055, .135, -.01]; Gh.tri(a, b, c, [0, 0], [1, 0], [.5, 1]).tri(b, a, c, [0, 0], [1, 0], [.5, 1], .7); } J.head = part(Gh, J.body, 0, .09, .42);
+    const leg = (parent, x, y, z) => part(geo().smooth(1).px(56, 0, 8, 16, W, H).loft(4, [[-.17, .02, .026, 0], [0, .03, .036, 1]], { cap: 'bot' }), parent, x, y, z);
+    J.fl = leg(J.body, .055, -.03, .31); J.fr = leg(J.body, -.055, -.03, .31); J.hl = leg(root, .06, .17, -.14); J.hr = leg(root, -.06, .17, -.14);
+    J.tail = part(geo().smooth(1).px(32, 16, 32, 16, W, H).loft(4, [[0, .022, .022, 0], [.13, .02, .02, .5, 1, 0, -.02], [.27, .011, .011, 1, 1, 0, .02]], { cap: 'top' }), root, 0, .24, -.18);
+    g.userData = { J, kind: 'cat' }; catPose(g, 'walk', 0); return g; }
+  function catPose(g, pose, t) { const J = g.userData.J;
+    if (pose === 'sit') { J.body.position.set(0, .13, -.12); J.body.rotation.x = -1.0; J.head.rotation.set(.92 + Math.sin(t * .6) * .08, Math.sin(t * .5) * .5, 0); for (const l of [J.fl, J.fr]) { l.rotation.x = 1.0; l.scale.y = 2.1; } for (const l of [J.hl, J.hr]) { l.position.y = .05; l.rotation.x = -1.45; } J.tail.position.set(0, .06, -.2); J.tail.rotation.set(-1.4, Math.sin(t * 1.3) * .5 + .8, 0); }
+    else { const a = Math.sin(t), up = Math.abs(Math.cos(t)) * .008; J.body.position.set(0, .2 + up, -.14); J.body.rotation.x = 0; J.head.rotation.set(0, Math.sin(t * .25) * .2, 0); J.fl.rotation.x = a * .6; J.fr.rotation.x = -a * .6; J.hl.rotation.x = -a * .6; J.hr.rotation.x = a * .6; for (const l of [J.fl, J.fr]) l.scale.y = 1; for (const l of [J.hl, J.hr]) l.position.y = .17; J.tail.position.set(0, .24, -.18); J.tail.rotation.set(-.5, 0, Math.sin(t * .5) * .35); } }
+
+  def('bird', 1, (o = {}) => { const P = Px(32), C = ramp(o.c || '#8a94a8'), Wt = ramp(o.belly || '#e8e4dc'); P.clip = true;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) { const a = Math.abs(x - 16); P.set(x, y, a < 5 ? Wt[y < 4 ? 3 : 4] : y < 4 && o.neck !== false ? (x % 2 ? '#5a9a7a' : '#8a6aa8') : a > 12 ? C[4] : (y % 4 === 3 ? C[2] : C[3])); }
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { P.set(x, 16 + y, x > 12 ? C[1] : (x === 6 || x === 7 || x === 10) ? C[1] : y < 2 ? C[4] : C[3]); P.set(16 + x, 16 + y, C[y < 3 ? 4 : 3]); }
+    for (const ex of [20, 28]) { P.set(ex, 22, '#f08a2a'); P.set(ex + 1, 22, '#1a1418'); P.set(ex, 23, '#1a1418'); } P.rect(22, 27, 4, 4, '#e8a83a'); P.rect(28, 27, 4, 4, '#d86a5a'); return P; });
+  // 鳥（はと ほど）。c, belly, s。R.birdPose(鳥, 'peck'（ついばむ）/ 'fly'（はばたく）/ 'stand', t)
+  function bird(o = {}) { const s = o.s || 1, t = tex.bird({ c: o.c, belly: o.belly, neck: o.neck }), m = mat(t, { vc: true, smooth: true, side: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, W = 32, H = 32; root.scale.setScalar(s); g.add(root);
+    const part = (G, parent, x, y, z) => { const me = new THREE.Mesh(G.build(), m); me.castShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
+    const Gb = geo().smooth(1).px(0, 0, 32, 16, W, H).at(TR(0, 0, 0, 0, Math.PI / 2 - .25)).loft(6, [[-.02, .01, .012, 1], [.04, .045, .045, .8], [.11, .06, .06, .5], [.17, .048, .05, .25], [.215, .028, .03, 0]], { cap: 'both', rot: 0 });
+    Gb.at(null).smooth(0).px(0, 16, 16, 16, W, H).quad([-.035, .0, -.1], [.035, .0, -.1], [.02, .03, -.02], [-.02, .03, -.02], [0, 0, 1, 1], .9); Gb.px(28, 27, 4, 4, W, H); for (const sx of [-1, 1]) Gb.box(.008, .06, .008, sx * .025, -.1, .06, { top: false }); J.body = part(Gb, root, 0, .105, -.06);
+    const Gh = geo().smooth(1).px(16, 16, 16, 12, W, H).loft(6, [[-.015, .02, .02, 0], [.02, .033, .035, .5], [.05, .02, .02, 1]], { cap: 'both', rot: 0 }).smooth(0).px(22, 27, 4, 4, W, H); const bt = [0, .012, .07]; for (const [a, b] of [[[-.012, .02, .03], [.012, .02, .03]], [[.012, .02, .03], [0, .003, .03]], [[0, .003, .03], [-.012, .02, .03]]]) Gh.tri(b, a, bt); J.head = part(Gh, J.body, 0, .075, .2);
+    for (const [n, sx] of [['wl', 1], ['wr', -1]]) J[n] = part(geo().px(0, 16, 16, 16, W, H).normal([0, 1, 0]).quad([0, 0, -.1], [sx * .17, 0, -.07], [sx * .14, 0, .06], [0, 0, .05], [0, 0, 1, 1], [.85, .85, 1, 1]), J.body, sx * .04, .03, .09);
+    g.userData = { J, kind: 'bird' }; birdPose(g, 'stand', 0); return g; }
+  function birdPose(g, pose, t) { const J = g.userData.J;
+    if (pose === 'fly') { const f = Math.sin(t * 18); J.head.position.set(0, .075, .2); J.wl.rotation.z = f * .9; J.wr.rotation.z = -f * .9; J.head.rotation.x = 0; J.body.rotation.x = .25; J.body.position.y = .105 + f * -.012; }
+    J.wl.visible = J.wr.visible = pose === 'fly'; if (pose !== 'fly') { J.body.rotation.x = 0; J.body.position.y = .105; const k = pose === 'peck' ? Math.max(0, Math.sin(t * 5)) * (Math.sin(t * .9) > -.2 ? 1 : 0) : 0; J.head.rotation.x = k * 1.3; J.head.position.set(0, .075 - k * .05, .2 + k * .03); J.body.rotation.x = k * .35; } }
+
+  // 荷車。load: 'barrels' / 'crates' / なし
+  function cart(o = {}) { const B = parts(), Wd = B.g(tex.planks({ c: o.c || '#8f6a44' })), m = 1.6; Wd.box(1.5, .1, .95, 0, .5, 0, { m }); for (const z of [-1, 1]) Wd.box(1.5, .34, .06, 0, .6, z * .45, { m }); for (const x of [-1, 1]) Wd.box(.06, .34, .9, x * .72, .6, 0, { m }); for (const z of [-1, 1]) Wd.at(TR(.75, .58, z * .38, 0, 0, -.2)).box(1.1, .06, .06, .55, 0, 0, { m }).at(null); Wd.box(.07, .5, .07, 1.5, 0, 0, { m, top: false }); Wd.box(.07, .07, .9, 1.72, .38, 0, { m });
+    const Wh = B.g(tex.wheel(), { side: true }); for (const z of [-1, 1]) { Wh.quad([-.5 - .1, .0, z * .56], [.42 - .1, .0, z * .56], [.42 - .1, .92, z * .56], [-.5 - .1, .92, z * .56]); } Wd.box(.08, .08, 1.2, -.14, .42, 0, { m });
+    const g = B.group(); if (o.load === 'barrels') { for (const [x, z] of [[-.35, -.12], [.3, .12]]) { const b = barrel({ h: .7, r: .28 }); b.position.set(x, .6, z); g.add(b); } } if (o.load === 'crates') { const a = crate({ s: .6 }); a.position.set(-.3, .6, 0); const b = crate({ s: .45, kind: 'x', c: '#8a9a6a' }); b.position.set(.35, .6, .1); b.rotation.y = .4; g.add(a, b); } return g; }
+
+  def('car', 1, (o = {}) => { const P = Px(64), C = ramp(o.c || '#d8503c'), Gl = ramp('#4a6a8a', 6, { warm: .5 }), Gy = ramp('#8a8e98'), van = o.kind === 'van'; P.clip = true; P.fill('#1c1c24');
+    for (let py = 0; py < 32; py++) for (let px = 0; px < 64; px++) { const z = (px + .5) / 64 * 3.6 - 1.8, y = (31.5 - py) / 32 * 1.6, cb = van ? [-1.74, .9, -1.66, .45] : [-1.5, .85, -1.2, .3], k = (y - .78) / .6, z0 = cb[0] + (cb[2] - cb[0]) * k, z1 = cb[1] + (cb[3] - cb[1]) * k; let c = null;
+        if (y > .78 && y < 1.4 && z > z0 && z < z1) { c = C[y > 1.33 ? 4 : 3]; if (y > .86 && y < 1.28 && z > z0 + .1 && z < z1 - .1 && Math.abs(z + .32) > .05 && !(van && z < -.95)) c = (px + py) % 9 < 2 ? Gl[4] : y > 1.1 ? Gl[2] : Gl[3]; }
+        if (y > .3 && y <= .78 && Math.abs(z) < 1.78 - (y < .38 || y > .7 ? .04 : 0)) { c = y > .7 ? C[4] : y < .42 ? Gy[2] : C[3]; if (y < .5 && y >= .42) c = C[2]; if ((Math.abs(z + .32) < .03 || Math.abs(z - .62) < .03) && y > .42) c = C[1]; if (y > .6 && y < .64 && (Math.abs(z + .1) < .08 || Math.abs(z + 1.05) < .08)) c = Gy[5]; if (z > 1.6 && y > .52 && y < .68) c = '#fff2b0'; if (z < -1.62 && y > .52 && y < .68) c = '#e8302a'; }
+        for (const wz of [-1.1, 1.12]) if (Math.hypot(z - wz, y - .34) < .42) c = '#1c1c24'; if (c) P.set(px, py, c); }
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) { const a = Math.abs(x - 15.5); P.set(x, 32 + y, y < 2 ? C[4] : y > 11 ? Gy[y === 12 ? 4 : 2] : (a > 9 && y > 3 && y < 9) ? (a > 14 ? C[2] : y < 5 ? '#ffffff' : '#fff2b0') : (a < 8 && y > 3 && y < 10) ? (y % 2 ? '#2a2a34' : Gy[3]) : C[3]); P.set(32 + x, 32 + y, y < 2 ? C[4] : y > 11 ? Gy[y === 12 ? 4 : 2] : (a > 9 && y > 3 && y < 8) ? (y < 5 ? '#ff7a6a' : '#d8302a') : (a < 5 && y > 5 && y < 10) ? '#f4f0e0' : C[3]); }
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) P.set(x, 48 + y, (x < 2 || x > 29 || y < 1 || y > 14) ? C[2] : (x + y) % 13 < 3 ? Gl[4] : y < 5 ? Gl[2] : Gl[3]);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(32 + x, 48 + y, y < 2 || x < 2 ? C[5] : y > 13 ? C[2] : C[3 + ((x > 4 && x < 9 && y > 4 && y < 7) ? 1 : 0)]);
+    return P; });
+  // 車。c（色）, kind: 'sedan' / 'van'。前は +z。userData.wheels（回すタイヤの並び）。初期の 3D ゲーム機ふうの、絵をはった箱ではない車
+  function car(o = {}) { const van = o.kind === 'van', t = tex.car({ c: o.c, kind: o.kind }), B = parts(), G = B.g(t), W = 64, cb = van ? [-1.74, .9, -1.66, .45] : [-1.5, .85, -1.2, .3], hw = .8, tw = .68, uvz = z => (z + 1.8) / 3.6, uvy = y => .5 + (y / 1.6) * .5;
+    const side = (pts, sx, xs) => { const P3 = pts.map(([z, y], i) => [sx * xs[i], y, z]), U = pts.map(([z, y]) => [uvz(z), uvy(y)]); const f = (a, b, c) => sx > 0 ? G.tri(P3[a], P3[b], P3[c], U[a], U[b], U[c]) : G.tri(P3[b], P3[a], P3[c], U[b], U[a], U[c]); f(0, 2, 1); f(0, 3, 2); };
+    for (const sx of [1, -1]) { side([[-1.8, .28], [1.8, .28], [1.8, .78], [-1.8, .78]], sx, [hw, hw, hw, hw]); side([[cb[0], .78], [cb[1], .78], [cb[3], 1.4], [cb[2], 1.4]], sx, [hw, hw, tw, tw]); }
+    G.px(0, 32, 32, 16, W, W).quad([-hw, .28, 1.8], [hw, .28, 1.8], [hw, .78, 1.8], [-hw, .78, 1.8]).px(32, 32, 32, 16, W, W).quad([hw, .28, -1.8], [-hw, .28, -1.8], [-hw, .78, -1.8], [hw, .78, -1.8]);
+    G.px(0, 48, 32, 16, W, W).quad([-hw, .78, cb[1]], [hw, .78, cb[1]], [tw, 1.4, cb[3]], [-tw, 1.4, cb[3]]).quad([hw, .78, cb[0]], [-hw, .78, cb[0]], [-tw, 1.4, cb[2]], [tw, 1.4, cb[2]]);
+    G.px(34, 50, 12, 12, W, W).quad([-hw, .78, 1.8], [hw, .78, 1.8], [hw, .78, cb[1]], [-hw, .78, cb[1]], [0, 0, 1, 1], 1.05).quad([-tw, 1.4, cb[3]], [tw, 1.4, cb[3]], [tw, 1.4, cb[2]], [-tw, 1.4, cb[2]], [0, 0, 1, 1], 1.08).quad([-hw, .78, cb[0]], [hw, .78, cb[0]], [hw, .78, -1.8], [-hw, .78, -1.8], [0, 0, 1, 1], 1.02);
+    const g = B.group(); g.userData.wheels = []; const wt = tex.wheel({ kind: 'car' }), wm = mat(wt, { vc: true, smooth: true, side: true }), tm = mat('#1c1c24', { vc: true, smooth: true });
+    for (const [x, z] of [[-.78, 1.12], [.78, 1.12], [-.78, -1.1], [.78, -1.1]]) { const wg = new THREE.Group(), sx = Math.sign(x); wg.add(new THREE.Mesh(geo().smooth(1).at(TR(0, 0, 0, 0, 0, Math.PI / 2)).loft(8, [[-.11, .36, .36, 0], [.11, .36, .36, 1]]).build(), tm), new THREE.Mesh(geo().quad([sx * .115, -.36, .36 * sx], [sx * .115, -.36, -.36 * sx], [sx * .115, .36, -.36 * sx], [sx * .115, .36, .36 * sx]).build(), wm)); wg.position.set(x, .36, z); wg.userData.dyn = true; g.add(wg); g.userData.wheels.push(wg); }
+    g.traverse(q => { if (q.isMesh) q.castShadow = true; }); return g; }
+
+  // 小舟。c（板の色）, sail（帆の色。なしなら手こぎ）。前は +z。水面は y=0 あたりに置く
+  function boat(o = {}) { const B = parts(), G = B.g(tex.planks({ c: o.c || '#9a6a44' })), st = [[-1.5, .36, .3, .42], [-.7, .52, .36, .4], [.4, .5, .36, .42], [1.15, .28, .34, .5], [1.6, .02, .3, .62]], sec = ([z, hw, dp, yt]) => [[-hw, yt, z], [-hw * .72, yt - dp * .72, z], [0, yt - dp, z], [hw * .72, yt - dp * .72, z], [hw, yt, z]];
+    for (let i = 0; i < st.length - 1; i++) { const a = sec(st[i]), b = sec(st[i + 1]), u0 = st[i][0] / 1.5, u1 = st[i + 1][0] / 1.5; for (let k = 0; k < 4; k++) { const v0 = k * .14, v1 = v0 + .14; G.quad(a[k + 1], a[k], b[k], b[k + 1], [u0, v0 + .5, u1, v1 + .5], k === 0 || k === 3 ? .7 : .55); G.quad(a[k], a[k + 1], b[k + 1], b[k], [u0, v0, u1, v1], k === 0 || k === 3 ? 1 : .8); } }
+    const a = sec(st[0]); G.tri(a[0], a[1], a[2], [0, .3], [.1, .1], [.2, 0], .85).tri(a[0], a[2], a[4], [0, .3], [.2, 0], [.4, .3], .85).tri(a[2], a[3], a[4], [.2, 0], [.3, .1], [.4, .3], .85); for (const z of [-.75, .35]) G.box(.98, .05, .26, 0, .28, z, { m: 1.5 });
+    if (o.sail) { G.box(.07, 2.6, .07, 0, .1, .5, { m: 1.5 }); B.g(tex.fabric({ pattern: 'plain', c: o.sail === true ? '#f0e8d4' : o.sail }), { side: true }).tri([0, .75, .42], [0, 2.6, .42], [0, .8, -1.2], [0, 0], [0, 2], [1.4, 0], [.9, 1.05, .95]); }
+    else for (const sx of [-1, 1]) G.at(TR(sx * .5, .46, -.2, sx * .5, 0, sx * -.25)).box(.05, .04, 1.5, sx * .35, 0, 0, { m: 1.5 }).at(null);
+    return B.group(); }
+
+  return { hash, mix, ramp, tone, tn, Px, paint: T, tex, mat, crt, U, cfg, TR, ngon, SEC9, SEC4, geo, parts, merge, ground, strip, blob, flip, house, tree, barrel, crate, rock, tuft, lamp, fence, fountain, well, stall, bench, roadSign, cloud, backdrop, skyDome, person, walk, idle, cat, catPose, bird, birdPose, cart, car, boat };
 };

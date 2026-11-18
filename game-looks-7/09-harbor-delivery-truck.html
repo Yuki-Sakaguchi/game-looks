@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-09 港町の配達トラック こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#cfe9f0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a5a6a;background:#fbf4e4;padding:0 6px}
+</style>
+<div id="cap">7-09 ─ 港町の配達トラック / 丸みのある車と色とりどりの家並みを、朝の海の光で　｜　見るだけ（自動で走って、店の前で止まる）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 A「こまかいローポリ」。車・家・人・舟は部品集の形（押し出しの横顔・回転体・面取りした箱）で、面はカクカクのまま頂点の色でぬる。
+// 色は、白っぽい石だたみと青みどりの海を大きな面にして、家のかべだけ さんご・からし・水色・ももで色ちがいにする。
+// 光は「いつもの光」の朝：海がわからの低めの太陽で家の正面を照らし、やわらかい影を道に落とす。仕上げの加工はなし。
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), { hash } = K, { lerp, smooth } = M;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: 1.0, maxFov: 74, far: 420 });
+const L = M.look(scene, renderer, 'morning', { range: 30, fog: [50, 210], dir: [-.42, .62, .66] });
+
+// ── 地形：通りは x の方向へまっすぐ。左（−z）に家並みと丘、右（+z）は岸ぺきから海。PER ごとに同じ形 ──
+const PER = 160, k1 = Math.PI * 2 / PER, mod = (a, n) => ((a % n) + n) % n, WL = -.8, QZ = 4;          // QZ = 岸ぺきの位置
+const H = (x, z) => z >= QZ + 2 ? -3 : z > QZ ? -3 * (z - QZ) / 2 : smooth(-15, -60, z) * (9 + 3 * Math.sin(x * k1 * 2 + z * .06)) + smooth(-13, -20, z) * Math.sin(x * k1 * 5 + z * .3) * .4;
+const G = M.ground(H, { nx: 100, nz: 70, cell: 2, grass: ['#9ccb6e', '#88c066', '#aed478'], patch: .05,
+  paths: [{ d: (x, z) => Math.abs(z + 2.5), w: 8, color: '#eadfc8', edge: '#d8cfb0', rough: .2 }], under: '#5aa0a8' });
+scene.add(G.mesh);
+const streets = [0, 1].map(() => { const g = new THREE.Group(), line = (z, w, c, e) => M.ribbon([...Array(PER / 4 + 1)].map((_, i) => [i * 4, z]), { w, H: G.h, color: c, edge: e, ew: .3, lift: .05 });
+  g.add(line(-1.4, 4.3, '#cbc3b6', '#f6eedc')); scene.add(g); return g; });
+const sea = M.water({ level: WL, size: 460, color: '#52b6c6', opacity: .88 }); scene.add(sea);
+
+const CH = 40, chunks = [...Array(PER / CH)].map(() => { const g = new THREE.Group(); scene.add(g); return g; }), ci = x => Math.floor(mod(x, PER) / CH), chunkOf = x => chunks[ci(x)];
+const put = (obj, x, z, ry = 0, dy = 0) => { obj.position.set(x, G.h(x, z) + dy, z); obj.rotation.y = ry; chunkOf(x).add(obj); return obj; };
+const Q = chunks.map(() => []);                                                                  // まとまりごとに 1 つの Mesh にする「色つきの形」
+
+// 家並み：色ちがいの 2〜3 階建てを すきまなく。6 軒に 1 軒は店（しまのひさし・つり看板・店の人）
+const WALL = ['#f08a6e', '#f4c860', '#8cc6d6', '#f6ecd6', '#f2a6b0', '#9ed0a8', '#f6dcb0', '#e8a25a'], ROOF = ['#c8563e', '#4f7f98', '#b8604a', '#6a8a9a'], PITCH = PER / 24, STOPS = [], keepers = [];
+for (let i = 0; i < 24; i++) { const x = (i + .5) * PITCH, shop = i % 6 === 3, w = 5.2 + hash(i, 1) * .9, d = 4.6, fl = shop ? 2 : 2 + (hash(i, 2) < .4 ? 1 : 0), wall = WALL[(i * 3 + (i >> 3)) % 8];
+  put(M.house({ w, d, floors: fl, h: 2.55, roof: i % 3 === 1 ? 'hip' : 'gable', gableFront: i % 3 === 2, wall, wall2: i % 4 === 0 ? '#f6ecd6' : wall, roofColor: ROOF[i % 4], trim: '#fffaf0', door: ['#4f7f98', '#c8563e', '#5f8a7a', '#8a5a44'][i % 4],
+    shutters: i % 2 ? ['#4f7f98', '#5f8a7a', '#c8563e'][i % 3] : null, flowerBox: i % 3 === 0 ? '#8a5a44' : null, awning: shop ? ['#e2503c', '#3f8fa8'][(i >> 2) % 2] : (i % 6 === 0 ? '#f0a03a' : null), windows: 'front', chimney: i % 2 === 0, found: .6, seed: i + 1 }), x, -5.9 - d / 2 - hash(i, 3) * .5, 0);
+  if (shop) { STOPS.push(x); put(M.sign({ kind: 'hang', color: '#fffaf0', mark: '#e2503c', post: '#5a4a44' }), x + 2.9, -5.3, -Math.PI / 2); const kp = put(M.person({ top: '#fffaf0', bottom: '#5a6a8a', coat: i % 12 === 3, collar: '#e2503c', hairStyle: i % 12 === 3 ? 'bun' : 'short', hair: '#6a4a3a', belt: '#8a5a44' }), x + 1.3, -4.3, .5); keepers.push([kp, x]);
+    for (const [bx, bz, s, c] of [[-2.4, -5.0, .5, '#c89a62'], [-1.75, -5.1, .42, '#b8845a'], [-2.3, -5.0, .36, '#e8c88a']]) Q[ci(x)].push(M.P(M.cbox(s * 1.3, s, s, .04), c, x + bx, s / 2 + (c === '#e8c88a' ? .5 : 0), bz, { ry: bx })); }
+  else if (i % 2) put(M.bush({ r: .42, seed: i, d: .5, n: 2, flowers: ['#f06a6a', '#ffffff', '#f6d45a'][i % 3] }), x - w / 2 + .5, -5.4);
+}
+// 岸ぺき（石）・つなぎ柱・桟橋・たる。同じ形は InstancedMesh で
+const stone = M.join([M.P(M.cbox(4.02, 2.3, .8, .07), '#cfc6b6', 0, 0, 0, { jit: .05 })]), bollard = M.join([M.P(M.lathe([[0, 0], [.16, 0], [.15, .1], [.1, .16], [.1, .36], [.17, .42], [.17, .5], [.1, .56], [0, .56]], 8), '#4a5560')]);
+const barrel = M.join([M.P(M.lathe([[0, 0], [.24, 0], [.3, .2], [.31, .4], [.28, .62], [.22, .78], [0, .78]], 8), '#a8744a', 0, 0, 0, { jit: .06 }), M.P(M.lathe([[.305, .18], [.325, .22], [.305, .26]], 8), '#5a5a62'), M.P(M.lathe([[.29, .56], [.305, .6], [.28, .64]], 8), '#5a5a62')]);
+const piers = [];
+chunks.forEach((g, c) => { const x0 = c * CH, st = [], bo = [], ba = [];
+  for (let k = 0; k < 10; k++) { st.push([x0 + k * 4 + 2, -.98, QZ + .32, 0, 1, k % 2 ? '#f4ecde' : '#ffffff']); bo.push([x0 + k * 4 + 1, .04, QZ + .1]); }
+  const px = x0 + (c % 2 ? 14 : 30), len = c % 2 ? 15 : 11, q = Q[c]; piers.push([px, len]);                                 // 桟橋：板と くい
+  for (let k = 0; k < len / .5; k++) q.push(M.P(M.cbox(2.3, .09, .46, .02), k % 3 ? '#c49a6a' : '#b48a5c', px + (hash(k, c) - .5) * .06, .1, QZ + .9 + k * .5, { jit: .05 }));
+  for (let k = 0; k <= len / 3; k++) for (const s of [-1, 1]) { const top = k % 2 ? .22 : .7; q.push(M.P(M.cyl(.11, .13, 2.4 + top, 6), '#7a5a44', px + s * 1.2, top - (2.4 + top) / 2, QZ + .8 + Math.min(len - .2, k * 3)), M.P(M.cyl(.13, .13, .07, 6), '#f4ecde', px + s * 1.2, top - .12, QZ + .8 + Math.min(len - .2, k * 3))); }
+  for (const s of [-1, 1]) q.push(M.P(M.tube([[px + s * 1.2, .5, QZ + .8], [px + s * 1.2, .3, QZ + 3.8], [px + s * 1.2, .5, QZ + 6.8]], .025, 4), '#e8dcc0'));
+  [[px - 2.6, QZ - .9], [px - 3.2, QZ - .7], [px + 2.8, QZ - .8]].forEach(([bx, bz], k) => ba.push([bx, .02, bz, k, k === 1 ? .8 : 1, k === 1 ? '#c8d8e0' : '#ffffff']));
+  g.add(M.scatter(stone, st), M.scatter(bollard, bo), M.scatter(barrel, ba));
+  [[-2.3, 3.2, .25, '#f6ecd6', '#e2503c'], [2.4, 6.5, -.2, '#8cc6d6', '#fffaf0'], [-2.5, len - 2.5, .1, '#f4c860', '#4f7f98']].forEach(([dx, dz, ry, hull, trim], k) => { const b = M.boat({ hull, trim, len: k === 2 ? 3.9 : 3.3 }); b.position.set(px + dx, WL - .12, QZ + .9 + dz); b.rotation.y = ry; b.userData.k = k + c * 3; g.add(b); piers.push(b); });
+  for (let k = 0; k < 2; k++) put(M.lamp({ kind: 'arm', color: '#3d5560', h: 3.3 }), x0 + 8 + k * 20, QZ - .9, Math.PI / 2);
+  const bench = put(M.bench({ color: '#a8744a' }), x0 + (c % 2 ? 31 : 12), QZ - 1.1, 0);
+  if (c % 2 === 0) { const p = M.person({ top: '#6a9ab8', bottom: '#6a5a4a', hairStyle: 'short', hair: '#e2ddd4', hat: 'cap', hatColor: '#3d5c7a', wide: 1.1 }); bench.add(p); p.position.set(-.25, bench.userData.seat - p.userData.seatY, .05); p.userData.sit = 1; keepers.push([p, -1]); }
+  g.add(M.join(q));
+});
+// 丘の木
+const TV = [M.tree({ h: 5.2, seed: 1, d: .5 }), M.tree({ h: 4.6, seed: 4, kind: 'wide', d: .5, blobs: 6, leaf: M.LEAF.spring }), M.conifer({ h: 7, seed: 1, seg: 6 }), M.tree({ h: 6, seed: 2, kind: 'tall', d: .5, leaf: M.LEAF.deep })], TL = chunks.map(() => TV.map(() => []));
+for (let i = 0; i < 90; i++) { const x = hash(i, 11) * PER, z = -15 - Math.pow(hash(i, 12), 1.3) * 50; TL[ci(x)][i % 4].push([x, G.h(x, z) - .05, z, hash(i, 13) * 6.28, .8 + hash(i, 14) * .6, ['#ffffff', '#f4f0dc', '#e4f0dc'][i % 3]]); }
+chunks.forEach((g, c) => TL[c].forEach((list, v) => { if (list.length) g.add(M.scatter(TV[v].children[0], list)); }));
+
+// ── 空と沖：雲、かもめ、帆かけ舟 ──
+const sky = new THREE.Group(); scene.add(sky);
+for (let i = 0; i < 9; i++) { const c = M.cloud({ s: 1.6 + hash(i, 121) * 1.5, seed: i, n: 4 + i % 3, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); c.position.set(30 + hash(i, 122) * 260, 36 + hash(i, 123) * 24, -90 + hash(i, 124) * 300); sky.add(c); }
+const gulls = [...Array(6)].map((_, i) => { const b = M.bird({ s: 2.6, color: '#fbf8f0', belly: '#ffffff', beak: '#f0b03a' }); scene.add(b); return b; });
+const sails = [['#fffaf0', 21, 1.2], ['#f08a6e', 33, -.8]].map(([sail, z, v], i) => { const b = M.boat({ sail, hull: '#f6ecd6', trim: ['#3f8fa8', '#e2503c'][i], len: 4.4 }); scene.add(b); return { b, z, v, x0: 60 + i * 45 }; });
+
+// ── トラック・歩く人・ねこ ──
+const truck = M.car({ kind: 'truck', body: '#e2503c', roof: '#fbf4e4', trim: '#e8e2d6' }); scene.add(truck);
+const driver = M.person({ h: 1.3, top: '#3f8fa8', hat: 'cap', hatColor: '#fbf4e4', hairStyle: 'short' }); driver.scale.setScalar(.8); driver.position.set(.28, .42, .28); M.pose(driver, 'sit', 0); truck.add(driver);
+const WALK = [[{ top: '#f4c860', bottom: '#5a6a8a', legs: 'skirt', hairStyle: 'pony', hair: '#5a3a2a', collar: '#fffaf0' }, 34, -1.25, -4.4], [{ top: '#5f8a7a', bottom: '#f6ecd6', hairStyle: 'bob', hair: '#c8843a', sleeves: 'short', hat: 'straw' }, 60, 1.2, 2.5],
+  [{ age: 'child', top: '#f2a6b0', bottom: '#4f7f98', legs: 'shorts', hairStyle: 'twin', hair: '#3a2a2a', pack: '#f4c860' }, 12, 1.5, -4.8], [{ top: '#fffaf0', bottom: '#3d4c6e', hairStyle: 'short', hair: '#3a2a2a', scarf: '#e2503c', wide: 1.05 }, 85, -1.2, 2.2]].map(([o, x0, v, z]) => { const p = M.person(o); scene.add(p); return { p, x0, v, z }; });
+const cats = [[24, 3.5, '#e8a05a', '#b8703a'], [103, -4.9, '#5a5a62', '#f4f0e6'], [66, 3.6, '#f4f0e6', '#c8935a']].map(([x, z, color, color2], i) => put(M.animal('cat', { color, color2 }), x, z, 1.2 + i * 2));
+const puffs = M.puffs(scene, { n: 24, color: '#f4f0ea', opacity: .5 });
+
+// ── 毎コマ ──
+// トラックは 40m 走って店の前で止まる：1 回 10 秒（走る 7.2 秒 → 止まる 2.8 秒）。開いて 2.5 秒は走っているさいちゅう
+const RUN = 7.2, CYC = 10, T0 = 1.6, TZ = -1.4, posAt = tt => { const n = Math.floor(tt / CYC), u = Math.min(1, (tt - n * CYC) / RUN); return STOPS[0] + (n - 1 + u * u * u * (u * (u * 6 - 15) + 10)) * CH; };
+let tall = false, camX = posAt(T0) , lastX = posAt(T0), roll = 0, puffT = 0; onResize((w, h) => { tall = w < h; });
+K.loop((dt, t) => {
+  const tt = t + T0, x = posAt(tt), sp = (x - lastX) / Math.max(dt, .001), stopped = (tt % CYC) > RUN, y = 0; roll += x - lastX; lastX = x;
+  truck.position.set(x, y + Math.sin(t * 31) * .006 + (stopped ? Math.sin(t * 9) * .004 : 0), TZ); truck.rotation.set(-Math.min(.05, Math.max(-.05, (sp - (truck.userData.sp || 0)) * .12)), Math.PI / 2, 0); truck.userData.sp = lerp(truck.userData.sp || 0, sp, Math.min(1, dt * 4));
+  truck.userData.wheels.forEach(w => { w.rotation.x = roll / .31; });
+  puffT += dt * (stopped ? .6 : 1 + sp * .2); if (puffT > .5) { puffT = 0; puffs.emit(x - 1.75, .35, TZ - .45, { life: .7, size: .05, grow: 1.8, vy: .3, vx: sp * .6 }); } puffs.update(dt);
+  // 店の人：トラックが近づくと手をふる。ベンチの人、ねこ、歩く人
+  keepers.forEach(([p, sx]) => { if (p.userData.sit) return M.pose(p, 'sit', t * 1.2); const near = Math.abs(mod(x - sx + PER / 2, PER) - PER / 2) < 12; M.pose(p, near ? 'wave' : 'stand', t * 2.4); });
+  cats.forEach((c, i) => M.gait(c, 'sit', t * 2 + i));
+  WALK.forEach(({ p, x0, v, z }) => { const wx = x + mod(x0 + v * t - x + 30, 110) - 30; p.position.set(wx, 0, z); p.rotation.y = v > 0 ? Math.PI / 2 : -Math.PI / 2; M.pose(p, 'walk', (x0 + Math.abs(v) * t) / p.userData.rig.stride * Math.PI); });
+  // 小舟のゆれ、沖の帆かけ舟、かもめ
+  piers.forEach(b => { if (!b.isObject3D) return; const k = b.userData.k; b.position.y = WL - .12 + Math.sin(t * .9 + k) * .03; b.rotation.z = Math.sin(t * 1.1 + k * 2) * .05; });
+  sails.forEach(({ b, z, v, x0 }) => { const bx = camX + mod(x0 + v * t - camX + 40, 150) - 40; b.position.set(bx, WL - .12 + Math.sin(t + z) * .04, z); b.rotation.set(0, v > 0 ? Math.PI / 2 : -Math.PI / 2, Math.sin(t * .8 + z) * .04); });
+  gulls.forEach((b, i) => { const a = t * (.42 + i * .06) + i * 1.9, r = 7 + i * 2.2; b.position.set(camX + 14 + i * 3 + Math.cos(a) * r, 5 + i * 1.1 + Math.sin(t * .7 + i) * .7, 9 + i * 1.5 + Math.sin(a) * r); b.rotation.set(0, -a, -.3); M.flap(b, t * (i % 2 ? 9 : 4) + i, i % 2 ? 1 : .35); });
+  // 地面・通り・まとまり・海・空を送る。カメラは うしろ斜め上（海がわ）から、少しおくれて追う
+  camX = lerp(camX, x, Math.min(1, dt * 4.5));
+  G.follow(camX + 50, 0); chunks.forEach((g, c) => { g.position.x = Math.round((camX + 55 - (c + .5) * CH) / PER) * PER; }); streets.forEach((s, i) => { s.position.x = (Math.floor((camX - 60) / PER) + i) * PER; }); sea.position.x = Math.round(camX / 40) * 40; sky.position.x = camX - (t * .7) % 60;
+  L.follow(camX + 6, 0, 0);
+  const sw = Math.sin(t * .15) * .5;
+  cam.position.set(camX - (tall ? 4.7 : 7.2), tall ? 3.7 : 4.0, TZ + (tall ? 1.5 : 3.4) + sw * (tall ? .4 : 1)); cam.lookAt(camX + (tall ? 3 : 4), tall ? 1.5 : 1.1, TZ + (tall ? .4 : 1.5));
+  renderer.render(scene, cam);
+});
+</script>
+</html>

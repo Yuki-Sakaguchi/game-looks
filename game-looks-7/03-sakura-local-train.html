@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-03 桜並木のローカル線 こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#e4efe6;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#5a4a52;background:#fff4ea;padding:0 6px}
+</style>
+<div id="cap">7-03 ─ 桜並木のローカル線 / 面を増やして形を作りこんだローポリを、朝の光と、桜のもも色・菜の花の黄色で　｜　見るだけ（自動で走る）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 A「こまかいローポリ」。箱は使わず、部品集の電車・桜（広葉樹）・家・人・小物と、面取りした箱・管・押し出しで作った駅と線路で作る。
+// 色は大きく 4 つ：桜のもも色、菜の花の黄色、若草、空の水色。電車だけ青とクリーム。面はカクカクのまま頂点の色でぬり、仕上げの加工はなし。
+// 光は「いつもの光」の朝：低い太陽のやわらかい影と、空の色のまわりこみ。花びらは小さな 8 面の粒を風に流す
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), { hash } = K, { lerp, smooth, P } = M;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .95, maxFov: 72, far: 420 });
+const L = M.look(scene, renderer, 'morning', { range: 34, fog: [48, 190], dir: [-.5, .52, .5] });
+
+// ── 地形：線路は x の方向へ。土手の上を走る。PER ごとに同じ形なので、ずっと走り続けられる。駅は SX ──
+const PER = 240, SX = 120, E = 1.5, k1 = Math.PI * 2 / PER, mod = (a, n) => ((a % n) + n) % n, wrap = dx => mod(dx + PER / 2, PER) - PER / 2;
+const tr = x => Math.sin(x * k1) * 10, tilt = x => Math.atan(tr(x + .5) - tr(x - .5));
+const base = (x, z) => Math.sin(x * k1 * 2 + z * .05) * .5 + Math.cos(z * .045 + x * k1) * .6, yard = x => 12.5 * smooth(27, 17, Math.abs(wrap(x - SX)));   // 駅のところだけ、右がわ（+z）の土手を広げる
+const off = (x, z) => { const d = z - tr(x); return Math.max(0, Math.abs(d) - (d > 0 ? yard(x) : 0)); };                 // 土手のふちからの距離
+const H = (x, z) => { const a = off(x, z); return lerp(base(x, tr(x)) + E, base(x, z) + smooth(36, 92, a) * (9 + 5 * Math.sin(x * k1 * 2 + z * .03)), smooth(2.7, 7.4, a)); };
+const PATH = -12, G = M.ground(H, { nx: 96, nz: 72, cell: 2, grass: ['#a8d67c', '#96cc70', '#b8de86', '#88c26a'], patch: .04,
+  paths: [{ d: (x, z) => Math.abs(off(x, z) - 5.1), w: 1.7, color: '#f6dc50', edge: '#c6dc66', rough: .9 }, { d: (x, z) => Math.abs(z - tr(x)), w: 1.5, color: '#b7a590', edge: '#c9bb98' },
+    { d: (x, z) => Math.max(Math.abs(wrap(x - SX)) - 15, Math.abs(z - tr(x) - 8.6) - 5.2) + 1.6, w: 1.6, color: '#e2d2ae', edge: '#cfd08e' }, { d: (x, z) => Math.abs(z - tr(x) - PATH), w: 1.0, color: '#eadbb4', edge: '#c4d488' }] });
+scene.add(G.mesh);
+// 線路：じゃりの帯、まくら木（まとめて描く）、2 本のレール（管）。1 周ぶんを 2 つ置いて、電車の前後へ送る
+const RY = .15, linePts = (o, st = 2) => [...Array(PER / st + 1)].map((_, i) => [i * st, tr(i * st) + o]);
+const SLEEP = M.join([P(M.cbox(.24, .11, 2.2, .03), '#7d5d4c', 0, 0, 0, { jit: .06 })]), RAIL = M.join([-.76, .76].map(o => P(M.tube(linePts(o).map(([x, z]) => [x, G.h(x, tr(x)) + RY - .05, z]), .055, 4, { rot: 0 }), '#8f96a4', 0, 0, 0, { grad: 0, jit: .02 })));
+const strips = [0, 1].map(() => { const g = new THREE.Group(); g.add(M.ribbon(linePts(0), { w: 3.1, H: G.h, color: '#c2b29c', edge: '#b0a48c', ew: .3, lift: .04 }), M.ribbon(linePts(PATH), { w: 1.7, H: G.h, color: '#f1e3bd', lift: .05 }),
+  M.scatter(SLEEP, [...Array(Math.floor(PER / .68))].map((_, i) => [i * .68, G.h(i * .68, tr(i * .68)) + .06, tr(i * .68), -tilt(i * .68)]), { cast: false }), RAIL.clone()); scene.add(g); return g; });
+
+// ── 置く物は 48m ごとのまとまり（chunk）に入れ、電車が進んだら 1 周先へ送りなおす ──
+const CH = 48, chunks = [...Array(PER / CH)].map(() => { const g = new THREE.Group(); scene.add(g); return g; }), ci = x => Math.floor(mod(x, PER) / CH), chunkOf = x => chunks[ci(x)];
+const put = (obj, x, z, ry = 0, dy = 0) => { obj.position.set(x, G.h(x, z) + dy, z); obj.rotation.y = ry; chunkOf(x).add(obj); return obj; };
+const side = (x, s, dist) => [x, tr(x) + s * dist], inYard = x => Math.abs(wrap(x - SX)) < 24;
+
+// 桜並木：形のちがう 4 本を作っておき、同じ形はまとめて描く。線路の両がわと、左の小道のむこう。駅の前には細かい形で 1 本ずつ
+const TRUNK = '#5e443c', TV = [M.tree({ h: 6.4, seed: 2, kind: 'wide', leaf: M.LEAF.sakura, trunk: TRUNK, blobs: 6, d: .5 }), M.tree({ h: 5.6, seed: 5, leaf: M.LEAF.sakura, trunk: TRUNK, blobs: 6, d: .5 }), M.tree({ h: 7, seed: 9, kind: 'wide', leaf: ['#ffe0ea', '#ffc6d8', '#ffb0cc'], trunk: TRUNK, blobs: 7, d: .5 }),
+  M.tree({ h: 5.4, seed: 4, leaf: M.LEAF.spring, d: .5 }), M.tree({ h: 6.4, seed: 7, kind: 'tall', leaf: M.LEAF.summer, d: .5 }), M.conifer({ h: 7, seed: 2, seg: 6 }), M.bush({ r: .8, seed: 2, d: .5, leaf: M.LEAF.spring })];
+const TL = chunks.map(() => TV.map(() => [])), addTree = (v, x, z, s = 1) => TL[ci(x)][v].push([x, G.h(x, z) - .05, z, hash(x, z) * 6.28, s, ['#ffffff', '#fff2f6', '#ffe8f0'][Math.floor(hash(z, x) * 3)], .92 + hash(x + 1, z) * .2]);
+for (let i = 0; i < PER / 8; i++) { const x = i * 8 + hash(i, 1) * 2.5; [[1, 9.6], [-1, 8.8], [-1, 15.2]].forEach(([s, d], k) => { const xx = x + k * 2.7, dd = d + (s > 0 ? yard(xx) * .82 : 0) + (hash(i, 2 + k) - .5) * 1.2; if (!(s > 0 && Math.abs(wrap(xx - SX)) < 15)) addTree((i + k) % 3, ...side(xx, s, dd), .9 + hash(i, 5 + k) * .3); }); }
+for (let i = 0; i < 110; i++) { const x = hash(i, 11) * PER, s = hash(i, 12) < .5 ? -1 : 1, a = 22 + Math.pow(hash(i, 13), 1.3) * 62, z = tr(x) + s * (a + (s > 0 ? yard(x) : 0)), r = hash(i, 14); addTree(r < .3 ? i % 3 : a > 46 ? 3 + i % 3 : r < .7 ? 3 + i % 2 : 6, x, z, .8 + r * .5); }
+TL.forEach((vs, c) => vs.forEach((list, v) => { if (list.length) chunks[c].add(M.scatter(TV[v].children[0], list)); }));
+[[SX - 17.5, 6.6, 6.2, 12], [SX + 18, 6.4, 6.6, 15]].forEach(([x, d, h, seed]) => put(M.tree({ h, seed, kind: 'wide', leaf: M.LEAF.sakura, trunk: TRUNK, blobs: 7 }), ...side(x, 1, d), seed, -.05));
+// 菜の花（土手の両がわ）と、桜の下にちった花びら、草のふさ
+const NA = chunks.map(() => []), PT = chunks.map(() => []), TF = chunks.map(() => []);
+for (let i = 0; i < 2300; i++) { const x = hash(i, 21) * PER, s = i % 2 ? 1 : -1, [fx, fz] = side(x, s, 3.5 + hash(i, 22) * 3.4 + (s > 0 ? yard(x) : 0)); NA[ci(x)].push([fx, G.h(fx, fz) + .05, fz, .95 + hash(i, 23) * .55]); }
+for (let i = 0; i < 520; i++) { const x = hash(i, 31) * PER, s = hash(i, 32) < .4 ? 1 : -1, [fx, fz] = side(x, s, s > 0 ? 8 + hash(i, 33) * 4 + yard(x) * .82 : 8 + hash(i, 33) * 9); if (Math.abs(fz - tr(fx) - PATH) > 1 && !(s > 0 && inYard(x))) PT[ci(x)].push([fx, G.h(fx, fz) - .1, fz, .9 + hash(i, 34) * .5]); }
+for (let i = 0; i < 520; i++) { const x = hash(i, 41) * PER, s = hash(i, 42) < .5 ? -1 : 1, [tx, tz] = side(x, s, 7.6 + Math.pow(hash(i, 43), 1.6) * 26 + (s > 0 ? yard(x) : 0)); if (Math.abs(tz - tr(tx) - PATH) > 1.1) TF[ci(x)].push([tx, G.h(tx, tz), tz, .6 + hash(i, 44) * .7, ['#ffffff', '#eaf4c8', '#fff2c0'][i % 3]]); }
+chunks.forEach((g, c) => g.add(M.flowers(NA[c], { colors: ['#fbe058', '#f5cf3c', '#fff08a'], stem: '#8cc060' }), M.flowers(PT[c], { colors: ['#ffd2e0', '#ffffff', '#ffb9d0'], stem: '#a8d67c' }), M.tufts(TF[c], { color: '#74b060', tip: '#c6dc86' })));
+// 農家と、小道のベンチ・街灯・道しるべ
+[[30, -1, 26, { w: 5.4, d: 4.2, roofColor: '#5f86a8', shutters: '#5f86a8' }], [78, 1, 25, { w: 5, d: 4, floors: 2, roof: 'hip', roofColor: '#d0705a', timber: '#7a5a44' }], [176, -1, 24, { w: 5.6, d: 4.4, roofColor: '#d0705a', flowerBox: '#8a5a44' }], [214, 1, 23, { w: 4.6, d: 4, gableFront: true, roofColor: '#5f86a8' }]]
+  .forEach(([x, s, d, o], i) => put(M.house({ wall: '#f7ecd6', door: '#5f86a8', ...o, found: 1, seed: i + 3 }), ...side(x, s, d), (s > 0 ? Math.PI : 0) - tilt(x) + .3));
+const bench2 = put(M.bench(), ...side(84, -1, -PATH + 1.5), -tilt(84)); put(M.sign(), ...side(60, -1, -PATH - 1.4), .4); for (let i = 0; i < 6; i++) put(M.lamp({ kind: 'arm' }), ...side(20 + i * 40, -1, -PATH - 1.3), Math.PI / 2);
+
+// ── 駅：ホーム（面取りした長い台）、屋根つきの待合、ベンチ、駅名の看板、さく、スロープ、駅舎。線路にそって少し回して置く ──
+const st = new THREE.Group(), PH = .98, q = [], GR = '#cfc8ba', BL = '#4f7f98', CREAM = '#f7ecd6';
+st.position.set(SX, G.h(SX, tr(SX)) + RY - .15, tr(SX)); st.rotation.y = -tilt(SX); chunkOf(SX).add(st);
+q.push(P(M.cbox(25, PH + .5, 3.3, .07), GR, 0, PH / 2 - .25, 3.45, { jit: .05 }), P(M.cbox(25.1, .1, 3.4, .03), '#e2dccf', 0, PH, 3.45), P(M.cbox(24.6, .03, .14, .01), '#fbf6ea', 0, PH + .06, 2.0, { jit: 0 }), P(M.cbox(24.6, .03, .3, .01), '#f2c83a', 0, PH + .06, 2.5, { jit: 0 }));
+for (const s of [-1, 1]) q.push(P(M.prism([[0, -.5], [3.6, -.5], [3.6, -.05], [0, PH + .04]], 2.0, .04), GR, s * 12.5, 0, 4.0, { ry: s < 0 ? Math.PI : 0, jit: .04 }));          // 両はしのスロープ
+for (const x of [-2.3, 2.3]) for (const z of [3.5, 4.75]) q.push(P(M.tube([[x, PH, z], [x, PH + (z > 4 ? 2.3 : 2.55), z]], .07, 6), CREAM));                      // 待合：柱、うしろのかべ、かたむいた屋根
+q.push(P(M.cbox(4.6, 1.5, .1, .03), CREAM, 0, PH + 1.0, 4.78), P(M.cbox(4.7, .12, .16, .03), BL, 0, PH + 1.78, 4.78), P(M.cbox(5.6, .12, 2.5, .04), BL, 0, PH + 2.52, 3.9, { rx: .2, jit: .04 }), P(M.cbox(5.7, .1, .16, .03), '#fbf6ea', 0, PH + 2.8, 2.66));
+st.add(M.join(q));
+const fenceAt = (x0, x1) => st.add(M.fence([...Array(Math.round((x1 - x0) / 1.5) + 1)].map((_, i) => [x0 + i * 1.5, 5.0]), { H: () => PH + .04, kind: 'picket', h: .85 })); fenceAt(-12, -3), fenceAt(3, 12);
+const stPut = (o, x, z, ry = Math.PI, y = PH + .05) => { o.position.set(x, y, z); o.rotation.y = ry; st.add(o); return o; };
+const bench = stPut(M.bench({ color: BL, metal: '#fbf6ea' }), .2, 4.3); stPut(M.sign({ kind: 'board', color: '#fbf6ea', post: '#5a6a7a', mark: '#3a5a7a' }), -6.5, 4.5); stPut(M.sign({ kind: 'hang', color: '#fbf6ea', mark: '#d0705a' }), 9.6, 4.5, -Math.PI / 2);
+[-10.5, 6].forEach(x => stPut(M.lamp({ kind: 'arm', color: '#5a6a7a' }), x, 4.55, Math.PI / 2)); [[-13.5, 6.6], [14, 6.8], [-8, 6.2], [9, 6.3]].forEach(([x, z], i) => stPut(M.bush({ r: .7, seed: i, flowers: ['#ffffff', '#f6a0b8'] }), x, z, i, -.1));
+stPut(M.house({ w: 6.2, d: 3.8, wall: CREAM, roofColor: BL, door: '#d0705a', trim: '#fbf6ea', flowerBox: '#8a5a44', awning: '#d0705a', found: .6, seed: 9 }), 1.5, 10.6, Math.PI, -.15);
+const sitter = M.person({ h: 1.5, wide: 1.08, top: '#8fb07a', bottom: '#6a5a4a', hairStyle: 'short', hair: '#e2ddd4', hat: 'straw', hatBand: BL }); bench.add(sitter); sitter.position.set(-.3, bench.userData.seat - sitter.userData.seatY, .05);
+const waitA = stPut(M.person({ top: '#f7ecd6', bottom: '#4f6f98', legs: 'skirt', collar: BL, hairStyle: 'long', hair: '#3a2a2a', pack: '#d0705a', socks: '#fbf6ea' }), 3.4, 3.0, Math.PI + .5), waitB = stPut(M.person({ age: 'child', top: '#f5cf3c', bottom: '#4f6f98', legs: 'shorts', hairStyle: 'twin', hair: '#5a3a2a', hat: 'cap', hatColor: '#d0705a', pack: '#e05a4a' }), 4.4, 3.2, Math.PI + .7);
+const waitC = stPut(M.person({ top: '#3a4a6e', bottom: '#3a4a6e', collar: '#fbf6ea', buttons: '#e8c860', hat: 'cap', hatColor: '#3a4a6e', hatBand: '#e8c860', hairStyle: 'short', hair: '#3a2a2a' }), -3.6, 2.9, Math.PI - .5);   // 駅員さん
+
+// ── 電車（2 両）・小道の人と犬・空の物 ──
+const cars = [0, 1].map(i => { const c = M.train({ len: 8.5, body: '#3f7fae', upper: '#f6ecd2', roof: '#c4c0b6', stripe: '#f6ecd2', lit: .1, panto: false }); scene.add(c); return c; });
+const walker = M.person({ top: '#f08a7a', bottom: '#f3dcb8', legs: 'dress', hairStyle: 'pony', hair: '#5a3a2a', hat: 'straw', hatBand: '#f08a7a' }), dog = M.animal('dog', { color: '#f1e6cf', color2: '#c8935a', collar: BL }); scene.add(walker, dog);
+const sitter2 = M.person({ age: 'child', top: '#ffffff', bottom: '#f08a7a', legs: 'skirt', hairStyle: 'bob', hair: '#3a2a2a' }); bench2.add(sitter2); sitter2.position.set(0, bench2.userData.seat - sitter2.userData.seatY, .05);
+const sky = new THREE.Group(); scene.add(sky);
+for (let i = 0; i < 9; i++) { const c = M.cloud({ s: 1.6 + hash(i, 121) * 1.4, seed: i, n: 4 + i % 3, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); c.position.set(30 + hash(i, 122) * 260, 42 + hash(i, 123) * 22, (hash(i, 124) - .5) * 320); c.rotation.y = .3; sky.add(c); }
+const birds = [...Array(3)].map((_, i) => { const b = M.bird({ s: 2, color: i % 2 ? '#fbf6ea' : '#6a7a9a' }); scene.add(b); return b; });
+// 舞う花びら：小さな平たい 8 面の粒をまとめて描き、電車のまわりの箱の中でくり返す
+const NP = 420, petals = new THREE.InstancedMesh(M.gem(.075, 1, .16, .62), new THREE.MeshBasicMaterial({ color: '#ffc9dc' }), NP), dm = new THREE.Object3D(); petals.frustumCulled = false; scene.add(petals);
+
+// ── 毎コマ ──
+const X0 = +new URLSearchParams(location.search).get('x') || 46; let x = X0, dist = 0, tall = false;   // ?x=数 で走りはじめる場所を変えられる（確かめ用）
+onResize((w, h) => { tall = w < h; });
+K.loop((dt, t) => {
+  // 電車：駅に近づくとゆっくりになり、ホームをそろそろと通って、また速くなる
+  const near = smooth(46, 5, Math.abs(wrap(x - 1 - SX))), v = lerp(9.6, 1.25, near); x += v * dt; dist += v * dt;
+  cars.forEach((c, i) => { const cx = x - i * 9.0, za = tr(cx + 2.6), zb = tr(cx - 2.6); c.position.set(cx, G.h(cx, tr(cx)) + RY, (za + zb) / 2); c.rotation.y = Math.atan2(5.2, za - zb); c.rotation.z = Math.sin(t * 2.3 + i * 1.4) * .006 * (1 - near); for (const w of c.userData.wheels) w.rotation.x = dist / .36; });
+  const y = cars[0].position.y, z = tr(x);
+  // 小道を歩く人と犬（電車に追いこされたら 1 周先へ）、駅で待つ人
+  const wx = x + mod(70 + t * 1.3 - x + 40, PER) - 40, wz = tr(wx) + PATH; walker.position.set(wx, G.h(wx, wz), wz); walker.rotation.y = Math.atan2(1, (tr(wx + .3) - tr(wx - .3)) / .6); M.pose(walker, 'walk', t * 1.3 / walker.userData.rig.stride * Math.PI);
+  const dx = wx + 1.4 + Math.sin(t * .5) * .5, dz = tr(dx) + PATH + .4; dog.position.set(dx, G.h(dx, dz), dz); dog.rotation.y = walker.rotation.y; M.gait(dog, 'walk', t * 1.3 / dog.userData.rig.stride * Math.PI);
+  M.pose(sitter, 'sit', t * 1.2); M.pose(sitter2, 'sit', t * 1.5); M.pose(waitA, 'stand', t * 1.3); M.pose(waitB, 'wave', t * 2.6); M.pose(waitC, near > .4 ? 'wave' : 'stand', t * 2);
+  birds.forEach((b, i) => { const a = t * (.45 + i * .08) + i * 2.1, r = 10 + i * 4; b.position.set(x + 14 + Math.cos(a) * r, y + 10 + i * 1.5 + Math.sin(t * .8 + i) * .6, z + Math.sin(a) * r); b.rotation.y = -a; b.rotation.z = -.3; M.flap(b, t * 12 + i); });
+  // 花びら：それぞれ世界の決まった所を、ゆれながら落ちる。箱（44×13×36）から出たら反対がわへ
+  const cx = x - 2, cy = y + 4.5;
+  for (let i = 0; i < NP; i++) { const f = .6 + hash(i, 4) * .8, sx = hash(i, 1) * 44 + Math.sin(t * .9 + i) * .7 - t * .9, sy = hash(i, 2) * 13 - t * f * .75 + Math.sin(t * 1.7 + i * 2.3) * .25, sz = hash(i, 3) * 36 + Math.cos(t * .7 + i * 1.7) * .7 + t * .5; dm.position.set(cx + mod(sx - cx, 44) - 22, cy + mod(sy - cy, 13) - 6.5, z + mod(sz - z, 36) - 18); dm.rotation.set(t * f * 2.4 + i, i * 1.3, t * f * 1.7); dm.scale.setScalar(.7 + hash(i, 5) * .8); dm.updateMatrix(); petals.setMatrixAt(i, dm.matrix); } petals.instanceMatrix.needsUpdate = true;
+  // 地面・線路・まとまり・空を電車の前後へ送る
+  G.follow(x + 40, z); chunks.forEach((g, c) => { g.position.x = Math.round((x + 50 - (c + .5) * CH) / PER) * PER; }); strips.forEach((r, i) => { r.position.x = (Math.floor((x - 85) / PER) + i) * PER; }); sky.position.x = x - (t * .6) % 60;
+  L.follow(x + 2, y, z);
+  // うしろ斜め上から追うカメラ。駅ではゆっくり近づいて低くなる（たて長では少し寄る）
+  const back = lerp(tall ? 21 : 19, tall ? 17 : 15, near), up = lerp(tall ? 9.2 : 8, tall ? 7 : 5.8, near), sd = lerp(tall ? 1.6 : 2.8, tall ? 2.2 : 3.8, near) + Math.sin(t * .15) * .4, tx = x - 4.5, cmx = tx - back;
+  cam.position.set(cmx, y + up, tr(cmx) - sd); cam.lookAt(tx + 2, y + (tall ? 2.4 : 1.2), tr(tx + 2) + (tall ? .3 : 1.2));
+  renderer.render(scene, cam);
+});
+</script>
+</html>
