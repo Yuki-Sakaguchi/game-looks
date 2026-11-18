@@ -18,7 +18,7 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), { scene, cam, renderer, onResize } = K.stage({ fov: 44 }), { add, box, hash } = K;
 scene.background = new THREE.Color('#000000'); scene.fog = new THREE.Fog('#000000', 90, 175);
-const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 2.6, range: 48 });
+const { sun } = K.lights(scene, renderer, { amb: .5, ground: 0xffffff, sun: 0xffffff, power: 3, range: 34 });
 const H = (x, z) => z * .2 + Math.sin(x * .05) * Math.cos(z * .04) * 2.5 + Math.sin(z * .021 + x * .03) * 3, pathX = z => Math.sin(z * .025) * 9;   // −z へ下る雪の丘
 const W = new THREE.Color('#ffffff'), land = K.terrain(H, 70, 70, 3, () => W); land.mesh.receiveShadow = true; scene.add(land.mesh);
 const INK = '#1a1a1a', WALL = '#d4d4d4', P = 150, things = [];
@@ -28,24 +28,23 @@ for (let i = 0; i < 44; i++) { const side = i % 2 ? 1 : -1, g = i === 5 ? church
   g.rotation.y = i === 5 ? -.5 : hash(i, 5) * 6; scene.add(K.shadow(g)); things.push({ g, off: i === 5 ? 13 : side * (5.5 + hash(i, 1) * 30), z0: i === 5 ? -112 : hash(i, 2) * P }); }
 // 主役：そりに乗った子ども（前は −z）
 const sled = new THREE.Group(); for (const s of [-1, 1]) box(sled, .08, .12, 2, INK, s * .36, .06, 0); box(sled, .86, .08, 1.4, '#8a8a8a', 0, .3, 0);
-const kid = K.person({ top: INK, bottom: '#4a4a4a', skin: '#ffffff', hat: '#ffffff', s: .9 }); kid.position.set(0, -.3, .2); kid.userData.P.legL.rotation.x = kid.userData.P.legR.rotation.x = 1.4; kid.userData.P.armL.rotation.x = kid.userData.P.armR.rotation.x = .9; sled.add(kid);
-const scarf = box(sled, .16, .06, 1, '#ffffff', 0, 1, 0); scarf.geometry.translate(0, 0, .5); scarf.position.z = .3; sled.scale.setScalar(1.35); sled.rotation.order = 'YXZ'; K.shadow(sled, true, false); scene.add(sled);
-const fx = K.fx(scene, 40); let pT = 0, cy = null;
+const kid = K.person({ top: INK, bottom: '#4a4a4a', skin: '#ffffff', hat: '#ffffff', s: .9 }); kid.position.set(0, -.3, .2); kid.userData.P.legL.rotation.x = kid.userData.P.legR.rotation.x = 1.4; kid.userData.P.armL.rotation.x = kid.userData.P.armR.rotation.x = .5; sled.add(kid);
+const scarf = box(sled, .14, .06, .6, '#ffffff', 0, 1.02, 0); scarf.geometry.translate(0, 0, .3); scarf.position.z = .3; sled.scale.setScalar(1.6); sled.rotation.order = 'YXZ'; K.shadow(sled, true, false); scene.add(sled);
+let cy = null;
 const post = K.post(renderer, `mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
-void main(){vec2 p=vUv*res;vec3 n=nrm(vUv);float d=dep(vUv),l=luma(src(vUv)),f=smoothstep(.8,.48,l);            // f＝黒インクの量
+void main(){vec2 p=vUv*res;vec3 n=nrm(vUv);float d=dep(vUv),l=luma(src(vUv)),f=smoothstep(.93,.5,l);            // f＝黒インクの量
 vec2 q=rot(-atan(n.y,n.x+.001))*p;float ln=abs(fract(q.x/7.)-.5)*2.,nick=step(.22,fract(q.y/30.+h(vec2(floor(q.x/7.),3.))));   // 彫りあとの線は、面の向きに直角
 float v=1.-step(ln,f*1.15-.08)*mix(1.,nick,step(f,.75));if(d>nf.y*.9)v=0.;
 vec2 o=px*2.5;float a=luma(src(vUv+vec2(o.x,0.))),b=luma(src(vUv-vec2(o.x,0.))),c=luma(src(vUv+vec2(0.,o.y))),e=luma(src(vUv-vec2(0.,o.y)));
 if(edge(vUv,2.,.5,.05)>.5){if(min(min(a,b),min(c,e))>.6)v=0.;else if(max(max(a,b),max(c,e))<.5)v=1.;}            // 白どうしの境は黒い線、黒どうしは白い線
-for(int i=0;i<2;i++){float s=i==0?42.:25.;vec2 g=p/s+vec2(time*.3,time*(i==0?1.5:.9))+float(i)*7.;vec2 ce=floor(g);if(length(fract(g)-.2-.6*vec2(h(ce),h(ce+9.)))<(i==0?.075:.06))v=1.;}   // 雪
+{vec2 g=p/38.+vec2(time*.3,time*1.4);vec2 ce=floor(g);if(length(fract(g)-.2-.6*vec2(h(ce),h(ce+9.)))<.075*step(.45,h(ce+3.)))v=1.;}   // 雪
 gl_FragColor=vec4(mix(vec3(.07,.07,.08),vec3(.96,.95,.91),v),1.);}`, {}, { gbuf: true }); onResize(post.resize);
 K.loop((dt, t) => {
   const z = -t * 12, x = pathX(z), y = H(x, z), k = innerHeight > innerWidth ? .7 : 1; cy = cy === null ? y : cy + (y - cy) * Math.min(1, dt * 6);
   sled.position.set(x, cy + .05, z); sled.rotation.set(-Math.atan((H(x, z + 1.5) - H(x, z - 1.5)) / 3), Math.atan(Math.cos(z * .025) * .225), Math.sin(t * 9) * .03); scarf.rotation.set(Math.sin(t * 11) * .2 + .15, Math.sin(t * 7) * .3, 0);
   for (const o of things) { const oz = z + 22 - (((z + 22 - o.z0) % P) + P) % P, ox = pathX(oz) + o.off; o.g.position.set(ox, H(ox, oz) - .1, oz); }
-  if ((pT -= dt) < 0) { pT = .07; fx.emit('puff', x + (Math.random() - .5), cy + .3, z + 1.4, { vy: 1.6, vz: -5, spread: 1.2, life: .7, size: .7, grow: 1.6 }); } fx.update(dt);
-  land.follow(x, z, -60); sun.position.set(x - 30, cy + 22, z - 14); sun.target.position.set(x, cy, z - 8);
-  cam.position.set(x * .7 + 1.2, cy + 4.6, z + 9 * k); cam.lookAt(x, cy - .6, z - 8);
+  land.follow(x, z, -60); sun.position.set(x - 30, cy + 30, z + 6); sun.target.position.set(x, cy, z - 8);
+  cam.position.set(x + .8, cy + 4.6, z + 9 * k); cam.lookAt(x, cy - .4, z - 8);
   post.render(scene, cam, t);
 });
 </script>
