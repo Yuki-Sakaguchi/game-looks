@@ -79,7 +79,7 @@ K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
   // うしろから追うカメラ（向きはゆっくり追いつく。たて長では近づく）
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
   cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.4, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // ねこ（少し先を歩く）・庭師（花だんの手入れ）・門番・おつかいの人・鳥
