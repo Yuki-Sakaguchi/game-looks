@@ -52,7 +52,7 @@ K.loop((dt, t) => {
   flags.forEach((f, i) => { const on = u > FU[i] && u < .97; if (on && up[i] < .01) for (let k = 0; k < 5; k++) fx.emit('spark', f.position.x, f.position.y + 1.4, f.position.z, { spread: 1.6, vy: .8, life: .7, size: .5, add: true, fog: false });
     up[i] = Math.max(0, Math.min(1, up[i] + (on ? dt * 4 : -dt * 3))); f.scale.set(1, up[i] * (1 + .25 * Math.sin(up[i] * 3.14)), 1); f.visible = up[i] > .01; f.rotation.y = Math.sin(t * 2 + i) * .3; });
   fx.update(dt);
-  const ca = .3 + Math.sin(t * .21 + .4) * .75; cam.position.set(Math.sin(ca) * 19.5, 8.2 + Math.sin(t * .17) * .8, Math.cos(ca) * 19.5); cam.lookAt(0, 5.3, 0);
+  const ca = .3 + Math.sin(t * .21 + .4) * .75; cam.position.set(Math.sin(ca) * 13.5, 7.2 + Math.sin(t * .17) * .6, Math.cos(ca) * 13.5); cam.lookAt(0, 4.6, 0);
   post.render(scene, cam, t);
 });
 </script>
