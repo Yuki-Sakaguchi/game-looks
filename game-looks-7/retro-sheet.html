@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7 方向 B の部品の確認（テクスチャと形）</title>
+<style>
+html,body{margin:0;min-height:100%;background:#2a2c38;color:#e8e4d8;font:12px/1.4 ui-monospace,Menlo,monospace}
+#nav{position:fixed;right:8px;top:6px;z-index:5}#nav a{color:#ffd88a;margin-left:10px}
+#grid{display:flex;flex-wrap:wrap;gap:4px;padding:4px;align-content:flex-start}
+.c{position:relative;line-height:0}.c canvas{image-rendering:pixelated;display:block;background:repeating-conic-gradient(#4a4e60 0 25%,#3c4050 0 50%) 0 0/16px 16px}
+.c span{position:absolute;left:0;top:0;background:#000a;color:#fff;font-size:10px;line-height:1.3;padding:0 3px}
+canvas.gl{display:block;position:fixed;left:0;top:0}
+#cap{position:fixed;left:12px;bottom:10px;opacity:.8}
+</style>
+<div id="nav"></div><div id="grid"></div>
+<script src="kit.js"></script>
+<script src="retro.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 B の部品（retro.js）を全部ならべて見る確認用のページ（一覧には入れない）。
+// ?p=tex（既定）でテクスチャの一覧（&i=0〜 で 1 組だけ）、?p=parts で部品がブラウン管ごしに回る（&i=0〜 で組を選ぶ）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), q = new URLSearchParams(location.search), mode = q.get('p') || 'tex', sel = q.get('i'); if (q.get('f')) R.cfg.filter = q.get('f');
+document.getElementById('nav').innerHTML = '<a href="?p=tex">テクスチャ</a><a href="?p=parts">部品</a>';
+if (mode === 'tex') {
+  const t = R.tex, G = [
+    ['地面', [['grass', t.grass()], ['grass 花なし 濃い', t.grass({ c: '#3f7f52', flowers: 0 })], ['dirt', t.dirt()], ['sand', t.sand()], ['snow', t.snow()], ['cobble', t.cobble()], ['cobble slab', t.cobble({ kind: 'slab', c: '#b0a08c' })], ['cobble moss 青', t.cobble({ c: '#8a90a0', moss: .5 })], ['brickFloor', t.brickFloor()], ['planks', t.planks()], ['road both', t.road({ line: 'both' })], ['road zebra', t.road({ line: 'zebra' })], ['water 0', t.water()[0]], ['water 2', t.water()[2]], ['water 緑', t.water({ c: '#3fa890' })[1]]]],
+    ['かべ', [['brick', t.brick()], ['brick 灰', t.brick({ c: '#8a8690' })], ['brick 黄土', t.brick({ c: '#c89a5a' })], ['stone', t.stone()], ['stone moss 黄', t.stone({ c: '#b8a880', moss: .4 })], ['plaster', t.plaster()], ['plaster box', t.plaster({ frame: 'box' })], ['plaster cross', t.plaster({ frame: 'cross', c: '#e8c8a8', wood: '#4a3a34' })], ['plaster diag patch', t.plaster({ frame: 'diag', patch: 1 })], ['boards', t.boards()], ['boards 青', t.boards({ c: '#5a7a9a' })], ['concrete', t.concrete()], ['shutter', t.shutter()], ['shutter 緑', t.shutter({ c: '#5a9a7a' })], ['windowWall', t.windowWall()]]],
+    ['窓・扉・屋根', [['window', t.window()], ['window lit', t.window({ lit: 1 })], ['window 48 arch grid', t.window({ h: 48, arch: 1, bars: 'grid', curtain: '#d86a5a' })], ['window shutters box', t.window({ shutters: 1, box: 1 })], ['window lit box', t.window({ lit: 1, box: 1, curtain: false })], ['windowWall lit plaster', t.windowWall({ wall: 'plaster', lit: 1 })], ['door', t.door()], ['door panel', t.door({ style: 'panel', c: '#4a7a6a' })], ['door glass arch lit', t.door({ style: 'glass', arch: 1, lit: 1, c: '#a84a3a' })], ['roof', t.roof()], ['roof wave 青', t.roof({ kind: 'wave', c: '#4a6a8a' })], ['roof slate', t.roof({ kind: 'slate', c: '#6a6a7a' })], ['roof moss 緑', t.roof({ c: '#5a8a6a', moss: .2 })], ['shingle', t.shingle()], ['thatch', t.thatch()]]],
+    ['自然・小物', [['bark', t.bark()], ['leaves tile', t.leaves()], ['leaves blob', t.leaves({ shape: 'blob' })], ['leaves fringe', t.leaves({ shape: 'fringe', c: '#3a7a5a' })], ['leaves blob 花', t.leaves({ shape: 'blob', c: '#e89ab0', flowers: 1 })], ['leaves 秋', t.leaves({ c: '#d8803a' })], ['tuft', t.tuft()], ['tuft flower', t.tuft({ kind: 'flower' })], ['tuft reed', t.tuft({ kind: 'reed' })], ['tuft wheat', t.tuft({ kind: 'wheat' })], ['tuft bush', t.tuft({ kind: 'bush', flowers: .5 })], ['rock', t.rock()], ['rock moss', t.rock({ c: '#7a8088', moss: .5 })], ['crate', t.crate()], ['crate x', t.crate({ kind: 'x', c: '#8a9a6a' })], ['barrel', t.barrel()]]],
+    ['看板など', [...['mug', 'sword', 'potion', 'bread', 'star'].map(k => ['sign ' + k, t.sign({ kind: k })]), ...['no', 'arrow', 'warn', 'stop', 'plate'].map(k => ['roadSign ' + k, t.roadSign({ kind: k })]), ['fabric', t.fabric()], ['fabric check', t.fabric({ pattern: 'check', c: '#4a8ab0' })], ['fabric scallop', t.fabric({ scallop: 1, c: '#e8a83a' })], ['cloud', t.cloud()], ['lamp', t.lamp()]]],
+    ['人', [0, 1, 2, 3, 4, 5, 6, 7].map(i => ['person face ' + i, t.person({ face: i, cloth: ['shirt', 'tunic', 'vest', 'apron', 'jacket', 'stripe', 'robe', 'shirt'][i], top: ['#3f7ab8', '#4f9a5a', '#8a4a3a', '#c85a6a', '#d8a83a', '#e86a4a', '#6a5a9a', '#e8e0d0'][i], hair: ['#5c3c28', '#2a2a34', '#c8843a', '#e8c86a', '#8a8a8a', '#a8482a', '#d8d8d8', '#3a2a5a'][i], skirt: i === 3 || i === 6 ? 1 : 0, sleeve: i === 5 ? 'short' : 'long', boots: i < 2, shorts: i === 5, skin: i === 2 ? '#c88a5a' : i === 7 ? '#8a5a3a' : undefined })])]];
+  const grid = document.getElementById('grid');
+  G.forEach(([name, list], gi) => { if (sel !== null && +sel !== gi) return; for (const [label, tx] of list) { const im = tx.image, cut = tx.userData.cut, big = im.width > 64, rep = cut || big || label.match(/sign|barrel|door|lamp|crate|shutter/) ? 1 : 1.5, sc = big ? 3 : Math.max(1, Math.floor(192 / (Math.max(im.width, im.height) * rep))), c = document.createElement('canvas'); c.width = Math.round(im.width * rep); c.height = Math.round(im.height * rep); const g = c.getContext('2d'); for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) g.drawImage(im, x * im.width, y * im.height); c.style.width = c.width * sc + 'px'; c.style.height = c.height * sc + 'px'; const d = document.createElement('div'); d.className = 'c'; d.append(c); const s = document.createElement('span'); s.textContent = label; d.append(s); grid.append(d); } });
+}
+
+if (mode === 'parts') {
+  document.getElementById('grid').remove(); document.body.style.overflow = 'hidden';
+  const { scene, cam, renderer, onResize } = K.stage({ fov: 40, aa: false }), raw = q.get('raw'), gi = +(sel || 0);
+  scene.background = K.sky([[0, '#5a6aa8'], [.5, '#e8a888'], [.75, '#ffd8a0'], [1, '#ffe8c0']]); scene.fog = new THREE.Fog('#e8b898', 40, 140);
+  const { sun } = K.lights(scene, renderer, { sky: 0xb8c0f0, ground: 0x8a6a5a, amb: 1.5, sun: 0xffd8a8, power: 2.6, pos: [-14, 16, 12], range: 22 });
+  const land = R.ground({ w: 60, d: 60, layers: [R.tex.cobble(), R.tex.grass(), R.tex.dirt()], mix: (x, z) => [Math.hypot(x, z) > 9 ? 1 : Math.hypot(x, z) > 7 ? .5 : 0, Math.abs(z - 4) < 1.2 && x > 2 ? 1 : 0] }); scene.add(land.mesh);
+  const t = R.tex, spin = [], put = (o, x, z, s = 1) => { o.position.set(x, 0, z); o.scale.setScalar(s); scene.add(o); spin.push(o); return o; };
+  let cp = [0, 6, 16], look = [0, 2, 0];
+  if (gi === 0) { put(R.house({ w: 6, d: 5, h2: 2.4, wall: t.stone(), wall2: t.plaster({ frame: 'cross' }), roof: t.roof(), chimney: true, sign: t.sign({ kind: 'mug' }), lit: .5, winLit: t.window({ lit: 1 }), door: t.door() }), -8, 0);
+    put(R.house({ w: 5, d: 5, wall: t.brick(), roof: t.roof({ kind: 'slate', c: '#5a6a8a' }), ridge: 'z', awning: t.fabric({ scallop: 1 }), win: t.window({ shutters: 1, box: 1 }), door: t.door({ style: 'panel', c: '#4a7a6a' }) }), 0, 0);
+    put(R.house({ w: 4.5, d: 4.5, h: 3, h2: 2.6, jut: 0, wall: t.plaster({ frame: 'box' }), wall2: t.plaster({ frame: 'diag' }), roofKind: 'hip', roof: t.shingle(), win: t.window({ arch: 1, h: 48 }), door: t.door({ arch: 1 }) }), 7.5, 0); cp = [0, 7, 19]; look = [0, 3, 0]; }
+  if (gi === 1) { put(R.tree({ h: 5 }), -8, -2); put(R.tree({ kind: 'pine', h: 6 }), -4.5, -2); put(R.tree({ kind: 'tall', h: 6, c: '#3f7f52' }), -1.5, -2); put(R.tree({ h: 4.5, c: '#e89ab0', flowers: 1, seed: 2 }), 2, -2); put(R.tree({ kind: 'bush' }), 5, -2); put(R.fountain(), 9, -2).userData.nospin = 1;
+    put(R.barrel(), -8, 3); put(R.crate(), -6.5, 3); put(R.rock({ s: .7 }), -5, 3); put(R.tuft({ kind: 'flower' }), -3.6, 3); put(R.lamp({ light: true }), -2.2, 3); put(R.fence({ len: 3 }), 0, 3); put(R.well(), 3, 3); put(R.stall(), 6.2, 3); put(R.bench(), 9, 3); put(R.roadSign(), 10.6, 3); cp = [0.5, 5, 15]; look = [0.5, 1.8, 0]; }
+  const crt = R.crt(renderer, { width: +(q.get('w') || 320) }); onResize(crt.resize);
+  K.loop((dt, tt) => { for (const o of spin) { if (!o.userData.nospin) o.rotation.y = tt * .5; o.userData.tick && o.userData.tick(tt); } cam.position.set(...cp); cam.lookAt(...look); if (raw) { renderer.setRenderTarget(null); renderer.render(scene, cam); } else crt.render(scene, cam, tt); });
+}
+</script>
+</html>

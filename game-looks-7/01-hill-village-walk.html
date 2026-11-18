@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7-01 丘の村の散歩 こまかいローポリ</title>
+<style>
+html,body{margin:0;height:100%;background:#f1cfae;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6a4a3a;background:#fbeed8;padding:0 6px}
+</style>
+<div id="cap">7-01 ─ 丘の村の散歩 / 面を増やして形を作りこんだローポリを、夕方のやわらかい光と影で　｜　見るだけ（自動で歩く）</div>
+<script src="kit.js"></script>
+<script src="model.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 方向 A「こまかいローポリ」の見本。箱は使わず、回転体・先細りの管・面取りした箱・でこぼこの多面体で形を作り、
+// 面はカクカクのまま頂点の色でぬる（下が少し暗く、面ごとにわずかにちがう）。仕上げの加工はなし。
+// 光は model.js の「いつもの光」（夕方）：低い太陽のやわらかい影、空の青のまわりこみ、反対がわからのふちの光、窓と街灯のあかり
+import * as THREE from 'three';
+const K = KIT(THREE), M = MODEL(THREE, K), { hash } = K, { lerp, smooth } = M;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, fitAspect: .95, maxFov: 72, far: 400 });
+const L = M.look(scene, renderer, 'evening', { range: 30, fog: [34, 165], dir: [-.52, .44, -.62] });
+
+// ── 地形：道は x の方向へのびる。PER ごとに同じ形なので、ずっと歩き続けられる ──
+const PER = 240, k1 = Math.PI * 2 / PER, mod = (a, n) => ((a % n) + n) % n, wrap = dx => mod(dx + PER / 2, PER) - PER / 2;
+const road = x => Math.sin(x * k1) * 10 + Math.sin(x * k1 * 3 + 1.2) * 2.5;
+const base = (x, z) => Math.sin(x * k1 * 2 + z * .045) * 1.5 + Math.cos(z * .05 + Math.sin(x * k1) * 1.3) * 1.6 + Math.sin(x * k1 * 5 + z * .11) * .3;
+const H0 = (x, z) => { const rz = road(x), a = Math.abs(z - rz); return lerp(base(x, rz), base(x, z) + smooth(14, 70, a) * (5 + 4 * Math.sin(x * k1 * 3 + z * .035)), smooth(2.4, 12, a)); };   // 道の上は横に平ら、はなれるほど丘
+const PX = 176, PZ = road(PX) - 19, PR = 8.5, P0 = H0(PX, PZ), WL = P0 - .55;                                    // 池
+const H = (x, z) => { let h = H0(x, z); const d = Math.hypot(wrap(x - PX), z - PZ); if (d < PR * 2) h = lerp(h, P0, smooth(PR * 2, PR * 1.15, d)) - 1.6 * smooth(PR, PR * .3, d); return h; };
+const G = M.ground(H, { nx: 96, nz: 64, cell: 2, grass: ['#9ccb62', '#86bf5c', '#aed46a', '#78b25a'], patch: .045,
+  paths: [{ d: (x, z) => Math.abs(z - road(x)), w: 1.9, color: '#e3c692', edge: '#bcc070' }], slope: { color: '#b9a878', from: .8, to: 1.4 }, shore: { level: WL, sand: '#e6d29c', wet: '#bfae80', band: 1.0, mask: (x, z) => smooth(PR * 2, PR * 1.3, Math.hypot(wrap(x - PX), z - PZ)) }, under: '#7a9a8a' });
+scene.add(G.mesh);
+// 道：きれいなふちの帯を地面に重ねる（1 周ぶんを 2 つ置いて、主役の前後へ送る）
+const roadPts = [...Array(PER / 1.5 + 1)].map((_, i) => [i * 1.5, road(i * 1.5)]);
+const roads = [0, 1].map(() => { const r = M.ribbon(roadPts, { w: 2.7, H: G.h, color: '#edd6a2', edge: '#d6bd88', ew: .28, lift: .06 }); scene.add(r); return r; });
+
+// ── 置く物は、道にそった 40m ごとのまとまり（chunk）に入れ、主役が進んだら 1 周先へ送りなおす ──
+const CH = 40, chunks = [...Array(PER / CH)].map(() => { const g = new THREE.Group(); scene.add(g); return g; }), chunkOf = x => chunks[Math.floor(mod(x, PER) / CH)];
+const put = (obj, x, z, ry = 0, dy = 0) => { obj.position.set(x, G.h(x, z) + dy, z); obj.rotation.y = ry; chunkOf(x).add(obj); return obj; };
+const side = (x, s, dist) => [x, road(x) + s * dist];              // 道のわき：s = +1 が右（+z）、-1 が左
+const face = (x, s) => (s > 0 ? Math.PI : 0) - Math.atan(road(x + .5) - road(x - .5));   // 道のほうを向く角
+
+// 家
+const CREAM = '#f7ecd6', houses = [], smokes = [];
+const HOUSES = [
+  [62, 1, 9.5, { w: 5.2, d: 4.2, roofColor: '#cf5b44', shutters: '#5f8a7a', flowerBox: '#8a5a44', door: '#5f8a7a' }],
+  [76, -1, 9, { w: 5.6, d: 4.6, floors: 2, roof: 'hip', wall: '#f5e3c4', wall2: CREAM, roofColor: '#4f7f98', timber: '#7a5a44', door: '#cf5b44', flowerBox: '#7a5a44' }],
+  [92, 1, 10, { w: 4.6, d: 5, floors: 2, h: 2.5, gableFront: true, wall: '#f3dcb8', roofColor: '#6f8f5c', awning: '#cf5b44', shutters: '#fbf6ea', door: '#7a5a44' }],
+  [107, -1, 8.5, { w: 3.6, d: 3.2, h: 2.4, pitch: 1.0, wall: '#ecd3a8', roofColor: '#9a5f4c', windows: 'front', flowerBox: '#7a5a44' }],
+  [122, 1, 9.5, { w: 5.4, d: 4.2, floors: 2, wall: CREAM, roofColor: '#cf5b44', shutters: '#4f7f98', door: '#4f7f98', flowerBox: '#8a5a44' }],
+  [138, -1, 10, { w: 5, d: 4, roofColor: '#4f7f98', wall: '#f5e3c4', shutters: '#cf5b44', door: '#cf5b44' }],
+  [22, -1, 11, { w: 6, d: 4.4, roof: 'hip', roofColor: '#cf5b44', wall: CREAM, shutters: '#6f8f5c', door: '#6f8f5c', flowerBox: '#8a5a44' }],
+  [36, 1, 12, { w: 4.4, d: 4, gableFront: true, roofColor: '#6f8f5c', wall: '#f3dcb8', door: '#7a5a44' }],
+  [206, 1, 10, { w: 5, d: 4.2, floors: 2, roof: 'hip', roofColor: '#9a5f4c', wall: CREAM, timber: '#7a5a44', door: '#4f7f98', shutters: '#4f7f98' }],
+];
+HOUSES.forEach(([x, s, dist, o], i) => { const [hx, hz] = side(x, s, dist), ry = face(x, s), h = put(M.house({ windows: [s > 0 ? 1 : 3], ...o, lit: L.lit, found: 1.2, seed: i + 1 }), hx, hz, ry);   // 窓は、前と、カメラから見える横の面だけ houses.push([hx, hz, Math.max(o.w, o.d)]);
+  const fx = hx + Math.sin(ry) * (o.d / 2 + .2), fz = hz + Math.cos(ry) * (o.d / 2 + .2); h.position.y = G.h(fx, fz) + .02;           // 戸口の高さに合わせる
+  if (h.userData.chimney && i % 2 === 0) { const c = h.userData.chimney, v = new THREE.Vector3(c[0], c[1], c[2]).applyAxisAngle(new THREE.Vector3(0, 1, 0), ry); smokes.push([h, v]); }
+  // 戸口から道への小道と、花だん
+  const n = 7, pts = [...Array(n)].map((_, k) => { const u = k / (n - 1), px = lerp(fx, x, u), pz = lerp(fz, road(x) + s * 1.3, u); return [px, pz]; });
+  chunkOf(x).add(M.ribbon(pts, { w: 1.1, H: G.h, color: '#e8cf9c', lift: .05 }));
+});
+// 木：形のちがう 6 本を作っておき、同じ形はまとめて描く（InstancedMesh）。道の近くは細かい木、遠くは面の少ない木
+const TV = [M.tree({ h: 5.2, seed: 1, d: .5 }), M.tree({ h: 4.6, seed: 4, kind: 'wide', d: .5, blobs: 6 }), M.tree({ h: 6, seed: 2, kind: 'tall', leaf: M.LEAF.spring, d: .5 }), M.tree({ h: 4.4, seed: 7, leaf: M.LEAF.autumn, d: .5 }), M.conifer({ h: 7, seed: 1, seg: 6 }), M.conifer({ h: 5.4, seed: 3, tiers: 5, seg: 6, leaf: M.LEAF.dusk }), M.bush({ r: .8, seed: 1, d: .5 }), M.bush({ r: .7, seed: 3, d: .5, flowers: ['#ffffff', '#f6a0b8'] })];
+const TL = chunks.map(() => TV.map(() => [])), TINT = ['#ffffff', '#f4f0dc', '#e4f0dc', '#fff2e0'];
+const free = (x, z, r) => houses.every(([hx, hz, hs]) => Math.hypot(wrap(x - hx), z - hz) > hs * .75 + r) && Math.hypot(wrap(x - PX), z - PZ) > PR + r && !(mod(x, PER) > 146 && mod(x, PER) < 172 && z - road(x) > 3 && z - road(x) < 26);
+const addTree = (v, x, z, s = 1) => TL[Math.floor(mod(x, PER) / CH)][v].push([x, G.h(x, z) - .05, z, hash(x, z) * 6.28, s, TINT[Math.floor(hash(z, x) * 4)], .9 + hash(x + 1, z) * .25]);
+for (let i = 0; i < 120; i++) { const x = hash(i, 11) * PER, s = hash(i, 12) < .5 ? -1 : 1, a = 7 + Math.pow(hash(i, 13), 1.4) * 58, z = road(x) + s * a, r = hash(i, 14); if (!free(x, z, 2.5)) continue;
+  if (a > 30 && r < .55) { for (let k = 0; k < 2; k++) { const xx = x + (hash(i, 20 + k) - .5) * 9, zz = z + (hash(i, 30 + k) - .5) * 9; if (free(xx, zz, 2)) addTree(4 + (i + k) % 2, xx, zz, .8 + hash(i, 40 + k) * .5); } }
+  else if (a < 11) addTree(6 + i % 2, x, z, .8 + r * .6); else addTree(i % 4, x, z, .8 + r * .5); }
+// 道ぞいの「主役の木」は細かい形で 1 本ずつ
+[[54, -1, 5.5, { h: 5.6, seed: 12, fruit: '#e8563e', leaf: M.LEAF.summer }], [84, 1, 5, { h: 5, seed: 5, kind: 'wide', leaf: M.LEAF.autumn, blobs: 6 }], [100, 1, 15, { h: 6.5, seed: 9, leaf: M.LEAF.summer, blobs: 7 }], [114, -1, 5.2, { h: 4.8, seed: 3, leaf: M.LEAF.gold }], [130, 1, 4.8, { h: 5.2, seed: 8, leaf: M.LEAF.summer }], [158, -1, 6, { h: 6, seed: 6, kind: 'wide', leaf: M.LEAF.autumn }], [8, 1, 6, { h: 5.4, seed: 2, leaf: M.LEAF.summer }], [222, -1, 5.5, { h: 5.6, seed: 14, leaf: M.LEAF.gold }], [190, 1, 6, { h: 5, seed: 15, leaf: M.LEAF.summer, fruit: '#f6d45a' }]]
+  .forEach(([x, s, d, o]) => put(M.tree(o), ...side(x, s, d), hash(x, 3) * 6, -.05));
+TL.forEach((vs, c) => vs.forEach((list, v) => { if (list.length) chunks[c].add(M.scatter(TV[v].children[0], list)); }));
+// さく・街灯・ベンチ・看板・井戸・岩
+const along = (x0, x1, s, dist, step = 1.6) => { const p = []; for (let x = x0; x <= x1 + .01; x += step) p.push(side(x, s, dist)); return p; };
+[[56, 70, 1, 3.4, 'picket'], [86, 99, 1, 3.4, 'picket'], [70, 83, -1, 3.3, 'picket'], [116, 129, 1, 3.4, 'picket'], [132, 146, -1, 3.4, 'picket'], [14, 30, -1, 3.6, 'rail'], [198, 214, 1, 3.5, 'rail']].forEach(([x0, x1, s, d, kind]) => chunkOf(x0).add(M.fence(along(x0, x1, s, d), { H: G.h, kind, h: kind === 'picket' ? .8 : .95 })));
+const lamps = []; for (let i = 0; i < 12; i++) { const x = 10 + i * 20, s = i % 2 ? 1 : -1, l = put(M.lamp({ lit: L.lit, kind: i % 3 ? 'top' : 'arm' }), ...side(x, s, 2.5), s > 0 ? Math.PI / 2 : -Math.PI / 2); lamps.push(l); }
+const benchAt = side(81, 1, 2.6), bench = put(M.bench(), benchAt[0], benchAt[1], face(81, 1));
+put(M.sign(), ...side(51, 1, 2.6), .5); put(M.sign({ kind: 'hang', color: '#f6ead2' }), ...side(89.2, 1, 6.4), Math.PI * .5); put(M.sign({ kind: 'board' }), ...side(150, -1, 3), .3);
+put(M.well(), ...side(99, -1, 6.5), .4);
+for (let i = 0; i < 18; i++) { const x = hash(i, 51) * PER, s = hash(i, 52) < .5 ? -1 : 1, [rx, rz] = side(x, s, 6 + hash(i, 53) * 16); if (free(rx, rz, 1.5)) put(M.rock({ r: .35 + hash(i, 54) * .7, n: 1 + i % 3, d: i % 3 ? .5 : 1, seed: i, color: '#a39c92', moss: i % 2 ? '#93b46a' : null }), rx, rz, i, -.05); }
+// ひつじの牧場（さくで囲む）と、池と小舟
+const MX = 159, pen = [[147, 4.5], [171, 4.5], [171, 24.5], [147, 24.5], [147, 4.5]].map(([x, d]) => [x, road(MX) + d]);
+chunkOf(147).add(M.fence(pen, { H: G.h, gap: 2 }));
+const sheep = [...Array(5)].map((_, i) => { const x = 151 + hash(i, 61) * 16, z = road(MX) + 7 + hash(i, 62) * 15, a = put(M.animal('sheep', { color: i === 3 ? '#e2d4bc' : '#f6f0e2' }), x, z, hash(i, 63) * 6); a.userData.i = i; return a; });
+const pond = M.water({ level: 0, size: PR * 2.6, color: '#7fb9cc', opacity: .86 }); pond.position.set(PX, WL, PZ); chunkOf(PX).add(pond);
+const boat = M.boat({ hull: '#f1e6cf', trim: '#cf5b44' }); boat.position.set(PX + 1.5, WL - .12, PZ + 1); boat.rotation.y = 1; chunkOf(PX).add(boat);
+// 草のふさと花：道ばたと庭に、色ごとにかたまりで
+const TF = chunks.map(() => []), FL = chunks.map(() => []), ci = x => Math.floor(mod(x, PER) / CH);
+for (let i = 0; i < 620; i++) { const x = hash(i, 71) * PER, s = hash(i, 72) < .5 ? -1 : 1, [tx, tz] = side(x, s, 1.9 + Math.pow(hash(i, 73), 2) * 20); if (free(tx, tz, .3)) TF[ci(x)].push([tx, G.h(tx, tz), tz, .6 + hash(i, 74) * .7, ['#ffffff', '#eaf4c8', '#fff2c0'][i % 3]]); }
+for (let i = 0; i < 36; i++) { const x = hash(i, 81) * PER, s = hash(i, 82) < .5 ? -1 : 1, [cx, cz] = side(x, s, 2.4 + hash(i, 83) * 9), col = i % 4; for (let k = 0; k < 6; k++) { const fx = cx + (hash(i, 90 + k) - .5) * 3.4, fz = cz + (hash(i, 100 + k) - .5) * 2.4; if (free(fx, fz, .3) && Math.abs(fz - road(fx)) > 1.8) FL[ci(x)].push([fx, G.h(fx, fz), fz, 1 + hash(i, 110 + k) * .6, hash(i, k) < .8 ? col : (col + 1) % 4]); } }
+chunks.forEach((g, c) => { if (TF[c].length) g.add(M.tufts(TF[c], { color: '#6fa858', tip: '#c2d880' })); if (FL[c].length) g.add(M.flowers(FL[c], { colors: ['#ffffff', '#f7d560', '#f08a7a', '#c4a4e4'] })); });
+
+// ── 空の物：雲と鳥 ──
+const sky = new THREE.Group(); scene.add(sky);
+for (let i = 0; i < 8; i++) { const c = M.cloud({ s: 1.5 + hash(i, 121) * 1.3, seed: i, n: 4 + i % 3, color: L.mood.cloud[0], shade: L.mood.cloud[1] }); c.position.set(40 + hash(i, 122) * 230, 40 + hash(i, 123) * 22, (hash(i, 124) - .5) * 300); c.rotation.y = .3; sky.add(c); }
+const birds = [...Array(4)].map((_, i) => { const b = M.bird({ s: 2.2, color: i % 2 ? '#fbf6ea' : '#5a6a8a' }); scene.add(b); return b; });
+
+// ── 人と動物 ──
+const hero = M.person({ h: 1.42, head: .27, top: '#d9523c', bottom: '#3d4c6e', legs: 'shorts', collar: CREAM, hairStyle: 'pony', hair: '#5a3a2a', hat: 'straw', hatBand: '#d9523c', pack: '#e8c463', shoes: '#6a4a3a', socks: CREAM }); scene.add(hero);
+const dog = M.animal('dog', { color: '#f1e6cf', color2: '#c8935a', collar: '#d9523c' }); scene.add(dog);
+const walker = M.person({ top: '#4f7f98', legs: 'skirt', bottom: '#f3dcb8', collar: CREAM, hairStyle: 'bun', hair: '#3a2a2a', scarf: '#f7d560' }); scene.add(walker);
+const kid = M.person({ age: 'child', top: '#f2c84a', bottom: '#4f7f98', legs: 'shorts', sleeves: 'short', hairStyle: 'spiky', hair: '#3a2a2a', hat: 'cap', hatColor: '#cf5b44' }), kidC = side(69, 1, 5.2); chunkOf(69).add(kid);
+const elder = M.person({ h: 1.52, wide: 1.1, top: '#6f8f5c', bottom: '#6a5a4a', coat: true, hairStyle: 'short', hair: '#e2ddd4', hat: 'beanie', hatColor: '#9a5f4c', hatBand: '#f3dcb8', buttons: CREAM }); bench.add(elder); elder.position.set(-.3, bench.userData.seat - elder.userData.seatY, .05);
+const cat = M.animal('cat', { color: '#e8a05a', color2: '#b8703a' }); bench.add(cat); cat.position.set(.5, bench.userData.seat + .02, 0); cat.rotation.y = -.4;
+const shopper = put(M.person({ top: CREAM, bottom: '#9a5f4c', legs: 'dress', hairStyle: 'bob', hair: '#c8843a', sleeves: 'short' }), ...side(90.6, 1, 6.6), face(90.6, 1) + Math.PI * .9);
+
+// ── 毎コマ ──
+const smoke = M.puffs(scene, { n: 36, color: '#fbeee0' }), X0 = +new URLSearchParams(location.search).get('x') || 53,   // ?x=数 で歩きはじめる場所を変えられる（確かめ用）
+   SPD = 1.45; let dist = 0, px = X0, pz = road(X0), tall = false, smokeT = 0;
+onResize((w, h) => { tall = w < h; });
+K.loop((dt, t) => {
+  const x = X0 + t * SPD, z = road(x) - .45, y = G.h(x, z); dist += Math.hypot(x - px, z - pz); px = x; pz = z;
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(1, (road(x + .3) - road(x - .3)) / .6); M.pose(hero, 'walk', dist / hero.userData.rig.stride * Math.PI);
+  // 犬：少し前を、ときどき寄り道しながらついて歩く
+  const dxo = 1.5 + Math.sin(t * .5) * .7, dx = x + dxo, dz = road(dx) + .2 + Math.sin(t * .37) * .35; dog.position.set(dx, G.h(dx, dz), dz); dog.rotation.y = Math.atan2(1 + Math.cos(t * .5) * .24, (road(dx + .3) - road(dx - .3)) / .6 + Math.cos(t * .37) * .13); M.gait(dog, 'walk', (dist + dxo) / dog.userData.rig.stride * Math.PI);
+  // 向こうから来る人（道を逆に歩く。主役とすれちがったら 1 周先へ）
+  const wx0 = X0 + 19 - t * 1.25, wx = x + mod(wx0 - x + 70, PER) - 70, wz = road(wx) + 1.0; walker.position.set(wx, G.h(wx, wz), wz); walker.rotation.y = Math.atan2(-1, -(road(wx + .3) - road(wx - .3)) / .6); M.pose(walker, 'walk', t * 1.25 / walker.userData.rig.stride * Math.PI);
+  // 庭をかけ回る子、ベンチの人とねこ、店の前の人、ひつじ、小舟
+  const ka = t * 1.5, kx = kidC[0] + Math.cos(ka) * 2.1, kz = kidC[1] + Math.sin(ka) * 1.6; kid.position.set(kx, G.h(kx, kz), kz); kid.rotation.y = Math.atan2(-Math.sin(ka) * 2.1, Math.cos(ka) * 1.6); M.pose(kid, 'run', t * 9);
+  M.pose(elder, 'sit', t * 1.2); M.gait(cat, 'sit', t * 2); M.pose(shopper, 'wave', t * 2.2);
+  sheep.forEach((s, i) => M.gait(s, Math.sin(t * .3 + i * 2) > -.3 ? 'graze' : 'stand', t * 2 + i));
+  boat.rotation.z = Math.sin(t * 1.1) * .03; boat.position.y = WL - .12 + Math.sin(t * .9) * .015;
+  birds.forEach((b, i) => { const a = t * (.5 + i * .07) + i * 1.9, r = 9 + i * 3; b.position.set(x + 16 + Math.cos(a) * r, y + 7.5 + i * 1.2 + Math.sin(t * .8 + i) * .6, z + Math.sin(a) * r); b.rotation.y = -a; b.rotation.z = -.3; M.flap(b, t * 13 + i); });
+  // けむり（えんとつから、近くの家だけ）
+  smokeT += dt; if (smokeT > .55) { smokeT = 0; for (const [h, v] of smokes) { const hx = h.position.x + h.parent.position.x; if (Math.abs(hx - x) < 70) smoke.emit(hx + v.x, h.position.y + v.y, h.position.z + v.z, { life: 4, size: .16, grow: 2.6, vy: .75, vx: .3 }); } } smoke.update(dt);
+  // 地面・道・まとまり・空を主役の前後へ送る
+  G.follow(x + 46, z); chunks.forEach((g, c) => { g.position.x = Math.round((x + 55 - (c + .5) * CH) / PER) * PER; }); roads.forEach((r, i) => { r.position.x = (Math.floor((x - 75) / PER) + i) * PER; }); sky.position.x = x - (t * .6) % 60;
+  L.follow(x + 5, y, z);
+  // うしろから追うカメラ（たて長では少し寄る）
+  const back = tall ? 4.1 : 5.0, cx = x - back, cz = lerp(road(cx), z, .45) + (tall ? .55 : 1.25) + Math.sin(t * .13) * (tall ? .2 : .5), cy = Math.max(G.h(cx, cz) + 1.2, y + (tall ? 2.0 : 2.2));
+  cam.position.set(cx, cy, cz); cam.lookAt(x + 5, y + (tall ? 1.5 : 1.0), lerp(road(x + 5), z, .45));
+  renderer.render(scene, cam);
+});
+</script>
+</html>
