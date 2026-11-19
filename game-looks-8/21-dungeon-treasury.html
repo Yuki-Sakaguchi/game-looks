@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-21 ダンジョンの宝物庫 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8b0;opacity:.9;text-shadow:0 1px 0 #1a1c30}
+</style>
+<div id="cap">8-21 ─ ダンジョンの宝物庫 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない丸い大広間（切り石のかべ・柱・丸天井）に、手で打ったドット絵（切り石、敷石、重なった金貨、鉄の扉）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 石の青灰と、金貨の金、たいまつのだいだい。差し色は冒険者の赤いマントと旗。たいまつと金貨のあかりを床と天井の頂点の色に焼きこんで、暗くせずに部屋の形を見せる。
+// 冒険者が、金貨の山と宝箱のまわりを歩く。近づくと鉄の扉があき、しずく玉が金貨の上ではね、金のきらめきがのぼる。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 200, aa: false, fitAspect: .9, maxFov: 78 });
+scene.background = new THREE.Color('#2c3152'); scene.fog = new THREE.Fog('#3a4268', 20, 60);
+const { sun } = K.lights(scene, renderer, { sky: 0xc0c8f0, ground: 0x8a80a0, amb: 1.5, sun: 0xffe8c8, power: 1.1, range: 24 });
+
+// ---- 部屋の形。金貨の山のまわりの道の輪 pt(a, e)、かべの半径 WR、柱の輪 CR ----
+const rr = a => 8.7 + .5 * Math.sin(2 * a) + .3 * Math.sin(3 * a + 1), WR = 15.6, CR = 12.3, NW = 14, HW = 7.2, STONE = '#7c84a8';
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const cl = v => Math.max(0, Math.min(1, v)), DOOR = 1.5 / NW * TAU, face = a => Math.atan2(-Math.cos(a), -Math.sin(a));   // DOOR: 鉄の扉のあるかべ。face(a): まん中を向く向き
+const HC = (x, z) => 9.4 - (Math.hypot(x, z) / WR) ** 2 * 2.4;   // 丸天井
+// 宝の山（まん中の大きな山と、まわりの小さな山）
+const PILES = [[0, 0, 4.3, 3], ...[...Array(9)].map((_, i) => { const a = i / 9 * TAU + .3, r = 3.9 + hash(i, 1) * 1.7; return [Math.cos(a) * r, Math.sin(a) * r, 1.3 + hash(i, 2) * 1.1, 0]; })].map(([x, z, r, h]) => ({ x, z, r, h: h || r * .62 }));
+const pileY = (x, z) => { let y = 0; for (const p of PILES) { const d = Math.hypot(x - p.x, z - p.z) / p.r; if (d < 1) y = Math.max(y, p.h * (1 - d) ** 1.25); } return y; };
+// あかり（たいまつ・金貨）を床と天井に焼きこむ
+const TORCH = [...Array(8)].map((_, i) => { const a = (i + .5) / 8 * TAU; return { a, x: Math.cos(a) * (CR - .75), z: Math.sin(a) * (CR - .75) }; }), WTORCH = [...Array(NW)].map((_, i) => i).filter(i => i % 2 === 0 && i !== 0).map(i => { const a = (i + 1) / NW * TAU; return { a, x: Math.cos(a) * (WR - .7), z: Math.sin(a) * (WR - .7) }; });
+const lamps = [...TORCH.map(t => ({ x: t.x, y: 2.6, z: t.z, c: '#ffae5a', r: 8.5, k: .85 })), ...WTORCH.map(t => ({ x: t.x, y: 2.6, z: t.z, c: '#ffae5a', r: 7, k: .7 })), { x: 0, y: 3.2, z: 0, c: '#ffd868', r: 12, k: .75 }, { x: Math.cos(DOOR) * (WR - 1), y: 2, z: Math.sin(DOOR) * (WR - 1), c: '#ffc070', r: 7, k: .8 }];
+const bakeF = F.bake(lamps, [.66, .7, .96]), bakeC = F.bake(lamps.map(l => ({ ...l, r: l.r * 1.8, k: l.k * .8 })), [.6, .64, .92]);
+const land = R.ground({ w: 40, d: 40, cell: 2, layers: [X.dungeon({ kind: 'floor', c: STONE, moss: .25 }), X.gold({}), T.cobble({ c: '#9aa0c0', n: 6 })],
+  mix: (x, z) => { const r = Math.hypot(x, z), d = Math.abs(r - rr(Math.atan2(z, x))); return [r < 5.2 || (r < 7.2 && F.vn(x * .9, z * .9, 4) > .55) ? 1 : 0, r >= 7.2 && d < 1.3 ? .9 : 0]; }, shade: (x, z) => bakeF(x, z, 0) });   // 山のまわりの床にこぼれた金貨と、すりへった丸石の道
+scene.add(land.mesh, F.caveCeil({ w: 36, d: 36, cell: 3, H: HC, floor: 5, tex: X.dungeon({ kind: 'wall', c: '#6c7498', moss: 0 }), shade: bakeC }));
+
+// ---- 動かない物：かべ・柱・旗・宝の山・宝箱・宝石 ----
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+const SEG = 2 * WR * Math.tan(Math.PI / NW) + .5, flagT = [T.fabric({ c: '#c8383a', c2: '#f0c040', pattern: 'stripe', scallop: true }), T.fabric({ c: '#3a5ac8', c2: '#f0c040', pattern: 'stripe', scallop: true })];
+for (let i = 0; i < NW; i++) { const a = (i + .5) / NW * TAU, x = Math.cos(a) * WR, z = Math.sin(a) * WR, ry = -a - Math.PI / 2, tx = -Math.sin(a), tz = Math.cos(a);
+  if (i === 1) { for (const s of [-1, 1]) put(F.dungeonWall({ len: 2.1, h: HW, thick: .9, c: STONE }), x + tx * s * 3.2, z + tz * s * 3.2, ry); put(F.dungeonWall({ len: 4.6, h: HW - 4.7, thick: .9, c: STONE }), x, z, ry, 4.7); continue; }
+  put(F.dungeonWall({ len: SEG, h: HW, thick: .9, c: STONE, crenel: i % 2 === 0 }), x, z, ry);
+  if (i % 2) { const G = R.geo(), w = 1.5, h0 = 2.4, h1 = 5.8, q = WR - .52; G.quad([Math.cos(a) * q - tx * w / 2, h0, Math.sin(a) * q - tz * w / 2], [Math.cos(a) * q + tx * w / 2, h0, Math.sin(a) * q + tz * w / 2], [Math.cos(a) * q + tx * w / 2, h1, Math.sin(a) * q + tz * w / 2], [Math.cos(a) * q - tx * w / 2, h1, Math.sin(a) * q - tz * w / 2], [0, 0, 1, 2.2]); fixed.push(G.mesh(flagT[(i >> 1) % 2], { side: true })); } }   // かべの旗
+for (let i = 0; i < 8; i++) { const a = i / 8 * TAU, x = Math.cos(a) * CR, z = Math.sin(a) * CR; put(F.column({ h: HC(x, z) + .3, r: .55, c: '#8a90b4', moss: .2, seed: i }), x, z, a); }
+PILES.forEach((p, i) => put(F.coinPile({ r: p.r, h: p.h, gems: i % 2 === 0, seed: i, emissive: '#4a3000' }), p.x, p.z, i, -.04));
+const CHESTS = [[.35, -2.1, 1.25, .85, '#8a5a34'], [1.5, -2.3, 1.1, 0, '#7a4a3a'], [2.45, -2.0, 1.3, .7, '#8a5a34'], [3.6, -2.2, 1.1, 0, '#6a5a7a'], [4.5, -2.1, 1.25, .9, '#8a5a34'], [5.55, -2.2, 1.1, .5, '#7a4a3a']].map(([a, e, s, open, c]) => { const [x, z] = pt(a, e); put(F.chest({ s, c, open }), x, z, face(a) + Math.PI + (hash(s * 9, a * 7) - .5) * .7); return [x, z]; });
+const GEMC = ['#e8506a', '#4ab0f0', '#5ad88a', '#c880f0']; for (let i = 0; i < 22; i++) { const a = hash(i, 5) * TAU, r = 1 + hash(i, 6) * 5.6, x = Math.cos(a) * r, z = Math.sin(a) * r; put(F.crystal({ h: .35 + hash(i, 7) * .45, n: 2 + (i % 2), r: .16, c: GEMC[i % 4], seed: i }), x, z, i, pileY(x, z) - .05); }
+for (let i = 0; i < 5; i++) { const [x, z] = pt(i * 1.26 + .9, 2.2 + hash(i, 8)); put(F.gemOre({ s: .5 + hash(i, 9) * .3, c: GEMC[i % 4], rock: '#7c84a8', seed: i }), x, z, i); }
+for (let i = 0; i < 6; i++) { const [x, z] = pt(i * 1.05 + .2, 3 + hash(i, 10) * 1.2); if (i % 2) put(R.barrel({ c: '#8a5a3a' }), x, z, i); else put(R.crate({ s: .7 + hash(i, 11) * .2, kind: i % 4 ? 'x' : 'slash' }), x, z, i * .7); }
+scene.add(R.merge(fixed));
+// たいまつ（柱とかべ）。PointLight は 3 つだけ
+[...TORCH, ...WTORCH].forEach((t, i) => { const lit = i === 0 || i === 3 || i === 6, g = F.torch({ wall: true, h: 1.5, y: 2.4, light: lit, power: 16, range: 13, seed: i }); g.position.set(t.x, 0, t.z); g.rotation.y = face(t.a); scene.add(g); ticks.push(g.userData.tick); });
+const goldL = new THREE.PointLight('#ffd060', 34, 17, 1.4); goldL.position.set(0, 4.6, 0); scene.add(goldL);
+// 鉄の扉（主役が近づくと開く）と、その先の明るい通路
+const door = F.ironDoor({ w: 3.2, h: 4.4, lit: true, c: STONE, iron: '#59607c' }), dx = Math.cos(DOOR), dz = Math.sin(DOOR); door.position.set(dx * WR, 0, dz * WR); door.rotation.y = face(DOOR); scene.add(door);
+{ const G = R.geo(), q = WR + 2.6, tx = -dz * 2.2, tz = dx * 2.2; G.quad([dx * q + tx, 0, dz * q + tz], [dx * q - tx, 0, dz * q - tz], [dx * q - tx, 4.6, dz * q - tz], [dx * q + tx, 4.6, dz * q + tz], [0, 0, 1.5, 1.5]); const back = new THREE.Mesh(G.build(), F.glowMat(X.dungeon({ kind: 'wall', c: '#c8a070', moss: 0 }), { color: '#ffd8a0', side: true })); scene.add(back);
+  const tc = F.torch({ wall: true, h: 1.4, y: 2.2, power: 14, range: 10 }); tc.position.set(dx * (q - .1), 0, dz * (q - .1)); tc.rotation.y = face(DOOR); scene.add(tc); ticks.push(tc.userData.tick); }
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'spiky', hair: '#7a4426', eye: '#3a7a4a', brow: 'thick', cloth: 'tunic', sleeve: 'short', top: '#f0e8d4', top2: '#c8383a', lower: 'pants', bottom: '#4a5a8a', gloves: 'gauntlet', glove: '#b8bccc', gear: '#b8bccc', shoes: 'boot', shoe: '#6a4630', shoulder: 'left', neck: 'cape', skirtC: '#c8383a', acc: '#c8383a', back: 'sword', belt: '#6a4630', s: 1.05 }); scene.add(hero);
+const mage = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#e8d8f4', eye: '#8a5ac8', eyes: 'big', mouth: 'open', blush: true, cloth: 'robe', skirt: .7, top: '#3f9a8a', top2: '#f0e8c0', belt: '#c8a04a', shoes: 'shoe', shoe: '#5a4a6a', hat: 'wizard', acc: '#3f9a8a', hold: 'staff', s: .9 }), [mx, mz] = pt(.95, -1.6); mage.position.set(mx, 0, mz); mage.rotation.y = face(.95) + .5; scene.add(mage);
+const slimes = [[PILES[2].x, PILES[2].z, '#6ab8f0', .36, .5], [PILES[5].x, PILES[5].z, '#f08ab0', .3, .4], [1.4, -1.6, '#8ad86a', .34, .45], [-2.2, 1.2, '#6ab8f0', .28, .35], ...[[1.9, -1.2, '#f0d04a', .3], [4.0, -1.3, '#8ad86a', .34]].map(([a, e, c, s]) => { const [x, z] = pt(a, e); return [x, z, c, s, .3]; })].map(([x, z, c, s, hop], i) => { const g = F.slime({ c, s }); g.position.set(x, pileY(x, z) - .03, z); g.rotation.y = Math.atan2(x, z) + (i % 2 ? .5 : -.5); g.userData.hop = hop; scene.add(g); return g; });
+const crit = F.critter({ c: '#d8c0a0', s: 1.4 }); scene.add(crit);
+const sparks = F.motes({ n: 90, box: [15, 5, 15], c: '#fff0a0', size: .11, rise: .32, drift: .4, y: .5 }); scene.add(sparks);
+
+// ---- 冒険者の道（輪を左まわり） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.6, S0 = +new URLSearchParams(location.search).get('s') || .955, cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.9;
+  const pr = Math.hypot(p.x, p.z), ix = -p.x / pr, iz = -p.z / pr, sd = tall ? .3 : 1;   // 宝の山が見えるよう、カメラは少し外がわから山のほうを向く
+  cp.set(p.x - cd.x * D - ix * .8 * sd, tall ? 2.1 : 2.3, p.z - cd.z * D - iz * .8 * sd); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3 + ix * 1.3 * sd, 1.3, p.z + cd.z * 3 + iz * 1.3 * sd);
+  sun.position.set(p.x * .3 + 6, 30, p.z * .3 + 8); sun.target.position.set(p.x * .6, 0, p.z * .6);
+  // 鉄の扉・たいまつ・魔法使い・しずく玉・ミミナガ・金のきらめき
+  const da = Math.abs(((Math.atan2(p.z, p.x) - DOOR + Math.PI * 3) % TAU) - Math.PI), k = cl((1.75 - da) / .7); door.userData.open(k * k * (3 - 2 * k));
+  for (const f of ticks) f(t); goldL.intensity = 34 * (.93 + .07 * Math.sin(t * 2.3));
+  R.idle(mage, t, Math.sin(t * .5) * .4); { const J = mage.userData.J; J.armL.rotation.set(-2.4 + Math.sin(t * 5) * .2, 0, .5); J.foreL.rotation.x = -.3; }
+  slimes.forEach((s, i) => F.slimePose(s, t * 1.1 + i * 1.3, s.userData.hop));
+  { const a = 3.2 + t * .09, [x, z, r] = pt(a, 2 + Math.sin(t * .4) * .4); crit.position.set(x, 0, z); crit.rotation.y = r; F.critterPose(crit, 'walk', t * 9); }
+  sparks.userData.tick(t, 0, 0); crt.render(scene, cam, t);
+});
+</script>
+</html>

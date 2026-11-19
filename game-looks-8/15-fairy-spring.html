@@ -53,7 +53,7 @@ scene.add(R.merge(fixed), R.backdrop({ c: '#1c5a52', haze: '#4a9a8c', r: 110, h:
 
 // ---- 光る泉・魔法陣・光の柱 ----
 const pond = F.pool({ r: PR + .5, c: '#2fa8ac', emissive: '#0f4648', seg: 20 }), MX = cx * 2.4, MZ = cz * 2.4;   // 魔法陣は泉のまん中より少し滝がわ pond.position.y = WY; scene.add(pond);
-const circle = F.magicCircle({ r: 3.9, c: '#ffe890', star: 6, spin: .25, y: WY + .14 }), circle2 = F.magicCircle({ r: 1.5, c: '#bffff0', star: 5, spin: -.6, y: 1.5 }), shaft = F.beam({ h: 15, r: 2.5, c: '#ffeeb0', opacity: .1 }); shaft.position.set(MX, WY, MZ); circle.position.x = circle2.position.x = MX; circle.position.z = circle2.position.z = MZ; scene.add(circle, circle2, shaft);
+const circle = F.magicCircle({ r: 3.9, c: '#ffe890', star: 6, spin: .25, y: WY + .14 }), circle2 = F.magicCircle({ r: 1.5, c: '#bffff0', star: 5, spin: -.6, y: 1.5 }), shaft = F.beam({ h: 15, r: 1.9, c: '#ffeeb0', opacity: .1 }); shaft.children[1].material.opacity = .22; shaft.position.set(MX, WY, MZ); circle.position.x = circle2.position.x = MX; circle.position.z = circle2.position.z = MZ; scene.add(circle, circle2, shaft);
 const springL = new THREE.PointLight('#7af0d8', 30, 22, 1.5); springL.position.set(0, 2.2, 0); scene.add(springL);
 
 // ---- 人と生きもの ----

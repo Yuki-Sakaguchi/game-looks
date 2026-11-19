@@ -20,8 +20,8 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 78 });
-scene.add(R.skyDome([[0, '#5f86c6'], [.4, '#a8b0c8'], [.68, '#f2c890'], [.9, '#ffe6a0'], [1, '#fff4c8']], { r: 420 })); scene.fog = new THREE.Fog('#f4d49c', 70, 330);
-const { sun } = K.lights(scene, renderer, { sky: 0xffe2c0, ground: 0xb0a070, amb: 1.6, sun: 0xffc47a, power: 2.7, range: 36, map: 2048 }), SUN = new THREE.Vector3(.82, .36, .44).normalize();
+scene.add(R.skyDome([[0, '#5474b6'], [.36, '#8c98c0'], [.6, '#eaa878'], [.84, '#ffbe68'], [1, '#ffd27a']], { r: 420 })); scene.fog = new THREE.Fog('#f4c888', 60, 290);
+const { sun } = K.lights(scene, renderer, { sky: 0xffe2c0, ground: 0xb0a070, amb: 1.7, sun: 0xffc47a, power: 2.7, range: 36, map: 2048 }), SUN = new THREE.Vector3(-.62, .42, -.46).normalize();
 
 // ---- 下の地面：森の草＋川べりの砂＋こけ。川は高架の落ちた所の下をくぐる ----
 const cl = v => Math.max(0, Math.min(1, v)), vn = (x, z) => { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz); return (hash(ix, iz) * (1 - sx) + hash(ix + 1, iz) * sx) * (1 - sz) + (hash(ix, iz + 1) * (1 - sx) + hash(ix + 1, iz + 1) * sx) * sz; };
@@ -33,29 +33,29 @@ const WF = T.water({ c: '#5aa8d0' }), river = R.strip([...Array(40)].map((_, i) 
 
 // ---- 高架（x の向き。x = 18〜36 が落ちている）と、道の上に残った物 ----
 const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
-put(PK.viaduct({ len: 144, w: 10, h: H, kind: 'road', gap: [12, 30], grass: .85, droop: .42, seed: 1 }), 6, 0);
+put(PK.viaduct({ len: 144, w: 10, h: H, kind: 'road', gap: [12, 30], top: PT.asphalt({ c: '#9c968e', line: 'both', grass: .85, m: 10 }), droop: .42, seed: 1 }), 6, 0);
 put(PK.viaduct({ len: 72, w: 9, h: 10, kind: 'road', gap: [-6, 12], seed: 3, moss: .5 }), 74, -58, .5); put(PK.viaduct({ len: 48, w: 6, h: 8, kind: 'rail', gap: [6, 18], seed: 2 }), -30, 62, -.3);
 const on = (o, x, z, ry = 0) => put(o, x, z, ry, H);
 on(PK.wreck({ c: '#e0b44a', seed: 1 }), -9, .3, Math.PI / 2 + .2); on(PK.wreck({ kind: 'van', c: '#6fa8b8', seed: 2 }), 7.5, -.4, Math.PI / 2 - .35); on(PK.wreck({ c: '#d86a50', seed: 3 }), -27, -.2, -Math.PI / 2 + .1); on(PK.wreck({ c: '#ece6d6', seed: 4 }), 43, 1.6, Math.PI / 2 + .5); on(PK.coach({ c2: '#d8884a', seed: 1 }), 55, -2, Math.PI / 2 - .06); on(PK.wreck({ c: '#7fb07a', seed: 5 }), -45, .6, Math.PI / 2);
 on(PK.sign({ kind: 'arrow', lean: 1.38, seed: 1 }), 3.2, 3.9, .5); on(PK.sign({ kind: 'warn', lean: .2 }), 12.6, 4.3, -Math.PI / 2); on(PK.sign({ kind: 'no', lean: -.24, seed: 2 }), -4.5, -4.3, Math.PI / 2); on(PK.sign({ kind: 'stop', lean: .3, seed: 3 }), -19, 4.3, -Math.PI / 2);
 on(PK.billboard({ kind: 'arrow', c: '#f0e8d0', c2: '#3f8a5c', w: 6.5, h: 2.6, legs: 4.2, seed: 1, lean: -.12, leanX: .1 }), 39.5, -1, -Math.PI / 2); on(PK.billboard({ kind: 'stripe', c2: '#3f8a5c', w: 4, h: 1.8, legs: 3.6, seed: 2, lean: .16 }), -33, -4.2, Math.PI / 2 + .12);
-const poles = [[-38, 4.5, .1], [-14, -4.5, -.14], [9, 4.5, .07], [41, 4.4, -.2], [62, -4.4, .1]].map(([x, z, ln], i) => on(PK.pole({ h: 6, lean: ln, leanX: (i % 2 - .5) * .14, seed: i, trans: false, arms: 1 }), x, z, Math.PI / 2));
-on(PK.rubble({ r: 1.5, h: .6, seed: 1 }), 15.6, 3.2); on(PK.rubble({ r: 1.2, h: .5, seed: 2 }), 16.4, -3.6); on(PK.fence({ len: 6, h: 1.2, seed: 1, ivy: .7, lean: .2 }), 16.9, 0, Math.PI / 2);
-on(PK.decal(PT.marking({ kind: 'arrow', worn: .6 }), 3, 3), -2, 2.5, -Math.PI / 2); on(PK.decal(PT.marking({ kind: 'diamond', seed: 1 }), 3, 3), 9, -2.6, 0); for (const [x, z] of [[1.5, 1.2], [-13, -2.6], [11, 2.2]]) on(PK.decal(PT.puddle({ c: '#ffe4a8', seed: x }), 2.8, 1.8, { ur: 1, vr: 1 }), x, z, x);
+const poles = [[-38, -4.5, .1], [-14, -4.5, -.14], [10, -4.5, .07], [41, 4.4, -.2], [62, -4.4, .1]].map(([x, z, ln], i) => on(PK.pole({ h: 6, lean: ln, leanX: (i % 2 - .5) * .14, seed: i, trans: false, arms: 1 }), x, z, Math.PI / 2));
+on(PK.rubble({ r: 1, h: .5, seed: 1 }), 16.7, 3.9); on(PK.rubble({ r: 1, h: .45, seed: 2 }), 16.8, -3.9);
+on(PK.decal(PT.marking({ kind: 'arrow', worn: .6 }), 3, 3), -2, 2.5, -Math.PI / 2); on(PK.decal(PT.marking({ kind: 'diamond', seed: 1 }), 3, 3), 9, -2.6, 0); for (const [x, z] of [[1.5, 1.2], [-13, -2.6], [11, 2.2]]) on(PK.decal(PT.puddle({ c: '#a8cce4', seed: x }), 2.2, 1.4, { ur: 1, vr: 1 }), x, z, x);
 // 道の上の草花と、アスファルトをやぶって生えた若い木
 const FC = [['#ffffff', '#ffe27a'], ['#ffd0a0', '#ffffff'], ['#f6a0b0', '#fff0c0'], ['#ffe27a', '#f8b050']];
 for (let i = 0; i < 46; i++) { const x = -52 + i * 2.9 + hash(i, 1) * 1.5, s = i % 2 ? 1 : -1, z = s * (3.4 + hash(i, 2) * 1.1); if (x > 17 && x < 37.5) continue; on(PK.flowers({ n: 9, r: 1.1, seed: i, fc: FC[i % 4], s: .7 }), x, z); }
 for (let i = 0; i < 30; i++) { const x = -50 + hash(i, 3) * 66, z = (hash(i, 4) - .5) * 3; on(PK.flowers({ n: 6, r: .8, seed: i + 50, fc: FC[i % 4], s: .55, kinds: ['flower', 'grass', 'grass'] }), x, z); }
 for (let i = 0; i < 44; i++) { const x = -56 + hash(i, 5) * 128, z = (hash(i, 6) - .5) * 8.6; if ((x > 17.2 && x < 37) || (Math.abs(Math.abs(z) - 2.6) < .7 && x < 17)) continue; on(R.tuft({ kind: ['grass', 'bush', 'reed', 'grass', 'flower'][i % 5], s: .6 + hash(i, 7) * .7, seed: i % 3, fc: ['#ffe27a', '#ffffff'] }), x, z, i); }
-[[-6.5, -4, 3.4], [13.5, .2, 2.8], [-22, 4.1, 3.8], [40, 3.6, 3.2], [-41, -3.8, 4]].forEach(([x, z, h], i) => on(R.tree({ h, c: ['#6aac48', '#58a04a'][i % 2], seed: 60 + i }), x, z, i));
+[[-6.5, -4, 3.4], [45, -3.4, 3], [-22, 4.1, 3.8], [40, 3.6, 3.2], [-41, -3.8, 4]].forEach(([x, z, h], i) => on(R.tree({ h, c: ['#6aac48', '#58a04a'][i % 2], seed: 60 + i }), x, z, i));
 
 // ---- 下の森（高い木のこずえが 道のすぐ横まで来る）・川べり・遠くのビルの廃墟 ----
 for (let i = 0; i < 230; i++) { const x = -100 + hash(i, 1) * 230, z = (hash(i, 2) - .5) * 190, near = Math.abs(z) < 30; if (dRiver(x, z) < 10 || Math.abs(z) < 6.5) continue; put(R.tree({ kind: ['round', 'tall', 'round', 'round', 'pine'][i % 5], h: (near ? 9 : 7) + hash(i, 3) * 5, c: ['#3f8a42', '#4f9a44', '#35804a', '#6aa644', '#2f7a4c'][i % 5], seed: i }), x, z, i); }
 for (let i = 0; i < 40; i++) { const z = -90 + i * 4.6, s = i % 2 ? 1 : -1, x = riverX(z) + s * (8 + hash(i, 4) * 3); if (Math.abs(z) < 4) continue; put(i % 3 ? R.tuft({ kind: 'reed', s: 1.6 + hash(i, 5), seed: i % 3 }) : R.rock({ s: 1.2 + hash(i, 6) * 1.4, c: '#b8ae98', moss: .6, seed: i }), x, z, i); }
 const BC = ['#c8bca4', '#b4bcc0', '#d8c4a0', '#c4b4a8'];
-[[120, 34, 12, 12, 13, .25, 0], [138, 8, 15, 12, 18, .15, 1], [152, 48, 12, 12, 9, .5, 2], [128, -28, 12, 15, 15, .3, 3], [160, -12, 12, 12, 11, .2, 0], [108, 70, 12, 12, 8, .6, 1], [176, 26, 15, 12, 20, .1, 2], [98, -66, 12, 12, 10, .4, 3], [150, -58, 12, 12, 14, .2, 1], [84, 96, 12, 12, 7, .5, 0], [190, -34, 12, 12, 16, .3, 2]]
+[[150, 40, 12, 12, 9, .3, 0], [168, 10, 15, 12, 12, .2, 1], [182, 56, 12, 12, 7, .5, 2], [160, -34, 12, 15, 10, .3, 3], [196, -14, 12, 12, 8, .2, 0], [140, 84, 12, 12, 6, .6, 1], [210, 30, 15, 12, 13, .15, 2], [150, -80, 12, 12, 7, .4, 3]]
   .forEach(([x, z, w, d, fl, br, cn], i) => put(PK.building({ w, d, floors: fl, c: BC[i % 4], broken: br, corner: cn, seed: i + 2, moss: .4, roofGreen: .8, tree: 1 }), x, z, i * .4));
-put(PK.chimney({ h: 30, r: 2, c: '#d8785a' }), 112, -8); put(PK.pylon({ h: 22, lean: .1 }), 60, 44, .4); put(PK.pylon({ h: 22, lean: -.06 }), 20, 78, .4);
+put(PK.chimney({ h: 30, r: 2, c: '#d8785a' }), 136, -6); put(PK.pylon({ h: 22, lean: .1 }), 72, 52, .4); put(PK.pylon({ h: 22, lean: -.06 }), 30, 88, .4);
 scene.add(R.merge(fixed));
 
 // ---- 空と遠景：金色にかすむ山なみと、夕日にそまる雲。光の粒 ----
@@ -72,7 +72,7 @@ const birds = [[4, H + .92, 4.86], [5.2, H + .92, 4.86], [10.5, H + .92, 4.86], 
 
 // 旅人の道：右の車線を 落ちた所の手前まで行き、まわって 左の車線をもどる
 const path = new THREE.CatmullRomCurve3([[-40, 2.6], [-20, 2.7], [0, 2.5], [9.5, 2.6], [14.4, 1.6], [15.3, -.9], [12.5, -2.7], [0, -2.6], [-25, -2.7], [-48, -2.6], [-52, 0], [-49, 2.4]].map(([x, z]) => new THREE.Vector3(x, H, z)), true, 'centripetal');
-const LEN = path.getLength(), SPEED = 2, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x + 2, q.z - 2.6); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), cp = new THREE.Vector3(), dp = new THREE.Vector3();
+const LEN = path.getLength(), SPEED = 2, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x - 1.5, q.z - 2.6); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), cp = new THREE.Vector3(), dp = new THREE.Vector3();
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 let first = true;
 K.loop((dt, t) => {
@@ -80,9 +80,9 @@ K.loop((dt, t) => {
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
   const ud = (u + (2.1 + Math.sin(t * .4) * .5) / LEN) % 1, pd = path.getPointAt(ud), td = path.getTangentAt(ud), off = .9 + Math.sin(t * .7) * .3; dp.set(pd.x + td.z * off, H, pd.z - td.x * off);   // 犬は少し前を行く
   dog.rotation.y = Math.atan2(dp.x - dog.position.x, dp.z - dog.position.z) || 0; dog.position.copy(dp); PK.beastPose(dog, 'walk', dist * 9);
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 5 : 6.6, L = tall ? 1.6 : 2.7;
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.8 : 6, L = tall ? 1.5 : 2.5;
   // カメラは ななめうしろ・高め。道のはしの向こうに 下の森と川が入る
-  cp.set(p.x - cd.x * D + cd.z * L, H + (tall ? 3.3 : 3.7), p.z - cd.z * D - cd.x * L); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 6 - cd.z * 2.2, H + (tall ? .9 : .3), p.z + cd.z * 6 + cd.x * 2.2);
+  cp.set(p.x - cd.x * D + cd.z * L, H + (tall ? 3.3 : 3.7), p.z - cd.z * D - cd.x * L); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 6 - cd.z * 1.3, H + (tall ? .9 : .4), p.z + cd.z * 6 + cd.x * 1.3);
   sun.position.set(p.x + SUN.x * 70, H + SUN.y * 70, p.z + SUN.z * 70); sun.target.position.copy(p);
   R.flip(river.material, WF, t, 4); motes.position.set(p.x, H + .3, p.z); motes.userData.tick(t); flock.userData.tick(t); for (const b of bfs) b.userData.tick(t);
   for (const b of birds) { const [hx, hy, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz), low = hy < H + .5;
