@@ -83,6 +83,7 @@ K.loop((dt, t) => {
 | 家 | `R.house({ wall, roof, roofKind, door, win, lit, chimney, sign, awning … })` |
 | 木・小物 | `R.tree` `R.rock` `R.tuft` `R.barrel` `R.crate` `R.lamp` `R.fence` `R.fountain` `R.well` `R.stall` `R.bench` `R.roadSign` |
 | 人・動物 | `R.person({ cloth, face, hairStyle, hat, cape, skirt … })` と `R.walk` `R.idle`、`R.cat` と `R.catPose`、`R.bird` と `R.birdPose` |
+| 人の体つき（等身） | `R.person({ build })`。`classic`（4 頭身）`hero`（5）`real`（6.5）`tall`（8）`stocky` `child` `chibi`（3）`sd`（2）。場面の全員をそろえるなら、人を作る前に `R.cfg.build = 'real'`。見くらべは `game-looks-7/retro-people.html` |
 | 乗りもの | `R.cart` `R.car` `R.boat` |
 | 材質 | `R.mat(テクスチャか色, { cut, glow, side … })`（頂点のふるえつき） |
 | 仕上げ | `R.crt(renderer, { width: 320, scan: .3, bloom: .35, curve: .05, noise … })` |
@@ -96,6 +97,10 @@ K.loop((dt, t) => {
 3. くり返してつなぎ目が見えないこと（左右・上下のはしがつながる）。
 4. 1 m ≒ 21 ドット（64 ドットで 3 m）が既定。主役の位置で画面の 1 ドットは 3 cm ほどなので、それより細かく描いても見えない。
 5. `retro-sheet.html?p=tex` で大きく見て、手で打ったドット絵として気持ちよいか確かめる。
+
+## 人の体つきを決めるとき
+
+持ち主は、テイスト B の既定の人（`classic`、4 頭身）を「等身がイメージと違う。もう少し頭を小さく」と言っています（`docs/taste.md`）。新しい場面では、持ち主がえらんだ体つきを使います。まだ決まっていないときは、`retro-people.html` と `11-plaza-town-rpg.html?build=real` などを見せて、えらんでもらいます。1 つの場面の中で体つきをまぜない（子どもの `child` は別）。
 
 ## はまりやすい所
 

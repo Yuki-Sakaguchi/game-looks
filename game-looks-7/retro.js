@@ -54,6 +54,7 @@
 //
 // ■ 人・動物
 //   R.person({ skin, hair, top, top2, bottom, belt, shoe, acc, cape, face: 0〜7, eyes, mouth, eye, hairStyle, tail, bun, cloth, sleeve, skirt: 0〜1, boots, shorts, hat: 'straw'/'cap'/'cone', pack, s, head })
+//     体つき（等身）は build: 'classic'（4 頭身。既定）/ 'hero'（5）/ 'real'（6.5）/ 'tall'（8）/ 'stocky' / 'child' / 'chibi'（3）/ 'sd'（2）。R.cfg.build に入れると場面の全員の既定になる。見くらべは retro-people.html
 //   R.walk(人, 位相, 強さ)   R.idle(人, t, 首の向き)   関節は 人.userData.J（hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape）
 //   R.cat({ c, belly, plain, s }) と R.catPose(ねこ, 'walk'/'sit', t)   R.bird({ c, belly, neck, s }) と R.birdPose(鳥, 'peck'/'fly'/'stand', t)
 window.RETRO = (THREE, K) => {
@@ -719,13 +720,28 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
   //   かみ：hairStyle: 'short'/'bangs'/'part'/'long'/'bob'/'bald'、tail: true（うしろで結ぶ）、bun: true（おだんご）
   //   服：cloth: 'shirt'/'tunic'/'vest'/'apron'/'jacket'/'stripe'/'robe'、sleeve: 'long'/'short'、skirt: 0〜1（すその長さ。0 はズボン）、boots, shorts
   //   hat: 'straw'（つば広）/ 'cap' / 'cone'（とんがり）、pack: true（背中のかばん）、s（大きさ）、head（頭の大きさの倍率。子どもは 1.15 など）
+  //   体つき：build: 'classic'（4 頭身。既定）/ 'hero'（5）/ 'real'（6.5。じっさいの人に近い）/ 'tall'（8）/ 'stocky'（がっしり）/ 'child' / 'chibi'（3 頭身）/ 'sd'（2 頭身）、または倍率の組。見くらべは retro-people.html
+  //   できた人の userData.height が身長(m)、userData.heads が頭身
   // 動かす：R.walk(人, 位相, 強さ)、R.idle(人, t)。関節は 人.userData.J = { hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape }（rotation を自分で入れて、すわる・手をふる等も作れる）
-  function person(o = {}) { const s = o.s || 1, to = {}; for (const k of PKEYS) if (o[k] !== undefined) to[k] = o[k]; const t = tex.person(to), m = mat(t, { vc: true, smooth: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, hs = (o.head || 1) * 1.14, W = 128, Hh = 64, hipY = .74, sk = o.skirt || 0;
+  // 体つき（等身）。build: 名前 か { head, leg, torso, wide, arm, limb, neck, foot } の倍率（1 が 'classic'）。R.cfg.build に入れると、build を書かない人の既定になる
+  //   head = 頭の大きさ、leg = 足の長さ、torso = 胴の長さ、wide = 肩と腰のはば、arm = うでの長さ、limb = 手足の太さ、neck = 首の長さ(m)、foot = くつの大きさ
+  const BUILDS = {
+    classic: { head: 1, leg: 1, torso: 1, wide: 1, arm: 1, limb: 1, neck: 0, foot: 1 },               // 4 頭身。これまでの形
+    hero: { head: .8, leg: 1.1, torso: 1, wide: .98, arm: 1.06, limb: .95, neck: .01, foot: 1 },      // 5 頭身。むかしの RPG の主人公
+    real: { head: .6, leg: 1.2, torso: 1.06, wide: .94, arm: 1.14, limb: .9, neck: .025, foot: .95 }, // 6.5 頭身。じっさいの人に近い
+    tall: { head: .52, leg: 1.32, torso: 1.06, wide: .88, arm: 1.2, limb: .8, neck: .035, foot: .9 }, // 8 頭身。すらりと長い
+    stocky: { head: .74, leg: .92, torso: 1.1, wide: 1.32, arm: 1.02, limb: 1.32, neck: 0, foot: 1.12 }, // がっしり
+    child: { head: .86, leg: .78, torso: .84, wide: .9, arm: .84, limb: .92, neck: 0, foot: .9 },     // 子ども（4 頭身で小さい）
+    chibi: { head: 1.1, leg: .62, torso: .9, wide: 1, arm: .74, limb: 1.12, neck: 0, foot: 1.05 },    // 3 頭身のデフォルメ
+    sd: { head: 1.32, leg: .4, torso: .64, wide: 1.04, arm: .56, limb: 1.25, neck: 0, foot: 1.1 },    // 2 頭身。ちびキャラ
+  };
+  function person(o = {}) { const s = o.s || 1, to = {}, B = { ...BUILDS.classic, ...(typeof (o.build ?? cfg.build) === 'string' ? BUILDS[o.build ?? cfg.build] : (o.build ?? cfg.build)) }, LG = B.leg, TS = B.torso, WD = B.wide, AR = B.arm, TH = B.limb, FT = B.foot,
+      tr = r => [r[0] < -.1 ? r[0] * LG : r[0] * TS, r[1] * WD, r[2] * WD, ...r.slice(3)], ar = r => [r[0] * AR, r[1] * TH, r[2] * TH, ...r.slice(3)], lr = r => [r[0] * LG, r[1] * TH, r[2] * TH, ...r.slice(3)]; for (const k of PKEYS) if (o[k] !== undefined) to[k] = o[k]; const t = tex.person(to), m = mat(t, { vc: true, smooth: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, hs = (o.head || 1) * 1.14 * B.head, W = 128, Hh = 64, hipY = .67 * LG + .07, sk = o.skirt || 0;
     const part = (G, parent, x, y, z, mm = m) => { const me = new THREE.Mesh(G.build(), mm); me.castShadow = me.receiveShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
     root.scale.setScalar(s); g.add(root); J.hips = new THREE.Group(); J.hips.position.y = hipY; root.add(J.hips);
     // 胴
-    const Gt = geo().smooth(1).px(0, 32, 64, 32, W, Hh).loft(SEC9, [...(sk ? [[-.6 * sk - .02, .17 + .16 * sk, .125 + .19 * sk, 0, .82], [.03, .19, .13, .36, 1]] : [[-.06, .155, .11, .27, .85], [.03, .185, .125, .38, 1]]), [.15, .155, .105, .47, 1], [.3, .2, .13, .76, 1], [.42, .215, .12, .93, 1], [.475, .085, .075, 1, 1]], { cap: 'both', capUV: [.5, .3] });
-    if (o.pack) Gt.smooth(0).px(96, 48, 32, 16, W, Hh).box(.27, .3, .13, 0, .1, -.2, { c0: .85 });
+    const Gt = geo().smooth(1).px(0, 32, 64, 32, W, Hh).loft(SEC9, [...(sk ? [[-.6 * sk - .02, .17 + .16 * sk, .125 + .19 * sk, 0, .82], [.03, .19, .13, .36, 1]] : [[-.06, .155, .11, .27, .85], [.03, .185, .125, .38, 1]]), [.15, .155, .105, .47, 1], [.3, .2, .13, .76, 1], [.42, .215, .12, .93, 1], [.475, .085, .075, 1, 1]].map(tr), { cap: 'both', capUV: [.5, .3] });
+    if (o.pack) Gt.smooth(0).px(96, 48, 32, 16, W, Hh).box(.27 * WD, .3 * TS, .13, 0, .1 * TS, -.075 - .125 * WD, { c0: .85 });
     J.torso = part(Gt, J.hips, 0, 0, 0);
     // 頭（＋はな・かみ・帽子）
     const H = y => y * hs, hr = (y, a, b, v, c, oz) => [H(y), a * hs, b * hs, v, c ?? 1, 0, (oz || 0) * hs], Gh = geo().smooth(1).px(0, 0, 64, 32, W, Hh);
@@ -739,14 +755,15 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     if (o.hat === 'straw') Gh.smooth(0).loft(8, [hr(.262, .33, .33, 0, .85), hr(.3, .16, .16, .55, 1)]).loft(8, [hr(.3, .16, .16, .55, .95), hr(.41, .135, .135, 1, 1.05)], { cap: 'top' }).loft(8, [hr(.3, .16, .16, .55, .6), hr(.262, .33, .33, 0, .6)]);
     if (o.hat === 'cap') { Gh.smooth(3).loft(8, [hr(.262, .168, .178, .3, .9), hr(.35, .14, .15, .75, 1), hr(.395, .04, .04, 1, 1.05)], { cap: 'top' }); Gh.smooth(0).quad([-.11 * hs, H(.27), .15 * hs], [.11 * hs, H(.27), .15 * hs], [.08 * hs, H(.255), .31 * hs], [-.08 * hs, H(.255), .31 * hs], [0, .6, 1, 1], .9).quad([.11 * hs, H(.268), .15 * hs], [-.11 * hs, H(.268), .15 * hs], [-.08 * hs, H(.253), .31 * hs], [.08 * hs, H(.253), .31 * hs], [0, .6, 1, 1], .55); }
     if (o.hat === 'cone') Gh.smooth(0).loft(8, [hr(.255, .3, .3, 0, .8), hr(.29, .155, .155, .3, 1)]).loft(8, [hr(.29, .155, .155, .3, .55), hr(.255, .3, .3, 0, .55)]).smooth(3).loft(8, [hr(.29, .155, .155, .3, .95), hr(.5, .085, .085, .7, 1, -.02), hr(.7, .01, .01, 1, 1.08, -.07)]);
-    J.head = part(Gh, J.torso, 0, .47, 0);
-    if (o.cape) { const Gc = geo().normal([0, .2, -1]), cm = mat(tex.fabric({ pattern: 'plain', c: o.cape }), { vc: true, smooth: true, side: true }), row = (y, w2, z) => [[-w2, y, z], [w2, y, z]], r0 = row(0, .2, 0), r1 = row(-.34, .25, -.07), r2 = row(-.66, .3, -.1); Gc.quad(r1[1], r1[0], r0[0], r0[1], [0, .5, 1, 1], [.9, .9, 1, 1]).quad(r2[1], r2[0], r1[0], r1[1], [0, 0, 1, .5], [.74, .74, .9, .9]); J.cape = part(Gc, J.torso, 0, .44, -.125, cm); }
+    J.head = part(Gh, J.torso, 0, .47 * TS + B.neck, 0);
+    if (o.cape) { const Gc = geo().normal([0, .2, -1]), cm = mat(tex.fabric({ pattern: 'plain', c: o.cape }), { vc: true, smooth: true, side: true }), row = (y, w2, z) => [[-w2, y, z], [w2, y, z]], CL = (.47 * TS + .67 * LG) / 1.14, r0 = row(0, .2 * WD, 0), r1 = row(-.34 * CL, .25 * WD, -.07), r2 = row(-.66 * CL, .3 * WD, -.1); Gc.quad(r1[1], r1[0], r0[0], r0[1], [0, .5, 1, 1], [.9, .9, 1, 1]).quad(r2[1], r2[0], r1[0], r1[1], [0, 0, 1, .5], [.74, .74, .9, .9]); J.cape = part(Gc, J.torso, 0, .44 * TS, -.125 * WD, cm); }
     for (const [n, sx] of [['L', 1], ['R', -1]]) {
-      const Ga = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.25, .05, .056, .5], [-.03, .064, .068, .92], [.025, .04, .045, 1]], { cap: 'top' }); J['arm' + n] = part(Ga, J.torso, sx * .245, .425, 0);
-      const Gf = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.22, .042, .046, .12], [0, .05, .056, .5]]).smooth(2).px(96, 32, 16, 16, W, Hh).loft(SEC4, [[-.335, .022, .04, 0, .95], [-.28, .034, .058, .45], [-.22, .04, .046, 1]], { cap: 'bot' }); J['fore' + n] = part(Gf, J['arm' + n], 0, -.25, 0);
-      const Gl = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.36, .074, .078, .5], [-.03, .104, .106, .95], [.04, .09, .095, 1]]); J['leg' + n] = part(Gl, J.hips, sx * .095, 0, 0);
-      const Gs = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.31, .052, .056, .07], [-.14, .074, .078, .32], [0, .074, .078, .5]]).smooth(0).px(112, 32, 16, 16, W, Hh).box(.125, .1, .25, 0, -.38, .045, { taper: [.88, .56], topUV: [0, .5, 1, 1] }); J['shin' + n] = part(Gs, J['leg' + n], 0, -.36, 0); }
-    g.userData = { J, skirt: sk, hipY, kind: 'person' }; idle(g, 0); return g; }
+      const Ga = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.25, .05, .056, .5], [-.03, .064, .068, .92], [.025, .04, .045, 1]].map(ar), { cap: 'top' }); J['arm' + n] = part(Ga, J.torso, sx * (.215 * WD + .03 * TH), .425 * TS, 0);
+      const Gf = geo().smooth(1).px(64, 0, 32, 32, W, Hh).loft(SEC4, [[-.22, .042, .046, .12], [0, .05, .056, .5]].map(ar)).smooth(2).px(96, 32, 16, 16, W, Hh).loft(SEC4, [[-.335, .022, .04, 0, .95], [-.28, .034, .058, .45], [-.22, .04, .046, 1]].map(r => [-.22 * AR + (r[0] + .22) * TH, r[1] * TH, r[2] * TH, ...r.slice(3)]), { cap: 'bot' }); J['fore' + n] = part(Gf, J['arm' + n], 0, -.25 * AR, 0);
+      const Gl = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.36, .074, .078, .5], [-.03, .104, .106, .95], [.04, .09, .095, 1]].map(lr)); J['leg' + n] = part(Gl, J.hips, sx * .095 * WD, 0, 0);
+      const Gs = geo().smooth(1).px(96, 0, 32, 32, W, Hh).loft(6, [[-.31, .052, .056, .07], [-.14, .074, .078, .32], [0, .074, .078, .5]].map(lr)).smooth(0).px(112, 32, 16, 16, W, Hh).box(.125 * FT, .1, .25 * FT, 0, -.31 * LG - .07, .045 * FT, { taper: [.88, .56], topUV: [0, .5, 1, 1] }); J['shin' + n] = part(Gs, J['leg' + n], 0, -.36 * LG, 0); }
+    const tall = hipY + .47 * TS + B.neck + .365 * hs, headH = .345 * hs;   // 身長と、あごから頭のてっぺんまで
+    g.userData = { J, skirt: sk, hipY, kind: 'person', height: tall * s, heads: tall / headH, build: B }; idle(g, 0); return g; }
   // 歩く。ph = 位相（t×8 くらい）、amp = 歩はばの強さ（走るなら 1.4 ほど）
   function walk(g, ph, amp = 1) { const J = g.userData.J, k = (1 - .68 * Math.min(1, g.userData.skirt * 1.3)) * amp, a = Math.sin(ph), b = Math.cos(ph);
     J.legL.rotation.x = -a * .62 * k; J.legR.rotation.x = a * .62 * k; J.shinL.rotation.x = (Math.max(0, b) * .95 + .08) * k; J.shinR.rotation.x = (Math.max(0, -b) * .95 + .08) * k;
@@ -827,5 +844,5 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     else for (const sx of [-1, 1]) G.at(TR(sx * .5, .46, -.2, sx * .5, 0, sx * -.25)).box(.05, .04, 1.5, sx * .35, 0, 0, { m: 1.5 }).at(null);
     return B.group(); }
 
-  return { hash, mix, ramp, tone, tn, Px, paint: T, tex, mat, crt, U, cfg, TR, ngon, SEC9, SEC4, geo, parts, merge, ground, strip, blob, flip, house, tree, barrel, crate, rock, tuft, lamp, fence, fountain, well, stall, bench, roadSign, cloud, backdrop, skyDome, person, walk, idle, cat, catPose, bird, birdPose, cart, car, boat };
+  return { hash, mix, ramp, tone, tn, Px, paint: T, tex, mat, crt, U, cfg, BUILDS, TR, ngon, SEC9, SEC4, geo, parts, merge, ground, strip, blob, flip, house, tree, barrel, crate, rock, tuft, lamp, fence, fountain, well, stall, bench, roadSign, cloud, backdrop, skyDome, person, walk, idle, cat, catPose, bird, birdPose, cart, car, boat };
 };

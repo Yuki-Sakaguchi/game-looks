@@ -69,6 +69,7 @@ const sunD = new THREE.Mesh(new THREE.CircleGeometry(13, 16), new THREE.MeshBasi
 for (const [x, z] of LAMPS.slice(0, 5)) { const l = new THREE.PointLight('#ffb866', 16, 9, 1.5); l.position.set(x, 3.1, z); scene.add(l); }
 
 // ---- 人・ねこ・鳥 ----
+R.cfg.build = new URLSearchParams(location.search).get('build') || 'classic';   // ?build=real や ?build=chibi で、人の体つきを切りかえて見くらべられる（一覧は retro-people.html）
 const hero = R.person({ face: 0, cloth: 'tunic', top: '#3f72b0', top2: '#f0e0b8', bottom: '#6a5440', boots: true, cape: '#c2453a', hair: '#6e4628', s: 1.05 }); scene.add(hero);
 const npc = (o, x, z, ry) => { const p = R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
 const seller = npc({ face: 4, cloth: 'vest', top: '#8a5a3a', hat: 'straw', hair: '#8a8a8a' }, -7.8, -10.2, Math.atan2(7.8, 10.2)), buyer = npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a' }, -6.1, -7.7, Math.atan2(-.9, -1.4));
