@@ -8,14 +8,14 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 canvas{display:block}
 #cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.85;text-shadow:0 1px 0 #000}
 </style>
-<div id="cap">7-11 ─ 町を歩く RPG / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<div id="cap">7-11 ─ 町を歩く RPG / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）　?cast=heroic / chibi / old</div>
 <script src="kit.js"></script>
 <script src="retro.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 // 方向 B の見本。面の少ない形（家・人・木）に、その場で打ったドット絵のテクスチャをはり、横 320 ドットほどの粗い絵に描く（頂点はドットに丸めてふるえる）。
 // それを色数を落としてディザにかけ、ブラウン管に映す（横のにじみ・走査線・明るい所のにじみ・わずかな丸み）ので、ドットと面の粗さがやわらかくとける。
-// 夕方の石だたみの広場。主人公が噴水のまわりと通りを歩き、うしろからカメラが追う。部品はぜんぶ retro.js（R.〜）
+// 夕方の石だたみの広場。5 頭身の主人公（R.actor の toon）が噴水のまわりと通りを歩き、うしろからカメラが追う。部品はぜんぶ retro.js（R.〜）
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, { hash } = K;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 900, aa: false, fitAspect: .9, maxFov: 74 });
@@ -69,9 +69,10 @@ const sunD = new THREE.Mesh(new THREE.CircleGeometry(13, 16), new THREE.MeshBasi
 for (const [x, z] of LAMPS.slice(0, 5)) { const l = new THREE.PointLight('#ffb866', 16, 9, 1.5); l.position.set(x, 3.1, z); scene.add(l); }
 
 // ---- 人・ねこ・鳥 ----
-R.cfg.build = new URLSearchParams(location.search).get('build') || 'classic';   // ?build=real や ?build=chibi で、人の体つきを切りかえて見くらべられる（一覧は retro-people.html）
-// ?cast=new（7 頭身）/ ?cast=toon（5 頭身）/ ?cast=chibi（3 頭身）で、主人公と町の人を新しい作り R.actor の人物（R.CAST）に入れかえる。引数なしは これまでの R.person
-const CB = { new: 'heroic', heroic: 'heroic', toon: 'toon', chibi: 'chibi' }[new URLSearchParams(location.search).get('cast')], mk = (id, ex = {}) => R.actor({ ...R.CAST.find(c => c.id === id).o, build: CB, ...ex });
+// 人は新しい作り R.actor の 5 頭身（toon）。?cast=heroic（7 頭身）/ ?cast=chibi（3 頭身）で体つきだけ変えて見くらべられる。人物は R.CAST から
+// ?cast=old で これまでの R.person（4 頭身）にもどす。このときだけ ?build=real などで、これまでの体つきを切りかえられる（一覧は retro-people.html?old=1）
+const Q = new URLSearchParams(location.search), CAST = Q.get('cast'), CB = CAST === 'old' ? null : ({ heroic: 'heroic', new: 'heroic', chibi: 'chibi' }[CAST] || 'toon'), mk = (id, ex = {}) => R.actor({ ...R.CAST.find(c => c.id === id).o, build: CB, ...ex });
+if (!CB) R.cfg.build = Q.get('build') || 'classic';
 const hero = CB ? mk('gald') : R.person({ face: 0, cloth: 'tunic', top: '#3f72b0', top2: '#f0e0b8', bottom: '#6a5440', boots: true, cape: '#c2453a', hair: '#6e4628', s: 1.05 }); scene.add(hero);
 const npc = (o, x, z, ry, id, ex) => { const p = CB ? mk(id, ex) : R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
 const seller = npc({ face: 4, cloth: 'vest', top: '#8a5a3a', hat: 'straw', hair: '#8a8a8a' }, -7.8, -10.2, Math.atan2(7.8, 10.2), 'gen', { hold: '' }), buyer = npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a' }, -6.1, -7.7, Math.atan2(-.9, -1.4), 'sage');
@@ -89,8 +90,8 @@ K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
   // うしろから追うカメラ（向きはゆっくり追いつく。たて長では近づく）
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
-  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.35, p.z + cd.z * 3);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, big = CB !== 'toon' && CB !== 'chibi', D = big ? (tall ? 4.3 : 5.9) : (tall ? 3.9 : 5.1);   // 5 頭身・3 頭身は背が低いので寄る
+  cp.set(p.x - cd.x * D, big ? (tall ? 2.5 : 2.9) : (tall ? 2.15 : 2.4), p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, big ? 1.35 : 1.05, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // 町の人
   R.idle(seller, t, Math.sin(t * .6) * .25); R.idle(buyer, t + 2, Math.sin(t * .4) * .2 - .2); R.idle(chatA, t + 1, .2 + Math.sin(t * .8) * .1); R.idle(chatB, t + 3, -.15 + Math.sin(t * .7 + 1) * .1); chatA.userData.J.armL.rotation.x = -.5 - Math.max(0, Math.sin(t * 2.2)) * .5; chatA.userData.J.foreL.rotation.x = -1.1;

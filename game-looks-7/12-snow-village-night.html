@@ -76,11 +76,14 @@ const flakes = new THREE.Points(flakeG, new THREE.PointsMaterial({ color: '#eef2
 const mod = (v, m) => ((v % m) + m) % m;
 
 // ---- 人 ----
-const hero = R.person({ face: 1, cloth: 'tunic', top: '#3a5c9a', top2: '#e8dcc0', bottom: '#5a4a44', boots: true, cape: '#d8482e', hair: '#5a3a28', s: 1.05 }); scene.add(hero);
-const npc = (o, x = 0, z = 0, ry = 0) => { const p = R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
-const walkers = [npc({ face: 6, cloth: 'jacket', top: '#8a6a3a', bottom: '#4a4a5a', hair: '#d8d8d8', hat: 'cap', acc: '#a04a3a', boots: true }), npc({ face: 3, cloth: 'robe', skirt: 1, top: '#7a5a9a', hair: '#e6c46a', hat: 'cone', acc: '#7a5a9a' }), npc({ face: 2, cloth: 'vest', top: '#4a7a6a', hair: '#c8843a', pack: true, boots: true })];
-const [kx, kz] = pt(-.74, -2), kid = npc({ face: 5, cloth: 'stripe', top: '#e8704a', s: .76, head: 1.16, hat: 'cap', acc: '#3a6ab0' }, kx, kz, Math.atan2(pt(-.8, -2.6)[0] - kx, pt(-.8, -2.6)[1] - kz));
-const chatA = npc({ face: 4, cloth: 'apron', top: '#b0586a', skirt: .8, hair: '#6e4628' }, ...pt(2.86, 1.5), 1.9), chatB = npc({ face: 7, cloth: 'jacket', top: '#5a6a8a', hair: '#3a2a3a', hat: 'straw' }, ...pt(2.93, 1.2), -1.4);
+R.cfg.actorBuild = 'toon';   // 人は新しい作り R.actor の 5 頭身でそろえる
+const hero = R.actor({ hairStyle: 'spiky', hair: '#5a3a28', eye: '#3a6aa8', brow: 'angry', cloth: 'coat', top: '#3a5c9a', top2: '#e8dcc0', bottom: '#5a4a44', gloves: 'glove', glove: '#6a4a34', shoe: '#5a3a2a', neck: 'cape', skirtC: '#d8482e', s: 1.05 }); scene.add(hero);
+const npc = (o, x = 0, z = 0, ry = 0) => { const p = R.actor(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const walkers = [npc({ hairStyle: 'bald', hair: '#d8d8d8', eyes: 'half', brow: 'thick', beard: 'beard', cloth: 'jacket', top: '#8a6a3a', bottom: '#4a4a5a', hat: 'cap', acc: '#a04a3a', gloves: 'glove' }),
+  npc({ sex: 'f', hairStyle: 'long', hair: '#e6c46a', eye: '#8a5aa8', brow: 'soft', mouth: 'small', cloth: 'robe', skirt: .9, top: '#7a5a9a', top2: '#e8d8a0', hat: 'wizard', acc: '#7a5a9a' }),
+  npc({ hairStyle: 'tufts', hair: '#c8843a', eye: '#4a8a5a', cloth: 'jacket', top: '#4a7a6a', bottom: '#6a5440', back: 'pack', acc: '#b08a4a', neck: 'scarf' })];
+const [kx, kz] = pt(-.74, -2), kid = npc({ hairStyle: 'short', hair: '#2a2a34', mouth: 'open', blush: true, cloth: 'jacket', top: '#e8704a', bottom: '#3a4a7a', hat: 'cap', acc: '#3a6ab0', gloves: 'glove', glove: '#f0ece0', s: .74 }, kx, kz, Math.atan2(pt(-.8, -2.6)[0] - kx, pt(-.8, -2.6)[1] - kz));
+const chatA = npc({ sex: 'f', hairStyle: 'bun', hair: '#6e4628', brow: 'soft', blush: true, cloth: 'tunic', sleeve: 'long', top: '#b0586a', top2: '#f4ead2', lower: 'skirt', skirt: .75, skirtC: '#e8dcc8', neck: 'scarf', acc: '#e8c878' }, ...pt(2.86, 1.5), 1.9), chatB = npc({ hairStyle: 'short', hair: '#3a2a3a', eyes: 'sharp', beard: 'stubble', cloth: 'coat', top: '#5a6a8a', bottom: '#4a4038', hat: 'band', acc: '#d8b04a', gloves: 'glove' }, ...pt(2.93, 1.2), -1.4);
 
 // ---- 主人公の道（輪を左まわり。村人は右まわりで来て、すれちがう） ----
 const path = new THREE.CatmullRomCurve3([...Array(28)].map((_, i) => { const [x, z] = pt(-i / 28 * 6.283, .5); return new THREE.Vector3(x, 0, z); }), true, 'centripetal'), back = new THREE.CatmullRomCurve3([...Array(28)].map((_, i) => { const [x, z] = pt(i / 28 * 6.283, -.7); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
@@ -90,8 +93,8 @@ let first = true, sm = 0;
 K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 4);
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
-  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.4, p.z + cd.z * 3);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5.1;   // 5 頭身の人（身長 1.4 m）に合わせて寄る
+  cp.set(p.x - cd.x * D, tall ? 2.15 : 2.4, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.05, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // 村人
   walkers.forEach((w, i) => { const v = [1.5, 1.2, 1.7][i], wu = mod(1 - S0 - .115 - i * .33 + t * v / LEN, 1), q = back.getPointAt(wu), g = back.getTangentAt(wu); w.position.copy(q); w.rotation.y = Math.atan2(g.x, g.z); R.walk(w, t * v * 3.6 + i, .85); });
