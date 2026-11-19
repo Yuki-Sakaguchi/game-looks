@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-02 飛空艇の発着場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-02 ─ 飛空艇の発着場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝の飛空艇の発着場。雲海の上につき出た高台から、木と鉄の桟橋が空へのび、生成りの気のうに赤い帯の飛空艇がとまっている。
+// 色の組は「朝の空の水色〜もも色・雲のクリーム色・木の茶・気のうの生成り」＋差し色の赤。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は見習いの乗組員（R.actor の toon。赤いはちまき、肩にふくろ）。桟橋を歩いて先まで行き、うしろからカメラが追う。飛空艇・桟橋・風見・小物は pack-fantasy-town.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 1200, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#3a6cb4'], [.5, '#6aa4d8'], [.8, '#a4c8e6'], [.93, '#eec4a8'], [1, '#ffd2a0']], { r: 520 })); scene.fog = new THREE.Fog('#f0c8a2', 80, 360);
+const { sun } = K.lights(scene, renderer, { sky: 0xb8d0ff, ground: 0xd8b898, amb: 1.5, sun: 0xffd8a8, power: 2.6, range: 34 }), SUN = new THREE.Vector3(-.62, .42, -.5).normalize();
+
+// ---- 高台（草と石だたみ。まわりは がけ）と、下の雲海 ----
+const EDGE = -5, isle = (x, z) => Math.max(EDGE - z, Math.hypot(x / 34, (z - 16) / 24) * 24 - 24);   // 正なら がけの外
+const land = R.ground({ w: 90, d: 70, cell: 2, cz: 14, H: (x, z) => { const k = isle(x, z); return k > 0 ? -Math.min(34, k * 16) : 0; }, layers: [T.grass({ c: '#6aa852', flowers: .25 }), T.cobble({ c: '#a89c8c' }), T.rock({ c: '#8a8078' })],
+  mix: (x, z) => [Math.abs(x) < 7 && z < 13 ? 1 : Math.hypot(x, z - 16) < 6 ? 1 : 0, isle(x, z) > -.6 ? 1 : 0] }); scene.add(land.mesh);
+const sea = R.ground({ w: 640, d: 640, cell: 16, cz: -80, H: (x, z) => -30 + Math.sin(x * .05) * Math.cos(z * .043) * 3 + Math.sin(x * .13 + z * .09) * 1.3, layers: [T.snow({ c: '#f0d8c4', m: 40 })], shade: (x, z) => { const k = .5 + .5 * Math.sin(x * .05) * Math.cos(z * .043); return [.8 + .2 * k, .74 + .2 * k, .8 + .14 * k]; } }); sea.mesh.receiveShadow = false; scene.add(sea.mesh);
+scene.add(R.backdrop({ c: '#6a78ac', haze: '#f0bca0', r: 420, h: 110, y: -30, rep: 3 }));
+for (let i = 0; i < 14; i++) { const c = R.cloud({ s: 50 + hash(i, 8) * 50, c: '#fbe8d4', shade: '#d8a4a4', seed: i }), a = i * .45 + 2.2, r = 150 + hash(i, 4) * 120; c.position.set(Math.cos(a) * r, -20 + hash(i, 9) * 22 + (i % 4 === 0 ? 60 : 0), Math.sin(a) * r - 30); c.lookAt(0, c.position.y, -10); scene.add(c); }
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(13, 20), new THREE.MeshBasicMaterial({ color: '#fff2c4', fog: false })); sunD.position.set(SUN.x * 440, 46, SUN.z * 440); sunD.lookAt(0, 20, 0); scene.add(sunD);
+
+// ---- 桟橋・飛空艇・発着場の小屋と荷 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, PY = .35, PE = -31;
+put(F.pier({ len: 28, w: 5.4, h: PY, drop: 16, c: '#a07a4c' }), 0, -17.5);
+const ship = F.airship({ s: 1.5, c: '#eee0bc', c2: '#c8503c' }); ship.position.set(6.1, PY - 1.45, -17); ship.rotation.y = Math.PI; scene.add(ship);
+{ const G = R.geo(), y = PY + .03, z = -15.4; G.quad([2.5, y, z + .7], [4.4, y + .3, z + .7], [4.4, y + .3, z - .7], [2.5, y, z - .7], [0, 0, 1, .9]); fixed.push(G.mesh(T.planks({ c: '#b89464', w: 8 }), { side: true }));   // わたり板
+  const Rp = R.geo(); for (const [z0, z1] of [[-8, -11.5], [-25.6, -22.6]]) Rp.quad([2.45, PY + .5, z0 - .05], [2.45, PY + .5, z0 + .05], [4.3, PY + 1.25, z1 + .05], [4.3, PY + 1.25, z1 - .05], [0, 0, 1, 10]).quad([2.4, PY + .5, z0], [2.5, PY + .5, z0], [4.35, PY + 1.25, z1], [4.25, PY + 1.25, z1], [0, 0, 1, 10]); fixed.push(Rp.mesh(F.tex.rope(), { side: true })); }   // もやい綱
+for (const z of [-8, -25.6]) put(R.barrel({ h: .7, r: .17, c: '#5a4a40' }), 2.35, z, 0, PY);
+[[-2.1, -7, 0], [-2.1, -13.4, 1], [-2.2, -20, 2], [-2.1, -26.5, 0], [1.9, -3.6, 1], [-1.6, -29.6, 3]].forEach(([x, z, k], i) => { if (k === 0) { put(R.crate({ s: .8 }), x, z, .2, PY); put(R.crate({ s: .55, kind: 'x', c: '#8a9a6a' }), x + .05, z, .7, PY + .8); } if (k === 1) { put(R.barrel(), x, z, i, PY); put(R.barrel({ h: .8, r: .32 }), x + .1, z - .8, 1, PY); } if (k === 2) { put(R.crate({ s: .7, kind: 'x' }), x, z, 1.2, PY); put(R.crate({ s: .7, c: '#9a8a6a' }), x, z - .85, .1, PY); } if (k === 3) put(F.vane({ h: 2.6 }), x, z, 0, PY); });
+for (const z of [-4.5, -17.5, -30.5]) put(R.lamp({ h: 2.8 }), -2.45, z, 0, PY);
+put(R.house({ w: 6.4, d: 5.2, h: 3, wall: T.boards({ c: '#a8845a' }), roof: T.roof({ kind: 'slate', c: '#b8503c' }), base: T.stone(), win: T.window({ shutters: 1 }), sign: T.sign({ kind: 'star' }), chimney: true }), -10.5, 5.5, .5);
+put(F.flag({ kind: 'banner', c: '#c8503c', crest: 'wave', pole: 4.2 }), -4.2, 1.2, .3); put(F.flag({ c: '#f0e8d4', c2: '#c8503c', crest: 'anchor', cc: '#34507a', pole: 5 }), 4.4, 1.6, -1.2);
+put(F.wagon({ load: 'crates', cover: '#e8dcc0' }), 5.6, 7.5, -2.6); put(R.crate(), 3.8, 3, .3); put(R.crate({ s: .6, kind: 'x', c: '#8a9a6a' }), 3.8, 3, .8, .8); put(R.barrel(), 4.8, 3.4); put(R.fence({ len: 5, kind: 'rail' }), -5.6, EDGE + .9); put(R.fence({ len: 5, kind: 'rail' }), 5.6, EDGE + .9);
+for (let i = 0; i < 14; i++) { const a = hash(i, 1) * 6.283, r = 10 + hash(i, 2) * 12, x = Math.cos(a) * r * 1.3, z = 16 + Math.sin(a) * r; if (isle(x, z) > -3 || (Math.abs(x) < 8 && z < 14)) continue; put(i % 3 ? R.tree({ kind: i % 2 ? 'pine' : 'round', h: 4.5 + hash(i, 3) * 3, seed: i }) : R.rock({ s: 1 + hash(i, 5), seed: i }), x, z, i); }
+for (let i = 0; i < 20; i++) { const x = (hash(i, 6) - .5) * 40, z = -3 + hash(i, 7) * 18; if (Math.abs(x) > 7.5) put(R.tuft({ kind: ['grass', 'flower', 'bush'][i % 3], s: .6 + hash(i, 5) * .4, seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+const far = F.airship({ s: .8, c: '#dce8ec', c2: '#3a6aa8', bob: 0 }); far.rotation.y = Math.PI / 2; scene.add(far);   // 遠くを行く船
+
+// ---- 人・鳥（人は 5 頭身の toon。どれもこの場面のためのオリジナル） ----
+const act = (o, x, z, ry, y = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ hairStyle: 'short', hair: '#2a3a5a', eye: '#3a7aa8', mouth: 'smile', blush: true, cloth: 'vest', top: '#f0e6cc', top2: '#3a5a8a', lower: 'baggy', bottom: '#3a5a8a', gloves: 'glove', glove: '#8a5a34', shoe: '#6a4630', hat: 'band', acc: '#c8503c', neck: 'scarf', pouch: true }, 0, 0, 0); F.wear(hero, 'sack', { c: '#d8c49a' });
+const PORT = [{ hairStyle: 'bald', hair: '#5a4a3a', beard: 'stubble', brow: 'thick', cloth: 'vest', top: '#8a5a3a', top2: '#e8dcc0', bottom: '#5a5a48', bulk: 1.15, skin: '#d8a070' }, { sex: 'f', hairStyle: 'tail', hair: '#c8843a', mouth: 'smile', cloth: 'overall', top: '#4a7a8a', top2: '#f4ecd0', shoe: '#7a4a2a' }].map((o, i) => { const p = act(o, 0, 0, 0); F.wear(p, 'box', i ? { kind: 'x', c: '#8a9a6a' } : {}); return p; });
+const captain = act({ sex: 'f', hairStyle: 'long', hair: '#e8e0d0', eye: '#8a5aa8', eyes: 'sharp', mouth: 'line', cloth: 'coat', top: '#34507a', top2: '#e8c058', bottom: '#eae4d4', shoe: '#4a3a34', gloves: 'glove', glove: '#f0ece0', neck: 'collar', acc: '#c8503c' }, 1.9, -13.6, -1.2, PY);
+const keeper = act({ hairStyle: 'short', hair: '#8a8a8a', beard: 'mustache', eyes: 'closed', cloth: 'jacket', top: '#7a8a5a', top2: '#e8e0c8', bottom: '#5a4a3a' }, 2.6, 3.9, -2.4); F.wear(keeper, 'strawHat'); F.wear(keeper, 'lantern', { hand: 'R' });
+const birds = [0, 1, 2, 3].map(i => { const b = R.bird({ c: '#f4f0e8', belly: '#ffffff', neck: false, s: 1.6 }); scene.add(b); return b; });
+
+// ---- 主役の道（高台から桟橋の先まで歩き、折り返す） ----
+const path = new THREE.CatmullRomCurve3([[-.9, 7], [-.9, 0], [-.9, -9], [-.9, -19], [-.9, -26], [-.6, -29], [.2, -30], [.9, -29], [1.1, -26], [1.1, -19], [1.1, -9], [1.1, 0], [1.1, 7], [.8, 9.4], [0, 10.2], [-.7, 9.4]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 2.2, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40), gy = z => z < EDGE + .6 ? PY : 0;
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, sm = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), hy = gy(p.z);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5); hero.userData.J.armL.rotation.set(-2.2, 0, -.5); hero.userData.J.foreL.rotation.x = -1.2;   // 左手でふくろをおさえる
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5.1;
+  cp.set(p.x - cd.x * D - .5, hy + (tall ? 2.1 : 2.2), p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 5 + 1.2, hy + (tall ? 2 : 1.9), p.z + cd.z * 5);   // 少し右上を見て、飛空艇を画面に入れる
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 荷を運ぶ人：高台と わたり板のあいだを行き来する
+  PORT.forEach((q, i) => { const ph = (t * .075 + i * .5) % 1, go = ph < .5, k = go ? ph * 2 : 2 - ph * 2, z = 4 - k * 18.6; q.position.set(go ? 1.7 : .2, gy(z), z); q.rotation.y = go ? Math.PI : 0; R.walk(q, t * 5.4 + i, .8); F.carryPose(q); });
+  R.idle(captain, t, .5 + Math.sin(t * .5) * .3); R.idle(keeper, t + 1, Math.sin(t * .4) * .4);
+  birds.forEach((b, i) => { const a = t * (.22 + i * .03) + i * 1.7, r = 14 + i * 5; b.position.set(-10 + Math.cos(a) * r, 7 + i * 1.6 + Math.sin(t * .7 + i) * 1.2, -24 + Math.sin(a) * r * .7); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .7); R.birdPose(b, 'fly', t * .45 + i); });
+  far.position.set(-90 + ((t * 2.2 + 40) % 200), 16, -120);
+  F.tick(t); if ((sm += dt) > .5) { sm = 0; fx.emit('smoke', -12.4, 6.2, 5.4, { size: .5, life: 3.2, vy: .8, vx: .5, grow: 1.5, spread: .12, tint: '#fff0e0' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

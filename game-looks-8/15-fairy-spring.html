@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-15 妖精の泉の森 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8fff0;opacity:.9;text-shadow:0 1px 0 #0a2a2a}
+</style>
+<div id="cap">8-15 ─ 妖精の泉の森 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない木と岩に、手で打ったドット絵（葉のかたまり・こけの石だたみ・落ちる水）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 森と泉の青緑と、金の光（魔法陣・光の柱・光の玉・花）。差し色は旅人のぼうしの赤い帯。泉と花のあかりを地面の頂点の色に焼きこんで、深い森でも暗くしない。
+// 耳の長いぼうしの旅人が、光る泉のまわりの小道を歩く。岩から小さな滝が落ち、水の上で魔法陣が回り、妖精と光の玉がただよう。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）。花かごだけ pack-fantasy-town.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), FT = PACK_FTOWN(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 400, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#0f3c50'], [.55, '#1f6e70'], [1, '#86d8b4']], { r: 260 })); scene.fog = new THREE.Fog('#2c7470', 15, 74);
+const { sun } = K.lights(scene, renderer, { sky: 0xa8f0dc, ground: 0x3f8a74, amb: 1.6, sun: 0xffe6a0, power: 1.7, range: 30 }), SUN = new THREE.Vector3(.35, .86, -.3).normalize();
+
+// ---- 泉のまわりの小道。pt(a, e) は道から外へ e m の点と進む向き、off(x, z) は道からのへだたり ----
+const rr = a => 12.6 + 1.0 * Math.sin(2 * a) + .6 * Math.sin(3 * a + 1);
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x)), sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const PR = 7, WY = -.4, HF = (x, z) => { const r = Math.hypot(x, z), d = Math.abs(off(x, z)); return -(1 - sm(PR - 1.6, PR + .7, r)) * .95 + sm(1.8, 6, d) * sm(PR + 1, PR + 3, r) * (F.vn(x * .22, z * .22, 2) - .35) * 1.3; };
+// 光る花・こけ・光の玉の場所（あかりは地面の頂点の色に焼きこむ）
+const AC = 2.25, glows = []; for (let i = 0; i < 44; i++) { const inner = i % 3 === 0, a = hash(i, 1) * TAU, [x, z] = inner ? [Math.cos(a) * (PR + .9 + hash(i, 2) * 1.6), Math.sin(a) * (PR + .9 + hash(i, 2) * 1.6)] : pt(a, (i % 2 ? 1 : -1) * (1.7 + hash(i, 2) * 2.6)); if (Math.hypot(x, z) < PR + .7 || Math.abs(off(x, z)) < 1.4) continue; glows.push({ x, z, y: .4, c: ['#ffe27a', '#7af0e0', '#ffe27a', '#fff6c0'][i % 4], r: 3.6, k: .5, kind: i % 5 === 4 ? 'moss' : 'bloom', i }); }
+const bake = F.bake([{ x: 0, y: 1.5, z: 0, c: '#5af0d0', r: 17, k: .95 }, { x: Math.cos(AC) * 2.4, y: 2, z: Math.sin(AC) * 2.4, c: '#ffe890', r: 9, k: .5 }, ...glows], [.66, .8, .78]);
+const land = R.ground({ w: 100, d: 100, cell: 2, H: HF, layers: [T.grass({ c: '#2a8272', flowers: .3, fc: ['#ffe27a', '#ffffff', '#8af0e0'] }), T.cobble({ c: '#86a898', n: 6, moss: .7 }), X.moss({ kind: 'tile', c: '#4fd0a0', m: 2.5 })],
+  mix: (x, z) => { const d = Math.abs(off(x, z)), r = Math.hypot(x, z); return [Math.max(0, Math.min(1, 1.25 - d / 1.25)), (r > PR && r < PR + 2.2 && F.vn(x * .5, z * .5, 4) > .35) || (d > 2.2 && F.vn(x * .2, z * .2, 9) > .66) ? .8 : 0]; }, shade: (x, z) => bake(x, z, HF(x, z)) });
+scene.add(land.mesh);
+
+// ---- 動かない物：滝の岩・森の木・つた・光る花とこけ・きのこ・岩 ----
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+const cx = Math.cos(AC), cz = Math.sin(AC), cry = Math.atan2(-cx, -cz), rockT = X.caveRock({ c: '#6a8a84', glint: '#bff8e8', moss: .5, mossC: '#4fc890' });
+put(F.cliff({ w: 7.5, h: 4.7, d: .9, lean: .16, seed: 4, tex: rockT, top: X.moss({ kind: 'tile', c: '#4fd0a0', m: 2.5 }) }), cx * (PR + 1.3), cz * (PR + 1.3), cry, -.6);
+const fall = put(F.waterfall({ w: 2.3, h: 3.9, c: '#8cece0', lip: .5 }), cx * (PR + .75), cz * (PR + .75), cry, WY);
+for (const [s, h] of [[-1, 2.2], [1, 1.6]]) put(R.rock({ s: h, c: '#6a8a84', moss: .8, seed: 3 + s }), cx * (PR + 1) - cz * s * 4.2, cz * (PR + 1) + cx * s * 4.2, s, -.5);
+const trees = []; for (let i = 0; i < 64; i++) { const a = (i + hash(i, 3) * .8) / 64 * TAU, e = 3.4 + hash(i, 4) ** 1.3 * 20, [x, z] = pt(a, e), h = 8 + hash(i, 5) * 6.5; trees.push([x, z, h]);
+  put(R.tree({ kind: i % 4 === 3 ? 'tall' : 'round', h: i % 4 === 3 ? h * 1.2 : h, c: ['#2a7c68', '#23705e', '#348a6c'][i % 3], seed: i }), x, z, i);
+  if (i % 4 === 1 && e < 9) put(F.vine({ len: 3 + hash(i, 6) * 1.5, n: 4, w: 1.6, c: '#5fd8a8', flowers: true, fc: ['#ffe27a'], glow: true, seed: i }), x + Math.cos(a + 2.6) * h * .2, z + Math.sin(a + 2.6) * h * .2, i, h * .56); }
+for (const g of glows) { if (g.kind === 'moss') put(F.mossPatch({ r: .6 + hash(g.i, 7) * .5, c: '#6af0c0', seed: g.i }), g.x, g.z, g.i, HF(g.x, g.z) + .06); else put(F.bloom({ s: .5 + hash(g.i, 7) * .35, c: g.c, leaf: '#3fa07a' }), g.x, g.z, g.i); }
+for (let i = 0; i < 70; i++) { const [x, z] = pt(hash(i, 8) * TAU, (i % 2 ? 1 : -1) * (1.6 + hash(i, 9) ** 1.3 * 6)); if (Math.hypot(x, z) < PR + .8) continue; const q = i % 7;
+  if (q === 0) put(R.rock({ s: .4 + hash(i, 10) * .9, c: '#7a9a90', moss: .9, seed: i }), x, z, i, HF(x, z) - .1); else if (q === 1) { for (let j = 0; j < 3; j++) put(F.mushroom({ kind: 'spot', c: '#3fb8c8', c2: '#e8fff8', shape: j ? 'dome' : 'bell', h: .3 + hash(i, j) * .5, r: .15 + hash(j, i) * .16, glow: '#bff8f0', seed: i + j, skirt: false }), x + (hash(i, j + 3) - .5) * .9, z + (hash(j + 3, i) - .5) * .9, j); }
+  else put(R.tuft({ kind: ['grass', 'flower', 'bush', 'reed', 'grass'][q - 2], s: .55 + hash(i, 11) * .5, c: '#3f9a70', fc: ['#ffe27a', '#ffffff'], seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed), R.backdrop({ c: '#1c5a52', haze: '#4a9a8c', r: 110, h: 30, y: -1, rep: 8 }));
+
+// ---- 光る泉・魔法陣・光の柱 ----
+const pond = F.pool({ r: PR + .5, c: '#2fa8ac', emissive: '#0f4648', seg: 20 }), MX = cx * 2.4, MZ = cz * 2.4;   // 魔法陣は泉のまん中より少し滝がわ pond.position.y = WY; scene.add(pond);
+const circle = F.magicCircle({ r: 3.9, c: '#ffe890', star: 6, spin: .25, y: WY + .14 }), circle2 = F.magicCircle({ r: 1.5, c: '#bffff0', star: 5, spin: -.6, y: 1.5 }), shaft = F.beam({ h: 15, r: 2.5, c: '#ffeeb0', opacity: .1 }); shaft.position.set(MX, WY, MZ); circle.position.x = circle2.position.x = MX; circle.position.z = circle2.position.z = MZ; scene.add(circle, circle2, shaft);
+const springL = new THREE.PointLight('#7af0d8', 30, 22, 1.5); springL.position.set(0, 2.2, 0); scene.add(springL);
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'bob', hair: '#c8703a', eye: '#3a8a5a', eyes: 'round', mouth: 'smile', cloth: 'tunic', sleeve: 'long', top: '#f2e8d2', top2: '#c84a3c', lower: 'shorts', bottom: '#8a4c3a', belt: '#6a4630', gloves: 'wrap', glove: '#e8dcc0', shoes: 'boot', shoe: '#7a4a30', neck: 'scarf', acc: '#e8b848', back: 'bag', s: 1.02 }); scene.add(hero);
+// 耳の長いぼうし（R.actor の帽子に無いので、ページの中で打って頭の関節に付ける。あみ目の生成り・赤い帯に金のぎざぎざ・耳の先は金）
+const HP = R.Px(32), HC = R.ramp('#efe4c8'), HB = R.ramp('#c84a3c'); HP.each((x, y) => { if (y >= 25) return y === 25 ? HB[1] : y === 31 ? HB[1] : (x + (y & 1) * 2) % 4 === 0 && y > 26 && y < 30 ? '#ffd860' : y === 26 ? HB[4] : HB[3]; if (y < 4) return y === 3 ? '#b88a30' : (x + y) % 3 ? '#ffd860' : '#fff0a0'; const k = (x + (y >> 2) * 2) % 4; return y % 4 === 0 ? HC[2] : k === 0 ? HC[2] : k === 1 ? HC[4] : HC[3]; });
+const hatT = T.from(HP, { m: 1 }), HG = R.geo().smooth(1), Hd = hero.userData.build.head, HW = hero.userData.build.hw * Hd; HG.loft(7, [[.56 * Hd, HW * 1.14, HW * 1.2, 0, .8], [.68 * Hd, HW * 1.13, HW * 1.19, .22, 1], [.9 * Hd, HW * .98, HW * 1.02, .5, 1], [1.08 * Hd, HW * .46, HW * .5, .7, 1.06]], { cap: 'top', ur: 2, capUV: [.5, .6] });
+const ears = [1, -1].map(sx => { const g = new THREE.Group(), G = R.geo().smooth(1); F.tube(G, [[0, -.03, 0, .05], [sx * .04, .14, -.02, .066], [sx * .08, .27, -.08, .066], [sx * .11, .3, -.22, .054], [sx * .12, .2, -.36, .04], [sx * .12, .06, -.42, .02]], 4, { m: .42, cap: true }); g.add(G.mesh(hatT)); g.position.set(sx * HW * .5, .98 * Hd, -.01); return g; });
+hero.userData.J.head.add(HG.mesh(hatT), ...ears);
+const child = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#f0d890', eye: '#5a8ac8', eyes: 'round', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'short', top: '#ffd870', top2: '#fff6e0', lower: 'skirt', skirt: .55, skirtC: '#f0a850', shoes: 'shoe', shoe: '#8a5a3a', s: .78 }); FT.wear(child, 'basket', { hand: 'L', c: '#c89a58', fc: ['#ffe27a', '#ff9ab8', '#ffffff'] });
+{ const a = AC - .8, r = PR + 1.6; child.position.set(Math.cos(a) * r, HF(Math.cos(a) * r, Math.sin(a) * r), Math.sin(a) * r); child.rotation.y = Math.atan2(-Math.cos(a + .4), -Math.sin(a + .4)); scene.add(child); }
+const fairies = [...Array(7)].map((_, i) => { const g = F.fairy({ c: ['#ffe890', '#a8fff0', '#ffc8e8'][i % 3], hair: ['#f0a060', '#5a8a9a', '#f0e8d0'][i % 3], s: 1.5, light: i === 0 }); g.userData.orb = [hash(i, 21) * TAU, i < 2 ? 1.7 + i * .5 : 2.6 + hash(i, 22) * 3.4, 1.2 + hash(i, 23) * 1.6, (.35 + hash(i, 24) * .3) * (i % 2 ? 1 : -1)]; scene.add(g); return g; });
+const wisps = [...Array(7)].map((_, i) => { const g = F.wisp({ c: i % 3 === 1 ? '#8af8e0' : '#ffe890', s: .42 + hash(i, 25) * .25, seed: i }); g.userData.orb = [i / 7 * TAU, PR - 1.5 + (i % 3) * 3.4, 1 + hash(i, 26) * 2.4]; scene.add(g); return g; });
+const crits = [[AC - 1.0, -3.1, '#f0e0c0', 'sit'], [AC - .55, -2.2, '#d8b888', 'sit'], [AC - .5, 2.1, '#e8d0a8', 'walk']].map(([a, e, c, pose], i) => { const g = F.critter({ c, s: 1.5 }), [x, z, r] = pt(a, e); g.position.set(x, HF(x, z), z); g.rotation.y = r + (pose === 'sit' ? 2.2 + i : 0); g.userData.home = [a, e, pose, i]; scene.add(g); return g; });
+const motes = F.motes({ n: 110, box: [28, 7, 28], c: '#fff0a0', size: .12, rise: .22, drift: .7, y: .2 }); scene.add(motes);
+
+// ---- 旅人の道（輪を左まわり。開いて 2.5 秒で、泉ごしに滝が見える） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.7, S0 = (AC - 1.3) / TAU - .05, cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u); p.y = HF(p.x, p.z);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  ears.forEach((e, i) => { e.rotation.x = -.1 + Math.sin(dist * 3.9 * 2 + i) * .14; });   // 歩くと耳がゆれる
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.3;
+  const pr = Math.hypot(p.x, p.z), ix = -p.x / pr, iz = -p.z / pr, sd = tall ? .6 : 1;   // 泉が見えるよう、カメラは外がわの ななめうしろから、泉ごしに滝のほうを向く
+  cp.set(p.x - cd.x * D - ix * 2.1 * sd, p.y + (tall ? 2.1 : 2.3), p.z - cd.z * D - iz * 2.1 * sd); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3 + ix * 3.3 * sd, p.y + 1.2, p.z + cd.z * 3 + iz * 3.3 * sd);
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 泉・滝・魔法陣・光の柱・妖精・光の玉・ミミナガ・花かごの子
+  pond.userData.tick(t); for (const f of ticks) f(t); circle.userData.tick(t); circle2.userData.tick(t); circle2.position.y = 1.5 + Math.sin(t * .8) * .25; shaft.userData.tick(t); springL.intensity = 30 * (.9 + .1 * Math.sin(t * 1.2));
+  fairies.forEach((f, i) => { const [ph, r, h, sp] = f.userData.orb, a = ph + t * sp, near = i < 2, ox = near ? p.x + tg.x * 2.2 + ix * 2.6 : MX, oz = near ? p.z + tg.z * 2.2 + iz * 2.6 : MZ; f.position.set(ox + Math.cos(a) * r, h + Math.sin(t * 1.1 + ph) * .45, oz + Math.sin(a) * r); f.rotation.y = Math.atan2(-Math.sin(a) * sp, Math.cos(a) * sp); F.fairyPose(f, t + ph); });
+  wisps.forEach((w, i) => { const [ph, r, h] = w.userData.orb, a = ph + t * .12 * (i % 2 ? 1 : -1); w.position.set(Math.cos(a) * r, h + Math.sin(t * .7 + ph) * .5, Math.sin(a) * r); w.userData.tick(t); });
+  for (const c of crits) { const [a, e, pose, i] = c.userData.home; if (pose === 'walk') { const [x, z, r] = pt(a + t * .04, e); c.position.set(x, HF(x, z), z); c.rotation.y = r; } F.critterPose(c, pose, pose === 'walk' ? t * 9 : t + i); }
+  R.idle(child, t, Math.sin(t * .5) * .5);
+  motes.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>

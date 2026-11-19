@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-47 列車の墓場で部品をさがす 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d0;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-47 ─ 列車の墓場で部品をさがす / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-city.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。鉄の都市の下町の はずれ、使われなくなった電車と貨車がならぶ「列車の墓場」。車両は かたむき、草と花が生え、人が車両を家にしてくらしている。
+// 色の組は「さびの赤茶（車両・土）」＋「光のすじの金（天井のすき間からさす）」＋「草の緑」。昼の明るさで、ほこりっぽく あたたかい。
+// 主役は探しものをする修理屋。うしろから追うカメラ。ドラムかんの火はページの中で打つ。部品は retro.js（R.〜）と pack-city.js（C.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const HAZE = '#b88a62', GOLD = '#ffd67a';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.background = new THREE.Color(HAZE); scene.add(C.dome({ r: 420, c: '#5a4038', haze: HAZE, lights: ['#ffe0a0', '#ffc070', '#fff0c8'] }), C.backdrop({ r: 210, h: 40, y: -3, c: '#6a4a40', haze: HAZE })); scene.fog = new THREE.Fog(HAZE, 30, 170);
+const { sun } = K.lights(scene, renderer, { sky: 0xffe6c0, ground: 0x8a6a4a, amb: 1.5, sun: 0xffe0a8, power: 1.25, range: 30 }), SUN = new THREE.Vector3(.3, .9, .25).normalize();
+
+// ---- 光のすじの落ちる所・車両のならび ----
+const SHAFT = [[2, 1.5, 8], [16, -3, 7], [31, 2, 9], [-12, 7, 7], [22, 12, 6], [44, -8, 8], [-4, -14, 7]];
+const lights = SHAFT.map(([x, z, w]) => ({ x, z, r: w * .9, c: GOLD, k: .75 })); lights.push({ x: 9.2, z: 3.3, r: 4, c: '#ff9a40', k: .7 });
+// [x, z, 向き, 種類, 色, 長さ, かたむき, しずみ]
+const CARS = [[-9, -4.7, .06, 'pass', '#b5603c', 12, .05, .15], [5, -5.4, -.1, 'box', '#8a4a34', 9, -.09, .25], [17.5, -4.5, .12, 'pass', '#c8803c', 12, .16, .3], [31, -5.2, -.05, 'box', '#7a5a3c', 9, 0, .1], [-6, 6.2, -.08, 'box', '#9a5030', 9, -.13, .3], [7.5, 6.4, .04, 'pass', '#a8603a', 12, 0, .05], [22, 6, .16, 'pass', '#b87038', 12, .1, .2],
+  [39, 1.5, 1.2, 'pass', '#b5603c', 12, .2, .45], [-22, -1, 1.35, 'box', '#8a4a34', 9, -.1, .2], [12, -13.5, .3, 'pass', '#9a6a3c', 12, .22, .5], [-4, 14, -.2, 'box', '#7a5a3c', 9, .06, .2], [28, 14.5, .35, 'pass', '#a8603a', 12, -.18, .4], [36, -15, -.4, 'box', '#9a5030', 9, .1, .3]];
+const grassy = (x, z) => { const n = Math.sin(x * .31 + 1) * Math.cos(z * .27) + Math.sin(x * .13 - z * .19) * .8; return n > .25 || Math.abs(z) > 17; };
+const land = R.ground({ w: 170, d: 110, cell: 2, layers: [T.dirt({ c: '#9a6848', pebbles: .6 }), T.grass({ c: '#6aa04a', flowers: .5, fc: ['#ffe07a', '#fff4d8'] }), X.track({ c: '#6e5a50' })], mix: (x, z) => [grassy(x, z) ? 1 : 0, 0], shade: C.lightShade(lights, [.74, .68, .62]) });
+scene.add(land.mesh);
+
+// ---- さびた車両（かたむけて、少し地面にしずめる）。足もとに線路の帯 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+CARS.forEach(([x, z, ry, kind, c, len, tilt, sink], i) => { const car = C.train({ kind, c, c2: '#e8d8b0', len, wreck: true, seed: i }), g = new THREE.Group(); car.rotation.x = tilt; car.position.y = -sink; g.add(car); put(g, x, z, ry); });
+for (const z of [-4.9, 6.2]) scene.add(R.strip([[-34, .03, z], [-10, .03, z + .2], [14, .03, z - .1], [40, .03, z + .3]], 3, X.track({ c: '#6e5a50' })));
+
+// ---- 車両の家（南がわの 7.5, 6.4 の客車）：あかりの窓、トタンのひさし、えんとつ、はしご、はち植え、せんたく物 ----
+{ const B = R.parts(), hx = 7.5, hz = 6.4 - 1.36, W = B.g(T.window({ lit: 1, frame: '#6a4a34', bars: 'cross' }), { glow: true, offset: true }); for (const dx of [-3.6, -1.2, 3.4]) W.quad([hx + dx + .45, 1.75, hz], [hx + dx - .45, 1.75, hz], [hx + dx - .45, 2.65, hz], [hx + dx + .45, 2.65, hz]);
+  B.g(T.door({ c: '#4f8f88', frame: '#6a4a34', lit: 1 }), { offset: true }).quad([hx + 1.6, .8, hz], [hx + .6, .8, hz], [hx + .6, 2.8, hz], [hx + 1.6, 2.8, hz]);
+  B.g(X.tin({ c: '#4f8f88', rust: .7 }), { side: true }).quad([hx + 2.6, 2.75, hz - 1.5], [hx - .6, 2.75, hz - 1.5], [hx - .6, 3.2, hz], [hx + 2.6, 3.2, hz], [0, 0, 1.1, .5]);
+  const P = B.g(T.planks({ c: '#8f6a44' })); P.box(1.8, .12, 1.3, hx + 1.1, .68, hz - .7, { m: 2 }); P.box(1, .35, .5, hx + 1.1, .0, hz - 1.5, { m: 2 }); for (const dx of [-.55, 2.55]) P.box(.08, 2.75, .08, hx + dx, 0, hz - 1.45, { m: 2 });
+  fixed.push(B.group(), C.pipe([[hx - 4.4, 3.5, 6.4], [hx - 4.4, 5, 6.4], [hx - 4.1, 5.3, 6.4]], .12, { c: '#7a6a60', joint: 0, bend: .2 }));
+  put(C.ladder({ h: 3, c: '#b0a090' }), hx + 4.6, hz - .05, PI, .5); put(C.tank({ r: .55, h: 1, legs: .3, c: '#4f8f88' }), hx - 2, 6.4, 0, 3.55);
+  for (const [dx, k] of [[-.3, 'flower'], [2.3, 'flower'], [3.1, 'grass'], [-2.6, 'flower']]) { put(R.barrel({ h: .4, r: .2, c: '#b5603c' }), hx + dx, hz - .5); put(R.tuft({ kind: k, s: .75 }), hx + dx, hz - .5, dx, .36); } }
+// せんたく物の ひも（車両から車両へ）と、裸電球の列
+{ const G = R.geo(); for (const [a, b] of [[[-1.6, 3.2, 5], [2, 3.3, 5.2]], [[13.6, 3.3, 5.1], [16.4, 3.1, 4.6]], [[-16.5, 3.1, -3.3], [-12.5, 3.2, -2.9]]]) G.quad([a[0], a[1] - .75, a[2]], [b[0], b[1] - .75, b[2]], b, a, [0, 0, 1.2, 1]); fixed.push(G.mesh(X.laundry(), { side: true })); }
+fixed.push(C.bulbs([2, 3.6, 5.1], [13.4, 3.6, 5.1], { n: 7, sag: .5, cs: ['#ffb050', '#ffe08a'] }), C.bulbs([11.5, 3.5, -4.3], [3, 3.3, 5], { n: 6, sag: .9 }));
+
+// ---- まわりの物：ドラムかん・鉄くず・タイヤ・信号・フェンス・木と草花 ----
+put(C.drum({ c: '#7a5a3c', mark: 'none', h: .85 }), 9.2, 3.3); put(R.crate({ s: .5 }), 10.4, 3.9, .4); put(R.crate({ s: .45, kind: 'x' }), 8.2, 4.3, -.3); put(C.bench({ c: '#8f6a44' }), 9.6, 4.75, PI);
+put(C.scrap({ s: 1.6, seed: 2, cs: ['#b5603c', '#8a5a3c', '#c8a04a'] }), -3, -2.9); put(C.scrap({ s: 1.1, seed: 4 }), 24, -2.6); put(C.scrap({ s: 2.2, seed: 1 }), 33, 8.5); put(C.tires({ kind: 'pile' }), 13, -3.2); put(C.tires({ n: 3 }), -8, 3.2); put(C.drum({ c: '#4f8f88' }), 19, 3.4); put(C.drum({ c: '#c8a04a', mark: 'band' }), 19.7, 3.2);
+const sig = [[-1, -2.9, 0], [26.5, 3.1, PI]].map(([x, z, ry]) => put(C.signal({ h: 3.6, blink: true }), x, z, ry + PI / 2));
+put(C.fence({ len: 14, h: 1.6, kind: 'tin', cs: ['#b5603c', '#8a5a3c', '#c8a04a', '#7a6a50'] }), -30, 8, .5); put(C.fence({ len: 12, h: 1.8, kind: 'mesh' }), 46, 9, 1.3); put(C.pole({ h: 7 }), 14.5, 3.1, PI / 2); put(C.pole({ h: 7 }), -12, -2.9, PI / 2);
+for (const [x, z, h, k] of [[26, -8.6, 5.2, 'round'], [-15, 9.5, 6, 'round'], [36.5, 4.6, 4.2, 'round'], [1, -10.5, 3.4, 'bush'], [13.5, 9.5, 3, 'bush'], [-18, -8, 5, 'round']]) put(R.tree({ kind: k, h, c: '#5a9a4a', seed: x }), x, z);
+for (let i = 0; i < 70; i++) { const x = -30 + hash(i, 1) * 76, z = -16 + hash(i, 2) * 32; if (Math.abs(z) < 1.6 && x > -16 && x < 34) continue; if (CARS.some(([cx, cz, , , , len]) => Math.hypot(x - cx, (z - cz) * 2.4) < len / 2 + .3 && Math.abs(z - cz) < 1.2)) continue; put(R.tuft({ kind: ['grass', 'flower', 'grass', 'flower', 'reed'][i % 5], s: .7 + hash(i, 3) * .7 }), x, z, hash(i, 4) * 6); }
+// 車両の屋根や すき間から生える草
+for (const [x, z, y] of [[-10, -4.7, 3.55], [-7, -4.6, 3.6], [18, -4.4, 3.3], [21, 6.2, 3.4], [6, 6.3, 3.6], [38.6, 1, 3], [4.5, -5.4, 3.3]]) put(R.tuft({ kind: x % 2 ? 'flower' : 'grass', s: 1 }), x, z, x, y);
+scene.add(R.merge(fixed));
+
+// ---- 天井（すき間）と光のすじ、遠くの柱と高架 ----
+scene.add(C.ceiling({ w: 256, d: 144, y: 17, cx: 8, c: '#5e4a48', leak: .9, hole: (x, z) => SHAFT.some(([hx, hz]) => Math.abs(x - hx) < 4.1 && Math.abs(z - hz) < 4.1) }));
+SHAFT.forEach(([x, z, w], i) => { const s = C.shaft({ w, h: 17.5, c: GOLD, a: .34, lean: i % 2 ? .07 : -.05, n: 3, rot: i }); s.position.set(x, 0, z); scene.add(s); });
+scene.add(C.pools(SHAFT.map(([x, z, w]) => ({ p: [x, .04, z], r: w * .62, c: GOLD, k: .55 }))));
+scene.add(R.merge([[66, -8, 6], [-60, 14, 5.5], [50, 44, 5.5], [10, -56, 6], [-40, -40, 5]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 17.4, seed: i, c: '#8a6a5e', emissive: '#4a3028', lm: 60 }); p.position.set(x, 0, z); return p; })));
+{ const e = C.elevated({ len: 96, h: 8, c: '#7a5e54', posts: 12 }); e.position.set(6, 0, -26); scene.add(R.merge([e])); }
+
+// ---- ドラムかんの火（ほのおの絵を十字に 2 枚）・火花・けむり ----
+const fireT = (() => { const P = R.Px(16, 24); P.clip = true; for (let y = 0; y < 24; y++) for (let x = 0; x < 16; x++) { const w = y < 15 ? .6 + y * .46 : 7.5 - (y - 15) * .3, dx = Math.abs(x - 7.5 + Math.sin(y * .8) * 1.3 * (1 - y / 24)); if (dx < w) P.set(x, y, dx < w * .34 && y > 9 ? '#fff6b8' : dx < w * .68 && y > 4 ? '#ffc23c' : '#f0702c'); } return T.from(P, { m: 1, cut: true }); })();
+const fire = (() => { const G = R.geo(); for (const a of [0, PI / 2]) { const c = Math.cos(a) * .27, s = Math.sin(a) * .27; G.quad([-c, 0, -s], [c, 0, s], [c, .8, s], [-c, .8, -s]); } const m = G.mesh(fireT, { glow: true, side: true }); m.position.set(9.2, .8, 3.3); return m; })(); scene.add(fire);
+const fl = new THREE.PointLight('#ff9a40', 14, 9, 1.4); fl.position.set(9.2, 1.7, 3.3); const fh = C.halo({ c: '#ffb050', r: 1.3, k: .6, flicker: true }); fh.position.set(9.2, 1.4, 3.3); const sp = C.sparks({ n: 12, every: 1.1, c: '#ffd27a', power: .7 }); sp.position.set(9.2, 1.4, 3.3);
+const smoke = C.steam({ r: .4, rise: 3.2, n: 7, c: '#e8dcc8', a: .3, speed: .28 }); smoke.position.set(3.4, 5.3, 6.4); scene.add(fl, fh, sp, smoke);
+
+// ---- 人・ねこ・鳥 ----
+const hero = R.actor({ sex: 'f', hairStyle: 'tufts', hair: '#c8743a', bangs: 'swept', brow: 'thick', mouth: 'smile', cloth: 'overall', top: '#3f72b0', top2: '#f4ecd8', bottom: '#3f72b0', belt: '#8a5a2c', strap: true, gloves: 'glove', glove: '#c8a04a', shoes: 'boot', shoe: '#5a3a2a', hat: 'cap', acc: '#e8c040', back: 'pack', hold: 'wrench', s: 1.04 }); scene.add(hero);
+const npc = (o, x, z, ry, y = 0) => { const p = R.actor(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const elder = npc({ hairStyle: 'bald', hair: '#c8c4c0', eyes: 'closed', beard: 'beard', cloth: 'coat', top: '#7a6a4a', top2: '#e8dcc0', bottom: '#5a4a3a', shoes: 'boot', neck: 'scarf', acc: '#b5603c' }, 10.5, 2.7, -2.2), washer = npc({ sex: 'f', hairStyle: 'bun', hair: '#6e4628', brow: 'soft', cloth: 'tunic', sleeve: 'short', top: '#e8dcc0', top2: '#4f8f88', lower: 'skirt', skirt: .8, skirtC: '#4f8f88', shoes: 'shoe' }, .4, 4.6, .2);
+const kids = [npc({ hairStyle: 'spiky', hair: '#4a3428', mouth: 'open', blush: true, cloth: 'tunic', top: '#e8c040', top2: '#f4e8c8', lower: 'shorts', bottom: '#6a5a4a', shoes: 'shoe', s: .68 }, 0, 0, 0), npc({ sex: 'f', hairStyle: 'twin', hair: '#2a2a34', mouth: 'open', blush: true, cloth: 'overall', top: '#c2453a', top2: '#f4e8c8', lower: 'skirt', skirt: .5, shoes: 'shoe', s: .64 }, 0, 0, 0)];
+const porch = npc({ hairStyle: 'tufts', hair: '#2a2a34', cloth: 'vest', top: '#4f8f88', top2: '#f0e4c8', lower: 'baggy', bottom: '#6a5a4a', shoes: 'boot' }, 8.2, 5.1, PI - .4, .8);
+const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); cat.position.set(-7.2, 3.62, -4.3); cat.rotation.y = 1.2; scene.add(cat); const cat2 = R.cat({ c: '#8a8a94', belly: '#f0ece4' }); scene.add(cat2);
+const birds = [[14, 1.2, 1], [14.6, .7, 3], [15.2, 1.6, 5], [16.4, .2, 2], [21, -1.1, 4]].map(([x, z, ry]) => { const b = R.bird({ c: '#b8b0a8', s: 1.1 }); b.position.set(x, 0, z); b.rotation.y = ry; scene.add(b); return b; }), fly = [0, 1, 2].map(i => { const b = R.bird({ c: '#f0e8dc', s: 1.2 }); scene.add(b); return b; });
+
+// ---- 主人公：車両のあいだを東へ。ときどき左右を見まわす ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = 1.7, SPAN = 40, X0 = -10;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .17 + .6) * .9, tall = innerWidth < innerHeight, D = tall ? 3.7 : 4.4;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .17 + .6) * .15; R.walk(hero, t * SPEED * 4.6); hero.userData.J.head.rotation.y = Math.sin(t * .9) * .6;
+  cam.position.set(x - D, tall ? 2.1 : 2.15, z * .5 + .7); cam.lookAt(x + 4, tall ? 1.7 : 1.5, z * .4 - .1);
+  crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, SUN.z * 50); sun.target.position.set(x, 0, 0);
+  fire.scale.set(1 + Math.sin(t * 13) * .12, 1 + Math.sin(t * 9.1) * .16 + Math.sin(t * 17) * .07, 1); fire.rotation.y = t * 1.5; fl.intensity = 13 + Math.sin(t * 11) * 3;
+  R.idle(elder, t, Math.sin(t * .4) * .2); elder.userData.J.armR.rotation.x = -.8; elder.userData.J.armL.rotation.x = -.8; elder.userData.J.foreR.rotation.x = -.5; elder.userData.J.foreL.rotation.x = -.5;
+  R.idle(washer, t + 1, 0); washer.userData.J.armL.rotation.x = -2.3 - Math.sin(t * 1.4) * .2; washer.userData.J.armR.rotation.x = -2.1 + Math.sin(t * 1.4) * .2; R.idle(porch, t + 3, Math.sin(t * .5) * .4);
+  kids.forEach((w, i) => { const a = t * .75 + i * .55, cx = 20, cz = .4; w.position.set(cx + Math.cos(a) * (5 - i * .4), 0, cz + Math.sin(a) * 2.4); w.rotation.y = Math.atan2(-Math.sin(a) * 5, Math.cos(a) * 2.4); R.walk(w, t * 10 + i, 1.2); });
+  R.catPose(cat, 'sit', t); const cu = (t * .8 / 30 + .2) % 1; cat2.position.set(2 + cu * 30, 0, -2.6); cat2.rotation.y = PI / 2; R.catPose(cat2, 'walk', t * 9);
+  birds.forEach((b, i) => R.birdPose(b, 'peck', t + i * .7)); fly.forEach((b, i) => { const a = t * .5 + i * .5; b.position.set(16 + Math.cos(a) * (9 + i), 8.5 + Math.sin(t * .8 + i) * .8 + i * .5, -3 + Math.sin(a) * 6); b.rotation.y = -a; R.birdPose(b, 'fly', t + i); });
+  C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

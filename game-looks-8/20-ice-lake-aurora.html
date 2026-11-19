@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-20 氷の湖とオーロラ 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0f4ff;opacity:.9;text-shadow:0 1px 0 #0a2040}
+</style>
+<div id="cap">8-20 ─ 氷の湖とオーロラ / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない氷の柱・雪の岸・針葉樹に、手で打ったドット絵（白いひびと光のすじの氷、雪）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 氷の青と雪の白、オーロラの緑。差し色は オーロラのもも色と、氷の上の小さなかがり火。氷の面は場所ごとに青の深さを変え、深い水がすけて見えるようにした。
+// 毛皮の服の旅人が、こおった湖の上を岸にそって歩く。空いっぱいのオーロラがゆれ、雪が舞い、光の玉がただよう。氷の上のつり人と、岸の小屋。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 800, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(F.starDome({ r: 330, stops: [[0, '#0a1444'], [.5, '#17408a'], [1, '#2f6aa4']], n: 340, moon: { az: 2.4, el: .62, r: 5, c: '#f0f8ff' } })); scene.fog = new THREE.Fog('#2f6aa4', 36, 180);
+const { sun } = K.lights(scene, renderer, { sky: 0xb4dcff, ground: 0x6c9ad0, amb: 1.4, sun: 0xd0f0ff, power: 1.5, range: 30 }), SUN = new THREE.Vector3(.4, .8, -.45).normalize();
+
+// ---- 湖の上の道の輪（岸にそう）。pt(a, e) は道から外へ e m の点と進む向き、off(x, z) は道からのへだたり、shore(x, z) は岸からのへだたり（正が陸） ----
+const rr = a => 27 + 2.5 * Math.sin(2 * a) + 1.5 * Math.sin(3 * a + 1), lake = a => rr(a) + 6.2 + 2.6 * Math.sin(5 * a + .6);
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x)), shore = (x, z) => Math.hypot(x, z) - lake(Math.atan2(z, x)), cl = v => Math.max(0, Math.min(1, v)), sm = v => { const k = cl(v); return k * k * (3 - 2 * k); };
+const HF = (x, z) => { const d = shore(x, z); return d < 0 ? 0 : sm(d / 9) * (1.2 + F.vn(x * .1, z * .1, 3) * 3.4) + sm(d / 1.5) * .25; };   // 岸は雪の丘
+const land = R.ground({ w: 200, d: 200, cell: 2, H: HF, layers: [X.ice({ c: '#7cc4ec', m: 4 }), T.snow({})],
+  mix: (x, z) => { const d = shore(x, z); return [d > -.6 ? 1 : Math.abs(off(x, z)) > 2.2 && F.vn(x * .23, z * .23, 7) > .66 ? .8 : 0, 0]; },   // 氷の上にも、吹きだまりの雪
+  shade: (x, z) => { if (shore(x, z) > -.6) { const k = F.vn(x * .1, z * .1, 5); return [.78 + .12 * k, .9 + .1 * k, 1.04]; } const k = F.vn(x * .09, z * .09, 4), g = F.vn(x * .05 + 9, z * .05, 8); return [.5 + .42 * k, .72 + .3 * k + .14 * g, .96 + .1 * k]; } });   // 深い所は青く、浅い所は白く。オーロラの緑がうつる
+scene.add(land.mesh);
+
+// ---- 動かない物：氷のひび・氷の柱・雪の岸の針葉樹・岩・小屋 ----
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+// 氷の大きなひび（白いぎざぎざの線と、うすい水色のふち。32×64 の切りぬきを帯にしてしく）
+const crackT = (() => { const P = R.Px(32, 64), I = R.ramp('#8cd0f4'); P.clip = true; for (let y = 0; y < 64; y++) { const x = 16 + Math.round(4 * Math.sin(y / 64 * TAU * 2) + 2.4 * Math.sin(y / 64 * TAU * 5 + 1) + (hash(y, 3) > .7 ? 1 : 0));
+    P.set(x, y, '#ffffff'); P.set(x + 1, y, hash(y, 1) > .4 ? '#ffffff' : I[5]); P.set(x - 1, y, I[5]); P.set(x + 2, y, I[4]); if (hash(y, 2) > .5) P.set(x - 2, y, I[4]); if (y % 21 === 6) for (let s = 1; s < 9; s++) { P.set(x + 1 + s, y + Math.round(s * .6), s < 6 ? '#ffffff' : I[5]); P.set(x + 1 + s, y + Math.round(s * .6) + 1, I[4]); } if (y % 27 === 15) for (let s = 1; s < 8; s++) P.set(x - 1 - s, y + Math.round(s * .8), s < 5 ? '#ffffff' : I[5]); }
+  return T.from(P, { m: 4, cut: true }); })();
+for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + hash(i, 40) * .25, e0 = -9 - hash(i, 41) * 8, n = 9, pts = []; let ang = hash(i, 42) * .9 - .45; for (let s = 0; s <= n; s++) { const e = e0 + (5 - e0) * s / n, [x, z] = pt(a + Math.sin(s * 1.3 + i) * .03 + ang * s / n * .12, e); if (shore(x, z) > -1) break; pts.push([x, 0, z]); } if (pts.length > 3) fixed.push(R.strip(pts, 1.5, crackT, { lift: .04 })); }
+const PILL = []; for (let i = 0; i < 44; i++) { const a = (i + hash(i, 1) * .6) / 44 * TAU, inner = i % 3 !== 0, e = inner ? -(2.4 + hash(i, 2) ** 1.6 * 10) : 2.4 + hash(i, 2) * 1.6, [x, z] = pt(a, e), h = inner ? 2 + hash(i, 3) ** 1.3 * 5 : 1.4 + hash(i, 3) * 1.8; PILL.push([x, z, h]);
+  put(F.crystal({ h, n: 3 + (i % 3), c: i % 4 === 0 ? '#bfeaff' : '#86ccf4', seed: i }), x, z, i, -.1); }
+for (let i = 0; i < 5; i++) { const a = i * 1.26 + .4, r0 = 4 + hash(i, 4) * 6; put(F.crystal({ h: 6 + hash(i, 5) * 4, n: 6, r: 1.6, c: '#9ad8f8', seed: i + 60 }), Math.cos(a) * r0, Math.sin(a) * r0, i, -.2); }   // 湖のまん中の大きな氷の柱
+const CAB = (() => { const [x, z] = pt(1.55, 10.5), [px, pz] = pt(1.55); return { x, z, ry: Math.atan2(px - x, pz - z) }; })();
+for (let i = 0; i < 90; i++) { const a = hash(i, 6) * TAU, d = .8 + hash(i, 7) ** 1.3 * 22, r0 = lake(a) + d, x = Math.cos(a) * r0, z = Math.sin(a) * r0; if (Math.hypot(x - CAB.x, z - CAB.z) < 5.5) continue;
+  if (i % 6 === 5) put(R.rock({ s: .7 + hash(i, 8) * 1.4, c: '#8aa4c8', seed: i }), x, z, i, HF(x, z) - .15); else put(R.tree({ kind: 'pine', h: 4.6 + hash(i, 9) * 5.5 + d * .1, c: i % 3 ? '#2c7468' : '#3a8a84', seed: i }), x, z, i); }
+for (let i = 0; i < 40; i++) { const a = hash(i, 10) * TAU, r0 = lake(a) + .4 + hash(i, 11) * 3, x = Math.cos(a) * r0, z = Math.sin(a) * r0; put(R.tuft({ kind: i % 2 ? 'reed' : 'bush', s: .6 + hash(i, 12) * .4, c: i % 2 ? '#cfe4f0' : '#e8f4ff', seed: i % 3 }), x, z, i); }   // 岸の霜のついた草
+put(R.house({ w: 4.6, d: 3.8, h: 2.4, wall: T.boards({ c: '#6a5a6a' }), roof: T.snow({}), pitch: 1.1, lit: 1, chimney: true, door: T.door({ lit: 1 }), seed: 2 }), CAB.x, CAB.z, CAB.ry);
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#2c6088', haze: '#2f6aa4', r: 150, h: 26, y: -1, rep: 7 }), R.backdrop({ c: '#7aa8dc', haze: '#3a78b0', r: 215, h: 66, y: -3, rep: 4, seed: 3 }));
+const cabL = new THREE.PointLight('#ffc070', 14, 12, 1.6); cabL.position.set(CAB.x + Math.sin(CAB.ry) * 2.8, HF(CAB.x, CAB.z) + 1.6, CAB.z + Math.cos(CAB.ry) * 2.8); scene.add(cabL);
+
+// ---- オーロラ（緑ともも。空をぐるりと 3 つ）と、氷にうつる光のすじ ----
+const sky = new THREE.Group(); for (let i = 0; i < 3; i++) { const au = F.aurora({ r: 230 - i * 14, y: 36 + i * 8, h: 48, arc: 2.5, dir: i * 2.1 + .3, bands: 3, c: '#58f0a4', c2: i === 1 ? '#f47ac0' : '#9af0c8', opacity: .44 }); sky.add(au); ticks.push(au.userData.tick); }
+const met = F.meteors({ n: 3, r: 240 }); sky.add(met); ticks.push(met.userData.tick); scene.add(sky);
+const refM = F.glowMat(X.beam({}), { add: true, own: true, opacity: .3 }), refG = R.geo().normal([0, 1, 0]);
+for (let i = 0; i < 26; i++) { const a = i / 26 * TAU + hash(i, 50) * .2, [x, z, r] = pt(a, -(3 + hash(i, 51) * 12)), L = 5 + hash(i, 52) * 6, w = .7 + hash(i, 53) * .9, dx = Math.cos(a), dz = Math.sin(a), tint = i % 4 === 1 ? [1.5, .7, 1.2] : [.5, 1.6, 1];
+  refG.tint(tint).quad([x - dz * w, 0, z + dx * w], [x + dz * w, 0, z - dx * w], [x - dx * L + dz * w * .5, 0, z - dz * L - dx * w * .5], [x - dx * L - dz * w * .5, 0, z - dz * L + dx * w * .5], [0, 0, 1, 1]); }
+const refl = new THREE.Mesh(refG.build(), refM); refl.position.y = .05; scene.add(refl);
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'bob', hair: '#4a4a7a', eye: '#3a7aa8', eyes: 'round', mouth: 'small', blush: true, cloth: 'coat', sleeve: 'long', top: '#c8824a', top2: '#f6f2e8', lower: 'baggy', bottom: '#8a5a3c', gloves: 'glove', glove: '#f6f2e8', shoes: 'boot', shoe: '#f0e8d8', neck: 'scarf', acc: '#f6f2e8', belt: '#5a3a2a', back: 'bag', hold: 'staff', s: 1.03 }); scene.add(hero);
+// 毛皮の帽子（R.actor の帽子に無いので、頭の関節に付ける）
+const furHat = (p, c = '#f4f0e6') => { const m = R.geo().smooth(1).loft(8, [[.12, .162, .172, 0, .8], [.17, .174, .184, .15, 1], [.24, .14, .15, .32, 1.05], [.285, .06, .06, .45, 1.1]], { cap: 'top', ur: 2 }).mesh(T.thatch({ c, m: 1 })); p.userData.J.head.add(m); return p; }; furHat(hero);
+const [fx0, fz0, fr0] = pt(.62, -4.2), fisher = furHat(R.actor({ bulk: 1.12, hairStyle: 'short', hair: '#8a6a4a', beard: 'beard', eyes: 'closed', mouth: 'smile', cloth: 'coat', sleeve: 'long', top: '#5a7a9a', top2: '#f6f2e8', bottom: '#4a4a6a', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', shoe: '#6a4a34', hold: 'staff', s: 1 }), '#d8c8a8'); fisher.position.set(fx0, 0, fz0); fisher.rotation.y = fr0 - 1.9; scene.add(fisher);
+const hole = F.pool({ r: .7, c: '#1f4f9a', seg: 8, rings: 2, y: .05 }); hole.position.set(fx0 + Math.sin(fr0 - 1.9) * 1.2, .05, fz0 + Math.cos(fr0 - 1.9) * 1.2); scene.add(hole);
+const fire = F.brazier({ s: .7, power: 16, range: 11 }); fire.position.set(fx0 + Math.sin(fr0 + .2) * 1.5, 0, fz0 + Math.cos(fr0 + .2) * 1.5); scene.add(fire); ticks.push(fire.userData.tick);
+const child = furHat(R.actor({ sex: 'f', hairStyle: 'twin', hair: '#c8a05a', eyes: 'big', mouth: 'open', blush: true, cloth: 'coat', sleeve: 'long', top: '#e8a0b8', top2: '#f6f2e8', bottom: '#5a6a9a', gloves: 'glove', glove: '#f6f2e8', shoes: 'boot', shoe: '#f0e8d8', s: .72 })); child.position.set(fx0 + Math.sin(fr0 + 1.3) * 1.6, 0, fz0 + Math.cos(fr0 + 1.3) * 1.6); scene.add(child);
+const crits = [[.3, 7.4, '#f4f4f8'], [1.1, 8, '#e0e8f4'], [2.6, 7.6, '#f4f4f8'], [4.3, 8.2, '#f4f4f8']].map(([a, e, c], i) => { const g = F.critter({ c, belly: '#ffffff', s: 1.5 }); g.userData.home = [a, e, i]; scene.add(g); return g; });
+const wisps = [...Array(6)].map((_, i) => { const g = F.wisp({ s: .5, c: ['#8affc8', '#a8e8ff', '#ffa8d8'][i % 3], seed: i }); g.userData.orb = [hash(i, 21) * TAU, 2 + hash(i, 22) * 4, 1 + hash(i, 23) * 1.6, .2 + hash(i, 24) * .25]; scene.add(g); return g; });
+const snow = F.motes({ n: 130, box: [28, 9, 28], c: '#ffffff', size: .1, rise: -.55, drift: .8, y: .2 }); scene.add(snow);
+
+// ---- 旅人の道（輪を左まわり） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.6, S0 = +new URLSearchParams(location.search).get('s') || .03, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, sk = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 5.2;
+  const pr = Math.hypot(p.x, p.z), ix = -p.x / pr, iz = -p.z / pr, sd = tall ? .35 : 1;   // カメラは少し岸がわから、湖のまん中の氷の柱のほうを向く
+  cp.set(p.x - cd.x * D - ix * .9 * sd, tall ? 1.9 : 2.0, p.z - cd.z * D - iz * .9 * sd); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 4 + ix * 1.5 * sd, tall ? 1.9 : 2.0, p.z + cd.z * 4 + iz * 1.5 * sd);   // 見上げて、オーロラを大きく入れる
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p); sky.position.set(p.x, 0, p.z);
+  // オーロラ・かがり火・つり人と子ども・雪うさぎふうのミミナガ・光の玉・雪・小屋のけむり
+  for (const f of ticks) f(t); refM.opacity = .24 + .1 * Math.sin(t * .9); hole.userData.tick(t);
+  R.idle(fisher, t, Math.sin(t * .3) * .3); { const J = fisher.userData.J; J.armR.rotation.set(-1.1 + Math.sin(t * 1.4) * .08, 0, -.1); J.foreR.rotation.x = -.4; }
+  R.idle(child, t + 2, Math.atan2(p.x - child.position.x, p.z - child.position.z) - child.rotation.y); child.rotation.y += (Math.atan2(p.x - child.position.x, p.z - child.position.z) - child.rotation.y) * .02; { const J = child.userData.J; J.armL.rotation.set(-2.6 + Math.sin(t * 7) * .25, 0, .5); J.foreL.rotation.x = -.3; }
+  for (const c of crits) { const [a, e, i] = c.userData.home, a2 = a + t * .03, [x, z, r] = pt(a2, e + Math.sin(t * .3 + i) * .5); c.position.set(x, HF(x, z), z); c.rotation.y = r; F.critterPose(c, 'walk', t * 9 + i); }
+  wisps.forEach((w, i) => { const [ph, r, h, sp] = w.userData.orb, a = ph + t * sp; w.position.set(p.x + tg.x * (4 + i * 2.2) + Math.cos(a) * r, h + Math.sin(t * .8 + ph) * .4, p.z + tg.z * (4 + i * 2.2) + Math.sin(a * 1.2) * r); if (w.userData.tick) w.userData.tick(t); });
+  if ((sk += dt) > .55) { sk = 0; fx.emit('smoke', CAB.x - 1, HF(CAB.x, CAB.z) + 4.6, CAB.z, { size: .7, grow: 1.5, life: 3.2, vy: .6, vx: .15, spread: .1, tint: '#e8f4ff' }); }
+  cabL.intensity = 14 * (.92 + .08 * Math.sin(t * 6)); fx.update(dt); snow.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>
