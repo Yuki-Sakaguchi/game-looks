@@ -70,11 +70,13 @@ for (const [x, z] of LAMPS.slice(0, 5)) { const l = new THREE.PointLight('#ffb86
 
 // ---- 人・ねこ・鳥 ----
 R.cfg.build = new URLSearchParams(location.search).get('build') || 'classic';   // ?build=real や ?build=chibi で、人の体つきを切りかえて見くらべられる（一覧は retro-people.html）
-const hero = R.person({ face: 0, cloth: 'tunic', top: '#3f72b0', top2: '#f0e0b8', bottom: '#6a5440', boots: true, cape: '#c2453a', hair: '#6e4628', s: 1.05 }); scene.add(hero);
-const npc = (o, x, z, ry) => { const p = R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
-const seller = npc({ face: 4, cloth: 'vest', top: '#8a5a3a', hat: 'straw', hair: '#8a8a8a' }, -7.8, -10.2, Math.atan2(7.8, 10.2)), buyer = npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a' }, -6.1, -7.7, Math.atan2(-.9, -1.4));
-const chatA = npc({ face: 2, cloth: 'shirt', top: '#5a8a5a', hair: '#c8843a', skin: '#d8a070' }, 15.4, 4.1, 1.2), chatB = npc({ face: 7, cloth: 'robe', skirt: 1, top: '#6a5a9a', hair: '#3a2a4a', hat: 'cone', acc: '#6a5a9a' }, 16.7, 4.5, -1.9);
-const kid = npc({ face: 5, cloth: 'stripe', top: '#e8704a', shorts: 1, sleeve: 'short', s: .76, head: 1.16, hat: 'cap', acc: '#3a6ab0' }, 0, 0, 0), oldMan = npc({ face: 6, cloth: 'jacket', top: '#b89a5a', bottom: '#4a4a5a', hair: '#d8d8d8' }, 0, 0, 0);
+// ?cast=new（7 頭身）/ ?cast=toon（5 頭身）/ ?cast=chibi（3 頭身）で、主人公と町の人を新しい作り R.actor の人物（R.CAST）に入れかえる。引数なしは これまでの R.person
+const CB = { new: 'heroic', heroic: 'heroic', toon: 'toon', chibi: 'chibi' }[new URLSearchParams(location.search).get('cast')], mk = (id, ex = {}) => R.actor({ ...R.CAST.find(c => c.id === id).o, build: CB, ...ex });
+const hero = CB ? mk('gald') : R.person({ face: 0, cloth: 'tunic', top: '#3f72b0', top2: '#f0e0b8', bottom: '#6a5440', boots: true, cape: '#c2453a', hair: '#6e4628', s: 1.05 }); scene.add(hero);
+const npc = (o, x, z, ry, id, ex) => { const p = CB ? mk(id, ex) : R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const seller = npc({ face: 4, cloth: 'vest', top: '#8a5a3a', hat: 'straw', hair: '#8a8a8a' }, -7.8, -10.2, Math.atan2(7.8, 10.2), 'gen', { hold: '' }), buyer = npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a' }, -6.1, -7.7, Math.atan2(-.9, -1.4), 'sage');
+const chatA = npc({ face: 2, cloth: 'shirt', top: '#5a8a5a', hair: '#c8843a', skin: '#d8a070' }, 15.4, 4.1, 1.2, 'minato'), chatB = npc({ face: 7, cloth: 'robe', skirt: 1, top: '#6a5a9a', hair: '#3a2a4a', hat: 'cone', acc: '#6a5a9a' }, 16.7, 4.5, -1.9, 'ruu');
+const kid = npc({ face: 5, cloth: 'stripe', top: '#e8704a', shorts: 1, sleeve: 'short', s: .76, head: 1.16, hat: 'cap', acc: '#3a6ab0' }, 0, 0, 0, 'toto', { s: .76 }), oldMan = npc({ face: 6, cloth: 'jacket', top: '#b89a5a', bottom: '#4a4a5a', hair: '#d8d8d8' }, 0, 0, 0, 'rou');
 const cat = R.cat(); cat.position.set(12.9, .7, -4.3); cat.rotation.y = -1.2; scene.add(cat);
 const birds = [[-1.2, -4.9], [.5, -4.5], [1.5, -5.4], [-.3, -5.7], [-8.5, 2.2], [-9.4, 3.1]].map(([x, z], i) => { const b = R.bird(i % 3 === 2 ? { c: '#e8e4dc', neck: false } : {}); b.position.set(x, 0, z); b.rotation.y = i * 2.1; b.userData.home = [x, z, i * 2.1]; b.userData.fly = -1; scene.add(b); return b; });
 
