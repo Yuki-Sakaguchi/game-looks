@@ -1,4 +1,40 @@
-//@@HEADER@@
+// game-looks-8 題材「廃墟」「海に浮かぶ廃墟」の追加の部品。kit.js・retro.js のあとに読み、 const PK = PACK_RUINS(THREE, K, R)  として使う。
+// 見本は 23-overgrown-amusement-park.html と 24-mossy-city-crossing.html、全部を見るページは pack-ruins-sheet.html（?p=tex、?p=parts&i=0〜6）。
+// ■ 考え方：廃墟は こわくしない・暗くしない。「人がいなくなって長い時間がたち、草と花と光がもどってきた、静かできれいな場所」。空は明るく、緑を多く、生きものを置く。
+// ■ 決まり：retro.js と同じ（足もと y=0、正面 +z、m、1 色から 6 段）。どの形も R.merge でまとめられる（動く物は userData.dyn つき）。
+//   base（m）を取る物は、y=0 より下にも形がある（水にしずめて使う。海に浮かぶ廃墟では base: 6 など。base のあるときは根もとのつたを出さない）。
+//   seed で模様と こわれ方が変わる。lean / leanX は かたむき（ラジアン）。
+//
+// ■ テクスチャ  PK.tex.名前({ c, seed, m, … }) → THREE.Texture（PK.paint.名前(o) は Px を返す）
+//   かべ：concrete { crack 0〜1, moss 0〜1, stain }（われたコンクリート）   rust { paint: 色（入れると はげたペンキ）, peel 0〜1, wave（波板）, panel（つぎ目の間かく。0 でなし） }（さびた鉄板）
+//         ruinWall { moss, holes 0〜1（ガラスの無い窓のわりあい）, plants 0〜1（窓から草）, flowers, glass }（ぬけた窓のかべ。128 ドット＝6 m、3 m ごとに窓。R.tex.windowWall の廃墟版）
+//         ancient { kind: 'block'/'carve'（うずと日輪の彫り）/'flute'（柱のみぞ）, moss }（古代の石）   panes { holes }（工場のガラス窓。抜き）   jag（くずれた上ばと鉄筋。抜き。64×32）
+//   植物：ivy { amount 0〜1, from: 'top'/'bottom'/'all', flowers, fc }（つた。抜き。よこにくり返す）   moss { flowers }（しきつめる こけ。R.ground の layers に使える）
+//   地面（R.ground の layers に使える）：asphalt { crack, grass 0〜1, line: 'none'/'center'/'edge'/'both', patch }（64 ドット＝4 m）   rubble { brick, grass, rebar }   rail { grass }（レールは v の向き＝R.ground では z の向き、まん中は x = 1.5 + 3k）
+//   地面にはる絵（抜き。PK.decal で置く）：marking { kind: 'zebra'/'line'/'dash'/'stop'/'arrow'/'diamond', worn }   puddle { c }（水たまり。48×32。decal の ur, vr は 1）
+//   鉄：truss { kind: 'x'/'grid'/'ladder'/'beam'（太い。遠くでも見える）, paint }（抜き）   chain { holes }（金あみ。抜き）
+//   物の絵：panel { kind: 'sun'/'stripe'/'wave'/'arrow'/'dots'/'leaf', c, c2, peel }（字のない看板。64×32）   stripes { c, c2, torn }（色あせた しまの布。抜き）   vend   signal   roadSignOld { kind }   clock
+//           coachSide / coachEnd { kind: 'bus'/'train', c, c2, moss }   gondola   wreck { c, kind, moss }   beast { kind: 'deer'/'dog'/'horse' }   antler   wing   spoke
+//
+// ■ 建物
+//   building({ w, d, floors, c, broken 0〜1（かどから欠ける量）, corner 0〜3（欠けるかど）, moss, holes, plants, ivy 0〜1, flowers, roofGreen 0〜1（屋上の草）, tree（屋上・欠けた所の木。treeKind, treeH, treeC, treeFlowers, treeFc）, hut（屋上の小屋）, base, wall / inner / roof（テクスチャをさしかえる） })
+//     3 m のます目ごとに高さを持つビル。userData = { w, d, h, top(i, j), low: [x, y, z]（いちばん低い床） }
+//   wall({ len, h, fall, jag, thick, tex, rebar, base })（くずれたかべ）   frame({ nx, nz, floors, bay, fh, miss, slab, base })（柱とはりの骨組み）   school({ w, floors, c, broken, base })（校舎と時計塔）
+//   viaduct({ len, w, h, kind: 'road'/'rail', gap: [x0, x1]（落ちた所）, span, droop, fallen, grass, base }) → userData.deckY   pier({ h, w, d, cap, base })（橋げた）
+//   column({ h, r, broken 0〜1, ivy, base })   arch({ w, h, thick, d, broken 0〜1, base })   steps({ w, n, rise, run, tex, base })（-z へ上がる）
+//   factory({ w, d, h, teeth, rise, open 0〜1, c, holes }) → userData.skylights（天窓は +x 向き。中からも見える）   tank({ r, h, legs, c, base })   chimney({ h, r, bands, c, c2, base })
+//   pylon({ h, w, arms, lean, base }) → userData.tips   lighthouse({ h, r, c, c2, bands, lit, base }) → userData.lampY
+// ■ 地面の物   decal(テクスチャ, w, d, { ur, vr, y })   mound({ r, h, tex, squash })（砂・こけ・がれきの山）   rubble({ r, h, slabs, tufts, grass })
+// ■ 植物   ivy({ w, h, from, amount, flowers })（かべにはる板）   flowers({ n, r, fc, kinds, s, squash })（花の群れ）   屋上・窓の木は building の tree と ruinWall の plants
+// ■ 残された物
+//   wreck({ c, kind: 'sedan'/'van', moss, grass })（さびた車）   coach({ kind: 'bus'/'train', len, c, c2, moss, ivy }) → userData { len, w, h }
+//   signal({ h, arm, lean, leanX, walk, ivy })   sign({ kind, h, lean })   pole({ h, lean, leanX, arms, trans, ivy }) → userData.tips   wire([x,y,z], [x,y,z], { sag, n, w })（たれた電線）
+//   vending({ c, lean, ivy })   bench({ w, c, broken })   billboard({ w, h, legs, kind, c, c2, peel, lean, ivy })   fence({ len, h, lean, gap, ivy, holes })   kiosk({ w, d, h, c, c2, kind, ivy, torn })   slide({ c, c2 })
+//   ferris({ r, n, c, fc, rot, missing, live }) → userData { wheel, pivots, hubY, spin(角度), tick(t) }（live: true のときだけ動かせる。そのときは R.merge に入れず scene に置く）
+//   carousel({ r, n, c, c2, fc, missing, torn })   bike({ c, basket })
+// ■ 生きもの   deer({ c, antlers, spots, s })   dog({ c, collar, s })   beast({ kind })   beastPose(動物, 'walk'/'run'/'graze'/'stand'/'sit', t)
+//   flock({ n, r, h, c, s, speed, squash })（鳥の群れ）   butterflies({ n, area: [x, y, z], fc, s })   どちらも毎コマ userData.tick(t)。とまる鳥は R.bird
+// ■ 光   shaft({ w, h, dx, dz（上のはしのずれ＝太陽の向き）, c, a, n, spread })（光のすじ。加算）   motes({ n, area, c, size, a })（光の粒）   どちらも毎コマ userData.tick(t)
 window.PACK_RUINS = (THREE, K, R) => {
   const { hash, mix, ramp, tone, tn, Px, geo, parts, TR, mat } = R, T = R.tex, PT = R.paint;
   const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), TAU = Math.PI * 2;

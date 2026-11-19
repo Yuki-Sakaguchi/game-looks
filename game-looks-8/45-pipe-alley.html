@@ -80,7 +80,7 @@ scene.add(C.ceiling({ w: 128, d: 48, y: 14, cx: -8, c: '#3c5064', leak: .8, hole
 
 // ---- 人・ねこ・鳥 ----
 const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#5a3424', mouth: 'smile', blush: true, cloth: 'jacket', top: '#e8892c', top2: '#f4ecd8', lower: 'shorts', bottom: '#3f5a7a', shoes: 'shoe', shoe: '#f0e8d8', hat: 'cap', acc: '#e8c040', s: .82 }); scene.add(hero);
-{ const J = hero.userData.J, g = new THREE.Group(), a = R.crate({ s: .36, c: '#b88a54' }), b = R.crate({ s: .26, kind: 'x', c: '#c8a070' }); a.position.set(0, .0, -.31); b.position.set(.03, .36, -.3); b.rotation.y = .3; const G = R.geo(); G.box(.05, .34, .16, -.13, .02, -.12, {}); G.box(.05, .34, .16, .13, .02, -.12, {}); g.add(a, b, G.mesh(T.fabric({ c: '#3f5a7a', pattern: 'plain' }))); J.torso.add(g); }   // せおった荷物（しょいこ）
+{ const J = hero.userData.J, g = new THREE.Group(), a = R.crate({ s: .3, c: '#b88a54' }), b = R.crate({ s: .2, kind: 'x', c: '#c8a070' }); a.position.set(0, -.06, -.27); b.position.set(.03, .24, -.26); b.rotation.y = .3; const G = R.geo(); G.box(.05, .28, .14, -.12, -.02, -.1, {}); G.box(.05, .28, .14, .12, -.02, -.1, {}); g.add(a, b, G.mesh(T.fabric({ c: '#3f5a7a', pattern: 'plain' }))); J.torso.add(g); }   // せおった荷物（しょいこ）
 const npc = (o, x, z, ry, y = 0) => { const p = R.actor(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
 const leaner = npc({ hairStyle: 'short', hair: '#2a2a34', eyes: 'half', cloth: 'overall', top: '#4f8f88', top2: '#e8e0d0', bottom: '#4f8f88', gloves: 'glove', shoes: 'boot', hat: 'band', acc: '#f0e8d8', hold: 'wrench' }, -4.3, 1.2, -1.9), upstairs = npc({ sex: 'f', hairStyle: 'bun', hair: '#8a8a8a', brow: 'soft', cloth: 'tunic', sleeve: 'long', top: '#b8506a', top2: '#f4ecd8', lower: 'skirt', skirt: .8, shoes: 'shoe' }, 8.9, -1.25, .5, 2.8);
 const far = [npc({ hairStyle: 'spiky', hair: '#6e4628', cloth: 'tunic', top: '#5a8ab0', bottom: '#4a4a5a', shoes: 'shoe' }, 0, 0, 0), npc({ sex: 'f', hairStyle: 'bob', hair: '#2a2a34', cloth: 'coat', top: '#c8a04a', top2: '#f0e4c8', lower: 'skirt', skirt: .7, shoes: 'shoe', back: 'bag', acc: '#e8d8a0' }, 0, 0, 0)], kid = npc({ hairStyle: 'spiky', hair: '#2a2a34', mouth: 'open', blush: true, cloth: 'overall', top: '#c2453a', top2: '#f4e8c8', lower: 'shorts', shoes: 'shoe', s: .66 }, 0, 0, 0);
@@ -94,9 +94,9 @@ const follow = new THREE.PointLight('#ffd0a0', 8, 8, 1.4), pk = new THREE.PointL
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const SPEED = 1.75, SPAN = 38, X0 = -17;
 K.loop((dt, t) => {
-  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .21) * .32, tall = innerWidth < innerHeight, D = tall ? 3.5 : 4.3;
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .21) * .32, tall = innerWidth < innerHeight, D = tall ? 3.1 : 3.6;
   hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .21) * .07; R.walk(hero, t * SPEED * 5.2); hero.userData.J.torso.rotation.x = .12;
-  cam.position.set(x - D, tall ? 1.95 : 1.9, z * .4 - .25); cam.lookAt(x + 4, tall ? 1.75 : 1.45, z * .3 + .1);
+  cam.position.set(x - D, tall ? 1.8 : 1.75, z * .4 - .25); cam.lookAt(x + 4, tall ? 1.6 : 1.3, z * .3 + .1);
   crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
   sun.position.set(x + SUN.x * 50, SUN.y * 50, SUN.z * 50); sun.target.position.set(x, 0, 0); follow.position.set(x + 1.2, 2.4, z);
   R.idle(leaner, t, Math.sin(t * .4) * .3); R.idle(upstairs, t + 1, Math.sin(t * .5) * .3); upstairs.userData.J.armL.rotation.x = -1.2 - Math.sin(t * 1.2) * .25;

@@ -62,7 +62,7 @@
 //   C.bike({ c })   C.trike({ c, load })（三輪の荷車）   C.pole({ h, arms, box })（電柱。userData.tips ＝ 電線をつなぐ点）   C.wires([[a, b, たれ], …], { c }) → 線   C.poster({ kind, s })   C.bench({ w, c })
 //
 // ■ 乗りもの
-//   C.train({ kind: 'pass'/'box', c, c2, len: 9, lit, wreck }) → Group（x の向き。車輪の下が y=0）   C.truck({ c, load: 'drums'/'crates'/'none' })（userData.wheels）   C.moto({ c })
+//   C.train({ kind: 'pass'/'box', c, c2, len: 9, lit, wreck }) → Group（x の向き。車輪の下が y=0）   C.truck({ c, load: 'drums'/'crates'/'none' })（x の向き。車輪は回らない）   C.moto({ c })
 //
 // ■ 効果
 //   C.steam({ n: 9, r: .5, rise: 2.4, spread: .35, speed: .35, c, a: .55, dir: [x, y, z]（ふきだす向き）, jet（いきおい。0〜1） }) → Mesh   蒸気・湯気（丸い かたまり。置く所に position）

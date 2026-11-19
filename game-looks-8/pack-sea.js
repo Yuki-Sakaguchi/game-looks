@@ -1,4 +1,47 @@
-//__HEADER__
+// game-looks-8 の題材「海の中」と「海面（海に浮かぶ廃墟）」の追加の部品。kit.js・retro.js のあとに読み、 const S = PACK_SEA(THREE, K, R)  として使う。
+// 見本は 31-coral-reef-dive.html（さんご礁）と 32-sunken-sailing-ship.html（沈んだ帆船）。全部の部品を見るページは pack-sea-sheet.html（?p=tex、?p=parts&i=0〜4。&solo=番号 で 1 つだけ）。
+//
+// ■ いちばん短い使い方（水の中）
+//   const env = S.underwater(scene, renderer, { depth: 'shallow', top: 11 });          // 霧・背景・光・光のすじ・見上げた水面・粒・あわ。K.lights は中で呼ぶ（env.sun が太陽）
+//   const bed = S.seabed({ env, H: (x, z) => 高さ });  scene.add(bed.mesh);              // 砂の海底＋光のゆらぎ
+//   scene.add(R.merge([S.reef({ seed: 1 }), S.coral({ kind: 'table' }), S.kelp({ h: 8 })]));   // 動かない物は R.merge（ゆれは材質がやるので、まとめても ゆれる）
+//   const fish = S.school({ n: 50 }), hero = S.diver({});  scene.add(fish, hero);
+//   K.loop((dt, t) => { S.swim(hero, t); S.breathe(hero, env.bubbles, dt); fish.userData.tick(t); bed.follow(x, z); bed.tick(t); env.tick(t, cam, dt); crt.render(scene, cam, t); });
+// ■ いちばん短い使い方（海面を上から）
+//   const sea = S.sea({ c: '#2f8fb8', level: 0 });  scene.add(sea.mesh);                 // 空・霧・K.lights はページで用意する
+//   建物を y をマイナスにして置く → S.sink(建物, { level: 0 })（水面の下を青くする）→ 足もとに S.foamRing({ w, d })。まとめて R.merge してよい
+//   K.loop((dt, t) => { S.tick(t); sea.tick(t, 主役のx, 主役のz); 舟.position.y = sea.h(x, z, t); … });
+// ■ 決まり：retro.js と同じ（足もと y=0、正面 +z、大きさ m）。生きものは userData.tick(t) がその場の動きだけを付け、位置と向きはページが決める。
+//   生きもの・ダイバーは userData.dyn = true なので、R.merge に入れても残る。ゆれる物（海草・いそぎんちゃく・くらげのうで・帆）と泡の輪は、毎コマ S.tick(t)（env.tick が中で呼ぶ）で動く。
+//
+// ■ 水の中の空気
+//   S.underwater(scene, renderer, { depth: 'shallow'/'mid'/'deep'/'ice', top（水面の高さ。既定 14）, floor, rays（光のすじの数）, motes（粒の数）, surface: false, range（影の広さ）, ＋色の上書き fog, far, amb, power, ray, rayA … })
+//     → E = { D（色の組）, sun, hemi, dome, surface, rays, motes, bubbles: { emit(x, y, z, 数, ひろがり, 大きさ), update }, tick(t, cam, dt) }。'ice' は見上げた面が ひびのある氷。'deep' でも暗くしすぎていない（くらげは自分で光る）
+//   S.seabed({ env, w, d, cell, H, layers（既定は S.tex.sand()）, mix, shade, caustic（光のあみ目の強さ。0 でなし）, causticC, causticM }) → { mesh, follow(cx, cz), tick(t), H }
+//   S.bubbles(scene, { top, max }) → あわだけ使うとき   S.DEPTH … 色の組の表
+// ■ 海底・生えている物（どれも動かない Mesh / Group。R.merge でまとめる）
+//   S.rock({ s, c, grow, seed, flat })   S.cliff({ len, h, back, slope, c, grow, seed })（x にのびる がけ。正面 +z）
+//   S.coral({ kind: 'branch'/'table'/'brain'/'fan'/'tube'/'finger', s, c, tip, seed })（c を省くと seed で色ちがい。色の表は S.CORALC）   S.reef({ s, n, seed, kinds, colors })（岩＋さんご数種＋いそぎんちゃく＋海草のかたまり）
+//   S.anemone({ s, c, tip, body, n })   S.kelp({ h, w, c, kind: 'kelp'/'ribbon', amp, seed })（ならべて森に）   S.seagrass({ s, c, seed })   S.shell({ s, c, open, pearl })   S.starfish({ s, c })   S.urchin({ s, c })
+// ■ 生きもの（userData.tick(t)）
+//   S.school({ n, kind, c, c2, s, rx, rz, spread, wide, h, speed, tints, seed })（InstancedMesh 1 つ。原点のまわりの だ円をまわる）
+//   S.fish({ kind: 'clown'/'butter'/'angel'/'tang'/'parrot'/'grouper'/'silver', s, c, c2, fin, seed })   S.turtle({ s, c, skin })   S.ray({ s, c })   S.octopus({ s, c, c2 })（海底にすわる）
+//   S.jelly({ s, c, alpha, glow, seed })（自分で光る）   S.whale({ kind: 'dolphin'/'whale', s, c, c2 })（2.3 m / 9 m）   S.crab({ s, c })（tick(t, 歩く強さ)）   S.gull({ s, c })（tick(t, すべる 0〜1)）
+// ■ ダイバー
+//   S.diver({ actor: { R.actor の引数 }, head: 'mask'/'snorkel'/'helmet'/'none', tank: 色/false, fin: 色/false, pitch }) → Group（中の人は userData.actor、関節は userData.J）
+//   S.swim(d, t, { kick, rate, stroke, arms: 'stroke'/'glide'/'reach', look })   S.breathe(d, env.bubbles, dt, 間かく秒)
+// ■ 沈んだ物
+//   S.ship({ s, c, deck, grow, sail, breach, seed })（長さ 14 m の帆船。船首 +z。userData.deck / castle = 甲板の高さ）   S.chest({ s, c, open })   S.anchor({ s, c, grow })   S.pot({ s, c, c2, grow, seed })
+//   S.pillar({ h, r, c, grow, broken, base, seed })（神殿の柱）   S.dome({ r, h, n, c, glass, alpha })（ガラスのドーム。中に物を置ける）
+// ■ 海面（上から見る）
+//   S.sea({ w, d, cell, c, level, wave, alpha, m, shore(x, z) → 0〜1 }) → { mesh, mat, level, h(x, z, t), tick(t, cx, cz) }（半透明なので、しずめた物がうすく見える）
+//   S.sink(物, { level, depth, c, k, dark })（水面より下の頂点を青くする）   S.foamRing({ w, d } か { r, n }, wd, y)（水ぎわの白い泡）
+//   S.raft({ w, d, c, mast, cloth })   S.buoy({ s, c, lamp })   S.pier({ len, w, h, depth, c, grow })   小舟は R.boat（retro.js）をそのまま使う
+// ■ テクスチャ  S.tex.名前(o) → THREE.Texture（S.paint.名前(o) は Px）。どれも c と seed を取れる
+//   sand   caustic / under { kind: 'ice' } / swell / foam（コマの並び。R.flip で送る）   shaft   bubble   coral { kind: 'pore'/'brain'/'cell' }   fan   anemone   kelp { kind }   seagrass   bits（貝・ひとで・うに）
+//   grown { base: R.paint の名前（'planks' 'stone' 'concrete' 'brick' 'rock' 'windowWall' …）, o: その引数, grow, from: 'any'/'bottom'/'top' }（どのテクスチャにも ふじつぼ・も をのせる。水没した建物のかべに）
+//   column   iron   sail   pot   chest   domeFrame   glass   gear   buoy   fish { kind }   turtle   manta   octo   jelly { kind: 'bell'/'arms' }   whale { kind }   crab   gull
+//   S.crust(Px, { grow, from, algae, barnacle, dots }) … 自分で打った絵に ふじつぼ・も をのせる   S.mat(テクスチャ, { glow, alpha, add, cut, side, sway: { amp, f, k, inv } }) … 半透明・加算・ゆれる材質
 window.PACK_SEA = (THREE, K, R) => {
   // ================= 1. 道具（色・材質・形の向き） =================
   const { hash, mix, ramp, tn, Px, TR, geo, parts, ngon } = R, T = R.tex, S = {}, TAU = Math.PI * 2;
@@ -243,7 +286,7 @@ window.PACK_SEA = (THREE, K, R) => {
   // あわ。{ emit(x, y, z, 個数, ひろがり, 大きさ), update(dt) }。top（水面の高さ）で消える
   function bubbles(scene, o = {}) { const max = o.max || 70, top = o.top ?? 14, base = tex.bubble(), ms = [0, 1].map(i => { const t = base.clone(); t.repeat.set(.5, 1); t.offset.set(i * .5, 0); t.needsUpdate = true; return new THREE.SpriteMaterial({ map: t, alphaTest: .5, fog: true }); }), pool = [], live = [];
     for (let i = 0; i < max; i++) { const s = new THREE.Sprite(ms[i % 3 ? 1 : 0]); s.visible = false; s.userData.big = i % 3 === 0; scene.add(s); pool.push(s); }
-    const emit = (x, y, z, n = 1, sp = .12, size = 1) => { for (let k = 0; k < n; k++) { const s = pool.pop(); if (!s) return; s.position.set(x + (rnd() - .5) * sp * 2, y + rnd() * sp, z + (rnd() - .5) * sp * 2); Object.assign(s.userData, { vy: .6 + rnd() * .6, ph: rnd() * 6, sz: (.07 + rnd() * .06) * size * (s.userData.big ? 1.7 : 1), age: 0 }); s.scale.setScalar(s.userData.sz); s.visible = true; live.push(s); } };
+    const emit = (x, y, z, n = 1, sp = .12, size = 1) => { for (let k = 0; k < n; k++) { const s = pool.pop(); if (!s) return; s.position.set(x + (rnd() - .5) * sp * 2, y + rnd() * sp, z + (rnd() - .5) * sp * 2); Object.assign(s.userData, { vy: .6 + rnd() * .6, ph: rnd() * 6, sz: (.05 + rnd() * .045) * size * (s.userData.big ? 1.7 : 1), age: 0 }); s.scale.setScalar(s.userData.sz); s.visible = true; live.push(s); } };
     const update = dt => { for (let i = live.length - 1; i >= 0; i--) { const s = live[i], u = s.userData; u.age += dt; s.position.y += u.vy * dt; s.position.x += Math.sin(u.age * 5 + u.ph) * .22 * dt; s.position.z += Math.cos(u.age * 4 + u.ph) * .22 * dt; const k = u.sz * (1 + u.age * .22); s.scale.set(k, k, 1); if (s.position.y > top - .15 || u.age > 10) { s.visible = false; live.splice(i, 1); pool.push(s); } } };
     return { emit, update }; }
   // 水の中の見え方をまとめて用意する。

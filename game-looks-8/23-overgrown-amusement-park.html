@@ -73,7 +73,7 @@ K.loop((dt, t) => {
   const ud = (u + (1.9 + Math.sin(t * .4) * .5) / LEN) % 1, pd = path.getPointAt(ud), td = path.getTangentAt(ud), off = 1 + Math.sin(t * .7) * .3; dp.set(pd.x + td.z * off, 0, pd.z - td.x * off);
   dog.rotation.y = Math.atan2(dp.x - dog.position.x, dp.z - dog.position.z) || 0; dog.position.copy(dp); PK.beastPose(dog, 'walk', dist * 9);
   if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 5.2;
-  cp.set(p.x - cd.x * D, tall ? 2.1 : 2.5, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, tall ? 1.6 : 1.95, p.z + cd.z * 3.4);
+  cp.set(p.x - cd.x * D, tall ? 2.1 : 2.5, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, tall ? 1.4 : 1.15, p.z + cd.z * 3.4);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   ferris.userData.tick(t); flock.userData.tick(t); for (const b of bfs) b.userData.tick(t);
   for (const b of birds) { const [hx, hy, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);

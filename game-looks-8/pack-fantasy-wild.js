@@ -1,4 +1,53 @@
-// HEADER
+// game-looks-8 の題材「ファンタジーの自然・魔法・ダンジョン」の追加の部品（pack）。kit.js・retro.js のあとに読み、 const F = PACK_FWILD(THREE, K, R)  として使う。
+// 全部の部品を見るページは pack-fantasy-wild-sheet.html（?p=tex&i=0〜4 でテクスチャ、?p=parts&i=0〜6 で形）。見本の場面は 12-crystal-cave.html と 13-giant-mushroom-forest.html。
+//
+// ■ 決まり：retro.js と同じ。足もとが y=0、正面が +z、大きさは m。色は '#rrggbb'。どの関数も引数は 1 つの { … } で、全部省ける。
+//   動く物・光る物は userData.tick(t) を持つ。毎コマ呼ぶ（R.merge に入れたあとでも動く）。生きものは 名前Pose(物, …, t) で動かす。
+//   あかりは light: true のときだけ PointLight を持つ（userData.light）。数を増やしすぎず、F.bake で地面と天井の頂点の色に焼きこむのがおすすめ。
+//
+// ■ テクスチャ  F.tex.名前({ c, seed, m, … }) → THREE.Texture（R.ground の layers や R.geo の mesh にそのまま使える）
+//   地形：caveRock { glint, moss, mossC }  lava { crust, hot }  ice  swamp（コマの並び）  cascade（落ちる水・抜き）  foam（コマの並び）  dungeon { kind: 'wall'/'floor', moss }
+//   鉱物・植物：crystal  ore { rock }  cap { kind: 'spot'/'stripe'/'ring'/'fleck'/'plain', c2 }  gill  stem  moss { kind: 'patch'/'tile' }  vine { flowers, fc }  bloom { leaf }
+//   骨・宝・人工物：bone  skull  gold { gems }  chest  ironDoor { lit, arch }  rail { wood }  rope  dome
+//   魔法・光（加算ではる）：circle { star }  halo  dot  beam  streak  aurora { c2 }  flame { c }（コマの並び）
+//   生きもの：dragon { belly, wing, eye }  slime { cheek }  critter { belly }  flyers { wing, dress, skin }
+//
+// ■ 道具
+//   F.glowMat(テクスチャ, { add, opacity, cut, color, side, fog, own }) 光る材質   F.halo(色, 大きさ, 濃さ) にじみの板（Sprite）
+//   F.tube(G, [[x,y,z,半径], …], 角の数, { m, ur, cap, up, c }) 曲がった管   F.blobSec(n, seed, ゆがみ) でこぼこの断面   F.vn(x, z, seed) なめらかな乱数
+//   F.bake([{ x, y, z, c, r, k }, …], もとの明るさ) → (x, z, y) => [r,g,b]   あかりを R.ground の shade や caveCeil の shade に焼きこむ式
+//
+// ■ 地形
+//   F.caveH({ rx, rz, h, bump, seed, dist(x,z) }) → 天井の高さの式     F.caveCeil({ w, d, cell, H, floor, tex / c, shade, cx, cz }) 洞くつの天井と壁（地面は R.ground）
+//   F.spike({ h, r, down, seed, c }) つらら石・石じゅん   F.pillar({ h, r, spire, seed, c }) 岩の柱   F.cliff({ w, h, d, lean, top, seed, c }) がけ（+z 向き）
+//   F.floatIsle({ r, h, grass, rock, c, rockC, seed }) 浮島（原点は草の面）
+//   F.pool({ kind: 'water'/'swamp'/'lava'/'ice', r, rz, c, wobble, emissive, y }) 池・沼・溶岩だまり・氷（tick）   F.flow(点の列, はば, { kind, speed, c }) 溶岩や水の流れ（tick）
+//   F.waterfall({ w, h, c, lip, speed }) 滝としぶき（tick。原点は滝つぼ）
+//   F.stoneBridge({ len, w, rise, rail, c, moss }) 石のそり橋（x 向き。userData.deckY(x)）   F.ropeBridge({ len, w, sag, h, gaps }) つり橋（userData.deckY(x)）
+//
+// ■ 植物・鉱物・骨・宝
+//   F.crystal({ h, r, n, c, seed, glow, halo, light }) 水晶のかたまり（tick）   F.gemOre({ s, c, rock, seed }) 宝石の原石
+//   F.mushroom({ h, r, shape: 'dome'/'flat'/'cone'/'bell', kind, c, c2, stemC, gill, lean, skirt, glow, seed }) 巨大きのこ（小さいきのこも h を小さくして作る）
+//   F.mushroomHouse({ h, r, stemR, c, c2, kind, shape, door, lit, light }) きのこの家（userData.smoke）
+//   F.bloom({ s, c, leaf }) 光る花   F.mossPatch({ r, c, seed }) 光るこけ   F.vine({ len, n, w, c, flowers, glow }) つた（原点は付け根）   F.deadTree({ h, r, branches, seed, c }) 枯れ木
+//   F.ribs({ n, w, h, gap, r, broken, lean, spine, c }) ろっ骨のアーチ（z 向きにならぶ）   F.skull({ s, horns, c }) 頭の骨
+//   F.coinPile({ r, h, gems, seed }) 金貨の山   F.chest({ s, c, open }) 宝箱（userData.lid）
+//
+// ■ 人工物
+//   F.rail(点の列, { w }) レール   F.mineCart({ load: 'ore'/'gold'/'crystal', c, gem }) トロッコ（+x が前。userData.wheels）   F.mineProp({ w, h, c, lamp, light }) 坑道の木のささえ
+//   F.dungeonWall({ len, h, thick, c, moss, crenel }) 石かべ（床は F.tex.dungeon({ kind: 'floor' }) を R.ground に）   F.column({ h, r, broken, c }) 石の柱
+//   F.ironDoor({ w, h, lit, c, iron, open }) 鉄の扉（userData.open(0〜1)）   F.observatory({ r, h, c, domeC, lit }) 天文塔（userData.top, lens）
+//   F.swampHut({ w, d, stilt, c, roofC, light }) 沼の小屋（userData.smoke, floor）
+//
+// ■ 魔法・光・空
+//   F.torch({ h, wall, c, light, power, range }) たいまつ（tick）   F.brazier({ s, c, light }) かがり火（tick）
+//   F.motes({ n, box: [w,h,d], c, size, rise, drift, y }) ただよう・のぼる光の粒（tick(t, 主役の x, z)）   F.beam({ h, r, c, opacity }) 光の柱（tick）   F.magicCircle({ r, c, star, spin }) 魔法陣（tick）
+//   F.aurora({ r, y, h, arc, dir, bands, c, c2, opacity }) オーロラ（tick）   F.meteors({ n, r, dir, arc, c }) 流れ星（tick）   F.starDome({ r, stops, n, milky, moon: { az, el, r, c } }) 星空の丸天井
+//
+// ■ 生きもの（少ない面＋テクスチャ）
+//   F.dragon({ s, c, belly, wing, eye }) と F.dragonPose(竜, 'fly'/'walk'/'perch', t)   F.slime({ s, c, cheek, glow }) と F.slimePose(玉, t, はねる高さ)（オリジナルの「しずく玉」）
+//   F.critter({ s, c, belly }) と F.critterPose(獣, 'walk'/'sit', t)（長い耳の小さな獣）   F.bat({ s, c, wing }) と F.batPose(こうもり, t)   F.bug({ s, c }) と F.bugPose(虫, t)（光る虫）
+//   F.fairy({ s, c, hair, skin, light }) と F.fairyPose(妖精, t)   F.wisp({ s, c, light }) 光の玉（tick）
 window.PACK_FWILD = (THREE, K, R) => {
   // ================= 1. 道具 =================
   const { hash, mix, ramp, tone, tn, Px, geo, parts, TR } = R, T = R.tex, TAU = Math.PI * 2, PI = Math.PI, cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));

@@ -88,7 +88,7 @@ K.loop((dt, t) => {
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6, .85);
   J.armR.rotation.set(-.95, 0, .12); J.foreR.rotation.x = -.5; J.armL.rotation.set(-.8, 0, -.55); J.foreL.rotation.x = -.75; J.torso.rotation.set(.12, -.12, 0);   // 両手をハンドルへ
   if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.6)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 4.9;
-  cp.set(p.x - cd.x * D + cd.z * .5, tall ? 2.2 : 2.5, p.z - cd.z * D - cd.x * .5); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.6, tall ? 1.8 : 2.2, p.z + cd.z * 3.6);
+  cp.set(p.x - cd.x * D + cd.z * .5, tall ? 2.2 : 2.5, p.z - cd.z * D - cd.x * .5); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.6, tall ? 1.5 : 1.15, p.z + cd.z * 3.6);
   sun.position.set(p.x + SUN.x * 70, SUN.y * 70, p.z + SUN.z * 70); sun.target.position.copy(p);
   // しか：おすは横断歩道を行ったり来たり、めすは草を食べ、子じかはそばで見ている
   const bt = (t * .62 + 2.6) % 26, bx = bt < 13 ? -9 + bt * 1.4 : 9.2 - (bt - 13) * 1.4, turn = Math.min(1, Math.min(bt % 13, 13 - (bt % 13)) / .8); buck.position.set(bx, 0, 1.4 + Math.sin(bt * .5) * .6); buck.rotation.y = (bt < 13 ? 1 : -1) * Math.PI / 2 * turn + (1 - turn) * 0; PK.beastPose(buck, 'walk', t * 4.6);
