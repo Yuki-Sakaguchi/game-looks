@@ -52,6 +52,9 @@ if (mode === 'parts') {
   if (gi === 2) { put(F.eastHall({ lit: 1 }), -9, -2); put(F.eastHall({ tiers: 2, w: 6, d: 6, roof: '#4a7a68' }), 2, -3); put(F.torii({}), -9, 8); put(F.stoneLantern({ lit: 1 }), -5, 8); put(F.stoneLantern({}), -3.5, 8);
     put(F.dome({}), 10, -5, 0, 0); put(F.dome({ kind: 'round', r: 2, c: '#e0b048', c2: '#f4e8c0' }), 16, -5); put(F.minaret({}), 12, 3); put(F.minaret({ h: 8, r: .8, c: '#b8483a', stone: '#e8d8c0' }), 16, 4); put(F.stairs({ w: 4, h: 1.6, d: 4, tex: t.sandstone() }), 5, 8);
     cp = [3, 9, 28]; look = [3, 4, 0]; }
+  if (gi === 3) { const th = put(F.treeHouse({ lit: 1 }), -10, -2), t2 = put(F.treeHouse({ h: 4, r: 1.8, seed: 2 }), 0, -4); scene.add(F.ropeBridge({ from: [-8, 6, -2.3], to: [-1.7, 4, -3.7] })); const ld = put(F.ladder({ h: 4 }), 0, -2.2);
+    put(F.bridge({}), 9, 3); put(F.pier({ len: 8, h: 2.5, rail: 'rope' }), -7, 8); put(F.vane({}), -2, 8); put(F.gondola({}), 9, 9, 1.2, .2); put(F.canal({ len: 8, w: 4 }), 17, 3, 0, 1.3); cp = [2, 9, 27]; look = [2, 3.5, 0]; }
+  if (gi === 4) { put(F.airship({}), -9, -2, 1, 1); put(F.ship({ sail2: '#c8483a', crest: 'anchor', cc: '#34507a' }), 7, -3, .9, .4); put(F.wagon({ load: 'crates' }), -4, 9, .7); put(F.wagon({ cover: false, load: 'hay', c: '#6a8a9a' }), 2, 9, 2.2); cp = [0, 9, 30]; look = [0, 5, 0]; }
 // @@GROUPS@@
   if (q.get('cam')) { const c = q.get('cam').split(',').map(Number); cp = c.slice(0, 3); look = c.slice(3, 6); }
   const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
