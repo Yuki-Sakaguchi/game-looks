@@ -15,7 +15,7 @@ canvas{display:block}
 <script type="module">
 // 面の少ない車・家・木に、その場で打ったドット絵のテクスチャ（ひびの入った道路、波の 4 コマ、砂、かわら）をはり、横 320 ドットの粗い絵に描く。
 // 色は海と空の青・草の緑・砂と夕方近い日の黄にしぼり、色数を落としてディザにかけ、ブラウン管に映してにじませる。
-// 岬をぐるりとまわる海ぞいの道。赤い車をうしろから追い、対向車とすれちがう。部品はぜんぶ retro.js（R.〜）
+// 岬をぐるりとまわる海ぞいの道。赤い車をうしろから追い、対向車とすれちがう。道ばたで 5 頭身の人（R.actor の toon）が手をふり、路肩を歩く。部品はぜんぶ retro.js（R.〜）
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, { hash } = K;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 1400, aa: false, fitAspect: .9, maxFov: 74 });
@@ -70,6 +70,16 @@ const lane = e => new THREE.CatmullRomCurve3(ring(e).slice(0, N).map(q => new TH
 const car = R.car({ c: '#d8452e' }); scene.add(car);
 const others = ['#3f7ab0', '#f2f0e8', '#e8c040', '#5a9a6a', '#8a6ab0', '#e8884a', '#d8d8e0'].map((c, i) => { const o = R.car({ c, kind: i % 3 === 1 ? 'van' : 'sedan' }); scene.add(o); return o; });
 const gulls = [0, 1, 2, 3].map(i => { const b = R.bird({ c: '#f2f2ee', belly: '#ffffff', neck: false, s: 1.6 }); scene.add(b); return b; });
+// ---- 道ばたの人（新しい作り R.actor の 5 頭身）。海がわの さくの手前で車に手をふる人と、陸がわの路肩を歩く人 ----
+R.cfg.actorBuild = 'toon';
+const LOOKS = [{ sex: 'f', hairStyle: 'bob', hair: '#c8743a', eye: '#3a9a8a', mouth: 'open', blush: true, cloth: 'tunic', top: '#f2c84a', top2: '#f4f0e8', lower: 'skirt', skirt: .45, skirtC: '#f4f0e8', shoes: 'shoe', shoe: '#c8453a' },
+  { hairStyle: 'spiky', hair: '#2a2a34', mouth: 'open', blush: true, cloth: 'tunic', top: '#e8704a', top2: '#f4f0e8', lower: 'shorts', bottom: '#3a5a8a', shoes: 'shoe', shoe: '#f4f0e8', hat: 'cap', acc: '#c8453a', s: .74 },
+  { hairStyle: 'bald', hair: '#e0e0e0', skin: '#d8a070', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'vest', top: '#3f7ab0', top2: '#f0e6d0', bottom: '#b0a080', hat: 'cap', acc: '#f2f0e8' },
+  { sex: 'f', hairStyle: 'tail', hair: '#3a2a22', eye: '#6a4a2a', cloth: 'overall', top: '#5a9a6a', top2: '#f4ecd0', hat: 'band', acc: '#e8c040', gloves: 'glove', glove: '#f0ece0' },
+  { hairStyle: 'tufts', hair: '#d8b04a', eye: '#3a7aa8', cloth: 'jacket', sleeve: 'short', top: '#f2f0e8', top2: '#3f7ab0', lower: 'shorts', bottom: '#d8452e', shoes: 'shoe', shoe: '#5a4030' },
+  { sex: 'f', hairStyle: 'bun', hair: '#8a4a2a', skin: '#e0b088', brow: 'soft', cloth: 'tunic', top: '#e8884a', top2: '#f4f0e8', lower: 'skirt', skirt: .7, skirtC: '#3f7ab0', shoes: 'shoe' }];
+const wavers = [.465, .477, .6, .86, .872, 1.3, 1.9, 1.912, 2.6, 3.45, 3.462, 4.1, 4.7, 5.6, 5.612, 6].map((a, i) => { const [x, z] = pt(a, 3.75), p = R.actor(LOOKS[i % 6]); p.position.set(x, 0, z); scene.add(p); return p; });
+const hikers = [.56, 2.2, 3.9, 5.3].map((a, i) => { const p = R.actor({ ...LOOKS[[4, 3, 2, 0][i]], back: 'pack', acc: ['#b08a4a', '#c8553a', '#6a8a5a', '#8a6ab0'][i] }); p.userData.a = a; scene.add(p); return p; });
 const drive = (o, curve, u, t, v, ph = 0, back = 0) => { const p = curve.getPointAt(u), g = curve.getTangentAt(u); o.position.set(p.x, .02 + Math.abs(Math.sin(t * 9 + ph)) * .015, p.z); o.rotation.y = Math.atan2(g.x, g.z) + back; for (const w of o.userData.wheels) w.rotation.x = t * v / .36; return [p, g]; };
 const SPEED = 12.5, S0 = .035, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40), mod = (v, m) => ((v % m) + m) % m;
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
@@ -81,6 +91,10 @@ K.loop((dt, t) => {
   if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 2.2)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 5.6 : 7.2;
   cp.set(p.x - cd.x * D, tall ? 2.6 : 3, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 6, .8, p.z + cd.z * 6);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 道ばたの人：近くの人は車のほうを向いて右手をふる（子どもは はねる）。歩く人は路肩を車と同じ向きに進む
+  wavers.forEach((w, i) => { const dx = p.x - w.position.x, dz = p.z - w.position.z, near = Math.hypot(dx, dz) < 60, kid = i % 6 === 1; w.visible = near; if (!near) return; w.rotation.y = Math.atan2(dx, dz); R.idle(w, t + i, 0);
+    w.userData.J.armR.rotation.set(0, 0, -2.5 + Math.sin(t * 8 + i) * .4); w.userData.J.foreR.rotation.z = -.25; if (kid) { w.position.y = Math.abs(Math.sin(t * 6 + i)) * .14; w.userData.J.armL.rotation.set(0, 0, 2.5 - Math.sin(t * 8 + i) * .4); } });
+  hikers.forEach((h, i) => { const [x, z, ry] = pt(h.userData.a + t * 1.3 / 116, -4.1); h.position.set(x, 0, z); h.rotation.y = ry; h.visible = Math.hypot(p.x - x, p.z - z) < 70; R.walk(h, t * 6.5 + i * 2, .9); });
   // 海・舟・かもめ・砂ぼこり
   R.flip(sea.material, waves, t, 5); boats.forEach((b, i) => { b.position.y = -.75 + Math.sin(t * 1.4 + i * 2) * .08; b.rotation.z = Math.sin(t * 1.1 + i) * .06; });
   gulls.forEach((b, i) => { const a = t * (.5 + i * .07) + i * 1.7, r = 5 + i * 1.6; b.position.set(p.x + tg.x * (16 + i * 5) + tg.z * 9 + Math.cos(a) * r, 5.5 + i * 1.1 + Math.sin(t * .8 + i) * .8, p.z + tg.z * (16 + i * 5) - tg.x * 9 + Math.sin(a) * r); b.rotation.y = -a; R.birdPose(b, 'fly', t + i); });

@@ -62,29 +62,32 @@ for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 34 + hash(i, 8) * 22, c: '#
 const sunD = new THREE.Mesh(new THREE.CircleGeometry(15, 16), new THREE.MeshBasicMaterial({ color: '#fff6c8', fog: false })); sunD.position.set(SUN.x * 270, 44, SUN.z * 270); sunD.lookAt(0, 10, 0); scene.add(sunD);
 
 // ---- 農夫と荷車（干し草をつむ）、村の人、にわとり代わりの鳥、ねこ ----
-const hero = R.person({ face: 4, cloth: 'vest', top: '#a8603a', top2: '#f0e4c8', bottom: '#5a6a4a', boots: true, hat: 'straw', hair: '#6e4628', s: 1.05 }); scene.add(hero);
+// 人は R.actor の 5 頭身（toon）。麦わら帽子は部品集にないので、ここで作って頭の関節に足す（頭の大きさは userData.build から取る）
+const strawHat = (p, c = '#d8b45a') => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k, v, s];
+  p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.7, 2.1, 0, .82), r(.79, 1.1, .45, 1)], { ur: 3 }).loft(8, [r(.79, 1.1, .45, .55), r(.7, 2.1, 0, .55)], { ur: 3 }).loft(8, [r(.79, 1.08, .45, .9), r(1.1, .92, .85, 1), r(1.18, .5, 1, 1.08)], { cap: 'top', ur: 3 }).mesh(T.thatch({ c }))); return p; };
+const hero = strawHat(R.actor({ build: 'toon', hairStyle: 'short', hair: '#6e4628', skin: '#e8b88c', brow: 'thick', beard: 'stubble', cloth: 'vest', top: '#a8603a', top2: '#f0e4c8', lower: 'baggy', bottom: '#5a6a4a', gloves: 'wrap', glove: '#e8dcc0', shoe: '#6a4630', neck: 'scarf', acc: '#c8453a', s: 1.05 })); scene.add(hero);
 const cart = R.cart(); { const h = R.geo().smooth(1).loft(8, [[.6, .7, .42, 0, .75], [.88, .76, .47, .4, 1], [1.12, .52, .33, .8, 1.06], [1.25, .18, .12, 1, 1.12]], { cap: 'top', ur: 2 }).mesh(thatch); cart.add(h); } scene.add(cart);
-const npc = (o, u, off, turn = 0) => { const p = R.person(o), [x, z, ry] = side(u, off); p.position.set(x, 0, z); p.rotation.y = ry + turn; scene.add(p); return p; };
-const wellW = npc({ face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a', bun: true }, .238, 2.9, 2.6), oldMan = npc({ face: 6, cloth: 'jacket', top: '#8a7a5a', bottom: '#4a4a5a', hair: '#d8d8d8', hat: 'cap', acc: '#6a5a4a' }, .365, 3.5, 0);
-const reaper = npc({ face: 2, cloth: 'shirt', top: '#e8dcc0', bottom: '#6a5440', hat: 'straw', skin: '#d8a070' }, .3, -4.6, 0), kid = npc({ face: 5, cloth: 'stripe', top: '#e8704a', shorts: 1, sleeve: 'short', s: .76, head: 1.16 }, 0, 0);
+const npc = (o, u, off, turn = 0) => { const p = R.actor({ build: 'toon', ...o }), [x, z, ry] = side(u, off); if (o.straw) strawHat(p, o.straw); p.position.set(x, 0, z); p.rotation.y = ry + turn; scene.add(p); return p; };
+const wellW = npc({ sex: 'f', hairStyle: 'bun', hair: '#e6c46a', blush: true, brow: 'soft', cloth: 'tunic', sleeve: 'long', top: '#c2586a', top2: '#f4ecd8', lower: 'skirt', skirt: .78, shoes: 'shoe', shoe: '#7a4a34' }, .238, 2.9, 2.6), oldMan = npc({ hairStyle: 'bald', hair: '#d8d8d8', skin: '#e0b088', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'jacket', top: '#8a7a5a', top2: '#e8e0c8', bottom: '#4a4a5a', shoe: '#4a3a30' }, .365, 3.5, 0);
+const reaper = npc({ hairStyle: 'tail', hair: '#3a2a22', skin: '#d8a070', mouth: 'line', cloth: 'overall', top: '#5a7a9a', top2: '#e8dcc0', shoe: '#6a5440', straw: '#c8a44a' }, .3, -4.6, 0), kid = npc({ hairStyle: 'spiky', hair: '#b8622a', mouth: 'open', blush: true, cloth: 'tunic', top: '#e8704a', top2: '#f4e8c8', lower: 'shorts', bottom: '#4a5a7a', shoes: 'shoe', shoe: '#c8453a', s: .72 }, 0, 0);
 const hens = [[.2, 3.4], [.203, 4.3], [.196, 4], [.21, 3], [.32, 3.6], [.326, 4.4], [.42, 3.2]].map(([u, off], i) => { const b = R.bird({ c: i % 3 === 1 ? '#b8703a' : '#f4ecd8', belly: i % 3 === 1 ? '#d89a5a' : '#ffffff', neck: false, s: 2 }), [x, z] = side(u, off); b.position.set(x, 0, z); b.userData.h = [x, z, i * 2.3]; scene.add(b); return b; });
 const cat = R.cat({ c: '#5a5a66', belly: '#e8e4dc' }); { const [x, z, ry] = side(.13, 3.4); cat.position.set(x, .7, z); cat.rotation.y = ry; } scene.add(cat);
 
-const SPEED = 1.45, S0 = .139, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 60);
+const SIDE = new URLSearchParams(location.search).get('side'), CARTD = 1.8, ARM = .72, SPEED = 1.45, S0 = .139, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 60);
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 let first = true, sm = 0;
 K.loop((dt, t) => {
-  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), q = path.getPointAt((u - 2.05 / LEN + 1) % 1), J = hero.userData.J;
-  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6, .9); J.torso.rotation.x = .2; for (const n of ['L', 'R']) { J['arm' + n].rotation.set(.62, 0, n === 'L' ? .1 : -.1); J['fore' + n].rotation.x = -.12; }   // 前かがみで、うしろ手に持ち手を引く
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), q = path.getPointAt((u - CARTD / LEN + 1) % 1), J = hero.userData.J;
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 4.5, .9); J.torso.rotation.x = .22; for (const n of ['L', 'R']) { J['arm' + n].rotation.set(ARM, 0, n === 'L' ? .12 : -.12); J['fore' + n].rotation.x = -.1; }   // 前かがみで、うしろ手に持ち手を引く
   cart.position.set(q.x, Math.abs(Math.sin(dist * 2.1)) * .02, q.z); cart.rotation.set(0, Math.atan2(p.x - q.x, p.z - q.z) - Math.PI / 2, .15 + Math.sin(dist * 3.6) * .012);
   // ななめうしろから追うカメラ（荷車ごしに農夫が見える。たて長では近づく）
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.6)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 5.4 : 6.5, S = tall ? 1 : 2.1;
-  cp.set(p.x - cd.x * D + cd.z * S, tall ? 3.1 : 3.4, p.z - cd.z * D - cd.x * S); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 2.4, 1.2, p.z + cd.z * 2.4);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.6)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.5, S = tall ? 1.7 : 2.5;
+  cp.set(p.x - cd.x * D + cd.z * S, tall ? 2.9 : 2.7, p.z - cd.z * D - cd.x * S); if (SIDE) cp.set(p.x + cd.z * 3, 1, p.z - cd.x * 3); cam.position.copy(cp); cam.lookAt(p.x + cd.x * (SIDE ? -.5 : 1.8), SIDE ? .8 : 1.05, p.z + cd.z * (SIDE ? -.5 : 1.8));   // ?side=1 は、手と持ち手の位置を横から確かめる用
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // 風にゆれる麦（束ごとに少しずつおくれて かたむく）
   wheat.forEach((w, k) => { const a = .1 + Math.sin(t * 1.2 - k * 2.1) * .085 + Math.sin(t * 3.1 + k) * .02; w.im.matrix.set(1, a, 0, 0, 0, 1, 0, 0, 0, a * .5, 1, 0, 0, 0, 0, 1); w.im.matrixWorldNeedsUpdate = true; });
   R.idle(wellW, t, Math.sin(t * .5) * .3); R.idle(oldMan, t + 2, Math.sin(t * .35) * .5); R.idle(reaper, t + 1, Math.sin(t * .6) * .4); reaper.userData.J.armR.rotation.x = -1.2 - Math.sin(t * 1.6) * .5; reaper.userData.J.foreR.rotation.x = -.6;
-  const ku = (1 - (t * .026 + .52) % 1), kp = path.getPointAt(ku), kt = path.getTangentAt(ku); kid.position.set(kp.x + kt.z * .9, 0, kp.z - kt.x * .9); kid.rotation.y = Math.atan2(-kt.x, -kt.z); R.walk(kid, t * 12, 1.3);
+  const ku = (1 - (t * .026 + .52) % 1), kp = path.getPointAt(ku), kt = path.getTangentAt(ku); kid.position.set(kp.x + kt.z * .9, 0, kp.z - kt.x * .9); kid.rotation.y = Math.atan2(-kt.x, -kt.z); R.walk(kid, t * 14, 1.3);
   hens.forEach((b, i) => { const [hx, hz, hr] = b.userData.h, w = Math.sin(t * .4 + hr) > .55; if (w) { b.position.x = hx + Math.sin(t * .4 + hr) * 1.2; b.position.z = hz + Math.cos(t * .31 + hr) * .8; } b.rotation.y = hr + Math.sin(t * .23 + i) * 1.5; R.birdPose(b, w ? 'stand' : 'peck', t + hr * 3); b.position.y = w ? Math.abs(Math.sin(t * 9)) * .03 : 0; });
   R.catPose(cat, 'sit', t);
   if ((sm += dt) > .55) { sm = 0; for (const s of smokes) if (Math.hypot(s.x - p.x, s.z - p.z) < 60) fx.emit('smoke', s.x, s.y, s.z, { size: .5, life: 3.2, vy: .8, vx: .4, grow: 1.5, spread: .12, tint: '#f0d8c0' }); }

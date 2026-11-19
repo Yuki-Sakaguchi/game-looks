@@ -20,7 +20,7 @@ description: このリポジトリのテイスト B「描きこんだテクス�
 
 ## このテイストの決まり
 
-- **細部はテクスチャが受け持つ**。形は少ない面（人で 150〜300 三角形）。ただし立方体の組み合わせではなく、先細りの手足、傾いた屋根、ふくらんだ胴など、少ない面で形の特徴を出す。
+- **細部はテクスチャが受け持つ**。形は少ない面（人で 300〜700 三角形）。ただし立方体の組み合わせではなく、先細りの手足、傾いた屋根、ふくらんだ胴など、少ない面で形の特徴を出す。
 - **テクスチャは「手で打ったドット絵」**。32〜64 ドット、にじませない（NearestFilter）、1 枚 6〜12 色。明るい面・影・ふちのハイライト・目地のかげ・ところどころの欠けやしみを打つ。乱数の点々や、単色に線 1 本ではだめ。
 - **単色の面を置かない**。物の表面には必ず `R.tex.*` のテクスチャをはる。`THREE.BoxGeometry` に色をぬっただけの物は置かない。
 - **仕上げは必ず `R.crt()`**。横 320 ドットほどの粗い絵に描き（頂点はドットに丸めるのでふるえる）、色数を落としてディザにかけ、ブラウン管に映す。
@@ -53,7 +53,7 @@ const { sun } = K.lights(scene, renderer, { sun: 0xffc890, range: 30 });        
 const land = R.ground({ w: 140, d: 100, cell: 2, layers: [T.cobble(), T.grass()], mix: (x, z) => [Math.abs(z) > 6 ? 1 : 0, 0] }); scene.add(land.mesh);
 const home = R.house({ wall: T.plaster({ frame: 'cross' }), roof: T.roof(), lit: 1 }); home.position.set(9, 0, -8);
 scene.add(R.merge([home]));                                                           // 動かない物は R.merge でまとめる
-const hero = R.person({ cloth: 'tunic', cape: '#b03a2e' }); scene.add(hero);
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', cloth: 'tunic', top: '#3f72b0', neck: 'cape' }); scene.add(hero);   // 人は 5 頭身の toon
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 K.loop((dt, t) => {
   const x = t * 1.6; hero.position.set(x, 0, 0); hero.rotation.y = Math.PI / 2; R.walk(hero, t * 8);
@@ -82,7 +82,11 @@ K.loop((dt, t) => {
 | 空・遠景 | `R.skyDome` `R.backdrop`（遠くの山なみ） `R.cloud` |
 | 家 | `R.house({ wall, roof, roofKind, door, win, lit, chimney, sign, awning … })` |
 | 木・小物 | `R.tree` `R.rock` `R.tuft` `R.barrel` `R.crate` `R.lamp` `R.fence` `R.fountain` `R.well` `R.stall` `R.bench` `R.roadSign` |
-| 人・動物 | `R.person({ cloth, face, hairStyle, hat, cape, skirt … })` と `R.walk` `R.idle`、`R.cat` と `R.catPose`、`R.bird` と `R.birdPose` |
+| 人（新しい作り） | `R.actor({ build, sex, hairStyle, eyes, cloth, lower, gloves, shoes, shoulder, neck, back, hat, hold, 色… })` と `R.walk` `R.idle`。手とくつが大きく、角ばった手足、とがったかみの束、平たい顔に大きな目。**新しい場面の人はこれで作る** |
+| 人の体つき（等身） | `R.actor({ build })`。`heroic`（7 頭身。肩が広く足が長い）`toon`（5 頭身。ひじから先・ひざから下が太い）`chibi`（3 頭身）。場面の全員をそろえるなら、人を作る前に `R.cfg.actorBuild = 'toon'` |
+| 見本の人物 | `R.CAST`（10 人。`{ id, name, role, o }`）。`R.actor('gald')` のように id で作れる。`R.actor({ ...R.CAST[0].o, top: '#…' })` で色や部品だけ変えてもよい。見くらべは `game-looks-7/retro-people.html`（`?who=番号&rot=角度&raw=1`） |
+| 人（これまでの作り） | `R.person({ … })`。4 頭身で、持ち主に「等身がイメージと違う」と言われた古い作り。**新しい場面では使わない**。`11-plaza-town-rpg.html?cast=old` と `retro-people.html?old=1` に、見くらべ用として残してある |
+| 動物 | `R.cat` と `R.catPose`、`R.bird` と `R.birdPose` |
 | 乗りもの | `R.cart` `R.car` `R.boat` |
 | 材質 | `R.mat(テクスチャか色, { cut, glow, side … })`（頂点のふるえつき） |
 | 仕上げ | `R.crt(renderer, { width: 320, scan: .3, bloom: .35, curve: .05, noise … })` |
@@ -97,10 +101,25 @@ K.loop((dt, t) => {
 4. 1 m ≒ 21 ドット（64 ドットで 3 m）が既定。主役の位置で画面の 1 ドットは 3 cm ほどなので、それより細かく描いても見えない。
 5. `retro-sheet.html?p=tex` で大きく見て、手で打ったドット絵として気持ちよいか確かめる。
 
+## 人を作るとき
+
+持ち主は、これまでの人（`R.person`、4 頭身）を「等身がイメージと違う。もう少し頭を小さく」と言い、そのあと初期の家庭用 3D ゲーム機の時代の人物のイメージ画像を貼りました（`docs/taste.md` の「テイスト B の人について」）。それに合わせた作りが `R.actor` です。
+
+- **人は `R.actor` の `toon`（5 頭身）で作る**。持ち主がえらんだ体つきで、11〜20 の場面は全員これになっている。`heroic`（7 頭身）と `chibi`（3 頭身）は、たのまれたときだけ使う（`11-plaza-town-rpg.html?cast=heroic`、`?cast=chibi` で見くらべられる）。1 つの場面の中で体つきをまぜない。子どもは `s` を小さくする。
+- **カメラは人に寄せる**。`toon` は身長 1.4 m ほど。うしろから追うなら、距離 5 m・高さ 2.4 m・注視の高さ 1.05 m くらい（たて長は距離 3.9 m）で、主役が画面の高さの 1/3 ほどになる。
+- **うでは少し外へ開いて付いている**。手を合わせる、物をさげる、荷車を引く、かいをにぎるなどの姿勢は、うでの関節の回転を足して内へ寄せ、横からの絵で手の位置を確かめる。
+- **部品集に無い物**: むぎわら帽子（14・15・16・19・20 がページの中で作って頭の関節に付けている）、エプロン、かざりのない つえ。売り手は屋台の台にかくれるので、台の上に立たせる（18）。
+- **シルエットと色で別人にする**。かみ型（`spiky` `tufts` `long` `short` `tail` `twin` `bob` `bun` `bald`）、帽子、肩当て、持ち物、上と下の服の色の組で、ひと目で見分けがつくように。まず `R.CAST` の人物を使い、足りなければ引数を変えて足す。
+- **既存の作品の人物に似せない**。かみ型・服・色・持ち物の組み合わせが、特定の人物と分かる物にならないようにする。
+- **顔は粗く打ってある**（頭のテクスチャは 64×24 ドットを 2 倍）。主役が画面の高さの 1/3 ほどでも、目が 2 つの点として読めるようにするため。細かい線を顔に足しても、小さくなるとつぶれてざらつくだけ。
+- **人のテクスチャは、縮小版（ミップ）を自前で作っている**（2×2 ドットで多い色を残す）。ふつうの平均だと輪郭線と目がとけるため。`R.tex.actor` を自分で材質にはるときは、この効果はない（`R.actor` の中の `actorTex` が受け持つ）。
+- 形や絵を直したら、`retro-people.html?who=番号&raw=1&rot=0`（`90`、`180`）で前・横・うしろを見てから、ブラウン管ごし（`raw` なし）と場面の中で見る。`&tex=1` でテクスチャ 1 枚が右に出る。
+- 三角形は、装備の少ない人で 600 ほど、よろい・マント・やりを全部つけると 700 ほど。人数の多い場面では装備を減らす。
+
 ## はまりやすい所
 
 - **`renderer.render` ではなく `crt.render(scene, cam, t)`** を呼ぶ。`onResize(crt.resize)` も忘れない。
-- **動かない物は `R.merge([…])` でまとめる**。人は 1 人で Mesh 10 個ほどあるので、多人数の場面は人数に注意。
+- **動かない物は `R.merge([…])` でまとめる**。人は 1 人で Mesh 11〜13 個あるので、多人数の場面は人数に注意。
 - **大きな 1 枚の面を置かない**。頂点をドットに丸めるので、大きな面はたて長の画面で形がくずれる。海や広い地面は細かく割る（`R.ground` は割ってある）。
 - **サムネイルが大きくなりやすい**。走査線と細かい模様が動くため。`tools/cap.mjs gif` は 600 KB をこえると色数を自動で減らす。それでも大きいときは、カメラの動きをゆっくりにする。
 - **暗い場面でも、中が見えること**。夜は空を紺にして、窓や街灯のあかり（`lit`、`R.lamp` の `light`）で地面を照らす。

@@ -71,8 +71,11 @@ for (let i = 0, n = 0; i < 300 && n < 16; i++) { const [x, z] = pt(i * .31, (has
 const rays = new THREE.Mesh(rayG.build(), rayM); scene.add(rays);
 
 // ---- 人・ねこ・鳥 ----
-const hero = R.person({ face: 0, cloth: 'tunic', top: '#cc3f2e', top2: '#f0e0b8', bottom: '#5a4a3a', boots: true, hat: 'straw', pack: true, hair: '#4a3020', s: 1.05 }); scene.add(hero);
-const monk = R.person({ face: 6, cloth: 'robe', skirt: 1, top: '#8a8a7a', hair: '#d8d8d8' }), [mx, mz] = pt(AS, -1.9); monk.position.set(mx, 0, mz); monk.rotation.y = Math.atan2(sx - mx, sz - mz); scene.add(monk);
+// むぎわら帽子（R.actor の hat に無いので、頭の関節に付ける。toon の頭は高さ .285 m・半径 .134 m）
+const straw = (p, c = '#dcc070') => { p.userData.J.head.add(R.geo().smooth(1).loft(8, [[.185, .27, .28, 0, .7], [.2, .27, .28, .1, .95], [.215, .15, .155, .45, .9], [.31, .135, .14, .8, 1.05], [.335, .07, .07, 1, 1.1]], { cap: 'top', ur: 3 }).loft(8, [[.185, .27, .28, 0, .6]], { cap: 'bot' }).mesh(T.fabric({ c }))); return p; };
+R.cfg.actorBuild = 'toon';   // 人は新しい作り R.actor の 5 頭身でそろえる
+const hero = straw(R.actor({ hairStyle: 'tail', hair: '#4a3020', eye: '#6a4a2a', cloth: 'tunic', sleeve: 'long', top: '#cc3f2e', top2: '#f0e0b8', bottom: '#5a4a3a', gloves: 'wrap', glove: '#f0e0b8', shoe: '#6a4630', back: 'pack', acc: '#b08a4a', s: 1.05 })); scene.add(hero);
+const monk = R.actor({ hairStyle: 'bald', hair: '#d8d8d8', skin: '#e0b088', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'robe', skirt: .9, top: '#aaa693', top2: '#d8d0b8', belt: '#5a5a4a', shoes: 'shoe' }), [mx, mz] = pt(AS, -1.3); monk.position.set(mx, 0, mz); monk.rotation.y = Math.atan2(sx - mx, sz - mz); scene.add(monk);
 const cat = R.cat({ c: '#e8e4dc' }), [cx, cz, cr] = pt(AG + .12, 2.8); cat.position.set(cx, 1.02, cz); cat.rotation.y = cr - 2; scene.add(cat);
 const birds = [.9, .93, .98, 2.2, 2.26, 3.3, 3.36, 4.4, 5.6, 5.66].map((a, i) => { const [x, z] = pt(a, (i % 3 - 1) * .7), b = R.bird(i % 3 ? { c: '#8a6a4a', belly: '#e8d8b8', neck: false } : { c: '#e8e4dc', neck: false }); b.position.set(x, 0, z); b.rotation.y = i * 2.1; b.userData.home = [x, z, i * 2.1]; b.userData.fly = -1; scene.add(b); return b; });
 
@@ -84,11 +87,11 @@ let first = true, mo = 0;
 K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.8);
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
-  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.5, p.z + cd.z * 3);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5.1;   // 5 頭身の人（身長 1.4 m）に合わせて寄る
+  cp.set(p.x - cd.x * D, tall ? 2.15 : 2.4, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.05, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // 祠でおがむ人・ねこ・鳥（近づくと飛ぶ）
-  R.idle(monk, t, 0); for (const n of ['armL', 'armR']) monk.userData.J[n].rotation.x = -1.05; for (const n of ['foreL', 'foreR']) monk.userData.J[n].rotation.x = -1.2; monk.userData.J.torso.rotation.x = .12 + Math.sin(t * .8) * .06;
+  R.idle(monk, t, 0); for (const [n, k] of [['L', 1], ['R', -1]]) { const a = monk.userData.J['arm' + n].rotation, f = monk.userData.J['fore' + n].rotation; a.x = -1.05; a.z = -k * .45; f.x = -1.2; f.z = -k * .5; }   // 外へ開いたうでを内へ寄せて、手を合わせる monk.userData.J.torso.rotation.x = .12 + Math.sin(t * .8) * .06;
   R.catPose(cat, 'sit', t);
   for (const b of birds) { const [hx, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
     if (b.userData.fly < 0) { R.birdPose(b, 'peck', t + hr * 3); if (dh < 3.6) b.userData.fly = 0; }

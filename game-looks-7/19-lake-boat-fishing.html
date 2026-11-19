@@ -58,19 +58,26 @@ scene.add(R.backdrop({ c: '#4e7284', haze: '#d4e2dc', r: 215, h: 70, y: 1, seed:
 for (let i = 0; i < 5; i++) { const c = R.cloud({ s: 34 + hash(i, 14) * 20, c: '#fffaf0', shade: '#d8e0e4', seed: i }), a = i * 1.26; c.position.set(Math.cos(a) * 205, 62 + hash(i, 15) * 26, Math.sin(a) * 205); c.lookAt(0, 30, 0); scene.add(c); }
 
 // ---- 舟と人・つり人・鳥 ----
+const SIDE = new URLSearchParams(location.search).get('side');
 const rod = (len = 2.3) => R.geo().smooth(1).loft(4, [[-.25, .022, .022, 0, .7], [len, .008, .008, 2, 1]], { cap: 'top' }).mesh(T.planks({ c: '#b89a5a' }));
 const boat = new THREE.Group(), hull = R.boat({ c: '#a8744a' }); hull.scale.setScalar(1.25); boat.add(hull); scene.add(boat);
-const hero = R.person({ face: 0, cloth: 'vest', top: '#c2553a', top2: '#f0e0b8', bottom: '#4a5a6a', hat: 'straw', acc: '#e0c070', hair: '#5a3a28', s: 1.05 }); hero.position.set(0, -.34, -.75); boat.add(hero);
-const r1 = rod(2.1); r1.position.set(.42, .5, -1.5); r1.rotation.set(-.55, 0, -.1); boat.add(r1); const pail = R.barrel({ h: .3, r: .16, c: '#8a9aa8' }); pail.position.set(-.2, .2, .7); boat.add(pail);
-const fisher = R.person({ face: 6, cloth: 'jacket', top: '#5a7a5a', bottom: '#5a4a3a', hat: 'cap', acc: '#3a5a8a', hair: '#d8d8d8', boots: true }); fisher.position.set(XS - 9.4, .52, -1.5); fisher.rotation.y = Math.PI; scene.add(fisher);
-const r2 = rod(2.6); r2.position.y = -.3; r2.rotation.x = 2.5; fisher.userData.J.foreR.add(r2);
+// R.boat の かい は舟に固定で、5 頭身の人の手がとどかない。うしろの 2 本ぶん（箱 2 つ＝ 60 頂点）を描かず、手に合わせて動く かい をここで作る
+hull.traverse(m => { if (m.isMesh && !m.geometry.index && m.geometry.attributes.position.count === 321) m.geometry.setDrawRange(0, 261); });
+const oars = [1, -1].map(() => { const o = R.geo().smooth(1).loft(5, [[-.12, .024, .024, 0, .75], [1.3, .02, .02, 1.6, 1]], { cap: 'bot' }).loft(4, [[1.3, .03, .016, 0, .9], [1.5, .1, .012, .3, 1], [1.95, .11, .012, .8, 1], [2.02, .06, .01, 1, 1.05]], { cap: 'top' }).mesh(T.planks({ c: '#b89060' })); boat.add(o); return o; });
+// 麦わら帽子も部品集にないので、ここで作って頭の関節に足す（頭の大きさは userData.build から取る）
+const strawHat = (p, c = '#e0c070') => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k, v, s];
+  p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.7, 2.1, 0, .82), r(.79, 1.1, .45, 1)], { ur: 3 }).loft(8, [r(.79, 1.1, .45, .55), r(.7, 2.1, 0, .55)], { ur: 3 }).loft(8, [r(.79, 1.08, .45, .9), r(1.1, .92, .85, 1), r(1.18, .5, 1, 1.08)], { cap: 'top', ur: 3 }).mesh(T.thatch({ c }))); return p; };
+const hero = strawHat(R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', hair: '#5a3a28', blush: true, cloth: 'vest', top: '#c2553a', top2: '#f0e0b8', lower: 'shorts', bottom: '#4a5a6a', shoes: 'shoe', shoe: '#7a4a30', neck: 'scarf', acc: '#f0e0b8', s: 1.05 })); hero.position.set(0, -.32, -.88); boat.add(hero);
+const r1 = rod(2.1); r1.position.set(.3, .42, .5); r1.rotation.set(1.15, 0, -.06); boat.add(r1); const pail = R.barrel({ h: .3, r: .16, c: '#8a9aa8' }); pail.position.set(-.2, .2, .7); boat.add(pail);
+const fisher = R.actor({ build: 'toon', hairStyle: 'bald', hair: '#d8d8d8', skin: '#e0b088', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'jacket', top: '#5a7a5a', top2: '#e8e0c8', bottom: '#5a4a3a', shoe: '#4a3a30', hat: 'cap', acc: '#3a5a8a' }); fisher.position.set(XS - 9.4, .52, -1.5); fisher.rotation.y = Math.PI; scene.add(fisher);
+const r2 = rod(2.6); r2.position.set(-.08, -.26, 0); r2.rotation.x = 2.5; fisher.userData.J.foreR.add(r2);
 const bob = R.barrel({ h: .2, r: .09, c: '#d8503c' }); scene.add(bob);
 const cat = R.cat({ c: '#e8e4dc', plain: true }); cat.position.set(XS - 8.3, .52, -.6); cat.rotation.y = 2.6; scene.add(cat);
 const birds = [...Array(5)].map((_, i) => { const b = R.bird({ c: '#f0f0ec', neck: false, s: 1.5 }); scene.add(b); return b; }), duck = [0, 1].map(i => { const b = R.bird({ c: i ? '#8a6a4a' : '#e8e4dc', s: 1.6 }); scene.add(b); return b; });
 
 // ---- 舟の道（湖をひと回り。桟橋の先に寄るときは おそくなる） ----
 const PX = XS - 13.6, path = new THREE.CatmullRomCurve3([[-30, 1], [-24, -8], [-8, -12], [10, -11.5], [PX - 9, -9], [PX - 2, -5], [PX, .5], [PX - 3.5, 7], [PX - 15, 12], [-8, 12.5], [-23, 9]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
-const LEN = path.getLength(), SPEED = 1.9, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 70), tip = new THREE.Vector3(PX, 0, -1);
+const LEN = path.getLength(), SPEED = 1.9, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 70), tip = new THREE.Vector3(PX, 0, -1), UP = new THREE.Vector3(0, 1, 0), hv = new THREE.Vector3(), lv = new THREE.Vector3();
 let dist = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x - (PX - 13), q.z + 10); if (d < bd) { bd = d; dist = i / 400 * LEN; } }
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);   // ざらつきは切る（ほかは既定の強さ）
 let first = true, sm = 0, wk = 0, row = 0;
@@ -79,10 +86,13 @@ K.loop((dt, t) => {
   const u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   boat.position.set(p.x, .03 + Math.sin(t * 1.7) * .025, p.z); boat.rotation.set(Math.sin(t * 1.3) * .025, Math.atan2(tg.x, tg.z), Math.sin(t * 1.1 + 1) * .04);
   // こぐ人（すわって、うでを前後に）
-  const J = hero.userData.J, s = Math.sin(row * 1.6); R.idle(hero, t, Math.sin(t * .3) * .35); for (const n of ['L', 'R']) { J['leg' + n].rotation.x = -1.42; J['shin' + n].rotation.x = 1.25; J['arm' + n].rotation.x = -.85 + s * .32; J['fore' + n].rotation.x = -.55 - s * .3; } J.torso.rotation.x = .12 + s * .1;
+  const J = hero.userData.J, s = Math.sin(row * 1.6), c = Math.cos(row * 1.6); R.idle(hero, t, Math.sin(t * .3) * .35); J.torso.rotation.x = .16 - s * .12; let wet = false;
+  [['L', 1], ['R', -1]].forEach(([n, sx], i) => { J['leg' + n].rotation.x = -1.35; J['shin' + n].rotation.x = .6; J['arm' + n].rotation.set(-.8 + s * .42 + c * .14, 0, sx * .18); J['fore' + n].rotation.x = -.75 - s * .45; });   // 足を前へのばしてすわる。手は前へ押すとき高く（かいの先が水に入る）、もどすとき低く
+  boat.updateMatrixWorld(true);
+  [['L', 1], ['R', -1]].forEach(([n, sx], i) => { const o = oars[i], h = boat.worldToLocal(J['fore' + n].localToWorld(hv.set(sx * .081, -.263, 0))); o.position.copy(h); o.quaternion.setFromUnitVectors(UP, lv.set(sx * .64, .55, -.42).sub(h).normalize()); if (o.position.y + lv.y * 1.9 < .02) wet = true; });   // かい：手もとから、舟べりの支えを通る向きへ
   // うしろ斜め上から追うカメラ（向きはゆっくり追いつく。たて長では近づく）
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.2)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.8 : 6.3;
-  cp.set(p.x - cd.x * D, tall ? 3.2 : 3.5, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 4, .7, p.z + cd.z * 4);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.2)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.3 : 3.7, S = tall ? .9 : 1.5;
+  cp.set(p.x - cd.x * D + cd.z * S, tall ? 2.3 : 2.1, p.z - cd.z * D - cd.x * S); if (SIDE) cp.set(p.x + cd.z * 3.2 * SIDE - cd.x, 1.1, p.z - cd.x * 3.2 * SIDE - cd.z); cam.position.copy(cp); cam.lookAt(p.x + cd.x * (SIDE ? -.6 : 2.2), .65, p.z + cd.z * (SIDE ? -.6 : 2.2));   // ?side=1（-1）は、すわる姿勢と かい を持つ手を横から確かめる用
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   R.flip(water.mat, WF, t, 4);
   // つり人・うき・ねこ・鳥
@@ -90,7 +100,7 @@ K.loop((dt, t) => {
   birds.forEach((b, i) => { const a = t * .16 + i * .5, r = 15 + i * 2.2; b.position.set(PX - 12 + Math.cos(a) * r, 6.5 + i * .7 + Math.sin(t * .5 + i) * .8, Math.sin(a) * r * .7); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .7); R.birdPose(b, 'fly', t + i); });
   duck.forEach((b, i) => { const a = t * .07 + i * .35; b.position.set(PX - 7 + Math.cos(a) * (5 + i), -.1, 4 + Math.sin(a) * (3 + i)); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'stand', t); });
   // 舟のあとの波・かいのしぶき・えんとつのけむり
-  if ((wk += dt * v) > .5) { wk = 0; for (const sx of [-1, 1]) fx.emit('splash', p.x - tg.x * 1.8 + tg.z * sx * .5, .05, p.z - tg.z * 1.8 - tg.x * sx * .5, { size: .34, life: 1.1, grow: 1.6, tint: '#eaf6f4' }); if (s > .5) for (const sx of [-1, 1]) fx.emit('splash', p.x + tg.z * sx * 1.5, .1, p.z - tg.x * sx * 1.5, { size: .3, life: .5, vy: .5, grow: .8 }); }
+  if ((wk += dt * v) > .5) { wk = 0; for (const sx of [-1, 1]) fx.emit('splash', p.x - tg.x * 1.8 + tg.z * sx * .5, .05, p.z - tg.z * 1.8 - tg.x * sx * .5, { size: .34, life: 1.1, grow: 1.6, tint: '#eaf6f4' }); if (wet) for (const sx of [-1, 1]) fx.emit('splash', p.x + tg.z * sx * 2.1 - tg.x * .5, .1, p.z - tg.x * sx * 2.1 - tg.z * .5, { size: .3, life: .5, vy: .5, grow: .8 }); }
   if ((sm += dt) > .6) { sm = 0; fx.emit('smoke', smokeAt.x, smokeAt.y, smokeAt.z, { size: .5, life: 3.6, vy: .7, vx: -.25, grow: 1.6, spread: .1, tint: '#f0f0ec' }); }
   fx.update(dt); crt.render(scene, cam, t);
 });

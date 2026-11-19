@@ -61,14 +61,21 @@ for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 34 + hash(i, 8) * 24, c: '#
 const sunD = new THREE.Mesh(new THREE.CircleGeometry(11, 16), new THREE.MeshBasicMaterial({ color: '#fffbe0', fog: false })); sunD.position.set(SUN.x * 300, 58, SUN.z * 300); sunD.lookAt(0, 10, 0); scene.add(sunD);
 
 // ---- 人・ねこ・かもめ ----
-const hero = R.person({ face: 1, cloth: 'apron', top: '#2f8a8a', top2: '#f4ead2', skirt: .75, bottom: '#c2453a', hair: '#8a4a2a', tail: true, hat: 'straw', s: 1.05 }); scene.add(hero);
+// むぎわら帽子（R.actor の hat に無いので、頭の関節に付ける。toon の頭は高さ .285 m・半径 .134 m）
+const straw = (p, c = '#dcc070') => { p.userData.J.head.add(R.geo().smooth(1).loft(8, [[.185, .27, .28, 0, .7], [.2, .27, .28, .1, .95], [.215, .15, .155, .45, .9], [.31, .135, .14, .8, 1.05], [.335, .07, .07, 1, 1.1]], { cap: 'top', ur: 3 }).loft(8, [[.185, .27, .28, 0, .6]], { cap: 'bot' }).mesh(T.fabric({ c }))); return p; };
+R.cfg.actorBuild = 'toon';   // 人は新しい作り R.actor の 5 頭身でそろえる
+const hero = straw(R.actor({ sex: 'f', hairStyle: 'tail', hair: '#8a4a2a', eye: '#3a9a8a', blush: true, cloth: 'tunic', top: '#2f8a8a', top2: '#f4ead2', lower: 'skirt', skirt: .6, skirtC: '#c2453a', shoes: 'shoe', shoe: '#8a5a3a', s: 1.05 })); scene.add(hero);
 { const P = R.Px(16), W = R.ramp('#c89a54'); P.each((x, y) => y < 2 ? W[5] : ((x >> 1) + (y >> 1)) % 2 ? W[(x & 1) ? 4 : 3] : W[(y & 1) ? 2 : 1]);   // かご（あみ目）
   const Bk = R.parts(), G = Bk.g(T.from(P, { m: .25 })); G.smooth(1).loft(8, [[-.4, .12, .1, 0, .7], [-.19, .19, .15, 1, 1]], { cap: 'bot', ur: 4 }).smooth(0); for (const s of [-1, 1]) G.box(.025, .2, .03, s * .17, -.2, 0, {}); G.box(.37, .025, .03, 0, -.02, 0, {});
-  Bk.g(T.goods({ fc: ['#e2503c', '#8ab84a', '#f2d24a'] })).loft(8, [[-.21, .17, .13, 0, 1]], { cap: 'top', capRect: true }); const b = Bk.group(); b.position.y = -.3; hero.userData.J.foreR.add(b); }
-const npc = (o, x, z, ry) => { const p = R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
-const sellers = SX.map((x, i) => npc([{ face: 4, cloth: 'vest', top: '#8a5a3a', hat: 'straw', hair: '#8a8a8a' }, { face: 6, cloth: 'stripe', top: '#3f6ab0', hat: 'cap', acc: '#2a3a5a' }, { face: 3, cloth: 'apron', top: '#c2586a', skirt: .8, hair: '#e6c46a', bun: true }, { face: 2, cloth: 'shirt', top: '#e8dcc0', hair: '#3a2a2a', skin: '#c88a5a' }, { face: 7, cloth: 'robe', top: '#6a5a9a', skirt: 1, hair: '#d8d8d8' }][i], x + .2, -4.6, 0));
-const buyers = [npc({ face: 5, cloth: 'jacket', top: '#b89a5a', bottom: '#4a4a5a', hair: '#5a3a2a' }, -6.9, -2.0, Math.PI + .2), npc({ face: 0, cloth: 'tunic', top: '#5a8a5a', skirt: .9, hair: '#c8843a', skin: '#d8a070' }, 2.7, -2.1, Math.PI - .3), npc({ face: 2, cloth: 'stripe', top: '#e8704a', shorts: 1, sleeve: 'short', s: .76, head: 1.16, hair: '#3a2a2a' }, 9.9, -2.2, Math.PI)];
-const fisher = npc({ face: 6, cloth: 'vest', top: '#d8b04a', bottom: '#3a4a6a', boots: true, hat: 'cap', acc: '#c2453a', hair: '#e0e0e0' }, 21.4, 25.2, .3), porter = npc({ face: 4, cloth: 'shirt', top: '#a8b8c8', bottom: '#5a4a3a', hair: '#2a2a2a', pack: true }, 0, 0, 0);
+  Bk.g(T.goods({ fc: ['#e2503c', '#8ab84a', '#f2d24a'] })).loft(8, [[-.21, .17, .13, 0, 1]], { cap: 'top', capRect: true }); const b = Bk.group(); b.scale.setScalar(.85); b.position.set(-.08, -.27, 0); hero.userData.J.foreR.add(b); }   // 持ち手を右手の位置に（toon の前うでは外へ開いている）
+const npc = (o, x, z, ry, hat) => { const p = R.actor(o); if (hat) straw(p); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const sellers = SX.map((x, i) => npc([{ hairStyle: 'bald', hair: '#8a8a8a', skin: '#e0b088', eyes: 'closed', brow: 'thick', beard: 'mustache', cloth: 'vest', top: '#8a5a3a', top2: '#f0e4c8', bottom: '#5a5a4a' },
+  { hairStyle: 'short', hair: '#2a2a34', eyes: 'sharp', cloth: 'jacket', top: '#3f6ab0', top2: '#f4f0e8', bottom: '#e8e2d4', hat: 'cap', acc: '#2a3a5a' },
+  { sex: 'f', hairStyle: 'bun', hair: '#e6c46a', blush: true, cloth: 'tunic', top: '#c2586a', top2: '#f8f0e0', lower: 'skirt', skirt: .7, skirtC: '#f8f0e0' },
+  { hairStyle: 'tufts', hair: '#3a2a2a', skin: '#c88a5a', mouth: 'open', cloth: 'overall', top: '#e8dcc0', top2: '#d8a04a', bottom: '#6a5440', hat: 'band', acc: '#e0a03a' },
+  { sex: 'f', hairStyle: 'long', hair: '#d8d8d8', eyes: 'half', brow: 'soft', mouth: 'small', cloth: 'robe', top: '#6a5a9a', top2: '#f0c84a', skirt: .9 }][i], x + .2, -4.6, 0, i === 0));
+const buyers = [npc({ hairStyle: 'short', hair: '#5a3a2a', beard: 'stubble', cloth: 'jacket', top: '#b89a5a', bottom: '#4a4a5a', back: 'bag', acc: '#7a5a3a' }, -6.9, -2.0, Math.PI + .2), npc({ sex: 'f', hairStyle: 'bob', hair: '#c8843a', skin: '#d8a070', eye: '#4a8a5a', cloth: 'tunic', top: '#5a8a5a', top2: '#f0e6d0', lower: 'skirt', skirt: .8, skirtC: '#e8dcc0' }, 2.7, -2.1, Math.PI - .3), npc({ hairStyle: 'spiky', hair: '#3a2a2a', mouth: 'open', blush: true, cloth: 'tunic', top: '#e8704a', top2: '#f4f0e8', lower: 'shorts', bottom: '#3a4a7a', shoes: 'shoe', shoe: '#c8453a', s: .74 }, 9.9, -2.2, Math.PI)];
+const fisher = npc({ hairStyle: 'bald', hair: '#e0e0e0', skin: '#d8a070', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'vest', top: '#d8b04a', top2: '#f0e6d0', bottom: '#3a4a6a', hat: 'cap', acc: '#c2453a', shoe: '#4a4a58' }, 21.4, 25.2, .3), porter = npc({ hairStyle: 'short', hair: '#2a2a2a', brow: 'thick', bulk: 1.12, cloth: 'tunic', top: '#a8b8c8', top2: '#f4f0e8', bottom: '#5a4a3a', back: 'pack', acc: '#9a7a4a', gloves: 'glove' }, 0, 0, 0);
 const cat = R.cat({ c: '#e8e4dc', belly: '#ffffff' }); cat.position.set(5.6, .7, 5.2); cat.rotation.y = .6; scene.add(cat);
 const gulls = [...Array(7)].map((_, i) => { const b = R.bird({ c: '#f2f2ee', belly: '#ffffff', neck: false, s: 2.2 }); b.userData.c = [[4, 12], [22, 20], [-8, 9], [14, 4], [30, 14]][i] || [-1 + i, 2.9 + (i % 2) * .7]; b.userData.fly = i < 5 ? 1 : -1; scene.add(b); return b; });
 
@@ -79,9 +86,9 @@ const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 let first = true;
 K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), J = hero.userData.J;
-  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5); J.armR.rotation.set(Math.sin(dist * 3.5) * .08, 0, -.16); J.foreR.rotation.x = -.12;   // 右手はかごをさげる
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.3 : 5.9;
-  cp.set(p.x - cd.x * D, tall ? 2.5 : 2.9, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.35, p.z + cd.z * 3);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5); J.armR.rotation.set(Math.sin(dist * 3.5) * .08, 0, .12); J.foreR.rotation.x = -.12;   // 右手はかごをさげる
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5.1;   // 5 頭身の人（身長 1.4 m）に合わせて寄る
+  cp.set(p.x - cd.x * D, tall ? 2.15 : 2.4, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.05, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   R.flip(wm, WF, t, 4);
   for (const b of boats) { const i = b.userData.i, k = b.userData.sail ? 1.9 : 1.4; b.position.y = SEA - .2 * k + Math.sin(t * 1.3 + i * 2.1) * .07; b.rotation.z = Math.sin(t * 1.1 + i) * .05; b.rotation.x = Math.sin(t * .9 + i * 1.7) * .03; if (i > 4) b.position.x = b.userData.x0 + Math.sin(t * .04 + i) * 9; }
