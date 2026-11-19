@@ -66,7 +66,7 @@ for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 36 + hash(i, 8) * 24, c: '#
 // 人は R.actor の 5 頭身（toon）。麦わら帽子は部品集にないので、ここで作って頭の関節に足す（頭の大きさは userData.build から取る）
 const strawHat = (p, c = '#d8b45a') => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k, v, s];
   p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.7, 2.1, 0, .82), r(.79, 1.1, .45, 1)], { ur: 3 }).loft(8, [r(.79, 1.1, .45, .55), r(.7, 2.1, 0, .55)], { ur: 3 }).loft(8, [r(.79, 1.08, .45, .9), r(1.1, .92, .85, 1), r(1.18, .5, 1, 1.08)], { cap: 'top', ur: 3 }).mesh(T.thatch({ c }))); return p; };
-const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'long', hair: '#e6c46a', eye: '#4a8a6a', brow: 'soft', blush: true, cloth: 'robe', top: '#d8607e', top2: '#f6e6c8', skirt: .9, belt: '#e8c86a', shoes: 'shoe', shoe: '#b8485e', hat: 'band', acc: '#f6e6c8', neck: 'collar', s: 1.05 }); scene.add(hero);
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bun', hair: '#e6c46a', eye: '#4a8a6a', brow: 'soft', blush: true, cloth: 'robe', top: '#d8607e', top2: '#f6e6c8', skirt: .9, belt: '#e8c86a', shoes: 'shoe', shoe: '#b8485e', hat: 'band', acc: '#e8c86a', neck: 'collar', s: 1.05 }); scene.add(hero);
 const npc = (o, x, z, ry) => { const p = R.actor({ build: 'toon', ...o }); if (o.straw) strawHat(p, o.straw); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
 const gardener = npc({ hairStyle: 'bald', hair: '#8a8a8a', skin: '#e0b088', eyes: 'half', brow: 'thick', beard: 'mustache', cloth: 'overall', top: '#5a8a5a', top2: '#e8dcc0', gloves: 'glove', glove: '#8a6a44', shoe: '#6a5440', straw: '#d8b45a' }, 9.6, -5.5, -2.2), guard = npc({ hairStyle: 'short', hair: '#4a3a2a', eyes: 'sharp', mouth: 'line', cloth: 'armor', top: '#4a5a9a', top2: '#e8c86a', bottom: '#3a3a4a', gloves: 'gauntlet', glove: '#8a98b4', shoe: '#3a3a4a', shoulder: 'both', gear: '#8a98b4', hat: 'helm', hold: 'spear' }, 2.6, 16.6, Math.PI);
 const maid = npc({ sex: 'f', hairStyle: 'bun', hair: '#5a3a28', mouth: 'small', cloth: 'robe', top: '#4a4a5a', top2: '#f4f0e8', skirt: .86, belt: '#f4f0e8', shoes: 'shoe', shoe: '#2a2a34', neck: 'collar', hold: 'case', acc: '#b89a6a' }, 0, 0, 0);
@@ -82,8 +82,8 @@ K.loop((dt, t) => {
   const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 5);
   // うしろから追うカメラ（向きはゆっくり追いつく。たて長では近づく）
-  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.5 : 4.3;
-  cp.set(p.x - cd.x * D, tall ? 2.1 : 2.2, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.2, p.z + cd.z * 3);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.5 : 4.9;
+  cp.set(p.x - cd.x * D, tall ? 2.1 : 2.3, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.15, p.z + cd.z * 3);
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   // ねこ（少し先を歩く）・庭師（花だんの手入れ）・門番・おつかいの人・鳥
   const uc = (u + 3.4 / LEN) % 1, q = path.getPointAt(uc), g = path.getTangentAt(uc); cat.position.set(q.x - g.z * .8, 0, q.z + g.x * .8); cat.rotation.y = Math.atan2(g.x, g.z); R.catPose(cat, 'walk', dist * 7); R.catPose(cat2, 'sit', t);

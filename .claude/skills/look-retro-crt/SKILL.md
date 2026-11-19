@@ -53,7 +53,7 @@ const { sun } = K.lights(scene, renderer, { sun: 0xffc890, range: 30 });        
 const land = R.ground({ w: 140, d: 100, cell: 2, layers: [T.cobble(), T.grass()], mix: (x, z) => [Math.abs(z) > 6 ? 1 : 0, 0] }); scene.add(land.mesh);
 const home = R.house({ wall: T.plaster({ frame: 'cross' }), roof: T.roof(), lit: 1 }); home.position.set(9, 0, -8);
 scene.add(R.merge([home]));                                                           // 動かない物は R.merge でまとめる
-const hero = R.person({ cloth: 'tunic', cape: '#b03a2e' }); scene.add(hero);
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', cloth: 'tunic', top: '#3f72b0', neck: 'cape' }); scene.add(hero);   // 人は 5 頭身の toon
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 K.loop((dt, t) => {
   const x = t * 1.6; hero.position.set(x, 0, 0); hero.rotation.y = Math.PI / 2; R.walk(hero, t * 8);
@@ -85,7 +85,7 @@ K.loop((dt, t) => {
 | 人（新しい作り） | `R.actor({ build, sex, hairStyle, eyes, cloth, lower, gloves, shoes, shoulder, neck, back, hat, hold, 色… })` と `R.walk` `R.idle`。手とくつが大きく、角ばった手足、とがったかみの束、平たい顔に大きな目。**新しい場面の人はこれで作る** |
 | 人の体つき（等身） | `R.actor({ build })`。`heroic`（7 頭身。肩が広く足が長い）`toon`（5 頭身。ひじから先・ひざから下が太い）`chibi`（3 頭身）。場面の全員をそろえるなら、人を作る前に `R.cfg.actorBuild = 'toon'` |
 | 見本の人物 | `R.CAST`（10 人。`{ id, name, role, o }`）。`R.actor('gald')` のように id で作れる。`R.actor({ ...R.CAST[0].o, top: '#…' })` で色や部品だけ変えてもよい。見くらべは `game-looks-7/retro-people.html`（`?who=番号&rot=角度&raw=1`） |
-| 人（これまでの作り） | `R.person({ cloth, face, hairStyle, hat, cape, skirt, build … })`。11〜20 のページが使っている。見た目を変えないこと。見くらべは `retro-people.html?old=1` |
+| 人（これまでの作り） | `R.person({ … })`。4 頭身で、持ち主に「等身がイメージと違う」と言われた古い作り。**新しい場面では使わない**。`11-plaza-town-rpg.html?cast=old` と `retro-people.html?old=1` に、見くらべ用として残してある |
 | 動物 | `R.cat` と `R.catPose`、`R.bird` と `R.birdPose` |
 | 乗りもの | `R.cart` `R.car` `R.boat` |
 | 材質 | `R.mat(テクスチャか色, { cut, glow, side … })`（頂点のふるえつき） |
@@ -105,7 +105,10 @@ K.loop((dt, t) => {
 
 持ち主は、これまでの人（`R.person`、4 頭身）を「等身がイメージと違う。もう少し頭を小さく」と言い、そのあと初期の家庭用 3D ゲーム機の時代の人物のイメージ画像を貼りました（`docs/taste.md` の「テイスト B の人について」）。それに合わせた作りが `R.actor` です。
 
-- **新しい場面の人は `R.actor` で作る**。体つきは `heroic`（7 頭身）か `toon`（5 頭身）か `chibi`（3 頭身）。どれにするか書かれていないときは、`retro-people.html` と `11-plaza-town-rpg.html?cast=new`（`toon`、`chibi`）を見せて、えらんでもらう。1 つの場面の中で体つきをまぜない。
+- **人は `R.actor` の `toon`（5 頭身）で作る**。持ち主がえらんだ体つきで、11〜20 の場面は全員これになっている。`heroic`（7 頭身）と `chibi`（3 頭身）は、たのまれたときだけ使う（`11-plaza-town-rpg.html?cast=heroic`、`?cast=chibi` で見くらべられる）。1 つの場面の中で体つきをまぜない。子どもは `s` を小さくする。
+- **カメラは人に寄せる**。`toon` は身長 1.4 m ほど。うしろから追うなら、距離 5 m・高さ 2.4 m・注視の高さ 1.05 m くらい（たて長は距離 3.9 m）で、主役が画面の高さの 1/3 ほどになる。
+- **うでは少し外へ開いて付いている**。手を合わせる、物をさげる、荷車を引く、かいをにぎるなどの姿勢は、うでの関節の回転を足して内へ寄せ、横からの絵で手の位置を確かめる。
+- **部品集に無い物**: むぎわら帽子（14・15・16・19・20 がページの中で作って頭の関節に付けている）、エプロン、かざりのない つえ。売り手は屋台の台にかくれるので、台の上に立たせる（18）。
 - **シルエットと色で別人にする**。かみ型（`spiky` `tufts` `long` `short` `tail` `twin` `bob` `bun` `bald`）、帽子、肩当て、持ち物、上と下の服の色の組で、ひと目で見分けがつくように。まず `R.CAST` の人物を使い、足りなければ引数を変えて足す。
 - **既存の作品の人物に似せない**。かみ型・服・色・持ち物の組み合わせが、特定の人物と分かる物にならないようにする。
 - **顔は粗く打ってある**（頭のテクスチャは 64×24 ドットを 2 倍）。主役が画面の高さの 1/3 ほどでも、目が 2 つの点として読めるようにするため。細かい線を顔に足しても、小さくなるとつぶれてざらつくだけ。
