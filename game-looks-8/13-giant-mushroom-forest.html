@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-13 巨大きのこの森の旅 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4ffe0;opacity:.9;text-shadow:0 1px 0 #1a3a2a}
+</style>
+<div id="cap">8-13 ─ 巨大きのこの森の旅 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない巨大きのこ（曲がったじく・丸いかさ・ひだ）に、手で打ったドット絵（白い点のかさ、すじのかさ、輪のかさ）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は やわらかい緑の光と草。きのこは赤に白い点が主で、青と黄が少し。差し色は旅人の青いマント。かさの下に落ちる影と、ひだのあかりで大きさを見せる。
+// 小さな旅人が、家より大きいきのこの下の小道を歩く。きのこの家から けむりが上がり、胞子の光の粒がのぼり、ミミナガとしずく玉がいる。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 600, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#58b4a4'], [.55, '#a4e0b4'], [1, '#ecf8c4']], { r: 300 })); scene.fog = new THREE.Fog('#b4e6bc', 18, 86);
+const { sun } = K.lights(scene, renderer, { sky: 0xd4ffd8, ground: 0x6a9a6a, amb: 1.6, sun: 0xfff4c0, power: 2.2, range: 30 }), SUN = new THREE.Vector3(-.42, .8, .38).normalize();
+
+// ---- 小道の輪。pt(a, e) は道から外へ e m の点と進む向き、off(x, z) は道からのへだたり ----
+const rr = a => 25 + 4 * Math.sin(2 * a) + 2.5 * Math.sin(3 * a + 1);
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x));
+const HF = (x, z) => { const d = Math.abs(off(x, z)); return Math.max(0, Math.min(1, (d - 2) / 6)) * (F.vn(x * .12, z * .12, 3) - .3) * 1.6; };   // 道からはなれると、ゆるい起伏
+const land = R.ground({ w: 170, d: 170, cell: 2, H: HF, layers: [T.grass({ c: '#58a85c', flowers: .25, fc: ['#ffffff', '#ffe27a', '#ff9ab8'] }), T.dirt({ c: '#c4a878', pebbles: .5 }), X.moss({ kind: 'tile', c: '#7ad070', m: 2.5 })],
+  mix: (x, z) => { const d = Math.abs(off(x, z)); return [Math.max(0, Math.min(1, 1.25 - d / 1.3)), d > 2.2 && F.vn(x * .2, z * .2, 7) > .62 ? .75 : 0]; },
+  shade: (x, z) => { const k = F.vn(x * .09, z * .09, 5); return [.86 + .22 * k, .92 + .16 * k, .86 + .1 * k]; } });
+scene.add(land.mesh);
+
+// ---- 巨大きのこ（赤に白い点が主、青のすじ、黄の輪）。じくは道をよけ、かさが道の上にかかる ----
+const fixed = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const KINDS = [{ kind: 'spot', c: '#d8433a', shape: 'dome' }, { kind: 'spot', c: '#e0563a', shape: 'flat' }, { kind: 'stripe', c: '#3f7ad8', c2: '#bfe8ff', shape: 'bell', glow: '#c8f0ff', gill: '#bfe8ff' }, { kind: 'spot', c: '#c83a48', shape: 'dome' }, { kind: 'ring', c: '#e8b838', c2: '#fff6d0', shape: 'flat', gill: '#fff0c0' }];
+const homes = [[.62, -5.4], [2.75, 5.8], [4.55, -5.4]].map(([a, e]) => { const [x, z] = pt(a, e), [px, pz] = pt(a); return { a, e, x, z, ry: Math.atan2(px - x, pz - z) }; }), nearHome = (x, z, m) => homes.some(h => Math.hypot(x - h.x, z - h.z) < m);
+const giants = [];
+for (let i = 0; i < 40; i++) { const a = (i + hash(i, 1) * .7) / 40 * TAU, e = (i % 2 ? 1 : -1) * (4.2 + hash(i, 2) * 6), [x, z] = pt(a, e); if (nearHome(x, z, 8) || homes.some(hm => e * hm.e > 0 && a > hm.a - .6 && a < hm.a + .12)) continue; const k = KINDS[(i * 3 + (i >> 2)) % 5], h = 4.6 + hash(i, 3) ** 1.4 * 9, r = (k.shape === 'bell' ? .3 : .42 + hash(i, 4) * .14) * h; giants.push([x, z, r]);
+  put(F.mushroom({ ...k, h, r, lean: .7, seed: i }), x, z, i); }
+for (let i = 0; i < 46; i++) { const a = hash(i, 5) * TAU, r0 = 4 + hash(i, 6) * 60, x = Math.cos(a) * r0, z = Math.sin(a) * r0; if (Math.abs(off(x, z)) < 11 || nearHome(x, z, 9)) continue; const k = KINDS[(i * 2 + 1) % 5], h = 10 + hash(i, 7) * 12; put(F.mushroom({ ...k, glow: false, h, r: (k.shape === 'bell' ? .3 : .46) * h, lean: .5, seed: i + 60, skirt: false }), x, z, i); }
+// 中くらい・小さいきのこ、草花、こけの岩
+for (let i = 0; i < 120; i++) { const [x, z] = pt(hash(i, 8) * TAU, (i % 2 ? 1 : -1) * (1.7 + hash(i, 9) ** 1.4 * 9)); if (nearHome(x, z, 4.4)) continue; const q = i % 8, k = KINDS[(i * 3) % 5];
+  if (q === 0) put(F.mushroom({ ...k, glow: false, h: 1.6 + hash(i, 10) * 2, lean: .8, seed: i + 200 }), x, z, i); else if (q < 3) { for (let j = 0; j < 3; j++) put(F.mushroom({ kind: k.kind, c: k.c, c2: k.c2, shape: j ? 'dome' : 'cone', h: .3 + hash(i, j) * .55, r: .16 + hash(j, i) * .2, seed: i + j, skirt: false }), x + (hash(i, j + 3) - .5) * .9, z + (hash(j + 3, i) - .5) * .9, j); }
+  else if (q === 3) put(R.rock({ s: .5 + hash(i, 11) * 1.1, c: '#9aa08c', moss: .8, seed: i }), x, z, i, HF(x, z) - .1); else if (q === 4) put(F.bloom({ s: .6 + hash(i, 12) * .3, c: i % 3 ? '#fff0a0' : '#ffb0d8', leaf: '#3f9a5a' }), x, z, i); else put(R.tuft({ kind: ['grass', 'flower', 'bush'][q - 5], s: .6 + hash(i, 13) * .5, c: '#5fae52', seed: i % 3 }), x, z, i); }
+// きのこの家（3 軒）と、まわりのさく
+const smokes = []; homes.forEach((h, i) => { const g = put(F.mushroomHouse({ c: ['#d8433a', '#e8a030', '#c83a58'][i], kind: i === 1 ? 'fleck' : 'spot', shape: i === 2 ? 'cone' : 'dome', door: ['#3f8a7a', '#5a6ac8', '#3f8a7a'][i], h: 5 + i * .5, r: 3.1 + i * .25, seed: i + 3 }), h.x, h.z, h.ry, 0); g.updateMatrixWorld(true); smokes.push(new THREE.Vector3(...g.userData.smoke).applyMatrix4(g.matrixWorld));
+  for (const s of [-1, 1]) { const f = R.fence({ len: 2.6, kind: 'picket', h: .7, c: '#f0e6d0' }); f.position.set(h.x + Math.cos(h.ry) * s * 2.6 + Math.sin(h.ry) * 2.6, 0, h.z - Math.sin(h.ry) * s * 2.6 + Math.cos(h.ry) * 2.6); f.rotation.y = h.ry; fixed.push(f); } });
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#4a9a6c', haze: '#b4e6bc', r: 120, h: 26, y: -1, rep: 8 }), R.backdrop({ c: '#6ab884', haze: '#d4f0c4', r: 170, h: 54, y: -2, rep: 6, seed: 3 }));
+const homeL = homes.map(h => { const L = new THREE.PointLight('#ffc878', 9, 9, 1.6); L.position.set(h.x + Math.sin(h.ry) * 2.4, 2, h.z + Math.cos(h.ry) * 2.4); scene.add(L); return L; });
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#e8c060', eye: '#3a7a5a', eyes: 'round', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'long', top: '#f4ecd8', top2: '#e8a030', lower: 'shorts', bottom: '#8a5a3a', shoes: 'boot', shoe: '#7a4a30', neck: 'cape', skirtC: '#3a6ac8', acc: '#3a6ac8', back: 'bag', belt: '#6a4630', hold: 'staff', s: 1 }); scene.add(hero);
+// きのこの村の人（頭に小さなきのこのかさをかぶる。R.actor の帽子に無いので、頭の関節に付ける）
+const capHat = (p, c) => { const m = F.mushroom({ h: .26, r: .25, stemR: .04, c, lean: 0, skirt: false, seed: 2 }); m.position.y = .13; p.userData.J.head.add(m); return p; };
+const folk = [[.62, 0, '#d8433a', { cloth: 'overall', top: '#7ab86a', top2: '#f4ecd8', bottom: '#5a7a4a', hairStyle: 'short', hair: '#8a5a3a', s: .82 }], [2.75, 1, '#e8a030', { sex: 'f', cloth: 'tunic', lower: 'skirt', skirt: .6, top: '#f0a0b0', top2: '#fff4e0', skirtC: '#c85a78', hairStyle: 'bob', hair: '#5a3a2a', s: .8 }], [4.55, 2, '#3f7ad8', { cloth: 'vest', top: '#c8a05a', top2: '#f4ecd8', bottom: '#6a5a8a', hairStyle: 'bald', hair: '#e8e8e8', beard: 'beard', eyes: 'closed', s: .85 }]].map(([a, i, c, o]) => { const h = homes[i], p = capHat(R.actor({ shoes: 'shoe', shoe: '#6a4630', mouth: 'smile', ...o }), c); p.position.set(h.x + Math.sin(h.ry) * 3.3 + Math.cos(h.ry) * 1.2, 0, h.z + Math.cos(h.ry) * 3.3 - Math.sin(h.ry) * 1.2); p.rotation.y = h.ry - .3; scene.add(p); return p; });
+const crits = [[.3, 2.4, '#d8a86a'], [1.9, -2.2, '#b8b0c8'], [3.6, 2.3, '#d8a86a'], [5.5, -2.4, '#e8c8a0']].map(([a, e, c], i) => { const g = F.critter({ c, s: 1.5 }); g.userData.home = [a, e, i]; scene.add(g); return g; });
+const slimes = [[1.1, 2.6, '#8ad86a', .34], [1.2, 3.3, '#f0d04a', .24], [3.2, -2.6, '#7ab8f0', .36], [5.0, 2.8, '#f08ab0', .3]].map(([a, e, c, s]) => { const g = F.slime({ c, s }), [x, z, r] = pt(a, e); g.position.set(x, HF(x, z), z); g.rotation.y = r + 2.4; scene.add(g); return g; });
+const fairies = [...Array(5)].map((_, i) => { const g = F.fairy({ c: ['#fff0a0', '#a8f0ff', '#ffb8e0'][i % 3], hair: ['#f0a060', '#6a4a9a', '#e8e0d0'][i % 3], s: 1.5 }); g.userData.orb = [hash(i, 21) * TAU, 1.2 + hash(i, 22) * 2, 1.5 + hash(i, 23) * 1.4, .5 + hash(i, 24) * .4]; scene.add(g); return g; });
+const spores = F.motes({ n: 110, box: [30, 9, 30], c: '#f6ffb0', size: .13, rise: .3, drift: .7, y: .3 }); scene.add(spores);
+
+// ---- 旅人の道（輪を左まわり） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.9, S0 = .985, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 60);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, sk = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.8);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 5.2;
+  cp.set(p.x - cd.x * D, tall ? 1.9 : 2.0, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, tall ? 1.5 : 1.75, p.z + cd.z * 3);   // 少し見上げて、きのこの大きさを見せる
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 村の人・ミミナガ・しずく玉・妖精・けむり・胞子
+  folk.forEach((f, i) => { R.idle(f, t + i, Math.atan2(p.x - f.position.x, p.z - f.position.z) - f.rotation.y); if (i === 0) { const J = f.userData.J; J.armR.rotation.set(-2.6 + Math.sin(t * 6) * .25, 0, -.5); J.foreR.rotation.x = -.3; } });   // 1 人は手をふる
+  for (const c of crits) { const [a, e, i] = c.userData.home, a2 = a + t * .035, [x, z, r] = pt(a2, e + Math.sin(t * .3 + i) * .4); c.position.set(x, HF(x, z), z); c.rotation.y = r; F.critterPose(c, 'walk', t * 9 + i); }
+  slimes.forEach((s, i) => F.slimePose(s, t * 1.05 + i * 1.7, .25));
+  fairies.forEach((f, i) => { const [ph, r, h, sp] = f.userData.orb, a = ph + t * sp, cx = p.x + tg.x * (3 + i * 1.6), cz = p.z + tg.z * (3 + i * 1.6); f.position.set(cx + Math.cos(a) * r, h + Math.sin(t * 1.1 + ph) * .5, cz + Math.sin(a) * r); f.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); F.fairyPose(f, t + ph); });
+  if ((sk += dt) > .5) { sk = 0; for (const s of smokes) fx.emit('smoke', s.x, s.y, s.z, { size: .9, grow: 1.6, life: 3.2, vy: .55, vx: .12, spread: .12, tint: '#f4f8ec' }); }
+  homeL.forEach((L, i) => { L.intensity = 9 * (.9 + .1 * Math.sin(t * 7 + i * 2)); });
+  fx.update(dt); spores.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-12 水晶の洞くつの探検 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8e8ff;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-12 ─ 水晶の洞くつの探検 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない洞くつ（でこぼこの天井・柱・つらら石）に、手で打ったドット絵の岩はだをはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は岩の青むらさきと、水晶の水色・もも色。差し色は探検家のランタンのだいだいだけ。水晶のあかりを地面と天井の頂点の色に焼きこんで、暗くせずに岩の形を見せる。
+// ランタンを持った探検家が、地底の池のまわりの道を歩く。光る虫がとび、しずく玉がはねる。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 300, aa: false, fitAspect: .9, maxFov: 76 });
+scene.background = new THREE.Color('#1c1a4a'); scene.fog = new THREE.Fog('#34327a', 15, 64);
+const { sun } = K.lights(scene, renderer, { sky: 0x9aa4f0, ground: 0x6a66c0, amb: 1.45, sun: 0xd8d0ff, power: 1.15, range: 28 });
+
+// ---- 池のまわりの道。pt(a, e) は道から外へ e m の点と進む向き、off(x, z) は道からのへだたり ----
+const rr = a => 11.8 + 1.3 * Math.sin(2 * a) + .8 * Math.sin(3 * a + 1);
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x)), sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const PR = 7.6, HF = (x, z) => { const r = Math.hypot(x, z), d = Math.abs(off(x, z)); return -(1 - sm(PR - 1.6, PR + .6, r)) * .9 + sm(1.6, 5, d) * (F.vn(x * .3, z * .3, 2) - .35) * .7; };   // 地面の高さ（池はくぼみ、道は平ら）
+const HC = F.caveH({ rx: 25, rz: 23, h: 10.5, seed: 3, bump: 2.4 });
+
+// ---- 水晶を置く場所（色は水色・もも色・うすむらさき）。あかりは頂点の色に焼きこむ ----
+const CC = ['#6ad8f0', '#f08ac8', '#6ad8f0', '#b8a0ff'], crystals = [[.6, -.4, 4.4, 0, 9], [-1.2, .9, 2.6, 1, 6], [1.6, 1.3, 1.5, 3, 5]].map(([x, z, h, k, n]) => ({ x, z, y: .25, h, c: CC[k], n }));
+for (let i = 0; i < 30; i++) { const a = (i + hash(i, 1) * .6) / 30 * TAU, out = i % 2 === 0, e = out ? 2.8 + hash(i, 2) * 3.4 : -(2 + hash(i, 2) * 1.3), [x, z] = pt(a, e), h = out ? 1.3 + hash(i, 3) ** 2 * 2.6 : .7 + hash(i, 3) * 1.1; crystals.push({ x, z, y: HF(x, z), h, c: CC[(i * 7 + (i >> 1)) % 4], n: 4 + (i % 4) }); }
+const hang = []; for (let i = 0; i < 11; i++) { const a = hash(i, 5) * TAU, r = 3 + hash(i, 6) * 17, x = Math.cos(a) * r, z = Math.sin(a) * r; hang.push({ x, z, y: HC(x, z) - .1, h: 1 + hash(i, 7) * 1.4, c: CC[i % 4], n: 4, down: 1 }); }
+const lamps = [...crystals, ...hang].map(c => ({ x: c.x, y: c.y + (c.down ? -c.h : c.h) * .5, z: c.z, c: c.c, r: 5 + c.h * 2.6, k: .5 + c.h * .1 }));
+const bakeF = F.bake(lamps, [.7, .68, .98]), bakeC = F.bake(lamps.map(l => ({ ...l, r: l.r * 1.9, k: l.k * .9 })), [.62, .6, .95]);
+const land = R.ground({ w: 76, d: 72, cell: 2, H: HF, layers: [X.caveRock({ c: '#4e4c8c', seed: 1 }), T.cobble({ c: '#8684b8', n: 6 }), X.moss({ kind: 'tile', c: '#3fb49c', m: 2 })],
+  mix: (x, z) => { const d = Math.abs(off(x, z)), r = Math.hypot(x, z); return [Math.max(0, Math.min(1, 1.25 - d / 1.5)), r > PR + .2 && r < PR + 2.6 && F.vn(x * .5, z * .5, 4) > .45 ? .8 : d > 4 && F.vn(x * .22, z * .22, 9) > .7 ? .7 : 0]; }, shade: (x, z) => bakeF(x, z, HF(x, z)) });
+scene.add(land.mesh, F.caveCeil({ w: 66, d: 60, cell: 2.5, H: HC, c: '#5a5898', shade: bakeC }));
+
+// ---- 動かない物：水晶・柱・つらら石・石じゅん・こけ・光る花 ----
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+crystals.forEach((c, i) => put(F.crystal({ h: c.h, n: c.n, c: c.c, seed: i }), c.x, c.z, i, c.y - .1));
+hang.forEach((c, i) => { const g = put(F.crystal({ h: c.h, n: c.n, c: c.c, seed: i + 50, halo: true }), c.x, c.z, i, c.y); g.rotation.x = Math.PI; });
+put(R.rock({ s: 2.3, c: '#5c5a94', seed: 4 }), .2, .2, 1, -.9);                                                   // 池のまん中の岩の島
+const clear = (x, z, m) => Math.abs(off(x, z)) > m && Math.hypot(x, z) > PR + 1.2;
+for (const [a, e, r] of [[.75, 6.5, 1.3], [2.2, 5.5, 1.1], [3.5, 7, 1.4], [4.6, 5.5, 1], [5.6, 6.5, 1.2], [1.5, 8.5, 1.5]]) { const [x, z] = pt(a, e); put(F.pillar({ h: HC(x, z) + 1, r, seed: Math.round(a * 9), c: '#5a5898' }), x, z, a, -.4); }
+for (let i = 0; i < 70; i++) { const a = hash(i, 11) * TAU, r = PR + 1 + hash(i, 12) * 17, x = Math.cos(a) * r, z = Math.sin(a) * r; if (HC(x, z) < 3.5) continue;
+  if (i % 3) put(F.spike({ h: 1 + hash(i, 13) ** 2 * 3, down: true, seed: i, c: '#5a5898' }), x, z, i, HC(x, z) + .2); else if (clear(x, z, 2.6)) put(F.spike({ h: .8 + hash(i, 13) * 2, seed: i, c: '#545290' }), x, z, i, HF(x, z) - .1); }
+for (let i = 0; i < 26; i++) { const [x, z] = pt(hash(i, 14) * TAU, (i % 2 ? 1 : -1) * (1.9 + hash(i, 15) * 3)); if (Math.hypot(x, z) < PR + .6) continue; if (i % 3 === 0) put(F.mossPatch({ r: .5 + hash(i, 16) * .6, c: '#58e0b0', seed: i }), x, z, i, HF(x, z) + .06); else put(F.bloom({ s: .5 + hash(i, 16) * .35, c: i % 2 ? '#7af0ff' : '#ff9ad8' }), x, z, i); }
+for (let i = 0; i < 9; i++) { const [x, z] = pt(i * .7 + .3, 2.6 + hash(i, 17) * 4); put(R.rock({ s: .5 + hash(i, 18) * .9, c: '#5c5a94', seed: i }), x, z, i, HF(x, z) - .1); }
+scene.add(R.merge(fixed));
+
+// ---- 地底の池と、水面に映る水晶のあかり・天井の穴からの光 ----
+const pond = F.pool({ r: PR + .4, c: '#3a6ad0', emissive: '#1a2f78', seg: 20 }); pond.position.y = -.42; scene.add(pond);
+const refM = F.glowMat(X.beam({}), { add: true, own: true, opacity: .5 }), refG = R.geo().normal([0, 1, 0]);
+for (const c of crystals) { const r = Math.hypot(c.x, c.z); if (r > PR + 4.5) continue; const col = new THREE.Color(c.c), tint = [col.r * 1.6, col.g * 1.6, col.b * 1.6], isle = r < 3, dx = isle ? Math.cos(c.h * 5) : -c.x / r, dz = isle ? Math.sin(c.h * 5) : -c.z / r, bx = isle ? c.x + dx * 1.8 : c.x / r * (PR - .2), bz = isle ? c.z + dz * 1.8 : c.z / r * (PR - .2), L = 1.6 + c.h * 1.5, w = .5 + c.h * .22;
+  refG.tint(tint).quad([bx - dz * w, 0, bz + dx * w], [bx + dz * w, 0, bz - dx * w], [bx + dx * L + dz * w * .5, 0, bz + dz * L - dx * w * .5], [bx + dx * L - dz * w * .5, 0, bz + dz * L + dx * w * .5], [0, 0, 1, 1]); }
+const refl = new THREE.Mesh(refG.build(), refM); refl.position.y = -.38; scene.add(refl);
+const shaft = F.beam({ h: 12, r: 2.2, c: '#bcd8ff', opacity: .16 }); shaft.position.set(.4, 0, -.2); scene.add(shaft); ticks.push(shaft.userData.tick);
+const glowL = new THREE.PointLight('#8adcff', 26, 22, 1.5); glowL.position.set(.5, 3.4, 0); scene.add(glowL);
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'tufts', hair: '#7a4a2a', eye: '#3a6a8a', cloth: 'jacket', sleeve: 'long', top: '#d88a3a', top2: '#f4e8c8', lower: 'baggy', bottom: '#5a4a6a', gloves: 'glove', glove: '#8a5a3a', shoe: '#6a4630', hat: 'band', acc: '#e8e0c8', back: 'pack', strap: true, belt: '#4a3a30', s: 1.05 }); scene.add(hero);
+// ランタン（R.actor の持ち物に無いので、右手の先に付ける）
+const lantern = new THREE.Group(), LB = R.parts(); LB.g(T.metal({ c: '#5a4a3a' })).smooth(0).box(.012, .1, .012, 0, -.1, 0, {}).loft(4, [[-.14, .075, .075, 0, .9], [-.1, .02, .02, 1, 1.1]], { rot: .5 }).loft(4, [[-.31, .06, .06, 0, .7], [-.28, .075, .075, 1, .9]], { rot: .5, cap: 'bot' });
+lantern.add(LB.group(), new THREE.Mesh(R.geo().loft(4, [[-.28, .06, .06, 0], [-.14, .068, .068, 1]], { rot: .5, ur: 4 }).build(), R.mat(T.lamp({}), { glow: true, vc: true })), F.halo('#ffc070', .8, .55)); lantern.children[2].position.y = -.2;
+lantern.position.set(0, -.3, .02); hero.userData.J.foreR.add(lantern);
+const lampL = new THREE.PointLight('#ffb866', 11, 10, 1.5); scene.add(lampL);
+const sage = R.actor({ sex: 'f', hairStyle: 'bun', hair: '#e8e0f0', eye: '#7a5ac8', eyes: 'round', mouth: 'smile', cloth: 'robe', skirt: .8, top: '#3f8a8a', top2: '#f0e8c0', belt: '#c8a04a', shoes: 'shoe', shoe: '#4a4060', neck: 'scarf', acc: '#f0c84a', hold: 'staff' }), [sx, sz, sr] = pt(.95, 2.4); sage.position.set(sx, HF(sx, sz), sz); sage.rotation.y = sr - 2.2; scene.add(sage);
+const slimes = [[1.35, -1.9, '#6ad8f0', .34], [1.5, -2.5, '#f08ac8', .26], [2.5, 2.2, '#b8a0ff', .38], [4.1, -2.1, '#6ad8f0', .3], [5.3, 2.3, '#f08ac8', .34]].map(([a, e, c, s], i) => { const g = F.slime({ c, s, glow: true }), [x, z, r] = pt(a, e); g.position.set(x, HF(x, z), z); g.userData.home = [a, e, i]; scene.add(g); return g; });
+const bugs = [...Array(9)].map((_, i) => { const g = F.bug({ c: i % 3 ? '#c8ff8a' : '#fff0a0', s: 1.5 }); g.userData.orb = [hash(i, 21) * TAU, 1.5 + hash(i, 22) * 3.5, 1.2 + hash(i, 23) * 1.8, .25 + hash(i, 24) * .3, i % 2 ? 1 : -1]; scene.add(g); return g; });
+const motes = F.motes({ n: 70, box: [26, 5, 26], c: '#bfeaff', size: .11, rise: .12, y: .4 }); scene.add(motes);
+
+// ---- 探検家の道（輪を左まわり） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.75, S0 = .705, cd = new THREE.Vector3(), cp = new THREE.Vector3(), lw = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u); p.y = HF(p.x, p.z);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  const J = hero.userData.J; J.armR.rotation.set(-.95 + Math.sin(dist * 3.9) * .05, 0, -.12); J.foreR.rotation.x = -.5; lantern.rotation.x = 1.4 + Math.sin(dist * 3.9 + 1) * .12;   // ランタンを前にかかげる
+  lantern.getWorldPosition(lw); lampL.position.set(lw.x, lw.y - .2, lw.z); lampL.intensity = 11 * (.92 + .08 * Math.sin(t * 9));
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5;
+  const pr = Math.hypot(p.x, p.z), ix = -p.x / pr, iz = -p.z / pr, sd = tall ? .3 : 1;   // 池が見えるよう、カメラは少し外がわから池のほうを向く
+  cp.set(p.x - cd.x * D - ix * 1.1 * sd, p.y + (tall ? 2.1 : 2.3), p.z - cd.z * D - iz * 1.1 * sd); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3 + ix * 2.1 * sd, p.y + 1.1, p.z + cd.z * 3 + iz * 2.1 * sd);
+  sun.position.set(p.x - cd.x * 14, 30, p.z - cd.z * 14); sun.target.position.copy(p);
+  // 池・水晶のにじみ・光る虫・しずく玉・賢者
+  pond.userData.tick(t); refM.opacity = .42 + .12 * Math.sin(t * 1.4); for (const f of ticks) f(t); glowL.intensity = 26 * (.9 + .1 * Math.sin(t * 1.1));
+  R.idle(sage, t, Math.sin(t * .4) * .5);
+  for (const s of slimes) { const [a, e, i] = s.userData.home, a2 = a + Math.sin(t * .25 + i * 2) * .05, [x, z, r] = pt(a2, e + Math.sin(t * .4 + i) * .5); s.position.set(x, HF(x, z), z); s.rotation.y = r + (Math.cos(t * .25 + i * 2) > 0 ? 0 : Math.PI) + .4; F.slimePose(s, t * 1.1 + i * 1.3, .22); }
+  bugs.forEach((b, i) => { const [ph, r, h, sp, dir] = b.userData.orb, a = ph + t * sp * dir, cx = i < 5 ? p.x + tg.x * 4 : pt(i * 1.3)[0], cz = i < 5 ? p.z + tg.z * 4 : pt(i * 1.3)[1]; b.position.set(cx + Math.cos(a) * r, h + Math.sin(t * 1.3 + ph) * .4, cz + Math.sin(a * 1.3) * r); b.rotation.y = Math.atan2(-Math.sin(a) * dir, Math.cos(a * 1.3) * 1.3 * dir); F.bugPose(b, t + ph); });
+  motes.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>

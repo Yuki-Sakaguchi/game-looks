@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8 追加の部品「ファンタジーの町・建物」の確認（テクスチャと形）</title>
+<style>
+html,body{margin:0;min-height:100%;background:#2a2c38;color:#e8e4d8;font:12px/1.4 ui-monospace,Menlo,monospace}
+#nav{position:fixed;right:8px;top:6px;z-index:5}#nav a{color:#ffd88a;margin-left:10px}
+#grid{display:flex;flex-wrap:wrap;gap:4px;padding:4px;align-content:flex-start}
+.c{position:relative;line-height:0}.c canvas{image-rendering:pixelated;display:block;background:repeating-conic-gradient(#4a4e60 0 25%,#3c4050 0 50%) 0 0/16px 16px}
+.c span{position:absolute;left:0;top:0;background:#000a;color:#fff;font-size:10px;line-height:1.3;padding:0 3px}
+#cap{position:fixed;left:12px;bottom:10px;opacity:.8}
+</style>
+<div id="nav"></div><div id="grid"></div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 追加の部品 pack-fantasy-town.js（F.〜）を全部ならべて見る確認用のページ（一覧には入れない）。
+// ?p=tex（既定）でテクスチャの一覧（&i=0〜 で 1 組だけ）、?p=parts&i=0〜6 で形がブラウン管ごしに見える（&raw=1 でブラウン管なし、&spin=角度 で向き、&cam=x,y,z,x,y,z でカメラ）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), q = new URLSearchParams(location.search), mode = q.get('p') || 'tex', sel = q.get('i');
+const NAMES = ['城・砦', '建物の部品', '砂漠と東方', '木の上と運河', '乗りもの', '室内', '人の小物'];
+document.getElementById('nav').innerHTML = '<a href="?p=tex">テクスチャ</a>' + NAMES.map((n, i) => `<a href="?p=parts&i=${i}">${n}</a>`).join('');
+if (mode === 'tex') {
+  const t = F.tex, G = [
+    ['石と屋根', [['ashlar', t.ashlar()], ['ashlar moss 青', t.ashlar({ c: '#8a92a6', moss: .5 })], ['ashlar 白', t.ashlar({ c: '#d8d2c4' })], ['sandstone', t.sandstone()], ['sandstone 赤', t.sandstone({ c: '#c88a68' })], ['shiro', t.shiro()], ['shiro base:false', t.shiro({ base: false })], ['slate', t.slate()], ['slate 赤 diamond', t.slate({ c: '#b8483a', kind: 'diamond' })], ['slate 緑', t.slate({ c: '#3f8a6a' })], ['slate むらさき', t.slate({ c: '#7a5aa8', c2: '#e8a0c0' })], ['kawara', t.kawara()], ['kawara 緑', t.kawara({ c: '#4a7a68' })], ['dome', t.dome()], ['dome 金', t.dome({ c: '#e0b048', c2: '#f4e8c0' })]]],
+    ['木・金物・布', [['lacquer', t.lacquer()], ['lacquer band', t.lacquer({ band: true })], ['ornate', t.ornate()], ['ornate 銀', t.ornate({ c: '#b0b8c8', gem: '#3a78c8' })], ['iron', t.iron()], ['iron rust 0', t.iron({ rust: 0, c: '#6a7488' })], ['sail', t.sail()], ['sail しま 紋', t.sail({ c2: '#c8483a', crest: 'anchor', cc: '#34507a' })], ['balloon', t.balloon()], ['balloon 青', t.balloon({ c: '#dce8ec', c2: '#3a6aa8' })], ['carpet', t.carpet()], ['carpet 青', t.carpet({ c: '#34507a', c2: '#e8d8a8', c3: '#a83a40' })], ['tile star', t.tile()], ['tile check', t.tile({ kind: 'check', c: '#3a9a8a' })], ['tile fan', t.tile({ kind: 'fan', c: '#3a68b0' })]]],
+    ['旗', [...['sun', 'moon', 'star', 'tree', 'crown', 'diamond', 'tower', 'anchor', 'wave'].map((k, i) => ['banner ' + k, t.banner({ crest: k, c: ['#c8453a', '#34507a', '#3f8a6a', '#e8e0d0', '#7a4a9a', '#e0a83a', '#4a8ab8', '#2a3a5a', '#3aa8a0'][i], c2: i === 3 ? '#3f8a6a' : i === 5 ? '#7a3a2a' : '#f0d070', cc: i === 3 ? '#3f8a6a' : i === 5 ? '#7a3a2a' : undefined, tail: ['swallow', 'point', 'flat'][i % 3] })]), ['banner wide', t.banner({ wide: true })], ['banner wide swallow', t.banner({ wide: true, tail: 'swallow', c: '#34507a', crest: 'star' })], ['banner wide point', t.banner({ wide: true, tail: 'point', c: '#3f8a6a', crest: 'tree', c2: '#f4f0e0' })]]],
+    ['かざり・切りぬき', [['glass', t.glass()], ['glass lit', t.glass({ lit: 1 })], ['glass rose', t.glass({ kind: 'rose' })], ['glass rose lit 青', t.glass({ kind: 'rose', lit: 1, cs: ['#3a78c8', '#6ab8e8', '#e8e0f0', '#8a58b8'] })], ['clock', t.clock()], ['grate', t.grate()], ['rail wood', t.rail()], ['rail iron', t.rail({ kind: 'iron' })], ['rail stone', t.rail({ kind: 'stone' })], ['rail rope', t.rail({ kind: 'rope' })], ['rope line', t.rope()], ['rope ladder', t.rope({ kind: 'ladder' })], ['rope net', t.rope({ kind: 'net' })], ['millsail', t.millsail()]]],
+    ['室内・小物', [['shelf mix', t.shelf()], ['shelf bottles', t.shelf({ kind: 'bottles' })], ['shelf books', t.shelf({ kind: 'books' })], ...t.fire().map((f, i) => ['fire ' + i, f]), ['straw', t.straw()], ['basket', t.basket()]]]];
+  const grid = document.getElementById('grid');
+  G.forEach(([name, list], gi) => { if (sel !== null && +sel !== gi) return; for (const [label, tx] of list) { const im = tx.image, cut = tx.userData.cut, one = cut && !label.match(/rail|grate|rope/) || label.match(/shelf|carpet|lacquer band|sail|clock/), rep = one ? 1 : 2, sc = Math.max(2, Math.floor(200 / (Math.max(im.width, im.height) * rep))), c = document.createElement('canvas'); c.width = im.width * rep; c.height = im.height * rep; const g = c.getContext('2d'); for (let y = 0; y < rep; y++) for (let x = 0; x < rep; x++) g.drawImage(im, x * im.width, y * im.height); c.style.width = c.width * sc + 'px'; c.style.height = c.height * sc + 'px'; const d = document.createElement('div'); d.className = 'c'; d.append(c); const s = document.createElement('span'); s.textContent = label; d.append(s); grid.append(d); } });
+}
+if (mode === 'parts') {
+  document.getElementById('grid').remove(); document.body.style.overflow = 'hidden';
+  const { scene, cam, renderer, onResize } = K.stage({ fov: 40, far: 600, aa: false }), raw = q.get('raw'), gi = +(sel || 0), t = F.tex, T = R.tex;
+  scene.add(R.skyDome([[0, '#4a78c8'], [.6, '#9cc4ec'], [1, '#e8f0f4']], { r: 300 })); scene.fog = new THREE.Fog('#cfe0ee', 60, 220);
+  K.lights(scene, renderer, { sky: 0xc8d8ff, ground: 0x9a8a7a, amb: 1.5, sun: 0xfff0d0, power: 2.6, pos: [-18, 26, 22], range: 34 });
+  scene.add(R.ground({ w: 90, d: 90, layers: [T.cobble(), T.grass()], mix: (x, z) => [Math.hypot(x, z) > 20 ? 1 : 0, 0] }).mesh);
+  const spin = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; scene.add(o); spin.push(o); return o; };
+  let cp = [0, 6, 16], look = [0, 2, 0];
+  if (gi === 0) { put(F.castle({ lit: .4 }), -9, -6); const g2 = put(F.gate({ door: 'wood', open: .5, arch: 'point', stone: '#c8b8a0' }), 13, 6, -.5); put(F.drawbridge({ open: .25 }), 13, 6, -.5).position.z += 1.5;
+    put(F.tower({ kind: 'square', h: 8, stone: t.ashlar({ c: '#8a92a6', moss: .4 }), roof: '#b8483a', flag: { c: '#34507a', crest: 'moon' } }), 21, 1); put(F.tower({ top: 'crenel', h: 6.5, r: 1.8, flag: { kind: 'pennant', c: '#3f8a6a' } }), 21, 9);
+    put(F.flag({ kind: 'banner', c: '#34507a', crest: 'star' }), 3, 9); put(F.flag({ kind: 'banner', c: '#3f8a6a', crest: 'tree', c2: '#f4f0e0' }), 5.5, 9); put(F.flag({ c: '#e0a83a', crest: 'crown', cc: '#7a3a2a', c2: '#7a3a2a' }), 8, 9); put(F.wall({ len: 8, h: 3.5 }), -4, 10, .3);
+    scene.add(F.bunting({ from: [-2, 5, 12], to: [9, 5.5, 12] })); cp = [4, 9, 34]; look = [3, 5, 0]; }
+  if (gi === 1) { put(F.clockTower({ flag: { c: '#34507a', crest: 'star' } }), -10, -3); put(F.windmill({}), -2, -3); put(F.arch({}), 6, -2); put(F.arch({ kind: 'point', w: 2, h: 3.4, stone: '#c8b8a0' }), 11, -2);
+    put(F.column({}), -12, 6); put(F.column({ kind: 'square', h: 3 }), -10.5, 6); put(F.column({ kind: 'east', h: 3.4 }), -9, 6); put(F.stairs({ rail: 'stone' }), -5, 6); put(F.stairs({ tex: T.planks(), rail: 'wood', w: 1.4, h: 2.6, d: 3 }), -1, 6, .6);
+    const hs = put(R.house({ w: 5, d: 4, h2: 2.6, wall: T.stone(), wall2: T.plaster({ frame: 'cross' }) }), 5, 6); const bc = F.balcony({ w: 2.4 }); bc.position.set(0, 2.9, 2.25); hs.add(bc); const bl = put(F.bell({}), 10, 6, 0, 2.4); put(F.spire({ r: 1.5, roof: '#b8483a' }), 13, 6);
+    cp = [0, 8, 26]; look = [0, 4, 0]; }
+  if (gi === 2) { put(F.eastHall({ lit: 1 }), -9, -2); put(F.eastHall({ tiers: 2, w: 6, d: 6, roof: '#4a7a68' }), 2, -3); put(F.torii({}), -9, 8); put(F.stoneLantern({ lit: 1 }), -5, 8); put(F.stoneLantern({}), -3.5, 8);
+    put(F.dome({}), 10, -5, 0, 0); put(F.dome({ kind: 'round', r: 2, c: '#e0b048', c2: '#f4e8c0' }), 16, -5); put(F.minaret({}), 12, 3); put(F.minaret({ h: 8, r: .8, c: '#b8483a', stone: '#e8d8c0' }), 16, 4); put(F.stairs({ w: 4, h: 1.6, d: 4, tex: t.sandstone() }), 5, 8);
+    cp = [3, 9, 28]; look = [3, 4, 0]; }
+// @@GROUPS@@
+  if (q.get('cam')) { const c = q.get('cam').split(',').map(Number); cp = c.slice(0, 3); look = c.slice(3, 6); }
+  const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+  K.loop((dt, tt) => { F.tick(tt); for (const o of spin) { if (q.get('spin') !== null) o.rotation.y = +q.get('spin'); o.userData.anim && o.userData.anim(tt); } cam.position.set(...cp); cam.lookAt(...look); if (raw) { renderer.setRenderTarget(null); renderer.render(scene, cam); } else crt.render(scene, cam, tt); });
+}
+</script>
+</html>
