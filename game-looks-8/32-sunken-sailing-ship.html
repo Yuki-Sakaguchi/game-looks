@@ -44,7 +44,7 @@ const an = putL(S.anchor({ s: 1.2 }), 2.6, 8.6, YAW, .1); an.rotation.z = -1.15;
 for (let i = 0; i < 14; i++) { const lx = i < 8 ? -4.5 - hash(i, 4) * 3 : 3.5 + hash(i, 4) * 3.5, lz = i < 8 ? -8 + hash(i, 5) * 6 : -10 + hash(i, 5) * 4; putL(S.kelp({ h: 5 + hash(i, 6) * 5, kind: i % 3 ? 'kelp' : 'ribbon', c: i % 2 ? '#7a9a3a' : '#5a9a5a', seed: i }), lx, lz); }
 for (let i = 0; i < 22; i++) { const a = i / 22 * 6.283 + hash(i, 7) * .3, r = 15 + hash(i, 8) * 12, x = Math.cos(a) * r, z = Math.sin(a) * r; if (i % 3 === 0) put(S.rock({ s: 1.2 + hash(i, 9) * 1.6, seed: i, c: '#8e8ca0' }), x, z, i, -.2); put(S.reef({ s: .9 + hash(i, 10) * .6, seed: i + 3, n: 5 }), x + 1.5, z + 1, i); }
 for (let i = 0; i < 46; i++) { const a = hash(i, 11) * 6.283, r = 8.5 + hash(i, 12) * 7, x = Math.cos(a) * r * .85, z = Math.sin(a) * r, k = i % 6; put(k < 3 ? S.seagrass({ s: .6 + hash(i, 13) * .5, c: '#4a9a7a', seed: i }) : k === 3 ? S.starfish({ c: ['#f0863a', '#e85a8a'][i % 2], s: 1.1 }) : k === 4 ? S.shell({ s: 1.2 }) : S.coral({ kind: ['brain', 'finger', 'branch'][i % 3], s: .6, seed: i }), x, z, i, .01); }
-const cl = S.cliff({ len: 90, h: 13, back: 10, c: '#6a78a8', seed: 3 }); cl.position.set(...toW(-30, 0)).applyAxisAngle; cl.position.set(toW(-30, 4)[0], -.5, toW(-30, 4)[1]); cl.rotation.y = YAW + Math.PI / 2; fixed.push(cl);
+const cl = S.cliff({ len: 90, h: 13, back: 10, c: '#6a78a8', seed: 3 }); cl.position.set(toW(-30, 4)[0], -.5, toW(-30, 4)[1]); cl.rotation.y = YAW + Math.PI / 2; fixed.push(cl);
 scene.add(R.merge(fixed));
 const gold = new THREE.PointLight('#ffd060', 7, 7, 1.6); gold.position.copy(chest.position); gold.position.y += 1.1; scene.add(gold);
 
@@ -55,7 +55,7 @@ add(S.school({ n: 60, rx: 4.2, rz: 4.2, h: 3, wide: 1.2, speed: 1.5, spread: 3.2
 add(S.school({ n: 26, kind: 'tang', rx: 3.4, rz: 2.4, h: 1.4, speed: -1.1, s: .75, spread: 2.4, seed: 4 })).position.copy(W(0, 6, -5.5));
 add(S.school({ n: 30, kind: 'butter', rx: 5, rz: 3, h: 1.2, speed: 1, s: .75, spread: 2, seed: 6 })).position.copy(W(7, 2.6, -3));
 add(S.ray({ s: 1.6 }), circ(new THREE.Vector3(1, 8.6, 1), 9, 7, .2, 4.1, .5));
-const oc = W(6.4, 0, 2.6); add(S.octopus({ s: 1.5 })).position.set(oc.x, H(oc.x, oc.z) + .02, oc.z); live[live.length - 1] = (f => t => { f(t); })(live[live.length - 1]); scene.children[scene.children.length - 1].rotation.y = YAW + 2.4;
+const oc = W(6.4, 0, 2.6), octo = add(S.octopus({ s: 1.5 })); octo.position.set(oc.x, H(oc.x, oc.z) + .02, oc.z); octo.rotation.y = YAW + 2.4;
 const gp = W(1.5, 1.05, 1.7), grouper = add(S.fish({ kind: 'grouper', s: .85 }), (o, t) => { o.position.set(gp.x + CY * Math.sin(t * .5) * .35, gp.y + Math.sin(t * .8) * .06, gp.z - SY * Math.sin(t * .5) * .35); }); grouper.rotation.y = YAW + 1.57;
 add(S.fish({ kind: 'angel', seed: 1 }), circ(W(.5, 3.6, .5), 1.8, 1.4, .6, 0, .2)); add(S.fish({ kind: 'angel', seed: 2, s: .85 }), circ(W(.5, 3.9, .3), 2, 1.5, .6, .5, .2)); add(S.fish({ kind: 'parrot', seed: 3 }), circ(W(0, 5.4, -5), 2.4, 1.8, -.45, 1, .3)); add(S.fish({ kind: 'clown', seed: 4 }), circ(W(.7, 4.9, -4.2), .6, .5, 1.4, 0, .1)); add(S.fish({ kind: 'clown', seed: 5, s: .8 }), circ(W(.7, 5.1, -4.2), .8, .6, -1.2, 2, .1));
 [['#f0a0d8', 1.1, 7, 9, 4], ['#8ae0f0', .8, 10, 7.5, -6], ['#f0a0d8', .7, 12, 10.5, 2], ['#c8a0f8', .9, -9, 8, 9]].forEach(([c, s, x, y, z], i) => add(S.jelly({ c, s, seed: i }), (o, t) => o.position.set(x + Math.sin(t * .15 + i) * 1.2, y + Math.sin(t * .25 + i * 2) * .8, z + Math.cos(t * .12 + i) * 1.2)));
