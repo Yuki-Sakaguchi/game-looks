@@ -1,1 +1,5 @@
 .DS_Store
+tools/node_modules/
+tools/out/
+tools/package.json
+tools/package-lock.json
