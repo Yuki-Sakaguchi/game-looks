@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-43 立入禁止の区画の、緑に光る炉 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8f4dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-43 ─ 立入禁止の区画の、緑に光る炉 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 下町のおくの、立入禁止の区画。鉄の広間のつき当たりに、炉のような大きな丸い機械があり、のぞき窓とつぎ目から緑の光がもれて、かべと床を緑にそめる。
+// 主役は防護服ふうの白い作業着とヘルメットの作業員。光のほうへ、ひとりで歩いていく。光る粒がゆっくり のぼる。
+// 色の組は「黒い鉄・緑の光」だけ（作業着の白が、緑の前の影絵になる）。機械は R.geo の輪つなぎ（loft）と pack-city の配管・タンクで作る。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 600, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ hairStyle: 'short', hair: '#2a2a2a', mouth: 'line', cloth: 'overall', sleeve: 'long', top: '#d4d8c4', top2: '#eef0e0', bottom: '#d4d8c4', shoes: 'boot', shoe: '#5a6a5e', gloves: 'gauntlet', glove: '#4a6a5a', hat: 'helm', gear: '#e6ead8', acc: '#e6ead8', back: 'pack', hold: 'case' }); scene.add(hero);
+const GREEN = '#58ff7a', FOG = '#0c1a12';
+const mood = D.mood(scene, renderer, 'abyss', { follow: hero, hills: false, shadow: false, r: 280, sky: ['#060c08', '#0a140e', FOG, '#12261a'], fog: [FOG, 9, 85], hemi: ['#6a9a80', '#141c18', .78], key: ['#8ac8a0', .4, [-.4, .8, .3]], fill: ['#2a4a3a', .3], base: [.46, .56, .5] });
+const RX = 27, HW = 9, HH = 15;   // 炉の x、広間のはばの半分、天井の高さ
+
+// ---- 床：鉄板。まん中に格子の通路。炉の緑を焼きこむ ----
+const LIT = [{ x: RX - 5, z: 0, r: 24, c: GREEN, k: 1.25 }, { x: RX - 4, z: 0, r: 9, c: '#b8ffc0', k: .9 }];
+const land = R.ground({ w: 90, d: 22, cell: 1, cx: 6, layers: [X.plate({ c: '#55625a', n: 4, rust: .5 }), X.tile({ c: '#66746a', c2: '#4a5850', check: 1 }), X.plate({ c: '#6a6a50', n: 2, warn: 1 })], mix: (x, z) => [Math.abs(z) < 1.5 ? 1 : 0, Math.abs(Math.abs(z) - 1.9) < .4 ? 1 : 0], shade: mood.shade(LIT) });
+scene.add(land.mesh);
+
+// ---- 広間：鉄板とコンクリートのかべ、柱、天井、はり ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, B = R.parts();
+const WT = [X.plate({ c: '#4e5c54', n: 2 }), X.conc({ c: '#6a766c' }), X.plate({ c: '#56645a', n: 2, warn: 1 }), X.tin({ c: '#4a5a54', rust: .7 })], rib = X.plate({ c: '#3e4a44', n: 1 });
+for (const s of [-1, 1]) for (let x = -34, i = 0; x < 38; x += 8, i++) { for (let y = 0; y < HH; y += 3) B.g(WT[y === 0 ? 2 : (i + (s > 0 ? 1 : 0) + (y > 6 ? 2 : 0)) % 4]).box(8, 3, 1, x + 4, y, s * (HW + .5), { m: 3, c0: 1, top: false }); B.g(rib).box(.9, HH, .7, x, 0, s * (HW - .25), { m: 3, top: false }); }
+for (let z = -HW; z < HW; z += 6) for (let y = 0; y < HH; y += 3) B.g(WT[(y / 3 + z / 6 + 9) % 2 | 0]).box(1, 3, 6, 37.5, y, z + 3, { m: 3, top: false });
+fixed.push(B.group());
+scene.add(C.ceiling({ w: 80, d: 24, y: HH, cx: 4, c: '#1c2a22', leak: 0, beams: 8 }));
+for (let x = -28; x < 20; x += 8) { const t = C.truss({ len: HW * 2, h: 1.4, w: 1, c: '#3a4a42' }); t.rotation.y = PI / 2; t.position.set(x, HH - 2.6, 0); fixed.push(t); }
+
+// ---- 炉：ふくらんだ鉄の つぼ（輪つなぎ）＋光る のぞき窓の帯＋正面の丸い窓＋台座＋太い配管とタンク ----
+const SLIT = (() => { const P = R.Px(16, 16); P.fill('#1c2a22'); for (let y = 2; y < 14; y++) for (let x = 3; x < 13; x++) { const k = 1 - Math.abs(y - 7.5) / 7; P.set(x, y, k > .7 ? '#e8ffe0' : k > .4 ? '#8cff98' : '#3cd060'); } P.rect(7, 2, 2, 12, '#1c2a22'); for (const [x, y] of [[1, 1], [14, 1], [1, 14], [14, 14]]) P.set(x, y, '#5a6a60'); return T.from(P, { m: 1 }); })();
+const PORT = (() => { const P = R.Px(32); P.clip = true; P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); if (d > 15.5) return null; if (d > 12.5) return (x + y) % 5 < 1 ? '#7a8a80' : '#34423a'; if (Math.abs(x - 15.5) < 1.2 || Math.abs(y - 15.5) < 1.2) return '#20302a'; return d < 5 ? '#f0fff0' : d < 9 ? '#a8ffb0' : '#4ce070'; }); return T.from(P, { m: 1, cut: true }); })();
+const shell = X.plate({ c: '#4e5e56', n: 2, rust: .6 }), glowMs = [];
+{ const core = R.geo().smooth(1).loft(12, [[0, 3.4, 3.4, 0, .6], [.9, 4.6, 4.6, .1, .8], [2.6, 5.4, 5.4, .25, 1], [4.4, 5.7, 5.7, .4, 1], [6.4, 5.7, 5.7, .55, 1], [8.4, 5.2, 5.2, .7, 1], [10.4, 3.9, 3.9, .85, .9], [11.6, 2.2, 2.2, .95, .8], [HH, 1.5, 1.5, 1.2, .7]], { ur: 8 }).mesh(shell); core.position.set(RX, 0, 0); fixed.push(core);
+  const band = R.geo().loft(12, [[4.7, 5.76, 5.76, 0], [6.1, 5.76, 5.76, 1]], { ur: 24 }).mesh(SLIT, { glow: true, fog: false }), band2 = R.geo().loft(12, [[9.0, 4.95, 4.95, 0], [9.7, 4.5, 4.5, 1]], { ur: 24 }).mesh(SLIT, { glow: true, fog: false }); for (const b of [band, band2]) { b.material = b.material.clone(); b.position.set(RX, 0, 0); b.castShadow = false; scene.add(b); glowMs.push(b.material); }
+  const port = R.geo().quad([0, -1.7, 1.7], [0, -1.7, -1.7], [0, 1.7, -1.7], [0, 1.7, 1.7]).mesh(PORT, { glow: true, fog: false, side: true }); port.material = port.material.clone(); port.position.set(RX - 5.62, 2.9, 0); port.castShadow = false; scene.add(port); glowMs.push(port.material);
+  const ring = R.geo().smooth(1).loft(12, [[0, 6.6, 6.6, 0, .7], [.5, 6.6, 6.6, .2, 1], [.5, 5.2, 5.2, .5, .9]], { ur: 10 }).mesh(X.plate({ c: '#5e5e48', n: 2, warn: 1 })); ring.position.set(RX, 0, 0); fixed.push(ring); }
+for (const s of [-1, 1]) { fixed.push(C.pipe([[RX - 2, 8.6, s * 4.6], [RX - 2, 8.6, s * 7.4], [RX - 2, HH, s * 7.4]], .62, { c: '#4a5e54', joint: 3, bend: .8 }), C.pipe([[RX - 3.6, 3.2, s * 4.4], [RX - 3.6, 3.2, s * 6.2], [RX - 12, 3.2, s * 6.2], [RX - 12, 3.2, s * 8.6]], .46, { c: '#5a5e48', joint: 3.5, bend: .7 }), C.pipe([[-34, 6.2, s * 8.3], [RX + 2, 6.2, s * 8.3]], .52, { c: '#4a5e54', joint: 5 }), C.pipe([[-34, 7.5, s * 8.5], [RX + 4, 7.5, s * 8.5]], .22, { c: '#6a6a54', joint: 4, band: '#c8d8c0' }), C.pipe([[-34, 1.1, s * 8.4], [RX - 8, 1.1, s * 8.4], [RX - 8, 1.1, s * 6]], .32, { c: '#56645a', joint: 4 }));
+  put(C.tank({ r: 1.5, h: 4.4, legs: .5, c: '#4e6258', ladder: true, seed: s + 2 }), RX - 9.2, s * 6.6, s > 0 ? PI : 0); put(C.tank({ r: 1.1, h: 3.2, legs: .5, c: '#5a5e48', seed: s + 5 }), RX - 15.5, s * 7.2); put(C.tank({ kind: 'h', r: .9, h: 3.6, c: '#4e6258' }), 2, s * 7.3); put(C.generator({ c: '#56645a' }), -7, s * 7.4, s > 0 ? PI : 0);
+  for (const x of [RX - 12, RX - 5, 9, 1]) { const v = C.valve({ r: .5, c: '#7a5a44' }); v.position.set(x - 1.5, 6.2, s * 8.3); fixed.push(v); } }
+
+// ---- 計器、警告の図形の札、フェンスと しま模様の さく、ドラムかん、くさり ----
+const WARN = (() => { const P = R.Px(32), M = R.ramp('#c8b040'); P.fill('#2a3430'); for (let y = 3; y < 29; y++) { const hw = (y - 3) * .5; for (let x = Math.ceil(15.5 - hw); x <= 15.5 + hw; x++) P.set(x, y, hw - Math.abs(x - 15.5) < 1.6 || y > 26 ? '#1c2420' : M[y < 14 ? 4 : 3]); } P.disc(15.5, 20, 4, '#1c2420'); P.disc(15.5, 20, 2, M[4]); for (let k = 0; k < 3; k++) { const a = -PI / 2 + k * 2 * PI / 3; P.line(15.5 + Math.cos(a) * 5, 20 + Math.sin(a) * 5, 15.5 + Math.cos(a) * 7, 20 + Math.sin(a) * 7, '#1c2420'); } return T.from(P, { m: 1 }); })();
+{ const G = R.geo(); for (const [x, s] of [[4, -1], [12, 1], [18.5, -1], [-4, 1]]) G.quad([x - s * .6, 1.5, s * (HW - .62)], [x + s * .6, 1.5, s * (HW - .62)], [x + s * .6, 2.7, s * (HW - .62)], [x - s * .6, 2.7, s * (HW - .62)]); const m = G.mesh(WARN, { side: true }); fixed.push(m); }
+for (const [x, s] of [[7, -1], [7.8, -1], [15, 1], [15.8, 1], [16.6, 1], [RX - 7.2, -1], [RX - 6.4, 1]]) put(C.meter({ r: .3 }), x, s * (Math.abs(x - RX) < 8 ? 3.4 : HW - .75), s < 0 ? 0 : PI, Math.abs(x - RX) < 8 ? .2 : 1.3);
+for (const s of [-1, 1]) { put(C.fence({ len: 6, h: 2.2, c: '#6a7a70' }), 8, s * 4.2); put(C.fence({ len: 6, h: 2.2, c: '#6a7a70', seed: 2 }), 14.2, s * 4.2).rotation.x = s * .12; }
+{ const G = R.geo(); for (const s of [-1, 1]) { G.box(3.4, .9, .3, 10.6, 0, s * 3.2, { m: 2 }); G.box(.3, .9, 2.2, RX - 8.8, 0, s * 2.9, { m: 2 }); } fixed.push(G.mesh(X.plate({ c: '#8a8448', n: 1, warn: 1 }))); }
+put(C.drum({ c: '#5a6a48', mark: 'diamond' }), 5.2, 3.3); put(C.drum({ c: '#5a6a48', mark: 'diamond' }), 5.9, 3.7); put(C.drum({ c: '#4e6258', mark: 'band', h: .8 }), 12.5, -3.6); put(R.crate({ s: .7, c: '#6a6a58' }), 17.6, 3.9, .3); put(C.scrap({ s: 1.3, seed: 2, cs: ['#4e6258', '#5a5e48', '#6a766c'] }), -2, -5.5); put(C.tires({ n: 2 }), 3, -4.4);
+scene.add(R.merge(fixed));
+for (const [x, z, l] of [[6, -2.6, 4.5], [10, 3, 6], [14.5, -3.6, 5], [18, 2.4, 7], [20.5, -1.8, 4], [2, 3.4, 5.5]]) { const c = D.chain({ len: l, sway: .05, seed: x }); c.position.set(x, HH - 1.3, z); scene.add(c); }
+
+// ---- 緑の光：にじみ、かべ・床の輪、ぬれた床の映りこみ、上へもれる光のすじ、のぼる光の粒、足もとの もや ----
+const halo = D.halo({ c: GREEN, r: 8.5, k: .42 }); halo.position.set(RX - 6.2, 3.4, 0); scene.add(halo);
+scene.add(D.pools([...[-1, 1].flatMap(s => [{ p: [RX - 6, 4.5, s * (HW - .02)], n: [0, 0, -s], r: 8, r2: 6, c: GREEN, k: .32 }, { p: [RX - 16, 3.5, s * (HW - .02)], n: [0, 0, -s], r: 6, r2: 4.5, c: GREEN, k: .16 }]), { p: [RX - 7.5, .03, 0], r: 6, c: '#a8ffb8', k: .34 }]), D.streaks([{ x: RX - 5.6, z: 0, h: 3, c: GREEN, k: .9, w: 2.6, len: 9 }, { x: RX - 5, z: 3, h: 5.4, c: GREEN, k: .5, w: 1.2 }, { x: RX - 5, z: -3, h: 5.4, c: GREEN, k: .5, w: 1.2 }], { far: 60 }));
+for (const [x, z, h, l] of [[RX - 4.2, 2.6, 10, .6], [RX - 4.6, -2.2, 11, -.5], [RX - 2.5, 4.4, 9, .9]]) { const s = D.shaft({ w: 2.2, h, c: GREEN, a: .17, lean: [-1.5, l] }); s.position.set(x, 5.4, z); scene.add(s); }
+scene.add(D.flakes({ kind: 'ember', n: 240, c: '#9cffa8', box: [22, 11, 15], vy: .55, size: 1.5 }), D.groundFog({ n: 26, box: [34, 16], c: '#78d890', a: .16, h: 1.2, w: 6, wind: [-.3, .05] }));
+const jet = C.steam({ dir: [-.4, 1, 0], jet: .5, rise: 2.6, r: .55, n: 8, speed: .35, spread: .4, c: '#a8f0b8', a: .32 }); jet.position.set(RX - 8, 1.3, 6); scene.add(jet);
+const glow = new THREE.PointLight(GREEN, 260, 34, 1.3), front = new THREE.PointLight('#a0ffb0', 9, 9, 1.4), back = new THREE.PointLight('#c8d8d0', 5, 6, 1.4); glow.position.set(RX - 7, 3.6, 0); scene.add(glow, front, back);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const SPEED = 1.25, SPAN = 15, XS = 1, J = hero.userData.J;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = XS + d, z = Math.sin(x * .25) * .35, tall = innerWidth < innerHeight, Dc = tall ? 4 : 5;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .25) * .08; R.walk(hero, t * SPEED * 3.7, .75);
+  const pu = .82 + .18 * Math.sin(t * 1.5) + .05 * Math.sin(t * 7.3);   // 炉の光は ゆっくり脈を打つ
+  glow.intensity = 260 * pu; halo.material.opacity = .42 * pu; for (const m of glowMs) m.color.setScalar(.75 + .25 * pu);
+  front.position.set(x + 2.2, 2.2, z); back.position.set(x - 1.4, 2.2, z + .5);
+  cam.position.set(x - Dc, tall ? 2 : 1.55, z * .5 + .9); cam.lookAt(x + 6, tall ? 3 : 3.3, z * .3 - .4);   // 低い所から見上げて、主役の全身と炉を 1 枚に入れる
+  crt.u.bright.value = 1.1 * Math.min(1, d / .5, (SPAN - d) / .5);
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
