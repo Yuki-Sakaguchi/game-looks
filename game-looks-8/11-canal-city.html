@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-11 運河の水の都 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-11 ─ 運河の水の都 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動でこぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の水の都。青緑の運河の両がわに、もも色・黄色・白のかべの家と店がならび、石の太鼓橋がかかる。水の上には せんたく物のひも、岸には街灯と花。
+// 色の組は「水の青緑・家のもも色と黄色と白・屋根のだいだい」＋差し色は こぎ手のえりまきと くいの赤。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役はゴンドラのこぎ手（R.actor の toon。むぎわら帽子）。船のうしろに立ってこぎ、運河をゆっくり進む。うしろからカメラが追い、橋を 3 つくぐったら手前へもどる。運河・橋・ゴンドラは pack-fantasy-town.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#3a88d8'], [.5, '#7cc0ec'], [.85, '#b8e4f2'], [1, '#e4f4f0']], { r: 400 })); scene.fog = new THREE.Fog('#c4e4ee', 70, 280);
+const { sun } = K.lights(scene, renderer, { sky: 0xd0e8ff, ground: 0xb8d8c8, amb: 1.4, sun: 0xfff4d8, power: 2.4, range: 34 }), SUN = new THREE.Vector3(-.5, .72, .34).normalize();
+
+// ---- 地面：岸の敷石（水ぎわは れんがの帯）。運河の所は下げて、F.canal の石がきと水を置く ----
+const CW = 7.6, WY = -1.4 * .45, EDGE = CW / 2 + 1.2, Z0 = 36, Z1 = -86, mod = (a, n) => ((a % n) + n) % n;
+const land = R.ground({ w: 110, d: 150, cell: 1, cz: -30, H: (x, z) => Math.abs(x) < EDGE - .5 && z > Z1 + .5 ? -2.4 : 0, layers: [T.cobble({ kind: 'slab', c: '#d6cab2' }), T.brickFloor({ c: '#c88c6a' })], mix: (x, z) => [Math.abs(x) < EDGE + 1.2 || (Math.abs(x) < 12 && z < Z1) ? 1 : 0, 0] }); scene.add(land.mesh);
+const canal = F.canal({ len: Z0 - Z1, w: CW, depth: 1.4, stone: F.tex.ashlar({ c: '#c4b8a4', moss: .5 }), water: '#35a8a2' }); canal.position.set(0, 0, (Z0 + Z1) / 2); scene.add(canal);
+// 水の照り返し（手で打った白いすじの切りぬきを、水の上で少しずつ流す）
+const glintT = (() => { const P = R.Px(64); P.clip = false; for (let k = 0; k < 26; k++) { const x = Math.floor(hash(k, 1) * 64), y = Math.floor(hash(k, 2) * 64), n = 2 + Math.floor(hash(k, 3) * 5); for (let i = 0; i < n; i++) P.set(x + i, y, i === 0 || i === n - 1 ? '#bff2ea' : '#ffffff'); if (k % 3 === 0) P.set(x + 1, y + 1, '#bff2ea'); } return T.from(P, { m: 3, cut: true }); })();
+const glints = [0, 1].map(j => { const tx = j ? glintT.clone() : glintT, G = R.geo().normal([0, 1, 0]); tx.needsUpdate = true; for (let z = Z1; z < Z0; z += 4) G.quad([-CW / 2, WY + .02 + j * .01, z + 4], [CW / 2, WY + .02 + j * .01, z + 4], [CW / 2, WY + .02 + j * .01, z], [-CW / 2, WY + .02 + j * .01, z], [j * .37, (z + 4) / 3 + j * .5, CW / 3 + j * .37, z / 3 + j * .5]);
+  const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: tx, alphaTest: .5 })); scene.add(m); return tx; });
+
+// ---- 家と店：もも色・黄色・白・だいだいのかべを 6 通り。2 階だてで、よろい戸と花の箱 ----
+const roofA = T.roof({ c: '#cc6c3e' }), roofB = T.roof({ kind: 'wave', c: '#b85a3a' }), wS = T.window({ shutters: 1, box: 1 }), wA = T.window({ h: 48, arch: 1, bars: 'grid' }), wC = T.window({ curtain: '#f8f0e0', box: 1 }), pl = c => T.plaster({ frame: 'none', c });
+const KIND = [
+  { w: 6.4, d: 6, h: 3.2, h2: 3, wall: pl('#f0a498'), roof: roofA, win: wS, door: T.door({ arch: 1, c: '#4a7a6a' }), awning: T.fabric({ scallop: 1, c: '#f4ecd8', c2: '#3f9a94' }) },
+  { w: 5.6, d: 6, h: 3.4, h2: 3.6, wall: pl('#f2cc70'), roof: roofB, ridge: 'z', win: wA, door: T.door({ style: 'panel', c: '#8a4a3a' }), sign: T.sign({ kind: 'bread' }) },
+  { w: 6.8, d: 6, h: 3, h2: 2.8, wall: pl('#f8f0e2'), roof: roofA, win: wC, door: T.door({ c: '#3f6a9a' }), chimney: true, awning: T.fabric({ scallop: 1, c: '#d8584a' }) },
+  { w: 5.4, d: 6, h: 3.4, h2: 3.2, jut: .2, wall: pl('#f2b488'), roof: roofB, win: wS, door: T.door({ arch: 1, c: '#6a4a34' }), sign: T.sign({ kind: 'mug' }) },
+  { w: 6.2, d: 6, h: 3.2, h2: 3.4, wall: pl('#f6e2b0'), roof: roofA, ridge: 'z', win: wC, door: T.door({ style: 'panel', c: '#4a7a6a' }), sign: T.sign({ kind: 'potion' }) },
+  { w: 6, d: 6, h: 3.2, h2: 2.6, wall: pl('#eca8b0'), roof: roofB, win: wA, door: T.door({ c: '#8a4a3a' }), awning: T.fabric({ scallop: 1, c: '#e8b040' }) }];
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, HX = 10.6;
+for (const sx of [-1, 1]) { let z = 30, i = sx > 0 ? 3 : 0; while (z > Z1 - 2) { const q = KIND[i % 6]; put(R.house({ ...q, seed: i }), sx * (HX + q.d / 2), z - q.w / 2, -sx * Math.PI / 2); z -= q.w + .15; i++; } }
+// つきあたりの白い会堂と丸いドーム、左の時計塔
+const hall = put(R.house({ w: 22, d: 12, h: 5, h2: 4, wall: pl('#f8f0e2'), roof: pl('#e8dcc4'), roofKind: 'flat', win: wA, door: T.door({ arch: 1, c: '#8a4a3a' }), seed: 9 }), 0, Z1 - 15); put(F.dome({ kind: 'round', r: 5.6, c: '#c87a58', c2: '#f4e4b8' }), 0, Z1 - 15, 0, hall.userData.top - .3);
+put(F.clockTower({ w: 4, h: 19, stone: T.brick({ c: '#d89a78' }), roof: '#c8683c' }), -20.5, -40, Math.PI / 2);
+
+// ---- 橋 3 つ、街灯、花、くい、つないだ小舟、せんたく物 ----
+const BRIDGE = [-12, -44, -76]; for (const z of BRIDGE) put(F.bridge({ span: CW, w: 2.8, rise: 1.9, stone: F.tex.ashlar({ c: '#d8ccb8' }) }), 0, z);
+for (let z = 26; z > Z1; z -= 8) { const sx = (z / 8) & 1 ? 1 : -1; if (BRIDGE.some(b => Math.abs(b - z) < 3)) continue; put(R.lamp({ h: 2.9 }), sx * (EDGE + .5), z); put(R.tuft({ kind: 'flower', s: .8, seed: z & 3 }), -sx * (EDGE + .5), z + 1, z); put(R.tree({ kind: 'bush', h: .9, flowers: .7, fc: ['#f7a8c4', '#ffffff', '#f2d24a'], seed: z }), -sx * (HX - .6), z - 2.5); }
+[[7.6, 20, 0], [-7.8, 8, 1], [7.4, -3, 2], [-7.6, -24, 0], [7.8, -31, 1], [-7.4, -56, 2], [7.6, -62, 0]].forEach(([x, z, k], i) => { if (k === 0) { put(R.barrel(), x, z, i); put(R.crate({ s: .6, kind: 'x', c: '#8a9a6a' }), x, z + .9, .4); } if (k === 1) put(R.bench(), x, z, x > 0 ? -Math.PI / 2 : Math.PI / 2); if (k === 2) put(R.stall({ c: ['#d8584a', '#3f9a94'][i % 2], fc: ['#f7a8c4', '#f2d24a', '#ffffff'] }), x + Math.sign(x) * .8, z, x > 0 ? -Math.PI / 2 : Math.PI / 2); });
+const poleT = T.fabric({ pattern: 'stripe', c: '#d8483a', c2: '#f8f0e2', m: .6 }), POLES = [[3.3, 14], [3.3, 11], [-3.3, 2], [-3.3, -1], [3.3, -24], [3.3, -27], [-3.3, -36], [-3.3, -60], [3.3, -57], [3.3, -66]];
+{ const G = R.geo().smooth(1), Gt = R.geo(); for (const [x, z] of POLES) { G.loft(6, [[-2.2, .1, .1, 0, .8, x, z], [1.5, .1, .1, 5, 1, x, z]]); Gt.loft(6, [[1.5, .13, .13, 0, .9, x, z], [1.62, .13, .13, .2, 1.1, x, z], [1.8, .02, .02, .5, 1.1, x, z]]); } fixed.push(G.mesh(poleT), Gt.mesh(F.tex.ornate())); }
+[[3.05, 12.5, '#3f7ab0'], [-3.05, .5, '#c8583a'], [3.05, -25.5, '#e0b040'], [-3.05, -58.5, '#3f9a94']].forEach(([x, z, c], i) => put(R.boat({ c, sail: false }), x, z, i % 2 ? 0 : Math.PI, WY - .16));
+scene.add(R.merge(fixed));
+// せんたく物（ひも＋ぶらさがる布。風でゆれる）
+const LAUNDRY = [[3, 5.6], [-28, 6], [-60, 5.6], [-35, 5.2]].map(([z, y], li) => { const B = R.parts(), Rp = B.g(F.tex.rope(), { side: true }), n = 8, sag = u => -Math.sin(u * Math.PI) * .7;
+  for (let i = 0; i < n; i++) { const u0 = i / n, u1 = (i + 1) / n, x0 = -HX + u0 * HX * 2, x1 = -HX + u1 * HX * 2; Rp.quad([x0, sag(u0) - .03, 0], [x1, sag(u1) - .03, 0], [x1, sag(u1) + .03, 0], [x0, sag(u0) + .03, 0], [0, 0, 3, 1]);
+    if (i > 0 && i < n - 1) { const c = ['#f8f4ec', '#f2a8b4', '#8ac0e0', '#f4d870', '#f8f4ec', '#e0705a'][(i + li * 2) % 6], w = .9 + hash(i, li) * .5, h = .8 + hash(i, li + 5) * .7, xm = (x0 + x1) / 2, ym = sag((u0 + u1) / 2); B.g(T.fabric({ pattern: (i + li) % 3 ? 'plain' : 'stripe', c, c2: '#f8f4ec' }), { side: true }).normal([0, .3, 1]).quad([xm - w / 2, ym - h, .04], [xm + w / 2, ym - h, .04], [xm + w / 2, ym, 0], [xm - w / 2, ym, 0], [0, 0, 1, 1], [.84, .84, 1, 1]); } }
+  const g = B.group(); g.traverse(q => { q.castShadow = false; }); g.position.set(0, y, z); scene.add(g); return g; });
+scene.add(R.backdrop({ c: '#7aa8b8', haze: '#e4f2f0', r: 320, h: 40, y: -4, rep: 3 }));
+for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 40 + hash(i, 8) * 30, c: '#ffffff', shade: '#bcdcec', seed: i }), a = i * .8 + .3; c.position.set(Math.cos(a) * 260, 60 + hash(i, 9) * 50, Math.sin(a) * 260 - 30); c.lookAt(0, 30, -20); scene.add(c); }
+
+// ---- ゴンドラ 2 そうと人・かもめ（人は 5 頭身の toon。どれもこの場面のためのオリジナル） ----
+const mk = o => R.actor({ build: 'toon', ...o }), act = (o, x, z, ry, y = 0) => { const p = mk(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const rowPose = (p, s) => { const J = p.userData.J; J.armL.rotation.set(-.75 - s * .35, 0, -.34); J.armR.rotation.set(-.75 - s * .35, 0, .34); J.foreL.rotation.x = J.foreR.rotation.x = -.85 + s * .3; J.torso.rotation.x = .1 + s * .1; };
+const boatOf = (o, who) => { const g = F.gondola(o), [sx, sy, sz] = g.userData.stand; who.position.set(sx - .1, sy, sz); g.add(who); scene.add(g); return g; };
+const hero = mk({ hairStyle: 'short', hair: '#5a3a2a', eye: '#3a7a8a', mouth: 'smile', cloth: 'vest', top: '#f6f0e2', top2: '#3f6a9a', lower: 'baggy', bottom: '#34507a', belt: '#d8483a', shoes: 'shoe', shoe: '#5a4030', neck: 'scarf', acc: '#d8483a', skin: '#e0a878' }); F.wear(hero, 'strawHat', { c2: '#d8483a' });
+const gondola = boatOf({ c: '#2e2a38', c2: '#c8403a' }, hero);
+const rower2 = mk({ sex: 'f', hairStyle: 'tail', hair: '#2a2a34', mouth: 'smile', cloth: 'tunic', top: '#3f9a94', top2: '#f6f0e2', bottom: '#5a4a5a', shoes: 'shoe', shoe: '#5a4030' }); F.wear(rower2, 'strawHat', { c2: '#3f9a94', wide: true });
+const gondola2 = boatOf({ c: '#5a3a2a', c2: '#3f7ab0', trim: '#d8c8a0' }, rower2);
+const rider = mk({ sex: 'f', hairStyle: 'bun', hair: '#c8843a', mouth: 'smile', blush: true, cloth: 'tunic', top: '#f2a8b4', top2: '#f8f0e0', lower: 'skirt', skirt: .7, shoes: 'shoe', shoe: '#6a4630' }); { const D = rider.userData.build; rider.position.set(0, .56 - (D.thigh + D.shin + (D.foot || 0)), .75); gondola2.add(rider); }
+const WALK = [{ hairStyle: 'spiky', hair: '#8a3a2a', cloth: 'jacket', top: '#e0b040', top2: '#f4f0e8', bottom: '#5a4a3a', back: 'pack' }, { sex: 'f', hairStyle: 'long', hair: '#3a2a30', mouth: 'smile', cloth: 'tunic', top: '#d8584a', top2: '#f8f0e0', lower: 'skirt', skirt: .75, skirtC: '#f4ecd8', shoes: 'shoe' }, { s: .76, hairStyle: 'tufts', hair: '#d8b060', mouth: 'open', cloth: 'vest', top: '#3f7ab0', top2: '#f4f0e8', lower: 'shorts', bottom: '#6a5a48', shoes: 'shoe', shoe: '#c8453a' }].map(o => act(o, 0, 0, 0)); F.wear(WALK[1], 'basket');
+const fisher = act({ hairStyle: 'bald', hair: '#e8e8e8', beard: 'beard', eyes: 'closed', cloth: 'overall', top: '#6a8a9a', top2: '#f0e8d8', shoe: '#5a4030' }, 7.2, -4.6, -Math.PI / 2), onBridge = act({ sex: 'f', hairStyle: 'bob', hair: '#8a5a3a', mouth: 'smile', blush: true, cloth: 'tunic', top: '#f4d870', top2: '#f8f0e0', lower: 'skirt', skirt: .7, skirtC: '#3f9a94', shoes: 'shoe' }, 1.2, BRIDGE[0] + .9, 0, 2.3);
+const cat = R.cat({ c: '#e8e4dc', plain: 1 }); cat.position.set(-EDGE - .1, 0, -20); cat.rotation.y = Math.PI / 2; scene.add(cat);
+const gulls = [0, 1, 2, 3, 4].map(i => { const b = R.bird({ c: '#f8f6f0', belly: '#ffffff', neck: false, s: 1.5 }); scene.add(b); return b; }), perch = [[3.3, -24], [-3.3, -36], [3.3, -57]].map(([x, z], i) => { const b = R.bird({ c: '#f8f6f0', belly: '#ffffff', neck: false, s: 1.2 }); b.position.set(x, 1.8, z); b.rotation.y = i * 2 + 1; scene.add(b); return b; });
+
+// ---- 進む：運河の右よりを まっすぐ。橋を 3 つくぐったら手前へもどる ----
+const START = 22, RUN = START - (Z1 + 5), SPEED = 1.7, cp = new THREE.Vector3(), fx = K.fx(scene, 60);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let sp = 0;
+K.loop((dt, t) => {
+  const dist = mod(t * SPEED + 3, RUN), z = START - dist, x = 1.45 + Math.sin(z * .08) * .25, s = Math.sin(t * 1.9), hy = WY - .1 + Math.sin(t * 1.1) * .03;
+  gondola.position.set(x, hy, z - 2.1); gondola.rotation.set(0, Math.PI + Math.cos(z * .08) * .02, Math.sin(t * .9) * .025); R.idle(hero, t, Math.sin(t * .4) * .25); rowPose(hero, s); gondola.userData.oar.rotation.x = s * .3;
+  const tall = innerWidth < innerHeight, D = tall ? 3.7 : 4.6; cp.set(x - .9, WY + (tall ? 2.25 : 2.35), z + D); cam.position.copy(cp); cam.lookAt(x - .7, WY + (tall ? 1.75 : 1.6), z - 6);   // 少し左へよせて、運河のまん中と両岸を見せる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  // 向こうから来るゴンドラ、岸を歩く人、橋の上の人、つり人、ねこ、かもめ
+  const z2 = Z1 + 6 + mod(t * 1.3 + 44, 110), s2 = Math.sin(t * 1.7 + 1); gondola2.position.set(-1.8, WY - .1 + Math.sin(t * 1.2 + 2) * .03, z2); gondola2.rotation.z = Math.sin(t * .8 + 1) * .025; R.idle(rower2, t + 1, 0); rowPose(rower2, s2); gondola2.userData.oar.rotation.x = s2 * .3;
+  R.idle(rider, t + 2, Math.sin(t * .5) * .5); rider.userData.J.legL.rotation.x = rider.userData.J.legR.rotation.x = -1.5; rider.userData.J.shinL.rotation.x = rider.userData.J.shinR.rotation.x = 1.4;
+  WALK.forEach((w, i) => { const v = [1.3, 1.1, 2.4][i], sx = i === 1 ? -1 : 1, wz = i === 1 ? Z1 + 8 + mod(t * v + 60, 100) : 24 - mod(t * v + 14 + i * 30, 100); w.position.set(sx * (9.5 - (i === 2 ? .5 : 0)), 0, wz); w.rotation.y = i === 1 ? 0 : Math.PI; R.walk(w, t * v * 4 + i, i === 2 ? 1.2 : .8); });
+  R.idle(fisher, t, Math.sin(t * .3) * .2); fisher.userData.J.armR.rotation.x = -1.1 + Math.sin(t * .8) * .1; R.idle(onBridge, t + 3, Math.sin(t * .5) * .4); onBridge.userData.J.armR.rotation.x = -2.4 - Math.sin(t * 5) * .3; R.catPose(cat, 'sit', t);
+  gulls.forEach((b, i) => { const a = t * (.3 + i * .04) + i * 1.9, r = 5 + i * 2.2; b.position.set(Math.cos(a) * r * .8, 7 + i * 1.3 + Math.sin(t * .7 + i) * 1.1, z - 16 - i * 5 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a) * .8, Math.cos(a)); R.birdPose(b, 'fly', t * .5 + i); }); perch.forEach((b, i) => R.birdPose(b, 'stand', t + i));
+  // 水・旗・時計、照り返し、せんたく物、かいの水しぶき
+  F.tick(t); glints[0].offset.set(Math.sin(t * .5) * .12, t * .03); glints[1].offset.set(-Math.sin(t * .4 + 1) * .15, -t * .02); LAUNDRY.forEach((g, i) => { g.rotation.x = Math.sin(t * 1.3 + i * 2) * .12 + .05; });
+  if ((sp += dt) > .16) { sp = 0; fx.emit('splash', x - .75 + Math.random() * .2, WY + .1, z + .6 + Math.random() * .6, { size: .4, life: .6, vy: .3, grow: .8 }); fx.emit('splash', -2.5, WY + .1, z2 - 2.6, { size: .35, life: .6, vy: .3, grow: .8 }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
