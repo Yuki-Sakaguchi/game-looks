@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-30 沈んだ潜水艦 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8e8e0;opacity:.85;text-shadow:0 1px 0 #021}
+</style>
+<div id="cap">9-30 ─ 沈んだ潜水艦 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（葉巻形の船体・司令塔・スクリュー・たこ・ヘルメットのダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 深い海の底に、かたむいて横たわる さびた潜水艦。色は 水と鉄の暗い緑青・さびの赤茶・ライトの白。鉄板とリベットの絵に、ふじつぼと も をのせてある。
+// 黄色い服のダイバーが、船のまわりを回りながら、白いサーチライトで船体をなめる。司令塔には、消えかけの赤い灯がひとつ。海草、小魚の群れ、たこ、えい。
+// 水の中の光は S.underwater（'deep' を暗い緑へ上書き）。潜水艦はこのページで R.geo() から作る（鉄板の絵は pack-city、ふじつぼは pack-sea の S.crust）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), { hash, TR, tn } = R, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const env = S.underwater(scene, renderer, { depth: 'deep', top: 40, surface: false, rays: 6, range: 30, hi: '#28787c', mid: '#12424a', low: '#04161a', fog: '#0b2e34', near: 4, far: 54, amb: 1.25, sky: 0x9cc8c8, ground: 0x486460, sun: 0xb0d8d4, power: .8, ray: '#7ad8d0', rayA: .16, motes: 120 }), sun = env.sun;
+
+// ---- 海底：暗い砂と岩。潜水艦の下は少しくぼみ、まわりに砂がもり上がる ----
+const H = (x, z) => .5 * Math.sin(x * .16 + 1) * Math.cos(z * .13) + .28 * Math.sin(x * .4 + z * .33) + 1.1 * Math.exp(-((Math.abs(x) - 5) ** 2) / 6) * (Math.abs(z) < 24 ? 1 : Math.exp(-((Math.abs(z) - 24) ** 2) / 8));
+const bed = S.seabed({ env, w: 130, d: 130, cell: 2, H, caustic: 0, layers: [S.tex.sand({ c: '#8ca89c' }), S.tex.grown({ base: 'rock', o: { c: '#5a7a78' }, grow: .7, algae: '#3a8a6a', seed: 2 })], mix: (x, z) => [Math.sin(x * .21 + 2) * Math.cos(z * .18) > .3 ? 1 : 0, 0] }); scene.add(bed.mesh);
+
+// ---- 潜水艦（長さ 44 m。船首 +z）。鉄板とリベットの絵に、さびを多めにして、ふじつぼ・も をのせる ----
+// さび：大きなしみ（赤茶の 3 段）と、板のつぎ目から下へたれる すじ を、鉄板の絵に打ち足す
+const RUSTC = ['#54302a', '#74402c', '#8e5638'], rust = (P, k, sd) => P.each((x, y, c) => { const n = tn(x, y, 16, 16, 64, 64, sd + 11) + tn(x, y, 6, 6, 64, 64, sd + 12) * .35, st = tn(x, 0, 3, 3, 64, 4, sd + 13) > .62 && (y % 32) < 6 + hash(x, sd) * 16; if (n > 1.12 - k * .5) return RUSTC[(hash(x, y, sd) * 2.2 | 0) + (n > 1.2 - k * .5 ? 0 : 0)]; if (st && (x + y) & 1) return RUSTC[1]; if (st) return RUSTC[0]; });
+const hullT = R.tex.from(S.crust(rust(C.paint.plate({ c: '#5c9a90', n: 2, rust: .5, seed: 1 }), .6, 1), { grow: .4, algae: '#3c9070', seed: 1 }), { m: 3 }), towerT = R.tex.from(S.crust(rust(C.paint.plate({ c: '#6aa498', n: 4, rust: .4, seed: 2 }), .7, 2), { grow: .45, from: 'top', algae: '#3c9070', seed: 2 }), { m: 3 });
+const finT = R.tex.from(S.crust(C.paint.plate({ c: '#8a6a58', n: 2, rust: .9, seed: 3 }), { grow: .35, seed: 3 }), { m: 3 }), pipeT = C.tex.pipe({ c: '#7a9088' });
+const sub = new THREE.Group(), LZ = TR(0, 0, 0, 0, PI / 2, 0);
+{ const G = R.geo().smooth(1).at(LZ), RR = [[-22, .3], [-20.6, 1], [-17.5, 1.9], [-12, 2.8], [-5, 3.3], [6, 3.4], [13, 3.2], [18, 2.6], [20.8, 1.6], [22, .4]];
+  G.loft(10, RR.map(([z, r], i) => [z, r, r, z / 3, i < 2 || i > 7 ? .85 : 1]), { cap: 'both', ur: 6 }); G.at(null); sub.add(G.mesh(hullT));
+  const T2 = R.geo().smooth(1), tw = [[2.6, 1.3, 3.7], [4.6, 1.2, 3.5], [7.3, 1.05, 3.1], [7.9, .8, 2.6]];   // 司令塔（上から見て だ円）
+  T2.loft(8, tw.map(([y, rx, rz], i) => [y, rx, rz, y / 3, .9 + i * .05, 0, 3]), { cap: 'top', ur: 4 });
+  T2.at(TR(0, 6.4, 3.8, 0, 0, PI / 2)).loft(4, [[-2.6, .09, .5, 0, .9], [0, .1, .7, .7, 1], [2.6, .09, .5, 1.4, .9]], { cap: 'both' }).at(null);   // 司令塔の小さなつばさ
+  sub.add(T2.mesh(towerT));
+  const F = R.geo().smooth(1);   // 船尾のかじ（たて・よこ）と、船首のつばさ
+  F.loft(4, [[-3.4, .08, .5, 0, .8, 0, -18.8], [-1.6, .14, 1.1, .6, .95, 0, -18.4], [1.6, .14, 1.1, 1.6, 1, 0, -18.4], [3.4, .08, .5, 2.2, 1, 0, -18.8]], { cap: 'both' });
+  F.at(TR(0, 0, -18.4, 0, 0, PI / 2)).loft(4, [[-3.6, .08, .5, 0, .85, 0, -.4], [-1.6, .14, 1.1, .6, 1], [1.6, .14, 1.1, 1.6, 1], [3.6, .08, .5, 2.2, .85, 0, -.4]], { cap: 'both' });
+  F.at(TR(0, .5, 15.2, 0, 0, PI / 2)).loft(4, [[-4.6, .07, .45, 0, .85], [-2.6, .12, .8, .6, 1], [2.6, .12, .8, 1.8, 1], [4.6, .07, .45, 2.4, .85]], { cap: 'both' }).at(null);
+  F.at(LZ).loft(6, [[-23.3, .12, .12, 0, .8], [-22.6, .5, .5, .3, 1], [-21.8, .55, .55, .6, .9]], { cap: 'both' }).at(null);   // スクリューの軸
+  sub.add(F.mesh(finT));
+  const B = R.geo();   // スクリューの羽根 4 枚（ねじれた板。止まっている）
+  for (let k = 0; k < 4; k++) { const a = k * PI / 2 + .4, c = Math.cos(a), s = Math.sin(a), P = (r, w, dz) => [c * r - s * w, s * r + c * w, -22.6 + dz]; B.quad(P(.3, -.25, -.2), P(.3, .25, .2), P(2, .75, .5), P(2, -.75, -.5), [0, 0, .5, .6]); }
+  const bm = B.mesh(S.mat(finT, { side: true })); sub.add(bm);
+  const Pp = R.geo().smooth(1);   // 潜望鏡とアンテナ、甲板の手すりの柱
+  Pp.loft(5, [[7.8, .12, .12, 0, .9, 0, 3.8], [10.5, .1, .1, 2.5, 1, 0, 3.8]], { cap: 'top' }); Pp.loft(5, [[7.8, .07, .07, 0, .9, .3, 2.2], [9.7, .05, .05, 1.7, 1, .3, 2.2]], { cap: 'top' });
+  Pp.at(TR(0, 10.4, 3.8, 0, PI / 2, 0)).loft(5, [[-.1, .1, .1, 0, 1], [.5, .1, .1, .6, 1]], { cap: 'both' }).at(null);
+  for (let i = 0; i < 9; i++) { const z = 8 + i * 1.4, y = 3.3 - (i > 5 ? (i - 5) * .12 : 0); Pp.loft(4, [[y - .2, .04, .04, 0, .9, 0, z], [y + .7, .04, .04, .9, 1, 0, z]]); }
+  Pp.at(LZ).loft(4, [[7.8, .035, .035, 0, 1, 0, -3.95], [19.4, .035, .035, 11, 1, 0, -3.5]]).at(null);   // 手すりの横棒（LZ では y が -z の向きになる）
+  sub.add(Pp.mesh(pipeT)); }
+sub.position.set(0, 3.1, 0); sub.rotation.set(-.06, 0, -.27); sub.updateMatrixWorld(true);
+const onSub = (o, x, y, z, rz = 0, ry = 0) => { o.position.copy(sub.localToWorld(new THREE.Vector3(x, y, z))); o.quaternion.copy(sub.quaternion).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, rz))); return o; };
+const fixed = [sub], put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; };
+// 船体に生えた海草（上の面と、砂にうまった ふち）、まわりの岩・こんぶ・うに
+for (let i = 0; i < 26; i++) { const z = -17 + i * 1.4 + hash(i, 1), a = (hash(i, 2) - .5) * 1.5, r = 3.3 * (1 - (Math.abs(z) / 23) ** 3) - .05; if (Math.abs(z - 3) < 4 && Math.abs(a) < .5) continue;
+  fixed.push(onSub(i % 3 ? S.seagrass({ s: .7 + hash(i, 3) * .5, c: i % 2 ? '#3c8a64' : '#5a9a58', seed: i }) : S.kelp({ h: 2.4 + hash(i, 4) * 3, w: .8, c: '#3a7a54', seed: i }), Math.sin(a) * r, Math.cos(a) * r, z, .27, i)); }
+for (let i = 0; i < 46; i++) { const sx = i % 2 ? 1 : -1, z = -30 + hash(i, 5) * 60, x = sx * (4.6 + hash(i, 6) * (sx < 0 ? 12 : 3)), k = i % 6;
+  put(k < 2 ? S.kelp({ h: sx < 0 ? 5 + hash(i, 7) * 6 : 2 + hash(i, 7) * 2, w: 1, c: i % 4 ? '#2f7a58' : '#4a8a50', seed: i }) : k < 4 ? S.seagrass({ s: .8 + hash(i, 8) * .6, c: '#3c8a64', seed: i }) : k < 5 ? S.rock({ s: 1 + hash(i, 9) * 1.6, seed: i, c: '#5a7a78', grow: .7 }) : S.urchin({ s: 1.6, c: '#3a2a4a' }), x, z, i * 1.3, k === 4 ? -.2 : 0); }
+for (let i = 0; i < 22; i++) { const a = i / 22 * PI * 2, r = 19 + hash(i, 10) * 14; put(S.rock({ s: 1.6 + hash(i, 11) * 2.6, seed: i + 30, c: '#4f706e', grow: .6 }), Math.cos(a) * r * .8, Math.sin(a) * r * 1.4, i, -.3); if (i % 2) put(S.kelp({ h: 6 + hash(i, 12) * 5, c: '#2f7a58', seed: i }), Math.cos(a) * r * .8 + 1.5, Math.sin(a) * r * 1.4 + 1); }
+put(S.anchor({ s: 1.5, c: '#6a5a50', grow: .7 }), 6.5, 17, 1).rotation.z = 1.1;
+scene.add(R.merge(fixed));
+// 司令塔の上の、消えかけの赤い灯
+{ const w = onSub(D.warnLamp({ kind: 'blink', c: '#ff4030', r: .2, light: false }), 0, 7.9, 3.2); scene.add(w); const h = D.halo({ c: '#ff5040', r: 1.1, k: .7, flicker: 'bulb', seed: 3 }); h.position.copy(w.position); h.position.y += .3; scene.add(h); }
+
+// ---- 生きもの：船体にすわる たこ、小魚の群れ、大きな魚、えい ----
+const live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (cx, cy, cz, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(cx + Math.cos(a) * rx, cy + Math.sin(t * .6 + ph) * bob, cz + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+onSub(add(S.octopus({ s: 1.7, c: '#c0503c', c2: '#e8b890' })), 1.75, 2.85, -1.6, -.55, 1.2);
+add(S.school({ n: 50, rx: 5, rz: 9, h: 2, wide: 1.2, speed: 1.3, spread: 2.2, c: '#8ab8b0', c2: '#d8f0e8' })).position.set(1.5, 8.6, 4);
+add(S.school({ n: 36, rx: 4, rz: 6, h: 1.6, speed: -1.2, spread: 2, seed: 4, c: '#8ab8b0', c2: '#d8f0e8' })).position.set(2, 4.5, -23);
+add(S.school({ n: 30, kind: 'tang', c: '#c8a040', c2: '#3a4a48', rx: 3.5, rz: 5, h: 1.4, speed: 1, s: .8, spread: 2, seed: 8 })).position.set(5, 5.5, 17);
+add(S.fish({ kind: 'grouper', s: 2.2, c: '#5a7a70' }), circ(3, 3.6, -24, 5, 3, .16, 1, .3));
+add(S.ray({ s: 1.6, c: '#4a6a70' }), circ(-4, 10.5, 4, 17, 24, .07, 2.2, .6));
+
+// ---- 主役：ヘルメットのダイバー（黄色い服に黒い帯。鉄色のヘルメット）と、白いサーチライト ----
+const hero = S.diver({ head: 'helmet', tank: '#c8402c', fin: '#f4d030', metal: '#a8b0b8', actor: { hairStyle: 'short', hair: '#2a2a30', top: '#f4d030', top2: '#2a3438', bottom: '#e8c028', glove: '#2a3438', shoe: '#2a3438', belt: '#2a3438' } }); scene.add(hero);
+// pack のヘルメットは、よこのくり返しがテクスチャの金物の区画からはみ出して黒くなるので、UV を区画の中へ折り返す（第 8 集の 35 と同じ直し）
+{ const hm = hero.userData.J.head.children.at(-1), uv = hm.geometry.attributes.uv, u0 = 17 / 64, w = 14 / 64; for (let i = 0; i < uv.count; i += 3) { if (uv.getY(i) > .25) continue; const k = Math.floor((Math.min(uv.getX(i), uv.getX(i + 1), uv.getX(i + 2)) - u0) / w + .001); for (let j = 0; j < 3; j++) uv.setX(i + j, uv.getX(i + j) - k * w); } uv.needsUpdate = true; }
+const LAMP = (() => { const L = 9, G = R.geo().at(LZ); G.loft(8, [[.1, .08, .08, 1, 1], [L * .35, .7, .7, .7, 1], [L * .7, 1.35, 1.35, .38, 1], [L, 1.9, 1.9, .04, 1]], { ur: 4 }); G.at(null);
+  const cone = new THREE.Mesh(G.build(), S.mat(S.tex.shaft({ seed: 1 }), { glow: true, add: true, alpha: .27, side: true, color: '#e8f8ff' })); cone.renderOrder = 6; cone.frustumCulled = false;
+  const bulb = D.halo({ c: '#f0faff', r: .34, k: 1 }), spot = new THREE.SpotLight('#f0f8ff', 58, 28, .48, .6, 1.1), p = new THREE.Vector3(); scene.add(cone, bulb, spot, spot.target);
+  return { p, tick(q) { hero.updateMatrixWorld(true); hero.userData.J.head.getWorldPosition(p); p.y += .2; const d = q.clone().sub(p).normalize(); cone.position.copy(p).addScaledVector(d, .3); bulb.position.copy(cone.position); cone.lookAt(q); spot.position.copy(p); spot.target.position.copy(q); } }; })();
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const RX = 11.5, RZ = 31, SPEED = 1.35, aim = new THREE.Vector3(); let a = -.52, hy = 5.2;
+K.loop((dt, t) => {
+  a += SPEED * dt / Math.hypot(RX * Math.sin(a), RZ * Math.cos(a)); const x = RX * Math.cos(a), z = RZ * Math.sin(a), tl = Math.hypot(RX * Math.sin(a), RZ * Math.cos(a)), tx = -RX * Math.sin(a) / tl, tz = RZ * Math.cos(a) / tl, ox = tz, oz = -tx;   // (ox, oz) は船と反対の向き
+  const gy = 5.2 + Math.sin(t * .4) * .3; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(x, hy, z); hero.rotation.y = Math.atan2(tx, tz); S.swim(hero, t, { rate: 4.4 }); S.breathe(hero, env.bubbles, dt, 2.2);
+  // サーチライトは、少し先の船体を 前後・上下に ゆっくりなめる
+  const lz = Math.max(-20, Math.min(20, z + tz * 6 + Math.sin(t * .5) * 3.5)); aim.set(.9 + x * .08, 4 + Math.sin(t * .37) * 1.6 + (Math.abs(lz - 3) < 4 ? 2.4 : 0), lz); LAMP.tick(aim);
+  const tall = innerWidth < innerHeight, Dd = tall ? 3.5 : 4.4, Sd = tall ? 1.3 : 2.6;
+  cam.position.set(x - tx * Dd + ox * Sd, hy + (tall ? .4 : .2), z - tz * Dd + oz * Sd); cam.lookAt(x + tx * 3.2 - ox * (tall ? 2.6 : 2.4), hy + (tall ? 1.1 : .8), z + tz * 3.2 - oz * (tall ? 2.6 : 2.4));
+  sun.position.set(x - 8, 44, z + 6); sun.target.position.set(x, 0, z);
+  for (const f of live) f(t); bed.follow(x, z); bed.tick(t); D.tick(t, cam); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

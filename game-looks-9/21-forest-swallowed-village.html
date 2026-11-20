@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-21 森にのまれた村 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8dcec;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-21 ─ 森にのまれた村 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕やみの、森にのまれた村。屋根の落ちた木の家に つたがはい、家の中から木がのびている。こけた石の道を、ランタンと つえの旅人が歩く。
+// 色の組は「森と こけの暗い緑・空のむらさき・ランタンの黄」＋光る虫の黄みどり。むらさきの地平線の前で、家と木が黒いシルエットになる。
+// 光は D.mood の 'ember' を、空をむらさきに・全体を暗めに上書きして使う。くずれた家は PK.wall（くずれたかべ）に木組みのしっくいをはって組む。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tail', hair: '#d07a3a', cloth: 'vest', sleeve: 'long', top: '#d8c8a0', top2: '#8a5a48', lower: 'baggy', bottom: '#5a4a6a', shoe: '#6a4a38', neck: 'scarf', acc: '#3a9a90', back: 'pack', hold: 'staff' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'ember', { follow: hero, range: 32, level: .92, sky: ['#120c24', '#2a1a44', '#5c3266', '#b0647c'], fog: ['#33284a', 16, 105], hemi: ['#9a8cc8', '#26302e', 1.05], key: ['#e09aa8', 1.35, [-.5, .34, -.8]], fill: ['#4a6a70', .5], hills: '#1a1430', base: [.74, .84, .8], dir: [-.45, .36, -.82] });
+
+// ---- 地面：枯れ草まじりの暗い草、こけた石の道、家のまわりの こけ。光る虫の集まる井戸のまわりを、ほんのり明るく ----
+const pathX = z => Math.sin(z * .15) * 1.7, WELL = [3.6, 3.2], BUGS = [[3.6, 3.2], [-4.4, -6.5], [4.2, -17]];
+const HOUSES = [[-6.2, 1.5, .3, 0], [6.6, -5.5, -.3, 1], [-6.6, -13.5, .2, 1], [6.4, -20, -.4, 0], [-1.5, -32, .1, 2]];
+const land = R.ground({ w: 130, d: 130, cell: 2, cz: -12, layers: [D.tex.deadGrass({ c: '#3e5a4a' }), T.cobble({ c: '#5a6268', moss: .7 }), PK.tex.moss({ flowers: 0 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - Math.abs(x - pathX(z)) / 1.3)), HOUSES.some(([hx, hz]) => Math.hypot(x - hx, z - hz) < 5.2) ? .8 : Math.max(0, Math.sin(x * .5 + 1) * Math.sin(z * .37)) * .7],
+  shade: mood.shade(BUGS.map(([x, z]) => ({ x, z, r: 5, c: '#c8e868', k: .45 }))) }); scene.add(land.mesh);
+
+// ---- 家：屋根の落ちた から（PK.wall ＋ 落ちた屋根 ＋ 中からのびた木）と、まだ形の残る家（R.house ＋ つた） ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const wallT = T.plaster({ frame: 'cross', c: '#6a6480', wood: '#3c3448' }), roofT = T.roof({ c: '#4a4660', moss: .7 }), ivyC = '#3e6e50', GREENS = ['#2c4c3e', '#35583f', '#284438', '#3a5c4c'];
+const shell = (w, d, sd) => { const g = new THREE.Group(), add = (o, x, z, ry) => { o.position.set(x, 0, z); o.rotation.y = ry; g.add(o); };
+  add(PK.wall({ len: w, h: 3.3, fall: .55, tex: wallT, seed: sd, rebar: false, thick: .3 }), 0, d / 2, 0); add(PK.wall({ len: w, h: 3.6, fall: .3, tex: wallT, seed: sd + 1, rebar: false, thick: .3 }), 0, -d / 2, Math.PI);
+  add(PK.wall({ len: d, h: 3.2, fall: .7, tex: wallT, seed: sd + 2, rebar: false, thick: .3 }), -w / 2, 0, Math.PI / 2); add(PK.wall({ len: d, h: 2.6, fall: .5, tex: wallT, seed: sd + 3, rebar: false, thick: .3 }), w / 2, 0, -Math.PI / 2);
+  const P = R.parts(), Rf = P.g(roofT, { side: true }), Bm = P.g(T.planks({ c: '#4a3e50' }));
+  for (let i = 0; i < 3; i++) { const x0 = -w / 2 + .3 + i * (w - .6) / 3, x1 = x0 + (w - .6) / 3, s = i * .25; Rf.quad([x0, .25 + s, d / 2 - 1.4], [x1, .45 + s, d / 2 - 1.5], [x1, 2.7 - s * .5, -d / 2 + .25], [x0, 2.9 - s * .5, -d / 2 + .25], [x0 / 3, 0, x1 / 3, 1.2], [.7, .7, 1, 1]); }   // 落ちて ななめに もたれた屋根
+  Bm.at(R.TR(-w * .2, 0, .3, .5, 0, .5)).box(.18, 3.6, .18, 0, 0, 0, { m: 3 }).at(R.TR(w * .25, 0, 1, -.8, .9, 0)).box(.16, 3, .16, 0, 0, 0, { m: 3 }).at(null); g.add(P.group());
+  const tr = R.tree({ kind: 'round', h: 6.5 + (sd % 3), c: GREENS[sd % 4], seed: sd }); tr.position.set(w * .12, 0, -d * .1); g.add(tr);
+  for (const [x, z, ry, ww] of [[0, d / 2 + .2, 0, w], [-w / 2 - .2, 0, -Math.PI / 2, d]]) { const iv = PK.ivy({ w: ww, h: 2.5, amount: .8, flowers: 0, c: ivyC, from: 'bottom', seed: sd }); add(iv, x, z, ry); } return g; };
+const whole = (two, sd) => { const g = new THREE.Group(), w = two ? 7 : 5.6, d = 5, h = 2.7, hs = R.house({ w, d, h, h2: two ? 2.4 : 0, wall: wallT, roof: roofT, lit: 0, seed: sd, door: T.door({ style: 'plank', c: '#3e3448' }), trim: T.planks({ c: '#3c3448' }) }); g.add(hs);
+  for (const [x, z, ry, ww] of [[0, d / 2 + .08, 0, w], [w / 2 + .08, 0, Math.PI / 2, d], [-w / 2 - .08, 0, -Math.PI / 2, d]]) { const iv = PK.ivy({ w: ww, h: two ? 4.6 : 2.6, amount: .7, flowers: 0, c: ivyC, from: 'bottom', seed: sd + ww }); iv.position.set(x, 0, z); iv.rotation.y = ry; g.add(iv); } return g; };
+HOUSES.forEach(([x, z, ry, k], i) => put(k === 0 ? shell(6, 5, i * 3 + 1) : whole(k === 2, i + 4), x, z, ry + (x < 0 ? Math.PI / 2 : x > 2 ? -Math.PI / 2 : 0)));
+
+// ---- 森：家をつつむ高い木、枯れ木、やぶ。井戸、たおれたさく、こけた岩 ----
+const clear = (x, z) => Math.abs(x - pathX(z)) > 2.4 && !HOUSES.some(([hx, hz]) => Math.hypot(x - hx, z - hz) < 4.6) && Math.hypot(x - WELL[0], z - WELL[1]) > 1.6;
+for (let i = 0; i < 90; i++) { const x = (hash(i, 1) - .5) * 70, z = 20 - hash(i, 2) * 66; if (!clear(x, z) || (Math.abs(x) < 9.5 && z > -37)) continue; const far = Math.abs(x) > 13 || z < -37; put(R.tree({ kind: ['tall', 'round', 'pine', 'tall'][i % 4], h: (far ? 10 : 6.5) + hash(i, 3) * 5, c: GREENS[i % 4], seed: i }), x, z, i); }
+HOUSES.forEach(([hx, hz], i) => { const sx = hx < -2 ? -1 : hx > 2 ? 1 : 0; for (const [dx, dz, h] of sx ? [[4.6, 2.6, 11], [4.2, -3, 9.5], [.5, -4.6, 8]] : [[-5.5, -3, 12], [5.5, -3.5, 11], [0, -5.5, 13]]) put(R.tree({ kind: (i + h) % 2 ? 'tall' : 'round', h: h + hash(i, h) * 2, c: GREENS[(i + h) % 4], seed: i * 7 + h }), hx + (sx || 1) * dx, hz + dz, i + h); });   // 家を うしろと横から つつむ木
+const dead = [[3.4, -8.5, 7.5], [-3.6, 9, 6.5], [-3.8, -21, 8]].map(([x, z, h], i) => put(D.deadTree({ h, seed: i + 5, c: '#4a4658' }), x, z, i * 2));
+for (let i = 0; i < 40; i++) { const x = (hash(i, 11) - .5) * 30, z = 16 - hash(i, 12) * 50; if (!clear(x, z)) continue; put(i % 5 === 0 ? R.rock({ s: .8 + hash(i, 6), c: '#56606a', moss: .8, seed: i }) : i % 5 === 1 ? R.tree({ kind: 'bush', c: GREENS[i % 4], seed: i }) : R.tuft({ kind: i % 2 ? 'bush' : 'reed', s: 1.1 }), x, z, i); }
+put(R.well({ stone: T.stone({ c: '#5e6672', moss: .8 }) }), WELL[0], WELL[1], .4);
+const down = (len, x, z, ry, tilt) => { const g = new THREE.Group(), f = R.fence({ len, kind: 'picket', c: '#5a5062' }); f.rotation.x = tilt; f.position.y = tilt > 1 ? .12 : 0; g.add(f); return put(g, x, z, ry); };
+down(4, -2.9, 6.5, 1.45, .55); down(4, -3.1, 2.3, 1.6, 1.42); down(3, 3.2, -1.5, 1.5, -1.4); down(4, 2.6, -12.2, 1.7, .7); down(4, -3.2, -16.5, 1.45, 1.45); down(3, 3, 8.6, 1.3, -.5);
+scene.add(R.merge(fixed));
+
+// ---- 空と空気：流れる むらさきの雲、地をはう うすい霧、光る虫（井戸と家のまわり） ----
+scene.add(D.clouds({ n: 9, r: 250, y: 70, s: 100, c: '#6a4878', shade: '#2e2048', speed: .016 }), D.groundFog({ n: 44, box: [56, 56], c: '#a898c8', a: .2, h: 1.4, w: 9, wind: [.35, .1] }));
+scene.add(D.flakes({ kind: 'ember', n: 110, c: '#d0f060', box: [22, 3.2, 26], size: 2, vy: .1 }));
+BUGS.forEach(([x, z], i) => { const w = D.wisp({ c: '#d8f070', r: .2, drift: 1.4, seed: i * 3 + 2, pool: 2.4, k: .4 }); w.position.set(x + .8, 1.1, z + .6); const w2 = D.wisp({ c: '#c8f078', r: .14, drift: 1.8, seed: i * 5 + 1, pool: 1.4, k: .3 }); w2.position.set(x - .6, 1.6, z - .4); scene.add(w, w2); });
+// ---- 生きもの：枯れ木の ふくろう、こうもりの群れ、屋根の からす ----
+const perchOf = (i, k) => { const t = dead[i]; t.updateMatrixWorld(); return t.userData.perch[k].clone().applyMatrix4(t.matrixWorld); };
+const owl = D.owl({ s: 2 }), op = perchOf(0, 0); owl.position.copy(op); owl.rotation.y = -1.9; scene.add(owl);
+scene.add(D.flock({ kind: 'bat', n: 9, r: 7, h: 2, center: [-3, 8, -14] }), D.perched([[...perchOf(1, 0).toArray(), 2], [...perchOf(2, 1).toArray(), 1]], { watch: hero, near: 3.4 }));
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffc858', power: 11, range: 9, r: 3.2, k: .7 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 12, LEN = 27, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(x * .6 + .5, tall ? 2.2 : 1.7, z + Dc); cam.lookAt(x * .5 - .3, tall ? 2.4 : 2.5, z - 6);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

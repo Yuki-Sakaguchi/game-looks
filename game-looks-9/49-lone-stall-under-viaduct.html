@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-49 霧の夜、高架下の一軒の屋台 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4ead8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-49 ─ 霧の夜、高架下の一軒の屋台 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// こい霧の夜の下町。シャッターのおりた通りと 暗い柱の間、高架の下に、屋台が 1 軒だけ あかりをともしている。そこへ歩いてくる人、屋台の主人、ねこ。
+// 色の組は「霧の青灰（シャッター・柱・高架）」＋「屋台の だいだい」。この集の中で いちばん あたたかい 1 枚にするため、だいだいの輪を大きく、霧にも にじませる。
+// 頭上を電車が通ると、つるした電球がゆれ、あかりが ちらつく（D.mood の 'fog' を夜の色にした物）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 500, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ hairStyle: 'bob', sex: 'f', hair: '#2e3040', eyes: 'half', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#5a6c94', top2: '#d8dce8', lower: 'skirt', skirt: .75, skirtC: '#3c4666', shoes: 'boot', shoe: '#33384c', neck: 'scarf', acc: '#e8e2d2', back: 'bag' }); scene.add(hero);
+const FOG = '#34404e', OR = '#ffa548', VZ = -6, VH = 6.4, SX = 10, SZ = -5.1, SRY = -.5;
+const mood = D.mood(scene, renderer, 'fog', { follow: hero, hills: false, range: 26, r: 300, sky: ['#18202c', '#242e3a', '#303c4a', '#3c4856'], fog: [FOG, 4, 50], hemi: ['#94a4bc', '#383c4a', .82], key: ['#b8c8e0', .55, [-.4, .8, .45]], fill: ['#6a7890', .3], base: [.66, .72, .86] });
+
+// ---- 地面：ぬれたアスファルト。高架の下はコンクリート。屋台のあかりを大きく焼きこむ ----
+const LIT = [{ x: SX - .6, z: SZ + 1.6, r: 14, c: OR, k: 1.8 }, { x: SX - .4, z: SZ + .8, r: 4.5, c: '#ffd080', k: 1 }, { x: -22, z: 5.5, r: 5, c: '#9ac8ff', k: .4 }];
+const land = R.ground({ w: 150, d: 70, cell: 2, cz: -2, layers: [X.asphalt({ wet: .75, c: '#485062', wetC: '#6c7c98' }), X.conc({ c: '#6a7080' }), X.plate({ c: '#5a6274', n: 4 })], mix: (x, z) => [Math.abs(z - VZ) < 2.6 ? 1 : 0, z > 5.2 && z < 6.6 ? 1 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 高架、シャッターのおりた家なみ、暗い柱、電柱 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, CS = ['#566078', '#606a80', '#5a5a74', '#4e6474', '#6a6478'];
+put(C.elevated({ len: 140, h: VH, c: '#4e586e', posts: 10 }), 0, VZ);
+for (const [z, ry, k] of [[-12.5, 0, 0], [9.2, PI, 1]]) for (let x = -44, i = 0; x < 52; i++) { const w = 5 + hash(i, k + 3) * 2.6; put(C.shack({ w, d: 4.6, floors: 2 + (hash(i, k + 5) > .6 ? 1 : 0), seed: i + k * 20 + 7, cs: CS, shop: 'shutter', lit: 0, laundry: false, awning: i % 3 === 0 ? 'tin' : null, sign: i % 4 === 1 ? { kind: ['moon', 'cup', 'fish', 'star'][i % 4], c: '#5a6a84', shape: 'tall' } : false }), x + w / 2, z, ry); x += w + .3; }
+scene.add(R.merge([[36, -30, 6.5], [-40, -34, 7], [70, 26, 8]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 60, seed: i + 4, c: '#3c4658', lights: false }); p.position.set(x, 0, z); return p; })));
+const POLES = [[-16, 5.9], [4, 5.9], [24, 5.9]].map(([x, z]) => put(C.pole({ h: 7 }), x, z, PI / 2)); put(C.streetLamp({ h: 4.6, cold: true, c: '#465064', halo: false }), -22, 5.8, PI); put(C.streetLamp({ h: 4.6, cold: true, c: '#465064', halo: false }), 17, 5.8, PI);
+put(C.vending({ c: '#5a6478' }), -3, -9.9); put(C.trash({ c: '#4a5468' }), 1.5, 5.6); put(C.bike({ c: '#6a7488' }), -8.6, 5.7, .1); put(C.drum({ c: '#566078', mark: 'none' }), 15.6, -4.2); put(C.tires({ n: 3 }), 4.6, -7.6); for (const [x, z, k] of [[-4, 1.2, 'round'], [5, 2.6, 'grate']]) put(C.manhole({ kind: k }), x, z);
+{ const W = []; for (let i = 0; i < 2; i++) W.push([[POLES[i].position.x, 6.6, 5.9], [POLES[i + 1].position.x, 6.6, 5.9], 1]); scene.add(C.wires(W, { c: '#1e2632' })); }
+
+// ---- 屋台：1 軒だけ。のれん、ちょうちん、湯気。前に長いす、よこに木箱 ----
+const stall = put(C.yatai({ c: '#c2553a', c2: '#f0e0c0', kind: 'wave', noren: '#b8402a', seed: 2 }), SX, SZ, SRY), sm = R.TR(SX, 0, SZ, SRY), W2 = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(sm);
+{ const b = W2(0, 0, 1.25); put(C.bench({ w: 1.9, c: '#8a6a48' }), b.x, b.z, SRY + PI); const c = W2(-1.9, 0, .5); put(R.crate({ s: .55, c: '#8a6a48' }), c.x, c.z, .3); const c2 = W2(1.9, 0, -.2); put(C.drum({ c: '#7a5a44', mark: 'none', h: .7 }), c2.x, c2.z); }
+scene.add(R.merge(fixed));
+const bulbP = W2(.5, 2.1, .95), bulb = D.bulb({ drop: .45, c: '#ffd890', flicker: false }); bulb.position.copy(bulbP); scene.add(bulb);
+const glow = D.halo({ c: OR, r: 6, k: .55 }), glow2 = D.halo({ c: '#ffc070', r: 1.6, k: .7 }), sl = new THREE.PointLight(OR, 46, 13, 1.25), front = W2(0, 1.7, 1.6); glow.position.copy(W2(0, 1.6, .8)); glow2.position.copy(bulbP).y -= .55; sl.position.copy(front); scene.add(glow, glow2, sl);
+const pool = D.spot({ c: OR, r: 5.4, k: .5 }); pool.position.set(front.x - .6, .05, front.z + .6); scene.add(pool);
+scene.add(D.pools([{ p: [SX - 5, 3.2, VZ + 1.4], n: [0, 0, 1], r: 2, r2: 3, c: OR, k: .22 }, { p: [SX, VH - .35, VZ], n: [0, -1, 0], r: 5, r2: 2, c: OR, k: .3 }]), D.streaks([{ x: front.x - .5, z: front.z, h: 2, c: OR, k: .9, w: 2, len: 9 }, { x: bulbP.x, z: bulbP.z, h: 1.6, c: '#ffd890', k: .7, w: .7, len: 6 }], { far: 40 }));
+const steam = C.steam({ n: 9, r: .6, rise: 3, spread: .5, speed: .22, c: '#ffe2c0', a: .4 }); steam.position.copy(W2(.5, 1.5, -.1)); scene.add(steam);
+
+// ---- 主人、ねこ ----
+const owner = R.actor({ hairStyle: 'bald', hair: '#b8b8b8', skin: '#e0b088', eyes: 'closed', brow: 'thick', beard: 'mustache', bulk: 1.12, cloth: 'tunic', sleeve: 'short', top: '#e8e0d0', top2: '#b8402a', bottom: '#4a4a5a', hat: 'band', acc: '#e8e0d0' }); owner.position.copy(W2(-.1, 0, -.85)); owner.rotation.y = SRY; scene.add(owner);
+const cat = R.cat({ c: '#e8e2d4', belly: '#fff8ec', plain: 1 }); { const p = W2(-1.9, .55, .5); cat.position.copy(p); cat.rotation.y = SRY + 1.2; scene.add(cat); } const cat2 = D.cat({ s: 1 }); scene.add(cat2);
+
+// ---- 電車（頭上を通る）、霧 ----
+const train = new THREE.Group(); for (const dx of [-6.2, 6.2]) { const c = C.train({ lit: 1, len: 12, c: '#5a6478', c2: '#8a94a8', seed: 3 }); c.position.x = dx; train.add(c); } train.position.set(200, VH, VZ); scene.add(train);
+const th = D.halo({ c: '#ffe8c0', r: 1.6, k: .9 }); th.position.set(-12.6, 1.5, 0); train.add(th);
+scene.add(D.groundFog({ n: 60, box: [64, 50], y: .1, h: 2.4, w: 11, c: '#8a9cb4', a: .26, wind: [.5, .12] }), D.flakes({ kind: 'dust', n: 80, box: [14, 6, 14], c: '#c8b8a0' }));
+const follow = new THREE.PointLight('#b8c8e8', 5, 6, 1.4); scene.add(follow);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const P0 = [-2.2, 1.6], P1 = [7.4, -2.5], LENP = Math.hypot(P1[0] - P0[0], P1[1] - P0[1]), HD = Math.atan2(P1[0] - P0[0], P1[1] - P0[1]), SPEED = .95, PER = LENP / SPEED;
+K.loop((dt, t) => {
+  const tt = t % PER, k = tt / PER, x = P0[0] + (P1[0] - P0[0]) * k, z = P0[1] + (P1[1] - P0[1]) * k + Math.sin(k * 9) * .15, tall = innerWidth < innerHeight, Dc = tall ? 4 : 5;
+  hero.position.set(x, 0, z); hero.rotation.y = HD + Math.cos(k * 9) * .05; R.walk(hero, t * SPEED * 4.5, .85);
+  cam.position.set(x - Dc * .78, tall ? 2.1 : 1.6, z + Dc * .66); cam.lookAt(x + 5, tall ? 2 : 2.3, z - (tall ? 2.6 : 3.6));
+  crt.u.bright.value = 1.1 * Math.min(1, tt / .4, (PER - tt) / .4);
+  // 電車：3 秒めから頭上を通る。近いほど、電球が大きくゆれて あかりが ちらつく
+  const tx = 70 - (tt - 2.6) * 14, near = tt > 2.6 ? Math.exp(-(((tx - SX) / 26) ** 2)) : 0; train.position.x = tt > 2.6 ? tx : 200;
+  const fk = 1 - near * (.22 + .2 * Math.sin(t * 37) * Math.sin(t * 23)) + Math.sin(t * 2.1) * .03;
+  bulb.rotation.z = Math.sin(t * 5.2) * (.04 + near * .42); bulb.rotation.x = Math.sin(t * 4.1 + 1) * (.03 + near * .25); glow2.position.set(bulbP.x + Math.sin(bulb.rotation.z) * .55, bulbP.y - .55, bulbP.z - Math.sin(bulb.rotation.x) * .55);
+  sl.intensity = 46 * fk; glow.material.opacity = .55 * fk; glow2.material.opacity = .7 * fk; pool.material.opacity = .5 * fk; pool.position.x = front.x - .6 + Math.sin(bulb.rotation.z) * 1.2;
+  R.idle(owner, t, Math.sin(t * .4) * .3 + .4); owner.userData.J.armR.rotation.x = -.95 - Math.sin(t * 2.6) * .14; owner.userData.J.foreR.rotation.x = -.8;
+  R.catPose(cat, 'sit', t); { const u = (t * .7 / 18 + .2) % 1; cat2.position.set(-2 + u * 18, 0, -3.6 - Math.sin(u * 6) * .3); cat2.rotation.y = PI / 2; R.catPose(cat2, 'walk', t * 8); }
+  follow.position.set(x - 1, 2.2, z + 1.2);
+  land.follow(0, -2); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-07 幽霊船の甲板 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dff4f0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-07 ─ 幽霊船の甲板 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 霧の夜の海を、だれもいない古い帆船が進む。その甲板を、乗りこんだ旅人がランタンをさげて、船尾の かじのほうへ歩く。かじの所には、うすく光る人かげ。
+// 色の組は「青緑の霧と海・古い板の灰むらさき・青白いランタン」＋旅人のランタンと えりまきの だいだい 1 点。
+// 霧（近い scene.fog）で遠くをとかし、明るい地平線の前に帆と別の船を黒い影にする。甲板は、青白いランタンの輪（加算）と旅人のあかりで読ませる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), S = PACK_SEA(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tail', hair: '#5a3a34', cloth: 'jacket', top: '#b08a50', top2: '#d8c8a0', bottom: '#4a4a62', shoe: '#4a3a30', gloves: 'wrap', glove: '#c8b890', neck: 'scarf', acc: '#d8683a', back: 'bag', hat: 'band' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 26, hills: false, stars: false, sky: ['#0a1c26', '#16383e', '#356468', '#74a8a0'], fog: ['#3e6c6c', 7, 78], hemi: ['#a4e0d8', '#2c4048', 1.15], key: ['#c8f4ec', 1.35, [-.5, .62, -.55]], fill: ['#4c8090', .5] });
+
+// ---- 海：暗い青緑。船が進むので、波のもようを うしろへ流す ----
+const sea = S.sea({ c: '#1f5058', w: 200, d: 200, wave: .45, alpha: 1 }); scene.add(sea.mesh);
+
+// ---- 船：F.ship を 2.2 倍にした古い帆船。帆の絵を やぶれた帆（穴と、ちぎれた すそ）に入れかえる ----
+const SC = 2.2, DK = 1.5 * SC, sailC = '#8ea8a4', ship = F.ship({ s: SC, c: '#5a5468', c2: '#3c5c64', cabin: '#6a6274', trim: '#7a8a8c', sail: sailC, flag: 'none', flagO: { c: '#3a5a60', tail: 'swallow' } }); scene.add(ship);
+const P = F.paint.sail({ c: sailC }); P.clip = true; P.each((x, y, c) => { const n = R.tn(x, y, 9, 9, 64, 64, 5), col = R.tn(x, 3, 6, 1, 64, 64, 2), end = 24 + R.tn(x, 7, 5, 1, 64, 64, 4) * 12 + (col > .58 ? 14 + col * 26 : 0); return y > end || n > .74 ? null : y > end - 3 || n > .68 ? R.mix(c, '#22343c', .45) : c; });   // 上のほうだけ残り、下は ちぎれた すじが たれる
+const torn = R.mat(T.from(P, { m: 4, cut: true }), { cut: true, side: true }), sailT = [F.tex.sail({ c: sailC }), F.tex.sail({ c: sailC, cc: '#3c5c64' })], deckT = T.planks({ c: '#b89464', w: 8 }), winT = T.window({ lit: 1, bars: 'grid', frame: '#5a4030' });
+ship.traverse(m => { if (!m.isMesh) return; if (sailT.includes(m.material.map)) { m.material = torn; m.castShadow = false; } else if (m.material.map === deckT) { m.material = m.material.clone(); m.material.color.set('#8c98a8'); } else if (m.material.map === winT) { m.material = m.material.clone(); m.material.color.set('#8fdcf4'); } });   // 甲板の板は、古い灰色に しずめる
+const body = ship.children[0], deck = new THREE.Group(); deck.scale.setScalar(1 / SC); body.add(deck);   // deck の中は m のまま。甲板の高さが DK。船といっしょに ゆれる
+
+// ---- 甲板の物：たる、木箱、あみ、なわばしご、かじ、青白いランタン ----
+const fixed = [], put = (o, x, z, ry = 0, y = DK) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (const [x, z, h, ry] of [[-3.6, 1.2, 1, 0], [-4.1, 2.1, 1.1, 1], [-3.2, 2.4, .9, 2], [4.2, -3.2, 1.05, 0], [3.5, -4.3, 1, 1], [-3.9, -4.6, 1.1, 2], [3.6, 7.2, 1, 0]]) put(R.barrel({ h, r: h * .4, c: '#6e6470' }), x, z, ry);
+const lying = put(R.barrel({ h: 1, r: .4, c: '#665c6a' }), -2.6, -3.6, .6, DK + .4); lying.rotation.z = Math.PI / 2;
+for (const [x, z, s, ry] of [[4.3, 1.6, 1, .2], [4.4, 2.8, .8, -.3], [4.25, 1.9, .7, .6], [-4.3, 6.4, .9, .1], [-3.3, -5, .8, .4]]) put(R.crate({ s, c: '#6a6676', kind: s > .85 ? 'x' : 'slash' }), x, z, ry, x === 4.25 ? DK + 1 : DK);
+const G = R.geo(), Gn = R.geo(), Gw = R.geo(), CY = 3.02 * SC, HX = 1.75;
+for (const [mz, top] of [[-.6 * SC, 19], [3 * SC, 15.5]]) for (const sx of [-1, 1]) { const hw = 5.2 * (mz < 0 ? 1 : .92); G.quad([sx * hw, DK + .9, mz - 2.2], [sx * hw, DK + .9, mz - .2], [sx * .3, top, mz], [sx * .3, top, mz - .2], [0, 0, 2, 12]); }   // マストへ のぼる なわばしご
+for (const [x, z, w] of [[-5.25, -1, 3], [5.1, 4.2, 2.6], [-4.7, 8, 2.4]]) Gn.quad([x, DK + .05, z - w / 2], [x, DK + .05, z + w / 2], [x * .97, DK + 1.15, z + w / 2], [x * .97, DK + 1.15, z - w / 2], [0, 0, w / 1.2, 1]);   // ふなべりに かけた あみ
+Gw.box(.22, 1.1, .22, HX, CY, -7.4, { m: 1.5 }); Gw.box(1.5, .12, .5, HX, CY, -7.4, { m: 1.5 });   // かじの台
+fixed.push(G.mesh(F.tex.rope({ kind: 'ladder' }), { side: true }), Gn.mesh(F.tex.rope({ kind: 'net' }), { side: true }), Gw.mesh(D.tex.plank({ c: '#665e70' })));
+const wheel = R.geo().quad([-.85, -.85, 0], [.85, -.85, 0], [.85, .85, 0], [-.85, .85, 0]).mesh(T.wheel({ kind: 'wood', c: '#8a8490' }), { side: true }); wheel.position.set(HX, CY + 1.25, -7.2); wheel.userData.dyn = true; deck.add(wheel);
+// 青白いランタン：マストと船室のかべに つるす。にじみと、甲板・かべの加算の輪
+const COLD = '#a8ecff', LAMPS = [[.55, DK + 2.5, -1.1, 4.6], [-.5, DK + 2.3, 6.8, 4], [-2.2, DK + 2.2, -5.7, 3.6], [2.2, DK + 2.2, -5.7, 3.6], [0, CY + 2.6, -8.6, 3]], Gl = R.geo(), Gi = R.geo(), halos = [];
+for (const [x, y, z] of LAMPS) { Gl.at(R.TR(x, y, z)).loft(4, [[-.2, .1, .1, 0], [.06, .13, .13, 1]], { ur: 4 }).at(null); Gi.at(R.TR(x, y, z)).loft(4, [[.06, .15, .15, 0, .9], [.16, .03, .03, 1, 1]], {}).box(.03, .3, .03, 0, .16, 0, {}).at(null); const h = D.halo({ c: COLD, r: 1.5, k: .8 }); h.position.set(x, y - .05, z); deck.add(h); halos.push(h); }
+fixed.push(Gl.mesh(T.lamp({ cold: true }), { glow: true }), Gi.mesh(T.metal({ c: '#4a5060' })));
+fixed.push(D.pools([...LAMPS.map(([x, y, z, r]) => ({ p: [x, y > CY ? CY + .04 : DK + .04, z + (z < -5 ? 1.2 : 0)], r, c: COLD, k: .62 })), { p: [0, DK + 1.8, -2.65 * SC + .06], n: [0, 0, 1], r: 4.4, r2: 2, c: COLD, k: .4 }]));
+deck.add(R.merge(fixed));
+const helmL = new THREE.PointLight(COLD, 9, 12, 1.4); helmL.position.set(0, DK + 2.4, -3.6); deck.add(helmL);
+
+// ---- 影：かじの所の うすく光る人かげ。霧の中の別の船（あかりが 1 つ）と、もっと遠い船 ----
+const ghost = D.ghost({ h: 3.1, c: '#e4fffa', a: .8 }); ghost.material.blending = THREE.NormalBlending; scene.add(ghost);   // 明るい霧の前でも見えるように、加算ではなく ふつうの重ね方に
+const gh = D.halo({ c: '#9ef0e8', r: 2.2, k: .4 }); scene.add(gh);
+const others = [[-30, -34, 1.9, .5, 1.1], [34, -62, 2.4, -.4, .7]].map(([x, z, s, ry, v], i) => { const o = F.ship({ s, c: '#2c4448', c2: '#2a4a50', cabin: '#2c4448', sail: '#4c7074', flag: 'none', flagO: { c: '#2a4a50' } }); o.traverse(m => { if (m.isMesh && m.material.map) m.castShadow = false; }); o.rotation.y = ry; scene.add(o);
+  const l = D.halo({ c: COLD, r: 3.2, k: .7, flicker: true }); scene.add(l); return { o, l, x, z, v, s }; });
+
+// ---- 空気：海の上をはう霧、甲板を流れる霧、ただよう しぶきの粒 ----
+scene.add(D.groundFog({ n: 56, box: [90, 90], y: .2, c: '#b4dcd8', a: .3, h: 3, w: 13, wind: [.3, -1.3] }), D.flakes({ kind: 'dust', n: 150, c: '#c8f4ee', box: [22, 9, 22], size: 1.3 }));
+const mist = D.groundFog({ n: 9, box: [9, 20], y: 0, c: '#c0e8e4', a: .2, h: 1.1, w: 5, wind: [.2, -.5] }); mist.position.y = DK * 0 + 2.8; scene.add(mist);
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffb860', power: 9, range: 7, r: 2.6, k: .6 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 6.2, LEN = 10.4, SPEED = 1.15, v = new THREE.Vector3(), onDeck = (x, y, z) => v.set(x, y, z).applyMatrix4(deck.matrixWorld);
+K.loop((dt, t) => {
+  ship.rotation.z = Math.sin(t * .55) * .028; ship.rotation.x = Math.sin(t * .4 + 1) * .014; F.tick(t); ship.updateMatrixWorld(true);
+  const z = Z0 - (t * SPEED) % LEN, x = 1.9 + Math.sin(z * .45) * .5;
+  onDeck(x, DK, z); hero.position.copy(v); hero.rotation.y = Math.PI + Math.cos(z * .45) * .2; R.walk(hero, t * SPEED * 3.7, .9); D.lanternPose(hero);
+  onDeck(HX, CY, -6.7); ghost.position.copy(v); gh.position.set(v.x, v.y + 1.4, v.z); wheel.rotation.z = Math.sin(t * .5) * .5;
+  halos.forEach((h, i) => { h.material.opacity = .8 * (.82 + .12 * Math.sin(t * 6 + i * 2) + .06 * Math.sin(t * 17 + i)); }); helmL.intensity = 9 * (.85 + .15 * Math.sin(t * 6));
+  for (const q of others) { const oz = q.z - ((t * q.v + 8) % 60) + 14; q.o.position.set(q.x, 0, oz); q.l.position.set(q.x + Math.sin(q.o.rotation.y) * -4 * q.s, 4.2 * q.s, oz - 4 * q.s); }
+  const cz = t * 2.4, sz = Math.round(cz / 4) * 4; sea.tick(t, 0, cz); sea.mesh.position.z = sz - cz; S.tick(t);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.2, hy = hero.position.y; cam.position.set(x * .55 + .5, hy + (tall ? 2.2 : 1.6), z + Dc); cam.lookAt(x * .35, hy + (tall ? 2.6 : 3), z - 6);   // 低い所から少し見上げて、主役と、やぶれた帆と、船尾の人かげを 1 枚に
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-01 嵐の夜の、呪われた城の門 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-01 ─ 嵐の夜の、呪われた城の門 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 嵐の夜。丘の上の黒い城へ、石の橋を ランタンを持ったマントの旅人が歩く。ななめの雨、ときどきの いなずまで、城の形が白い空の前に浮かぶ。
+// 色の組は「青黒の空と石・いなずまの白・ランタンと かがり火の だいだい」＋塔の窓の赤 1 点。暗い所は青むらさき寄りにして黒くつぶさず、
+// 明るい地平線の前のシルエット、ななめ うしろからの ふちの光、地面に焼きこんだ あかりの輪で、主役と城を読ませる（D.mood の 'storm'）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#d8c8a0', cloth: 'coat', top: '#4a5a90', top2: '#c8b88a', bottom: '#3a3c58', shoe: '#5a4636', gloves: 'glove', glove: '#6a5040', neck: 'cape', acc: '#a8403c', back: 'pack' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 34 });
+
+// ---- 地面：まん中が橋（ぬれた石だたみ）。両がわは低い荒れ地で、城のある丘へ上がる ----
+const CY = 3.2, CZ = -36, sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const deckY = z => CY * sstep(6, -20, z), H = (x, z) => { const ax = Math.abs(x), low = -2.6 + Math.sin(x * .31 + z * .17) * .7 + Math.sin(z * .43) * .4, side = low + (CY + 2.6) * sstep(-15, -25, z) + 2.6 * sstep(20, 27, z) * (1 - sstep(-15, -25, z)); return ax < 3 ? deckY(z) : ax > 4.6 ? side : deckY(z) + (side - deckY(z)) * (ax - 3) / 1.6; };
+const FIRES = [[-3.4, -22.5], [3.4, -22.5]], LIT = [...FIRES.map(([x, z]) => ({ x, z, r: 9, c: '#ffa850', k: 1.5 })), { x: 0, z: -29, r: 7, c: '#ff9a50', k: .6 }];
+const land = R.ground({ w: 120, d: 130, cell: 2, cz: -14, H, layers: [D.tex.deadGrass({ c: '#4e5a58' }), D.tex.wetCobble({ c: '#626a88' }), D.tex.ash({ c: '#5a5e70' })],
+  mix: (x, z) => [Math.abs(x) < 3.2 || (z < -24 && Math.abs(x) < 9) ? 1 : 0, Math.max(0, Math.min(1, .5 + Math.sin(x * .7) * Math.sin(z * .5) * .9))], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 橋の石の手すり（下まで石のかべ）、柱、かがり火 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const stone = D.tex.stone({ c: '#666c88' }), G = R.geo();
+for (let z = 24; z > -22; z -= 3) for (const sx of [-1, 1]) { const y = deckY(z - 1.5); G.box(.55, 4.1, 3.02, sx * 3.05, y - 3.2, z - 1.5, { m: 3, c0: .7 }); if (Math.round(z / 3) % 3 === 0) { G.box(.8, 4.7, .8, sx * 3.05, y - 3.2, z, { m: 3, c0: .7 }); G.box(1, .2, 1, sx * 3.05, y + 1.5, z, { m: 3 }); } }
+fixed.push(G.mesh(stone));
+for (const [x, z] of FIRES) put(D.brazier({ s: 1.15, light: x < 0 }), x, z, 0, deckY(z));
+fixed.push(D.pools(FIRES.map(([x, z]) => ({ p: [x * 1.25, CY + 3.4, CZ + 1.72], n: [0, 0, 1], r: 5, r2: 4.4, c: '#ff9a48', k: .8 }))), D.streaks(FIRES.map(([x, z]) => ({ x, z, h: 1.4, c: '#ffa850', k: .7, w: 1.1 }))));
+
+// ---- 城：丘の上の黒い城。旗はやぶれた赤むらさき。本丸の塔の窓に 1 つだけ赤いあかり ----
+const castle = F.castle({ s: 1.55, stone: F.tex.ashlar({ c: '#5c6280', moss: .3 }), roof: F.tex.slate({ c: '#2e3658' }), c: '#6a2a44', crest: 'moon', cc: '#b8a8c8', open: .35 }); castle.position.set(0, CY, CZ); fixed.push(castle);
+const RED = [0, CY + 13.2 * 1.55, CZ + (-10.6 + 2.56) * 1.55], rw = R.geo().quad([-.55, -.9, 0], [.55, -.9, 0], [.55, .9, 0], [-.55, .9, 0]).mesh(T.window({ lit: 1, glass: '#ff4a30', curtain: false, bars: 'cross', arch: 1, h: 48 }), { glow: true, fog: false, color: '#ff7058' }); rw.position.set(...RED); rw.castShadow = false; scene.add(rw);
+const redHalo = D.halo({ c: '#ff3a28', r: 3.4, k: .9 }); redHalo.position.set(RED[0], RED[1], RED[2] + .6); scene.add(redHalo);
+for (const sx of [-1, 1]) { put(F.wall({ len: 16, h: 4.6, stone: F.tex.ashlar({ c: '#565c78', moss: .4 }) }), sx * 30, CZ + 3, sx * .25); put(D.statue({ kind: 'knight', s: 1.5, seed: sx + 2 }), sx * 6.2, -25.5, -sx * .35); }
+
+// ---- 枯れ木、いばら、墓標、こわれた馬車：低い荒れ地と丘に ----
+const trees = [[-7.5, 15, 8], [8.5, 9, 9.5], [-9.5, 2, 10.5], [7.2, -4, 8], [-7, -9.5, 9], [10, -15, 11], [-12, -19, 10], [14, 2, 9], [-15, 10, 11], [17, -9, 12], [-19, -6, 12], [-22, -27, 11], [22, -28, 12], [12, 19, 9], [-11, 22, 8]].map(([x, z, h], i) => put(D.deadTree({ h, seed: i + 2 }), x, z, i));
+for (let i = 0; i < 22; i++) { const x = (hash(i, 1) - .5) * 60, z = 24 - hash(i, 2) * 46; if (Math.abs(x) < 5) continue; const k = i % 4; put(k === 0 ? D.thorns({ len: 3.5, h: 1.2, seed: i }) : k === 1 ? D.grave({ kind: ['round', 'point', 'disc'][i % 3], seed: i, lean: (hash(i, 5) - .5) * .5, s: 1.2 }) : k === 2 ? R.rock({ s: 1 + hash(i, 6), c: '#565c74', seed: i }) : R.tuft({ kind: 'reed', s: 1.2 }), x, z, i * 1.3); }
+put(D.wreckCart({}), 6.6, 14.5, .8); put(D.fence({ len: 7, lean: .12 }), -8.5, 19.5, .5); put(D.column({ h: 2.4 }), 5.4, -24.5, 0);
+scene.add(R.merge(fixed));
+
+// ---- 空と天気：流れる雲、ななめの雨、いなずま（城の方角）、低い所の霧、からす ----
+scene.add(D.clouds({ n: 11, r: 250, y: 80, s: 110, c: '#56648e', shade: '#2a3254', speed: .02 }), D.rain({ n: 800, slant: [.34, .12] }), D.lightning(mood, { first: 2.32, every: 7, az: 0, spread: 44, dist: 170 }));
+scene.add(D.groundFog({ n: 50, box: [60, 60], H: (x, z) => Math.abs(x) < 4.6 ? -3 : H(x, z), c: '#8ea0c4', a: .3, h: 2, w: 9, wind: [.9, .2] }));
+const crows = D.perched([[3.05, deckY(6) + 1.7, 6, -1.2], [-3.05, deckY(-3) + 1.7, -3, 1], [3.05, deckY(-12) + 1.7, -12, -2], [-3.05, deckY(15) + 1.7, 15, 2]], { watch: hero, near: 5 }); scene.add(crows);
+for (const [i, k] of [[1, 0], [4, 1], [9, 0]]) { const t = trees[i], p = t.userData.perch[k]; if (p) { const c = D.crow(); t.updateMatrixWorld(); c.position.copy(p).applyMatrix4(t.matrixWorld); c.rotation.y = i; scene.add(c); } }
+scene.add(D.flock({ n: 9, r: 11, h: 3, center: [0, CY + 26, CZ - 14], s: 1.6 }), D.loomer({ w: 120, h: 80, c: '#28324e', eye: '#ff5038', gap: .1 }).translateX(-150).translateZ(-290).translateY(-8));
+
+const lamp = D.lantern(hero, { hand: 'L', power: 10, range: 8, r: 3, k: .75 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 16, LEN = 40, SPEED = 1.7;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 - dist, y = deckY(z), sway = Math.sin(t * .3) * .5;
+  hero.position.set(sway, y, z); hero.rotation.y = Math.PI + Math.cos(t * .3) * .09; R.walk(hero, t * SPEED * 3.5); D.lanternPose(hero); lamp.userData.spot.position.y = y + .06;
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(sway * .5 + .9, y + (tall ? 2.2 : 1.6), z + Dc); cam.lookAt(sway * .3, y + (tall ? 2.3 + Math.max(0, (z + 10) * .05) : 3.05), z - 6);   // 低い所から少し見上げて、主役の全身と城の塔を 1 枚に入れる
+  land.follow(0, -14); D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

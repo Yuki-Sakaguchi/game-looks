@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-41 地下の大きな排水路を、見まわる 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dcf0e0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-41 ─ 地下の大きな排水路を、見まわる / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 下町のさらに下。丸いトンネルの形の大きな排水路。まん中を にごった水が流れ、両がわに細い足場がある。
+// 頭の上の格子から、白い光のすじが点々と落ちて、こけた かべと水面を照らす。主役はゴム長ぐつとヘルメットの作業員。懐中電灯で先を照らして歩く。
+// 色の組は「黒緑の石と水・光のすじの白」＋長ぐつとヘルメットの黄。トンネルは R.geo で輪をつないで作り、光の輪は頂点の明るさに焼きこむ（D.lightShade）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 600, aa: false, fitAspect: .9, maxFov: 80 });
+const hero = R.actor({ hairStyle: 'short', hair: '#3a3430', mouth: 'line', beard: 'mustache', cloth: 'overall', top: '#3f8a7a', top2: '#d8d4c0', bottom: '#3f8a7a', shoes: 'boot', shoe: '#e8c83a', gloves: 'glove', glove: '#e8c83a', hat: 'cap', acc: '#f0e060', back: 'bag' }); scene.add(hero);
+const FOG = '#0e2018', WHITE = '#dcffe8';
+const mood = D.mood(scene, renderer, 'abyss', { follow: hero, hills: false, shadow: false, r: 280, sky: ['#08140e', '#0c1c14', FOG, '#143024'], fog: [FOG, 5, 58], hemi: ['#78b894', '#1a3024', .8], key: ['#a8e0c0', .55, [-.2, .9, .3]], fill: ['#3a6a52', .4], base: [.5, .72, .6] });
+const RT = 4.2, CY = 1.9, X0T = -44, X1T = 92, CH = 1.5, WY = -.42, HZ = 2.15;   // 輪の半径・中心の高さ、水路のはばの半分、水面の高さ、主役の歩く z
+const roofY = z => CY + Math.sqrt(RT * RT - z * z);
+
+// ---- 光のすじ：頭の上の格子。主役の足場の上／水の上／むこうの足場の上に、8 m ごと ----
+const GR = []; for (let k = 0; k < 15; k++) GR.push([-22 + k * 8, [HZ + .1, 0, HZ + .1, -2.3][k % 4]]);
+const LIT = GR.map(([x, z]) => ({ x, z, r: 3.3, c: WHITE, k: z ? 1.25 : 1.0 })), shade = mood.shade(LIT), sh = (x, z, y = 0, k = 1) => { const b = mood.base, s = shade(x, z), f = Math.max(0, 1 - y / 4.5); return s.map((v, i) => (b[i] + (v - b[i]) * f) * k); };
+
+// ---- トンネル：輪をつないだ かべ（こけた石）、足場（コンクリート）、水路のかべ、リブ（さびた鉄の輪） ----
+const A = Math.acos(-CY / RT), N = 14, pt = (a, r = RT) => [CY + r * Math.cos(a), r * Math.sin(a)], WL = R.geo(), FL = R.geo(), RB = R.geo();
+for (let x = X0T; x < X1T; x += 2) { for (let k = 0; k < N; k++) { const a1 = -A + 2 * A * k / N, a2 = -A + 2 * A * (k + 1) / N, [y1, z1] = pt(a1), [y2, z2] = pt(a2), u1 = a1 * RT / 3, u2 = a2 * RT / 3;
+    WL.quad([x, y1, z1], [x + 2, y1, z1], [x + 2, y2, z2], [x, y2, z2], [x / 3, u1, (x + 2) / 3, u2], [sh(x, z1, y1), sh(x + 2, z1, y1), sh(x + 2, z2, y2), sh(x, z2, y2)]); }
+  for (const s of [-1, 1]) { const za = s * CH, zb = s * (RT * Math.sin(A)); for (let j = 0; j < 2; j++) { const p = za + (zb - za) * j / 2, q = za + (zb - za) * (j + 1) / 2; FL.quad([x, 0, p], [x + 2, 0, p], [x + 2, 0, q], [x, 0, q], [x / 3, p / 3, (x + 2) / 3, q / 3], [sh(x, p), sh(x + 2, p), sh(x + 2, q), sh(x, q)]); }
+    FL.quad([x, -.9, za], [x + 2, -.9, za], [x + 2, 0, za], [x, 0, za], [x / 3, 0, (x + 2) / 3, .3], [sh(x, za, 0, .6), sh(x + 2, za, 0, .6), sh(x + 2, za, 0, .85), sh(x, za, 0, .85)]); } }
+for (let x = X0T + 4; x < X1T; x += 8) for (let k = 0; k < N; k++) { const a1 = -A + 2 * A * k / N, a2 = -A + 2 * A * (k + 1) / N, r = RT - .16, [y1, z1] = pt(a1, r), [y2, z2] = pt(a2, r), [y3, z3] = pt(a1), [y4, z4] = pt(a2), c = [sh(x, z1, y1, .9), sh(x, z1, y1, .9), sh(x, z2, y2, .9), sh(x, z2, y2, .9)], uv = [0, k / 3, .2, (k + 1) / 3];
+  RB.quad([x - .25, y1, z1], [x + .25, y1, z1], [x + .25, y2, z2], [x - .25, y2, z2], uv, c); for (const e of [-.25, .25]) RB.quad([x + e, y3, z3], [x + e, y1, z1], [x + e, y2, z2], [x + e, y4, z4], [0, 0, .06, .3], .6); }
+const tunnel = [WL.mesh(D.tex.stone({ c: '#5e7868', moss: .7, stain: .8, mossC: '#4a7a50' }), { side: true }), FL.mesh(X.conc({ c: '#7a8a7c' }), { side: true }), RB.mesh(X.plate({ c: '#6a6a58', n: 2, rust: .9 }), { side: true })]; for (const m of tunnel) { m.castShadow = false; scene.add(m); }
+// 水：x の向きへ流れる。光のすじの下は白くそまる
+const WF = T.water({ c: '#3f6a54' }), wmat = R.mat(WF[0], { vc: true, smooth: true });
+{ const G = R.geo(), c = (x, z) => sh(x, z, 0, .95); for (let x = X0T; x < X1T; x += 2) for (const z of [-CH, 0]) G.quad([x, WY, z + CH], [x + 2, WY, z + CH], [x + 2, WY, z], [x, WY, z], [x / 3, (z + CH) / 3, (x + 2) / 3, z / 3], [c(x, z + CH), c(x + 2, z + CH), c(x + 2, z), c(x, z)]); const m = G.mesh(wmat); m.castShadow = false; scene.add(m); }
+
+// ---- 格子と光のすじ：光る口＋格子の影絵＋すじ＋かべ・水面の輪 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const G = R.geo(); for (const [x, z] of GR) { const y = roofY(z) - .12; G.quad([x - .7, y, z - .7], [x + .7, y, z - .7], [x + .7, y, z + .7], [x - .7, y, z + .7]); const g = C.manhole({ kind: 'grate', r: .74, c: '#28382e' }); g.rotation.x = PI; g.position.set(x, y - .1, z); scene.add(g);
+    const s = D.shaft({ w: 1.5, h: y - (z ? 0 : WY), c: WHITE, a: z ? .3 : .24 }); s.position.set(x, z ? 0 : WY, z); scene.add(s); } const m = G.mesh('#eafff2', { glow: true, side: true, fog: false }); m.castShadow = false; scene.add(m); }
+scene.add(D.pools(GR.map(([x, z]) => ({ p: [x, (z ? 0 : WY) + .02, z], r: 1.7, c: WHITE, k: .5 }))), D.streaks(GR.filter(g => !g[1]).map(([x, z]) => ({ x, z, h: 5, c: WHITE, k: .8, w: 1.1 })), { y: WY + .03, far: 40 }));
+
+// ---- 配管・はしご・バルブ・計器・くさり・くもの巣 ----
+const PC = ['#5a7a6c', '#7a6a54', '#6a7480'];
+fixed.push(C.pipe([[X0T, 2.7, 3.82], [X1T, 2.7, 3.82]], .24, { c: PC[0], joint: 5 }), C.pipe([[X0T, 3.6, 3.56], [X1T, 3.6, 3.56]], .11, { c: PC[1], joint: 3.5 }), C.pipe([[X0T, 3.1, -3.82], [X1T, 3.1, -3.82]], .17, { c: PC[2], joint: 4.5, band: '#c8d4c0' }), C.pipe([[X0T, 4.6, -3.1], [X1T, 4.6, -3.1]], .09, { c: PC[1], joint: 3 }));
+for (const x of [-9.5, 3, 14.5, 27]) { const v = C.valve({ r: .24, c: '#8a4a3a' }); v.position.set(x, 2.7, 3.82); v.scale.setScalar(1.25); fixed.push(v); put(C.meter({ r: .17 }), x + 1.1, 3.5, PI, 1.75); }
+for (const x of [-6, 10, 26]) { put(C.ladder({ h: roofY(2.9) - .1, c: '#8a947c' }), x + 1.3, 2.86, PI); }
+for (const [x, y] of [[-3, 1.0], [7, 1.2], [21, .9], [33, 1.1]]) fixed.push(C.pipe([[x, y + .5, -4.1], [x, y + .5, -2.4], [x, y, -CH - .25]], .3, { c: PC[(x + 9) % 3 | 0], joint: 0, bend: .4 }));   // むこうのかべから出る、流れこむ管
+for (const [x, z, l] of [[-12, .6, 1.8], [-1, -.8, 2.4], [6.5, .3, 1.5], [16, -1, 2.2], [23, .9, 1.7]]) { const c = D.chain({ len: l, sway: .06, seed: x }); c.position.set(x, roofY(z) - .1, z); scene.add(c); }
+for (const [x, ry] of [[-4.2, 0], [12.2, 0], [19.8, PI]]) { const w = D.web({ s: 1.3 }); w.position.set(x, roofY(3.2) - .2, 3.0); w.rotation.y = ry; scene.add(w); }
+put(C.drum({ c: '#5a7a6c', mark: 'none' }), -7.3, 3.2); put(R.crate({ s: .5, c: '#7a7460' }), 5, 3.15, .4); put(C.trash({ c: '#6a7480' }), 17.3, 3.25); put(C.tires({ n: 1 }), 30, 3.1);
+scene.add(R.merge(fixed));
+
+// ---- 流れこむ水（たての帯）、ほこり、こうもり、暗がりの目 ----
+const ft = T.fall({ c: '#a0c8b0' }).clone(); ft.needsUpdate = true; { const F = R.geo(); for (const [x, y] of [[-3, 1.0], [7, 1.2], [21, .9], [33, 1.1]]) for (const a of [0, PI / 2]) { const cx = Math.cos(a) * .2, cz = Math.sin(a) * .2, z = -CH + .05; F.quad([x - cx, WY, z - cz], [x + cx, WY, z + cz], [x + cx, y, z + cz], [x - cx, y, z - cz], [0, 0, 1, (y - WY) / .5]); }
+  scene.add(new THREE.Mesh(F.build(), new THREE.MeshBasicMaterial({ map: ft, alphaTest: .5, side: THREE.DoubleSide, color: '#7aa890' }))); }
+[[-3, 0], [7, 1], [21, 2]].forEach(([x, i]) => { const sp = C.steam({ n: 5, r: .3, rise: .6, spread: .45, speed: .8, c: '#c8e8d4', a: .3, phase: i * .3 }); sp.position.set(x, WY + .05, -CH + .3); scene.add(sp); });
+scene.add(D.flakes({ kind: 'dust', n: 130, c: '#d8f4e0', box: [16, 5, 6], size: 1.2 }), D.flock({ kind: 'bat', n: 6, r: 1.6, h: .8, center: [9, 4.4, -.4], speed: 1.3 }));
+const pairs = [[2.9, 1.52, -3.3], [20.9, 1.42, -3.3], [-7.3, 1.0, 3.5]].map(([x, y, z], i) => { const g = new THREE.Group(); for (const s of [-1, 1]) { const e = D.halo({ c: i === 2 ? '#f8e860' : '#b8ff90', r: .06, k: 1 }); e.position.x = s * .05; g.add(e); } g.position.set(x, y, z); scene.add(g); return g; });
+
+// ---- 懐中電灯：手の先から前へ のびる光の円すい（加算）＋本物の SpotLight ＋地面の明るい輪 ----
+const J = hero.userData.J, hand = new THREE.Group(); { const Bd = hero.userData.build, hold = new THREE.Group(); hold.rotation.z = J.foreR.children[0] ? J.foreR.children[0].rotation.z : 0; J.foreR.add(hold); hand.position.y = -Bd.farm - Bd.hand[2] * .8; hold.add(hand);
+  hand.add(R.geo().loft(6, [[-.2, .05, .05, 0, 1], [-.12, .05, .05, .3, 1], [-.1, .032, .032, .4, .8], [.08, .03, .03, 1, .8]], { cap: 'both' }).mesh(T.metal({ c: '#9a9a8c' }))); const lens = D.halo({ c: '#f4fff8', r: .16, k: .9 }); lens.position.y = -.21; hand.add(lens); }
+const beamG = new THREE.ConeGeometry(1, 1, 14, 1, true); beamG.translate(0, -.5, 0); beamG.rotateX(-PI / 2); { const p = beamG.attributes.position, col = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = p.getZ(i) > .5 ? 0 : 1; beamG.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+const beam = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ color: '#e0fff0', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .13, depthWrite: false, side: THREE.DoubleSide, fog: false })); beam.renderOrder = 3; scene.add(beam);
+const torch = new THREE.SpotLight('#f0fff4', 80, 18, .42, .6, 1.1), near = new THREE.PointLight(WHITE, 12, 8, 1.4), back = new THREE.PointLight('#b8e8d0', 4, 6, 1.4); scene.add(torch, torch.target, near, back);
+const ring = D.spot({ c: '#e8fff0', r: 1, k: .55 }); scene.add(ring); const hp = new THREE.Vector3(), tp = new THREE.Vector3();
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const SPEED = 1.45, SPAN = 40, XS = -15;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = XS + d, z = HZ + Math.sin(x * .3) * .12, tall = innerWidth < innerHeight, Dc = tall ? 3.3 : 4;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 + Math.sin(t * .5) * .06; R.walk(hero, t * SPEED * 3.9, .85);
+  J.armR.rotation.set(-.62, 0, -.12); J.foreR.rotation.x = -.8;
+  const sw = Math.sin(t * .5) * .5 - .45; hand.getWorldPosition(hp); tp.set(x + 6, .5 + Math.sin(t * .37) * .5, z + sw * 2.4);   // 光は水路と むこうのかべを さぐる
+  torch.position.copy(hp); torch.target.position.copy(tp); beam.position.copy(hp); beam.lookAt(tp); beam.scale.set(1.5, 1.5, 6);
+  ring.position.set(x + 4.4, Math.abs(z + sw * 1.6) < CH ? WY + .04 : .06, z + sw * 1.6); ring.scale.set(2.4, 1.4, 1); back.position.set(x - 1.2, 2, z - .6);
+  const gx = -22 + Math.round((x + 2 + 22) / 8) * 8, gi = Math.round((gx + 22) / 8), gz = GR[Math.max(0, Math.min(14, gi))][1]; near.position.set(gx, 2.6, gz);   // いちばん近い光のすじの中に、あかりを 1 つ
+  cam.position.set(x - Dc, tall ? 2.1 : 1.9, z - (tall ? .35 : .9)); cam.lookAt(x + 5, tall ? 1.5 : 1.55, z - (tall ? .9 : 1.5));
+  crt.u.bright.value = 1.1 * Math.min(1, d / .5, (SPAN - d) / .5);
+  R.flip(wmat, WF, t, 5); for (const f of WF) f.offset.x = -t * .3; ft.offset.y = t * 2.2;
+  pairs.forEach((g, i) => { g.visible = (t * .6 + i * 2.1) % 5 > .22; g.lookAt(cam.position); });
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-44 監視灯の広場を、かべぞいに歩く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-44 ─ 監視灯の広場を、かべぞいに歩く / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// だれもいない夜の広場。高い鉄塔の上のサーチライトの白い光の輪が、石だたみを ゆっくり なめて動く。店はシャッターを下ろし、屋台は止まったまま。
+// 主役は赤いマフラーの子。光の輪をさけるように、店のかべぞいを歩く（光が動くだけ。だれも追ってこない）。
+// 色の組は「青黒の町・ライトの白」＋マフラーの赤 1 点。D.mood の 'blackout' の弱い光で町を読ませ、光の輪（SpotLight＋加算の輪と円すい）との差で見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ hairStyle: 'spiky', hair: '#2e2a38', mouth: 'small', cloth: 'coat', top: '#7484a8', top2: '#c8d0e0', lower: 'shorts', bottom: '#3a4060', shoes: 'boot', shoe: '#8a7a6a', neck: 'scarf', acc: '#d84a40', hat: 'cap', s: .8 }); scene.add(hero);
+const WHITE = '#eef4ff', HAZE = '#222a44';
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, range: 34, hills: false, level: .9, fog: [HAZE, 16, 110], sky: ['#080a16', '#121830', '#222a44', '#465478'] });
+const HZ = 9.4, WALL = 12, TX = 16, TZ = -7, TH = 15;   // 主役の歩く z、店の前の z、塔の位置と高さ
+
+// ---- 地面：ぬれた石だたみ。店の前はコンクリート。消えかけの電球 1 つだけ焼きこむ ----
+const BULB = [7.5, 6.3], land = R.ground({ w: 150, d: 90, cell: 2, cx: 14, cz: -6, layers: [D.tex.wetCobble({ c: '#5a6282', wet: .5 }), X.conc({ c: '#70768e' }), X.plate({ c: '#56607c', n: 4 })], mix: (x, z) => [z > WALL - 3.6 ? 1 : 0, Math.hypot(x - TX, z - TZ) < 3.4 ? 1 : 0], shade: mood.shade([{ x: BULB[0], z: BULB[1], r: 3.6, c: '#cfe0ff', k: .55 }]) });
+scene.add(land.mesh);
+
+// ---- 広場をかこむ、シャッターの下りた店 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, CS = ['#4a5674', '#56607c', '#5a5a70', '#6a708a', '#4e6274'];
+const row = (x0, x1, z, ry, sd) => { for (let x = x0, i = 0; x < x1; i++) { const w = [5.4, 4.6, 6.2, 5][(i + sd) % 4]; put(C.shack({ w, d: 5, floors: 2 + (hash(i, sd) > .5 ? 1 : 0), seed: i + sd * 9, cs: CS, lit: 0, shop: 'shutter', awning: i % 3 === 1 ? 'tin' : false, laundry: false, antenna: i % 2 === 0, tank: i % 3 === 0}), ry ? (Math.abs(ry) > 2 ? x + w / 2 : z) : x + w / 2, ry && Math.abs(ry) < 2 ? x + w / 2 : z, ry); x += w + .2; } };
+row(-34, 64, WALL + 2.5, PI, 1); row(-34, 64, -27, 0, 5);
+for (let z = -22, i = 0; z < 10; z += 5.6, i++) put(C.shack({ w: 5.2, d: 5, floors: 2 + i % 2, seed: 70 + i, cs: CS, lit: 0, shop: 'shutter', laundry: false }), 52, z, -PI / 2);
+
+// ---- 鉄塔：抜きの鉄骨の 4 本組み＋上の台＋ライトの箱 ----
+{ const gird = X.girder({ c: '#56607e' }), G = R.geo(); G.loft(4, [[0, 2.3, 2.3, 0, .8], [TH - 1, .95, .95, 9, 1]], { ur: 1 }); const tw = G.mesh(gird, { side: true }); tw.position.set(TX, 0, TZ); tw.rotation.y = PI / 4; fixed.push(tw);
+  const P = R.geo(); P.box(2.6, .25, 2.6, TX, TH - 1, TZ, { m: 2 }); for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { P.box(.1, 1, .1, TX + sx * 1.25, TH - .75, TZ + sz * 1.25, { m: 1 }); P.box(.3, .5, .3, TX + sx * 1.55, 0, TZ + sz * 1.55, { m: 1 }); } P.box(2.6, .08, .08, TX, TH + .2, TZ - 1.25, { m: 1 }); P.box(2.6, .08, .08, TX, TH + .2, TZ + 1.25, { m: 1 }); P.box(.08, .08, 2.6, TX - 1.25, TH + .2, TZ, { m: 1 }); P.box(.08, .08, 2.6, TX + 1.25, TH + .2, TZ, { m: 1 }); fixed.push(P.mesh(X.plate({ c: '#4a5270', n: 1 }))); put(C.ladder({ h: TH - 1, c: '#8a94b0' }), TX, TZ + 1.55).rotation.x = -.073; }
+const head = new THREE.Group(); { const G = R.geo().smooth(1); G.at(R.TR(0, 0, 0, 0, PI / 2)).loft(8, [[-.5, .42, .42, 0, .7], [.35, .5, .5, .7, 1], [.5, .56, .56, 1, .9]], { cap: 'bot' }).at(null); head.add(G.mesh(X.plate({ c: '#5a6484', n: 1 }))); const lens = R.geo().quad([-.5, -.5, .51], [.5, -.5, .51], [.5, .5, .51], [-.5, .5, .51]).mesh(T.lamp(), { glow: true, fog: false, side: true }); lens.castShadow = false; const hl = D.halo({ c: WHITE, r: 1.7, k: .85 }); hl.position.z = .6; head.add(lens, hl); head.position.set(TX, TH + .1, TZ); scene.add(head); }
+const blink = D.warnLamp({ kind: 'blink', c: '#ff4030', r: .13, speed: 1.4 }); blink.position.set(TX, TH + .75, TZ); scene.add(blink);
+
+const dead = o => { const rm = []; o.traverse(m => { if (m.isSprite || m.isLight || (m !== o && m.userData.dyn)) rm.push(m); else if (m.material && m.material.isMeshBasicMaterial) { m.material = m.material.clone(); m.material.color.set('#3a4260'); } }); for (const m of rm) m.parent.remove(m); return o; };   // あかりを消す（にじみ・湯気を外し、光る面を暗い色に）
+// ---- 広場の物：止まった屋台、ベンチ、消えた街灯、ごみ箱、木箱、自転車、マンホール ----
+put(dead(C.yatai({ c: '#5a5a70', c2: '#8a90a8', noren: '#4a5674', steam: false })), 5.5, 5.2, PI + .2); put(dead(C.yatai({ c: '#4e6274', c2: '#8a90a8', noren: '#56607c', steam: false, seed: 2 })), 24, 3.4, PI - .3); put(dead(C.yatai({ c: '#5a5a70', noren: '#4a5674', steam: false, seed: 3 })), 12, -17, .2);
+for (const [x, z, ry] of [[1, -2, .3], [9.5, -4.5, PI / 2], [22, -9, -.4], [28, -2.5, PI], [14, 1.5, PI], [-6, -8, .2], [33, -13, .5]]) put(C.bench({ c: '#5a5a66' }), x, z, ry);
+for (const [x, z] of [[-4, 2], [18, 5.6], [36, 1], [3, -14], [28, -18]]) put(dead(C.streetLamp({ h: 4.6, cold: true, halo: false })), x, z, x);
+put(C.trash({ kind: 'bin', c: '#4e5a7a' }), 2.5, WALL - 1.1); put(C.trash({}), 16.5, WALL - 1); put(R.crate({ s: .7, c: '#6a6a70' }), 11.5, WALL - 1.1, .3); put(R.crate({ s: .5, kind: 'x', c: '#5e6474' }), 11.6, WALL - 1.1, .7, .7); put(C.bike({ c: '#7a84a0' }), 21.5, WALL - .9, .05); put(C.drum({ c: '#56607c' }), 27, WALL - 1); put(C.drum({ c: '#6a5a5a', mark: 'band' }), 27.8, WALL - 1.2); put(C.tires({ n: 2 }), 33, WALL - 1); put(dead(C.vending({ c: '#56607c' })), -2.5, WALL - .7, PI); put(C.trike({ c: '#4e6274', load: false }), 30, 6.5, 2.6);
+for (const [x, z, k] of [[6, -1, 'round'], [20, -3, 'grate'], [30, -10, 'round'], [10, -10, 'plate']]) put(C.manhole({ kind: k }), x, z);
+for (let i = 0; i < 10; i++) put(C.poster({ kind: i, s: 1.2 }), -8 + i * 5.3 + hash(i, 4), WALL - .04, PI, 1.2 + hash(i, 5) * .4);
+scene.add(R.merge(fixed));
+scene.add(R.merge([[-50, -60, 6], [70, -80, 7], [110, 10, 6], [20, -110, 6.5]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 130, seed: i, c: '#36405e', lights: false, emissive: '#0c1020', lm: 60 }); p.position.set(x, 0, z); return p; })));
+
+// ---- サーチライト：地面の光の輪（加算）＋塔からのびる光の円すい＋本物の SpotLight ----
+const ring = D.spot({ c: WHITE, r: 4.6, k: .5 }), ring2 = D.spot({ c: '#ffffff', r: 2.6, k: .3 }); scene.add(ring, ring2);
+const beamG = new THREE.ConeGeometry(1, 1, 16, 1, true); beamG.translate(0, -.5, 0); beamG.rotateX(-PI / 2); { const p = beamG.attributes.position, col = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = p.getZ(i) > .5 ? .35 : 1; beamG.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+const beam = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ color: '#cfdcff', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .1, depthWrite: false, side: THREE.DoubleSide, fog: false })); beam.renderOrder = 3; scene.add(beam);
+const search = new THREE.SpotLight(WHITE, 900, 70, .2, .35, 1.25); scene.add(search, search.target); const top = new THREE.Vector3(TX, TH + .1, TZ), tgt = new THREE.Vector3();
+const back = new THREE.PointLight('#b0c0ff', 6, 6, 1.4); scene.add(back);
+
+// ---- 空気と生きもの：地をはう霧、ほこり、消えかけの電球、ねこ、からす ----
+scene.add(D.groundFog({ n: 50, box: [70, 60], c: '#8a9ac8', a: .2, h: 1.5, w: 9, wind: [.45, .15] }), D.flakes({ kind: 'dust', n: 130, c: '#c8d4f4', box: [24, 8, 20], size: 1.2 }));
+const bulb = D.bulb({ drop: .5, c: '#d8e6ff', light: true, power: 5, range: 6, seed: 3 }); bulb.position.set(BULB[0], 2.9, BULB[1]); scene.add(bulb, D.spot({ c: '#cfe0ff', r: 2, k: .3, flicker: 'bulb', seed: 3 }).translateX(BULB[0]).translateZ(BULB[1]));
+const cat = D.cat({ s: 1.15 }); scene.add(cat); const cat2 = D.cat({ s: 1.1 }); cat2.position.set(11.5, .72, WALL - 1.1); cat2.rotation.y = PI + .6; scene.add(cat2);
+scene.add(D.perched([[1, .9, -2, 1], [22, .9, -9, -2], [14, .9, 1.5, 2.6]], { watch: { position: tgt }, near: 5.5 }), D.flock({ n: 6, r: 4, h: 1.5, center: [TX, TH + 5, TZ], s: 1.3 }));
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const SPEED = 1.35, SPAN = 34, XS = -6, J = hero.userData.J;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = XS + d, z = HZ + Math.sin(x * .22) * .25, tall = innerWidth < innerHeight, Dc = tall ? 3.9 : 4.1;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .22) * .06; R.walk(hero, t * SPEED * 4.4, .75); J.head.rotation.y = .45 + Math.sin(t * .4) * .2; J.torso.rotation.x = .08;   // 光のほうを見ながら歩く
+  tgt.set(x + 5.5 + Math.sin(t * .33 + .4) * 8.5, 0, -1.6 + Math.sin(t * .21 + 1.9) * 6.2);                         // 光の輪は広場を ゆっくり 8 の字に。店の前（主役の道）までは来ない
+  ring.position.set(tgt.x, .07, tgt.z); ring2.position.set(tgt.x, .08, tgt.z); search.position.copy(top); search.target.position.copy(tgt);
+  const len = top.distanceTo(tgt); beam.position.copy(top); beam.lookAt(tgt); beam.scale.set(4.4, 4.4, len); head.lookAt(tgt);
+  back.position.set(x - 1.3, 2, z + .9);
+  const cu = (t / 14 + .1) % 1; cat.position.set(26 - cu * 34, 0, 6.9 + Math.sin(cu * 9) * .5); cat.rotation.y = -PI / 2; R.catPose(cat, 'walk', t * 10); R.catPose(cat2, 'sit', t);
+  cam.position.set(x - Dc, tall ? 2.1 : 1.6, z + (tall ? .7 : 1)); cam.lookAt(x + 5, tall ? 2.5 : 1.65, z - (tall ? 3 : 4.4));   // 低い所から、主役ごしに広場と塔を見る
+  crt.u.bright.value = 1.08 * Math.min(1, d / .5, (SPAN - d) / .5);
+  land.follow(x, -6); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

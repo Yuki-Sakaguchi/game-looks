@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-50 巨大なファンの たて穴の底 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-50 ─ 巨大なファンの たて穴の底 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 鉄の都市の、上の層へ空気を送る 丸いたて穴の底。頭上で 家より大きなファンが ゆっくり回り、そのむこうから白い光が落ちる。点検の人が、かべの足場を歩きながら見上げる。
+// 色の組は「黒青の鉄のかべ」＋「落ちる光の白」。差し色は 点検の人の だいだいのベスト。
+// 光は真上からの 1 つだけ（D.mood の ふちの光を真上に向けた物）。羽根の影が 床・足場・人の上を回り、羽根のすき間の光のすじも いっしょに回る。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 66, far: 300, aa: false, fitAspect: .9, maxFov: 84 });
+const hero = R.actor({ hairStyle: 'tufts', hair: '#3a3f58', mouth: 'open', cloth: 'vest', sleeve: 'long', top: '#f08a2c', top2: '#e8ecf4', lower: 'baggy', bottom: '#56628a', gloves: 'glove', glove: '#d8dce8', shoes: 'boot', shoe: '#33384c', hat: 'cap', acc: '#e8ecf4', hold: 'wrench', belt: '#33384c' }); scene.add(hero);
+const FOG = '#0b1322', WR = 11, FY = 10.5, FR = 9.7, CY = 3, C0 = 9.25, C1 = 10.95, TOP = 18, N = 28, pol = (r, a, y = 0) => [r * Math.sin(a), y, r * Math.cos(a)], A = k => k / N * TAU;
+const mood = D.mood(scene, renderer, 'blackout', { follow: [0, 0, 0], hills: false, range: 16, r: 140, sky: [FOG, FOG, FOG, FOG], fog: [FOG, 16, 70], hemi: ['#6a80b8', '#242a40', .72], key: ['#dceaff', 3, [.1, 1, .07]], fill: ['#3a4a80', .2], base: [.78, .84, 1.02] });
+mood.key.shadow.mapSize.set(2048, 2048);
+
+// ---- 底：鉄板の床と水たまり。まん中が明るい ----
+const land = R.ground({ w: 24, d: 24, cell: 1, layers: [X.plate({ c: '#4c5874', n: 4 }), X.asphalt({ wet: 1, c: '#3a455c', wetC: '#5a7ab8' }), X.conc({ c: '#5a6478' })], mix: (x, z) => { const r = Math.hypot(x, z); return [r > 2.6 && Math.sin(x * .9 + 1) * Math.sin(z * .8) > .2 ? 1 : 0, r < 2.6 ? 1 : 0]; }, shade: mood.shade([{ x: 0, z: 0, r: 10, c: '#a8c8ff', k: .3 }]) }); scene.add(land.mesh);
+
+// ---- たて穴のかべ（鉄板の輪。上ほど明るい）、足場の輪（金網の床と手すり）、上の足場 ----
+const fixed = [], B = R.parts();
+{ const Wl = B.g(X.plate({ c: '#414d6a', n: 2 }), { side: true }), Wc = B.g(X.conc({ c: '#4a5470' }), { side: true }), Wn = B.g(X.plate({ c: '#56607c', n: 2, warn: 1 }), { side: true }), br = y => y > FY ? 1.5 : y > FY - 3 ? 1.1 : .85;
+  for (let k = 0; k < N; k++) for (let y = 0; y < TOP; y += 3) { const G = y === 6 ? Wn : (Math.round(y / 3) + (k >> 2)) % 3 === 1 ? Wc : Wl; G.quad(pol(WR, A(k + 1), y), pol(WR, A(k), y), pol(WR, A(k), y + 3), pol(WR, A(k + 1), y + 3), [0, 0, .82, 1], [br(y), br(y), br(y + 3), br(y + 3)]); }
+  const Gr = B.g(X.manhole({ kind: 'grate', c: '#66728e' }), { side: true }), Rl = B.g(X.rail({ c: '#7a86a4' }), { side: true }), St = B.g(X.plate({ c: '#48546e' }));
+  const ring = (y, r0, r1, k0, k1) => { for (let k = k0; k < k1; k++) { const a = A(k), b = A(k + 1); Gr.quad(pol(r0, a, y), pol(r0, b, y), pol(r1, b, y), pol(r1, a, y), [0, 0, 3, 2]); Rl.quad(pol(r0, a, y), pol(r0, b, y), pol(r0, b, y + 1), pol(r0, a, y + 1), [0, 0, 2, 1]);
+      St.at(R.TR(...pol((r0 + r1) / 2, a, y - .16), a)).box(.14, .16, r1 - r0, 0, 0, 0, { m: 3, bottom: true }).at(null); if (k % 2 === 0) St.tri(pol(r1, a, y - .16), pol(r1 - 1.1, a, y - .16), pol(r1, a, y - 1.4), [0, 1], [1, 1], [0, 0]); } };
+  for (let z = -11; z < 11; z += 2) { Gr.quad([-.9, CY, z + 2], [.9, CY, z + 2], [.9, CY, z], [-.9, CY, z], [0, 0, 2, 2]); for (const sx of [-1, 1]) { Rl.quad([sx * .9, CY, z + 2], [sx * .9, CY, z], [sx * .9, CY + 1, z], [sx * .9, CY + 1, z + 2], [0, 0, 2, 1]); St.box(.12, .16, 2, sx * .9, CY - .16, z + 1, { m: 3, bottom: true }); if (Math.abs(z + 1) % 6 === 3) St.box(.14, CY - .16, .14, sx * .9, 0, z + 1, { m: 3, top: false }); } }   // たて穴をわたる足場の橋
+  ring(CY, C0, C1, 0, N); ring(6.6, 9.7, C1, 3, 13); ring(6.6, 9.7, C1, 18, 25); fixed.push(B.group()); }
+// かべの配管・はしご・タンク
+for (let k = 0; k < N; k += 2) { const a = A(k + .5), r = .16 + hash(k, 1) * .22, top = k % 6 === 0 ? TOP : 6 + hash(k, 2) * 10; fixed.push(C.pipe([pol(WR - r - .05, a, 0), pol(WR - r - .05, a, top), pol(WR - r - .05, a + .12, top + .8), pol(WR - r - .05, a + .12, TOP)], r, { c: ['#4a5a7c', '#56607a', '#3e5a6a', '#5a5a84'][k % 4], joint: 3 })); }
+for (const [k, y, h] of [[5, 0, CY], [9, CY, 3.6], [20, CY, 3.6], [16, 0, CY], [23, 6.6, 3.4]]) { const a = A(k + .25), l = C.ladder({ h, c: '#8a94ac' }); l.position.set(...pol(WR - .12, a, y)); l.rotation.y = a + PI; fixed.push(l); }
+for (const [k, r, h] of [[2, 1.1, 2.4], [12, .9, 3], [19, 1.2, 2]]) { const t = C.tank({ r, h, c: '#4a5a78', legs: .5 }); t.position.set(...pol(7.4, A(k), 0)); fixed.push(t); }
+// 底の物：機械の箱、ドラムかん、鉄くず、まん中の大きな排気口
+{ const P = R.parts(), Pn = P.g(X.panel({ c: '#56708a' })), Mh = P.g(X.manhole({ kind: 'grate', c: '#5a6680' }), { offset: true }); for (const [k, r, w, h] of [[7, 7.6, 1.8, 1.5], [15, 7.2, 2.2, 1.9], [24, 7.8, 1.6, 1.3]]) Pn.at(R.TR(...pol(r, A(k), 0), A(k))).box(w, h, 1, 0, 0, 0, { m: 1.5, c0: .75 }).at(null); Mh.quad([-2.2, .03, 2.2], [2.2, .03, 2.2], [2.2, .03, -2.2], [-2.2, .03, -2.2], [0, 0, 3, 3]); fixed.push(P.group()); }
+for (const [x, z, c] of [[3.5, 5, '#5a5060'], [4.2, 5.5, '#4a5a70'], [-5.5, -2.5, '#5a5060'], [-2, 6.6, '#4a5a70']]) { const d = C.drum({ c, mark: 'band' }); d.position.set(x, 0, z); fixed.push(d); }
+for (const [x, z, s, i] of [[-6, 3.5, 1.6, 1], [5.5, -4.5, 2, 2], [1, -7.6, 1.4, 3]]) { const d = C.scrap({ s, seed: i, cs: ['#4e5870', '#5a6078', '#465a6a'] }); d.position.set(x, 0, z); fixed.push(d); }
+// ファンを支える 3 本の はりと、まん中のモーターの箱（動かない）
+for (let i = 0; i < 3; i++) { const b = C.beam({ len: WR * 2, h: .7, w: .7, c: '#39445e' }); b.position.y = FY - 1.9; b.rotation.y = i * PI / 3; fixed.push(b); }
+fixed.push(R.geo().smooth(1).loft(8, [[FY - 2.6, .7, .7, 0, .7], [FY - 2.2, 1.5, 1.5, .3, .9], [FY - .5, 1.5, 1.5, 1, 1]], { ur: 3, cap: 'bot' }).mesh(X.plate({ c: '#48546e', n: 2 })));
+scene.add(R.merge(fixed));
+
+// ---- ファン：5 枚の羽根（ねじれた板）と、じく。すき間の光のすじも いっしょに回る ----
+const fan = new THREE.Group(); fan.position.y = FY; fan.userData.dyn = true; scene.add(fan);
+{ const G = R.geo(), NB = 5; for (let i = 0; i < NB; i++) { const a0 = i / NB * TAU, w = TAU / NB * .56, S = 4; for (let j = 0; j < S; j++) { const r0 = 1.3 + (FR - 1.3) * j / S, r1 = 1.3 + (FR - 1.3) * (j + 1) / S, k0 = .55 + .45 * j / S, k1 = .55 + .45 * (j + 1) / S;
+      G.quad(pol(r0, a0 - w * k0 / 2, -.5), pol(r0, a0 + w * k0 / 2, .5), pol(r1, a0 + w * k1 / 2, .4), pol(r1, a0 - w * k1 / 2, -.4), [j / S * 3, 0, (j + 1) / S * 3, 1.4]); } }
+  G.smooth(1).loft(10, [[-.7, 1.1, 1.1, 0, .8], [-.3, 1.5, 1.5, .3, 1], [.6, 1.5, 1.5, .7, 1], [1, .9, .9, 1, .9]], { ur: 3, cap: 'both' }); const m = G.mesh(X.plate({ c: '#38445e', n: 2 }), { side: true }); fan.add(m);
+  const Ry = R.geo(); for (let i = 0; i < NB; i++) for (const off of [-.1, .08]) { const a = (i + .5) / NB * TAU + off; Ry.quad(pol(2.2, a, -FY + .1), pol(FR - .6, a, -FY + .1), pol(FR - .3, a, -.6), pol(1.8, a, -.6), [0, 0, 1, 1], [.02, .02, .3, .3]); }
+  const rays = new THREE.Mesh(Ry.build(), new THREE.MeshBasicMaterial({ color: '#a8c8ff', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .07, depthWrite: false, side: THREE.DoubleSide, fog: false })); rays.visible = false;
+  for (let i = 0; i < NB; i++) { const q = pol(5.6, (i + .5) / NB * TAU, -FY), sh = D.shaft({ w: 2.6, h: FY - .4, c: '#cfe0ff', a: .14 }); sh.position.set(...q); fan.add(sh); }   // 羽根のすき間から落ちる光のすじ
+  fan.add(D.pools([...Array(NB)].map((_, i) => ({ p: pol(5.6, (i + .5) / NB * TAU, -FY + .06), r: 3.4, c: '#cfe0ff', k: .42 })))); }
+// ファンのむこうの光：明るい丸い面（上の層の こうし）と、にじみ
+{ const P = R.Px(32); for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const d = Math.hypot(x - 15.5, y - 15.5) / 16; P.set(x, y, d < .35 ? '#ffffff' : d < .6 ? '#e4f0ff' : d < .85 ? '#b8d0f8' : '#86a4dc'); } for (let i = 3; i < 32; i += 7) { P.rect(i, 0, 1, 32, '#5a74a8'); P.rect(0, i, 32, 1, '#5a74a8'); }
+  const G = R.geo(); for (let k = 0; k < N; k++) { const a = pol(WR, A(k), TOP), b = pol(WR, A(k + 1), TOP); G.tri(b, a, [0, TOP, 0], [.5 + b[0] / WR / 2, .5 + b[2] / WR / 2], [.5 + a[0] / WR / 2, .5 + a[2] / WR / 2], [.5, .5]); } const lid = G.mesh(T.from(P, { m: 1 }), { glow: true, fog: false, side: true }); lid.castShadow = false; scene.add(lid);
+  const h = D.halo({ c: '#cfe0ff', r: 10, k: .55 }); h.position.set(0, TOP - 1.5, 0); scene.add(h); }
+
+// ---- 赤い小さな警告灯、たれたくさり、底からのぼる蒸気、光の中の ほこり ----
+for (const [k, y] of [[13.5, 5.2], [15.5, 8.6]]) { const w = D.warnLamp({ kind: 'blink', c: '#ff3a2c', r: .12, seed: k }); w.position.set(...pol(WR - .3, A(k), y)); scene.add(w); }
+[[3, 6.4, 2.4], [10, 6.4, 2], [14.5, CY - .2, 1.8], [22, 6.4, 2.4], [26, CY - .2, 1.6]].forEach(([k, y, len], i) => { const c = D.chain({ len, sway: .05, seed: i * 2, c: '#8a94ac' }); c.position.set(...pol(9.6, A(k), y)); c.rotation.y = A(k); scene.add(c); });
+[[1.2, .05, .8], [-4.5, .05, 3], [5, .05, -3.5]].forEach(([x, y, z], i) => { const s = C.steam({ n: 9, r: .9, rise: 6, spread: .6, speed: .16, c: '#8a9cc0', a: .2, phase: i * .4 }); s.position.set(x, y, z); scene.add(s); });
+const dust = D.flakes({ kind: 'dust', n: 150, box: [20, 10, 20], c: '#dce8ff', vy: .35, size: 1.8 }); scene.add(dust);
+const follow = new THREE.PointLight('#a8c0ff', 5, 6, 1.4); scene.add(follow);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.12 }); onResize(crt.resize);
+const Z0 = 5, SPAN = 7.4, SPEED = .72, J = hero.userData.J;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, z = Z0 - d, x = Math.sin(z * .5) * .12, tall = innerWidth < innerHeight, Dc = tall ? 3.4 : 3.4;
+  hero.position.set(x, CY, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 4.5, .8); J.head.rotation.set(-.6, Math.sin(t * .5) * .25, 0); J.torso.rotation.x = -.1;   // 歩きながら、ファンを見上げる
+  cam.position.set(.5, CY + (tall ? 1.2 : .6), z + Dc); cam.lookAt(-.1, CY + (tall ? 3.3 : 2.75), z - 1.5);
+  crt.u.bright.value = 1.12 * Math.min(1, d / .5, (SPAN - d) / .5);
+  fan.rotation.y = t * .3; follow.position.set(1.2, CY + 1.6, z + 2.2);
+  land.follow(0, 0); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

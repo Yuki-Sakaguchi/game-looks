@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-22 廃トンネル 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dcece4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-22 ─ 廃トンネル / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 古い車道の廃トンネル。ひびの入った丸い天井、ぬれた路面と水たまり、止まった車、たれた電線、消えた照明の列。遠くの出口が小さく白く光り、懐中電灯の人がそこへ歩く。
+// 色の組は「かべと路面の黒緑・出口の白・懐中電灯の黄」＋作業着のだいだい。トンネルの形は、9 m ごとの明るい リブ（輪）と、出口からの白い映りこみで読ませる。
+// かべと天井は R.geo で自作（3 m ごとの輪）。空の光は上下とも同じ緑にして、天井も かげにしない（D.mood の 'abyss' を上書き）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#4a3a34', cloth: 'overall', sleeve: 'long', top: '#e07a30', top2: '#f0e0b0', bottom: '#e07a30', shoe: '#4a4448', gloves: 'glove', glove: '#e8e0c8', hat: 'helm', gear: '#f0e8d8', back: 'bag', acc: '#5a6a80' }); scene.add(hero);
+const ZE = -96, Z1 = 16;
+const mood = D.mood(scene, renderer, 'abyss', { follow: hero, shadow: false, hills: false, level: .7, fog: ['#0e1e1c', 9, 78], hemi: ['#7aa896', '#6a9484', .95], key: ['#d8fff0', .7, [0, .3, -1]], fill: ['#3a6a5c', .35], base: [.72, .9, .84], dir: [.1, .32, -1] });
+
+// ---- 加算の面と、懐中電灯（前へのびる光の円すい＋地面の輪＋スポットの光） ----
+const lin = (c, k = 1) => { const q = new THREE.Color(c); return [q.r * k, q.g * k, q.b * k]; };
+const addM = () => new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, c = o.c || '#ffe08a', hold = new THREE.Group(), g = new THREE.Group(), P = R.parts(), wp = new THREE.Vector3();
+  hold.rotation.z = J.foreR.children[0] ? J.foreR.children[0].rotation.z : 0; J.foreR.add(hold); g.position.y = -B.farm - B.hand[2] * .6; hold.add(g);
+  P.g(T.metal({ c: '#70748e' })).loft(6, [[-.2, .055, .055, 0, 1], [-.13, .05, .05, .3, 1], [-.1, .03, .03, .4, .85], [.08, .03, .03, 1, .8]], { cap: 'both' }); g.add(P.group());
+  const lens = D.halo({ c, r: .28, k: .9 }); lens.position.y = -.22; g.add(lens);
+  const G = R.geo(), col = lin(c), z0 = [0, 0, 0]; for (const [k, br] of [[1, .3], [.5, .34]]) { const n = 10, r1 = Math.tan(o.half || .2) * k, p = (a, r, z) => [Math.cos(a) * r, Math.sin(a) * r, z], c0 = col.map(v => v * br); for (let i = 0; i < n; i++) { const a0 = i / n * TAU, a1 = (i + 1) / n * TAU; G.quad(p(a0, .03, 0), p(a1, .03, 0), p(a1, r1, 1), p(a0, r1, 1), [0, 0, 1, 1], [c0, c0, z0, z0]); } }
+  const cone = new THREE.Mesh(G.build(), addM()); cone.frustumCulled = false; cone.castShadow = false; cone.rotation.order = 'YXZ'; cone.renderOrder = 3;
+  const ring = D.spot({ c, r: 1, k: o.k ?? .5 }); ring.rotation.order = 'YXZ'; const sl = new THREE.SpotLight(c, o.power || 30, o.range || 16, o.angle || .46, .7, 1.2); scene.add(cone, ring, sl, sl.target);
+  return (d = 4, gy = 0, yaw = 0) => { J.armR.rotation.set(-1.12, 0, -.12); J.foreR.rotation.x = -.3; actor.updateMatrixWorld(true); g.getWorldPosition(wp); const ry = actor.rotation.y + yaw, h = wp.y - gy;
+    cone.position.copy(wp); cone.rotation.set(Math.atan2(h, d), ry, 0); cone.scale.setScalar(Math.hypot(d, h)); ring.position.set(wp.x + Math.sin(ry) * d, gy + .06, wp.z + Math.cos(ry) * d); ring.rotation.y = ry; ring.scale.set(o.rx || 1.05, o.rz || 1.9, 1); sl.position.copy(wp); sl.target.position.copy(ring.position); }; }
+
+// ---- 路面：ひびの入ったアスファルト（まん中に線）と、ぬれた所。出口に近い所は白っぽく明るい ----
+const land = R.ground({ w: 12, d: 124, cell: 2, cz: -42, layers: [PK.tex.asphalt({ c: '#5c6a66', line: 'center', grass: .08, crack: .85 }), C.tex.asphalt({ c: '#465450', wet: .85, wetC: '#7ab4a4' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, (Math.sin(x * .9 + z * .21) * Math.sin(z * .33 + 1) + .15) * 2.2)) * (Math.abs(x) > .5 ? 1 : .3), 0], shade: mood.shade([{ x: 0, z: ZE + 6, r: 30, c: '#d8fff0', k: 1.1 }]) }); scene.add(land.mesh);
+
+// ---- トンネル：たてのかべ 1.4 m の上に、だ円のアーチ。3 m ごとに輪を作り、9 m ごとに明るい リブ ----
+const RX = 4.8, WH = 1.4, RY = 4.1, N = 9, prof = (s = 1) => [[-RX * s, 0], ...[...Array(N + 1)].map((_, k) => [-RX * s * Math.cos(k / N * Math.PI), WH + RY * s * Math.sin(k / N * Math.PI)]), [RX * s, 0]];
+const P0 = prof(1), P1 = prof(.93), B = R.parts(), Wl = B.g(PK.tex.concrete({ c: '#5e706a', crack: .9, moss: .45 })), Rb = B.g(PK.tex.concrete({ c: '#7c8e86', crack: .5, moss: .3 })), Cb = B.g(PK.tex.concrete({ c: '#6a7a74', crack: .4, moss: .6, seed: 1 }));
+const arc = P0.map((p, i) => i ? Math.hypot(p[0] - P0[i - 1][0], p[1] - P0[i - 1][1]) : 0).map((s => v => s += v)(0));
+for (let z = ZE; z < Z1; z += 3) { for (let i = 0; i < P0.length - 1; i++) { const a = P0[i], b = P0[i + 1], k0 = .78 + .22 * Math.abs(a[0]) / RX, k1 = .78 + .22 * Math.abs(b[0]) / RX; Wl.quad([a[0], a[1], z + 3], [a[0], a[1], z], [b[0], b[1], z], [b[0], b[1], z + 3], [z / 3 + 1, arc[i] / 3, z / 3, arc[i + 1] / 3], [k0, k0, k1, k1]); }
+  if (Math.round(z / 3) % 3 === 0) for (let i = 0; i < P0.length - 1; i++) { const a = P1[i], b = P1[i + 1], oa = P0[i], ob = P0[i + 1]; Rb.quad([a[0], a[1], z + .7], [a[0], a[1], z], [b[0], b[1], z], [b[0], b[1], z + .7], [0, arc[i] / 3, .25, arc[i + 1] / 3], 1.05).quad([oa[0], oa[1], z + .7], [a[0], a[1], z + .7], [b[0], b[1], z + .7], [ob[0], ob[1], z + .7], [0, arc[i] / 3, .12, arc[i + 1] / 3], 1.2); }
+  for (const sx of [-1, 1]) Cb.box(.95, .24, 3, sx * (RX - .5), 0, z + 1.5, { m: 3, c0: .8 }); }                                                         // 両がわの 一段高い歩道
+// 消えた照明の列（2 列。いくつかは片方がはずれて たれている）と、たれた電線
+const fixed = [B.group()], Lt = R.parts(), Lg = Lt.g(T.metal({ c: '#8a988e' })), yL = WH + RY * Math.sqrt(1 - (1.7 / RX) ** 2) - .2;
+for (let z = ZE + 4, k = 0; z < Z1; z += 6, k++) for (const sx of [-1, 1]) { const drop = hash(k, sx, 4) > .72; Lg.at(R.TR(sx * 1.7, yL - (drop ? .35 : 0), z, 0, drop ? .5 : 0, 0)).box(.34, .12, 1.3, 0, 0, 0, { bottom: true, c0: .9 }).at(null); }
+fixed.push(Lt.group());
+for (let z = Z1 - 2, k = 0; z > ZE + 12; z -= 9, k++) { const y = WH + RY * .78, x = -RX * .6, cut = hash(k, 7) > .6; fixed.push(PK.wire([x, y, z], cut ? [x + 1.2, .9 + hash(k, 2), z - 4] : [x, y, z - 9], { sag: cut ? .4 : .9 + hash(k, 3) * 1.6 })); if (k % 2) fixed.push(PK.wire([-x, y + .3, z - 2], [-x, y + .3, z - 11], { sag: .6 + hash(k, 5) * 2 })); }
+// 止まった車、水たまり、がれき、三角の標識
+const put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+[[2.3, -1.5, .25, 'sedan', '#8a6a5a'], [-2.2, -12, 3.3, 'van', '#6a8088'], [2.6, -24.5, -.5, 'sedan', '#8a8468'], [-2.4, -37, 2.9, 'sedan', '#7a5a60']].forEach(([x, z, ry, kind, c], i) => put(PK.wreck({ c, kind, moss: .35, grass: 0, seed: i }), x, z, ry));
+for (let i = 0; i < 16; i++) { const z = 12 - i * 5.5 + hash(i, 1) * 2, x = (hash(i, 2) - .5) * 6.4; put(PK.decal(PK.tex.puddle({ c: '#86c0b0', seed: i % 3 }), 2 + hash(i, 3) * 1.6, 1.4 + hash(i, 4), { ur: 1, vr: 1, y: .04 }), x, z, hash(i, 5) * 3); }
+put(PK.rubble({ r: 1.5, h: .7, grass: 0, c: '#6a7a74', seed: 2 }), -3.4, -5.5); put(PK.rubble({ r: 1.8, h: .9, grass: 0, c: '#6a7a74', seed: 5 }), 3.3, -17, 1); put(PK.sign({ kind: 'warn', h: 2.1, lean: .25 }), 3.9, 3.5, -.4, .24); put(PK.sign({ kind: 'arrow', h: 2.2, lean: -.3 }), -3.9, -20, .5, .24);
+scene.add(R.merge(fixed));
+
+// ---- 出口：遠くの白い半円。光のにじみと、ぬれた路面にのびる白い映りこみ、出口の近くの かべの明るさ ----
+const Ex = R.geo(); for (let i = 0; i < P0.length - 1; i++) Ex.tri([0, 2, ZE], [P0[i + 1][0], P0[i + 1][1], ZE], [P0[i][0], P0[i][1], ZE]); const exit = Ex.mesh(R.mat('#eefff6', { glow: true, fog: false })); exit.castShadow = false; scene.add(exit);
+const eh = D.halo({ c: '#d8fff0', r: 11, k: .6 }); eh.position.set(0, 2.6, ZE + 1); scene.add(eh);
+scene.add(D.streaks([{ x: 0, z: ZE, h: 2.5, c: '#d8fff0', w: 1.6, len: 30, k: .5 }, { x: -1.6, z: ZE, h: 2.5, c: '#d8fff0', w: .9, len: 18, k: .3 }, { x: 1.9, z: ZE, h: 2.5, c: '#d8fff0', w: .9, len: 22, k: .3 }], { far: 400 }));
+scene.add(D.pools([{ p: [-RX + .05, 2, ZE + 9], n: [1, 0, 0], r: 10, r2: 3, c: '#d8fff0', k: .35 }, { p: [RX - .05, 2, ZE + 9], n: [-1, 0, 0], r: 10, r2: 3, c: '#d8fff0', k: .35 }, { p: [0, .03, ZE + 10], r: 4.5, r2: 12, c: '#d8fff0', k: .4 }]));
+
+// ---- 動く物：天井から落ちる しずく、ただよう ほこり、こうもりの群れ（主役の少し先を飛ぶ） ----
+scene.add(D.rain({ n: 30, box: [9, 5.2, 34], speed: 8, slant: [0, 0], len: .15, c: '#b8e8d8', a: .45 }), D.flakes({ kind: 'dust', n: 120, c: '#c0e8d8', box: [9, 4.5, 26], size: 1.4 }));
+const batC = [0, 2.6, -8], bats = D.flock({ kind: 'bat', n: 10, r: 2.6, h: .8, center: batC, c: '#101818' }); scene.add(bats);
+
+const aim = torch(hero, { c: '#ffe08a', power: 60, angle: .5, range: 20, k: .5 }), crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const ZS = 8, LEN = 27, SPEED = 1.4;
+K.loop((dt, t) => {
+  const u = (t * SPEED) % LEN, z = ZS - u, x = -.5 + Math.sin(z * .2) * .8;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI + Math.cos(z * .2) * .16; R.walk(hero, t * SPEED * 3.7, .85); aim(4.6, 0, Math.sin(t * .6) * .3);
+  batC[2] = z - 13; batC[0] = Math.sin(t * .3) * 1.2;
+  const tall = innerWidth < innerHeight; cam.position.set(x * .5 + .3, tall ? 2.1 : 1.75, z + (tall ? 4.2 : 5.4)); cam.lookAt(x * .4, tall ? 2 : 2.25, z - 8);
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-48 すてられた研究棟の ろうか 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-48 ─ すてられた研究棟の ろうか / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 鉄の都市の下町の地下に のこる、すてられた研究棟。タイルのかべの長いろうかに、割れたガラスの大きな筒がならぶ（中は から。底の青い光だけが残っている）。
+// 色の組は「黒青のタイルと鉄」＋「筒の青い光」＋「懐中電灯の白」。差し色は 探検家の だいだいの荷物。
+// 懐中電灯の白い輪が ゆれながら床とかべをなめ、筒の青い光が ろうかの奥まで点々と続く。たおれた台、計器、たれた配線、床の水たまり。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 400, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#d8b078', eyes: 'big', mouth: 'small', cloth: 'jacket', sleeve: 'long', top: '#9aa488', top2: '#e8e0c8', lower: 'pants', bottom: '#4a5068', gloves: 'glove', glove: '#6a5040', shoes: 'boot', shoe: '#5a4636', back: 'pack', acc: '#e8742c', neck: 'scarf' }); scene.add(hero);
+const FOG = '#0a1220', BL = '#3f92ff', WH = '#eef4ff', WX = 3.2, CH = 4.4, ZA = 22, ZB = -44;
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, hills: false, shadow: false, r: 180, sky: [FOG, FOG, FOG, FOG], fog: [FOG, 6, 46], hemi: ['#6a80b8', '#262c44', .58], key: ['#9ab8ff', .3, [.2, .6, -1]], fill: ['#4a5a90', .22], base: [.3, .37, .56] });
+
+// ---- 筒の位置と、床に焼きこむ青い光 ----
+const TUBES = [[-2.15, 3, 1], [2.15, -3.5, 0], [-2.15, -10, 1], [2.15, -16.5, 1], [-2.15, -23, 0], [2.15, -29.5, 1], [-2.15, -36, 1]];   // [x, z, 割れているか]
+const LIT = TUBES.map(([x, z]) => ({ x, z, r: 4.6, c: BL, k: .75 }));
+const land = R.ground({ w: 8, d: 72, cell: 1, cz: -11, layers: [X.tile({ c: '#66788c', c2: '#4c5c74', check: 1 }), X.asphalt({ wet: 1, c: '#3c485e', wetC: '#3c6cb4' })], mix: (x, z) => [Math.sin(x * 1.3 + z * .35) * Math.sin(z * .6 + 1) > .28 ? 1 : 0, 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- ろうか：下がタイル・上がコンクリートのかべ、天井、鉄の扉、つき当たりの大きな扉 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, B = R.parts();
+{ const Tl = B.g(X.tile({ c: '#70849a', c2: '#56687e' })), Cn = B.g(X.conc({ c: '#56607a' })), Dr = B.g(X.containerEnd({ c: '#4e6078' }), { offset: true }), Wn = B.g(X.plate({ c: '#5a6478', n: 2, warn: 1 }));
+  for (const s of [-1, 1]) for (let z = ZA, i = 0; z > ZB; z -= 3, i++) { const a = [s * WX, 0, s < 0 ? z : z - 3], b = [s * WX, 0, s < 0 ? z - 3 : z], q = (G, y0, y1, uv, c) => G.quad([a[0], y0, a[2]], [b[0], y0, b[2]], [b[0], y1, b[2]], [a[0], y1, a[2]], uv, c);
+    q(Tl, 0, 2.4, [0, 0, 2, 1.6], [.7, .7, 1, 1]); q(Cn, 2.4, CH, [0, 0, 1, .66], [1, 1, .75, .75]);
+    if (i % 3 === 1) { const x = s * (WX - .03), zc = z - 1.5; Dr.quad([x, 0, zc + s * .65], [x, 0, zc - s * .65], [x, 2.3, zc - s * .65], [x, 2.3, zc + s * .65]); } }
+  for (let z = ZA; z > ZB; z -= 3) Cn.quad([-WX, CH, z - 3], [WX, CH, z - 3], [WX, CH, z], [-WX, CH, z], [0, 0, 2.1, 1], .7);
+  Cn.quad([-WX, 0, ZB], [WX, 0, ZB], [WX, CH, ZB], [-WX, CH, ZB], [0, 0, 2.1, 1.4]); Cn.quad([WX, 0, ZA], [-WX, 0, ZA], [-WX, CH, ZA], [WX, CH, ZA], [0, 0, 2.1, 1.4]);
+  Dr.quad([-1.5, 0, ZB + .04], [1.5, 0, ZB + .04], [1.5, 3.1, ZB + .04], [-1.5, 3.1, ZB + .04]); for (const s of [-1, 1]) Wn.box(.4, 3.3, .3, s * 1.7, 0, ZB + .15, { m: 3 }); Wn.box(3.8, .4, .3, 0, 3.1, ZB + .15, { m: 3, bottom: true }); fixed.push(B.group()); }
+// 天井の配管・消えた照明・たれた配線・くもの巣
+for (const [x, r, c] of [[-2.5, .16, '#4a5a78'], [-2.05, .08, '#6a5650'], [2.6, .22, '#3e5a6a']]) fixed.push(C.pipe([[x, CH - r - .05, ZA], [x, CH - r - .05, ZB]], r, { c, joint: 4 }));
+fixed.push(C.duct([[1.2, CH - .32, ZA], [1.2, CH - .32, -12], [-.6, CH - .32, -12], [-.6, CH - .32, ZB]], .9, .5, { c: '#4a546c' }));
+{ const G = R.geo(); for (let z = 16; z > ZB; z -= 6) { G.box(.3, .08, 1.5, -.2, CH - .1, z, { bottom: true, c0: .9 }); } fixed.push(G.mesh(T.metal({ c: '#5a6880' }))); }
+{ const W = []; for (let i = 0; i < 16; i++) { const z = 12 - i * 3.2 - hash(i, 1) * 2, x = (hash(i, 2) - .5) * 5; W.push([[x, CH - .1, z], [x + (hash(i, 3) - .5) * 2.4, CH - .1, z - 1.5 - hash(i, 4) * 3], 1 + hash(i, 5) * 1.6]); } scene.add(C.wires(W, { c: '#55688c' })); }
+for (const [x, z, ry] of [[-WX + .02, 8, PI / 2], [WX - .02, -7, -PI / 2], [-WX + .02, -19, PI / 2], [WX - .02, 1, -PI / 2]]) put(D.web({ s: 1.5, c: '#8aa0c8' }), x, z, ry, CH - .02);
+
+// ---- ガラスの筒：鉄の台と ふた。ガラスは加算の うすい青（割れた物は ふちがギザギザ）。底の青い光と、床に落ちたガラス ----
+const glassP = R.Px(16); glassP.fill('#143460'); for (const x of [2, 3, 9, 13]) glassP.rect(x, 0, 1, 16, x === 3 ? '#9ad0ff' : '#3a78c8'); glassP.rect(0, 0, 16, 1, '#6ab0ff'); glassP.rect(0, 15, 16, 1, '#6ab0ff');
+const glassM = R.mat(T.from(glassP, { m: 1 }), { glow: true, side: true, vc: true, fog: false }); Object.assign(glassM, { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .55 });
+const discP = R.Px(16); discP.fill('#16386a'); discP.disc(8, 8, 7, '#2a6ad0'); discP.disc(8, 8, 5, '#58a8ff'); discP.disc(8, 8, 2, '#d0ecff'); const discT = T.from(discP, { m: 1 });
+const GG = R.geo(), GB = R.geo().smooth(1), GD = R.geo(), GR = .78, GH = 2.7, BY = .55, N = 10, rim = k => [Math.sin(k / N * PI * 2) * GR, Math.cos(k / N * PI * 2) * GR];
+TUBES.forEach(([x, z, broken], i) => { const M = R.TR(x, 0, z); GB.at(M).loft(N, [[0, 1, 1, 0, .7], [.4, .96, .96, .4, .95], [BY, .84, .84, .55, 1]], { ur: 3, cap: 'top' }).loft(N, [[BY + GH, .84, .84, 0, 1], [BY + GH + .2, .98, .98, .2, .9], [BY + GH + .55, .9, .9, .5, .7]], { ur: 3, cap: 'bot' }).loft(6, [[BY + GH + .55, .16, .16, 0, .8], [CH, .16, .16, 1, .6]], {});
+  GD.at(M).quad([-.7, BY + .02, .7], [.7, BY + .02, .7], [.7, BY + .02, -.7], [-.7, BY + .02, -.7]); GG.at(M);
+  for (let k = 0; k < N; k++) { const a = rim(k), b = rim(k + 1), h0 = broken ? .25 + hash(i, k) * 1.5 : GH, h1 = broken ? .25 + hash(i, (k + 1) % N) * 1.5 : GH; GG.quad([a[0], BY, a[1]], [b[0], BY, b[1]], [b[0], BY + h1, b[1]], [a[0], BY + h0, a[1]], [k / N * 2, 0, (k + 1) / N * 2, 1], [.9, .9, .6, .6]);
+    if (broken) { const d0 = .15 + hash(i + 9, k) * .8, d1 = .15 + hash(i + 9, (k + 1) % N) * .8; GG.quad([a[0], BY + GH - d0, a[1]], [b[0], BY + GH - d1, b[1]], [b[0], BY + GH, b[1]], [a[0], BY + GH, a[1]], [k / N * 2, 0, (k + 1) / N * 2, 1], [.6, .6, .9, .9]); } }
+  if (broken) { GG.at(null); for (let k = 0; k < 7; k++) { const px = x - Math.sign(x) * (.9 + hash(i, k + 20) * 1.3), pz = z + (hash(i, k + 30) - .5) * 2.4, s = .1 + hash(i, k + 40) * .16, a = hash(i, k + 50) * 6; GG.tri([px, .03, pz], [px + Math.cos(a) * s * 2, .03, pz + Math.sin(a) * s * 2], [px - Math.sin(a) * s, .03, pz + Math.cos(a) * s], [0, 0], [1, 0], [.5, 1], .8); } } });
+fixed.push(GB.at(null).mesh(X.plate({ c: '#52607a', n: 2 })));
+const glass = new THREE.Mesh(GG.build(), glassM); glass.renderOrder = 3; scene.add(glass); const discs = GD.at(null).mesh(discT, { glow: true, fog: false }); discs.castShadow = false; scene.add(discs);
+const halos = TUBES.map(([x, z], i) => { const h = D.halo({ c: BL, r: 1.5, k: .5 }); h.position.set(x, BY + .8, z); scene.add(h); const sh = D.shaft({ w: 1.5, h: GH, c: '#4aa0ff', a: .2 }); sh.position.set(x, BY, z); scene.add(sh); return { h, sh }; });
+scene.add(D.pools([...TUBES.map(([x, z]) => ({ p: [Math.sign(x) * (WX - .03), 1.5, z], n: [-Math.sign(x), 0, 0], r: 2.6, r2: 2.2, c: BL, k: .38 })), ...TUBES.map(([x, z]) => ({ p: [x - Math.sign(x) * .9, .04, z], r: 2.6, c: BL, k: .3 }))]), D.streaks(TUBES.map(([x, z]) => ({ x: x - Math.sign(x) * .7, z, h: 2, c: BL, k: .6, w: .9, len: 4 })), { far: 40 }));
+const tl = [0, 1].map(i => { const l = new THREE.PointLight(BL, 6, 7, 1.4); l.position.set(TUBES[i][0] * .7, 1.8, TUBES[i][1]); scene.add(l); return l; });
+
+// ---- たおれた台、計器の箱、いす代わりのドラムかん、ちらばった紙 ----
+{ const P = R.parts(), M = P.g(T.metal({ c: '#7a889c' })), Pn = P.g(X.panel({ c: '#5a7488' }));
+  const tab = (m, w = 1.7) => { M.at(m).box(w, .06, .8, 0, .78, 0, { bottom: true }); for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) M.box(.06, .78, .06, x * (w / 2 - .08), 0, z * .32, { top: false }); M.at(null); };
+  tab(R.TR(.9, .42, -6.2, .5, 0, 1.45)); tab(R.TR(-1, .4, -18.4, -.3, 1.5, 0), 1.4); tab(R.TR(1.9, 0, 6.5, PI / 2));
+  for (const [x, z, w, h] of [[-WX + .3, -4.5, 1.6, 1.9], [WX - .3, -11.5, 2, 1.5], [-WX + .3, -29, 1.6, 1.9], [WX - .3, 9, 1.4, 1.7], [WX - .3, -24, 1.6, 1.5]]) Pn.box(.6, h, w, x, 0, z, { m: 1.5, c0: .75 });
+  fixed.push(P.group()); }
+for (const [x, s, z, y] of [[-WX + .62, 1, -4.2, 1.2], [-WX + .62, 1, -4.9, 1.2], [WX - .62, -1, -11.2, .9], [WX - .62, -1, -24.2, .9], [-WX + .62, 1, -29.3, 1.2]]) put(C.meter({ r: .22 }), x, z, s * PI / 2, y);
+put(C.drum({ c: '#4a5a70', mark: 'none', h: .6 }), 1.6, -8.8); put(C.drum({ c: '#5a5060', mark: 'band' }), -2.4, -14.5).rotation.z = PI / 2; fixed[fixed.length - 1].position.y = .3; put(R.crate({ s: .5, c: '#5a6478' }), 2.3, 1.2, .4); put(C.trash({ c: '#4a5a78' }), -2.6, 6.5).rotation.x = 1.5; fixed[fixed.length - 1].position.y = .25;
+{ const P = R.Px(16); P.fill('#c8d0d8'); for (let y = 2; y < 15; y += 2) P.rect(2, y, 9 + (y * 5) % 4, 1, '#7a8494'); const G = R.geo(); for (let i = 0; i < 16; i++) { const x = (hash(i, 61) - .5) * 4, z = 8 - hash(i, 62) * 36, a = hash(i, 63) * 6, c = Math.cos(a) * .16, s = Math.sin(a) * .16; G.quad([x - c + s, .025, z - s - c], [x + c + s, .025, z + s - c], [x + c - s, .025, z + s + c], [x - c - s, .025, z - s + c]); } fixed.push(G.mesh(T.from(P, { m: 1 }))); }
+scene.add(R.merge(fixed));
+
+// ---- 懐中電灯：手の先の筒、ゆれる白い光（SpotLight）と、光のすじ・床の輪 ----
+const J = hero.userData.J, BD = hero.userData.build, torch = new THREE.Group(); { const P = R.parts(); P.g(T.metal({ c: '#4a5060' })).smooth(1).loft(6, [[-.24, .045, .045, 0, 1], [-.1, .03, .03, .6, .9], [.04, .03, .03, 1, .8]], { cap: 'both' }); P.g(R.mat('#ffffff', { glow: true })).loft(6, [[-.25, .04, .04, 0], [-.24, .04, .04, 1]], { cap: 'bot' }); torch.add(P.group()); torch.position.y = -BD.farm - BD.hand[2] * .6; J.foreR.add(torch); }
+const spotL = new THREE.SpotLight(WH, 90, 26, .5, .7, 1.1); scene.add(spotL, spotL.target);
+const beam = (() => { const G = R.geo(); for (const a of [0, PI / 2, PI / 4, -PI / 4]) { const c = Math.cos(a), s = Math.sin(a); G.quad([-c * .04, -s * .04, 0], [c * .04, s * .04, 0], [c * 1.7, s * 1.7, 7.5], [-c * 1.7, -s * 1.7, 7.5], [0, 0, 1, 1], [.5, .5, 0, 0]); } const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: '#b8ccff', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .16, depthWrite: false, side: THREE.DoubleSide, fog: false })); m.frustumCulled = false; m.renderOrder = 4; scene.add(m); return m; })();
+const ring = D.spot({ c: WH, r: 2.1, k: .5 }), lens = D.halo({ c: WH, r: .5, k: .8 }); scene.add(ring, lens);
+const follow = new THREE.PointLight('#a8c0ff', 6, 6, 1.4); scene.add(follow);
+
+// ---- ほこり、天井からの しずく、切れた配線の火花、床の もや ----
+scene.add(D.flakes({ kind: 'dust', n: 60, box: [7, 4, 16], c: '#7a98d0' }), D.rain({ n: 20, box: [6, 4.2, 14], speed: 6, slant: [0, 0], len: .12, c: '#9ab8e8', a: .5 }), D.groundFog({ n: 16, box: [6, 40], y: .05, h: .8, w: 4, c: '#2e4a80', a: .2, wind: [0, .25] }));
+const sparks = C.sparks({ n: 16, every: 2.3, c: '#a8e0ff', power: .8 }); sparks.position.set(-1.4, 3.2, -7.5); scene.add(sparks);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.14 }); onResize(crt.resize);
+const Z0 = 9, SPAN = 30, SPEED = 1.25, hp = new THREE.Vector3(), tp = new THREE.Vector3();
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, z = Z0 - d, x = Math.sin(z * .25) * .45, tall = innerWidth < innerHeight, Dc = tall ? 3.5 : 4.2;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .25) * .1; R.walk(hero, t * SPEED * 4.6, .8); J.armR.rotation.set(-1.15, 0, -.1); J.foreR.rotation.x = -.3; J.head.rotation.y = Math.sin(t * .45) * .35;
+  cam.position.set(x * .4 + .55, tall ? 2 : 1.85, z + Dc); cam.lookAt(x * .3 - .1, tall ? 1.6 : 1.5, z - 6);
+  crt.u.bright.value = 1.14 * Math.min(1, d / .5, (SPAN - d) / .5);
+  // 懐中電灯：左右にゆっくり ふり、筒やかべをなめる
+  hero.updateMatrixWorld(); torch.getWorldPosition(hp); const sw = Math.sin(t * .45) * 2.3 + Math.sin(t * 1.3) * .3, dn = .9 + Math.sin(t * .8) * .35; tp.set(hp.x + sw, dn, hp.z - 6.5);
+  spotL.position.copy(hp); spotL.target.position.copy(tp); beam.position.copy(hp); beam.lookAt(tp); lens.position.copy(hp); const gx = Math.max(-WX + .5, Math.min(WX - .5, hp.x + sw * .8)); ring.position.set(gx, .06, hp.z - 5.2); ring.scale.set(1.7, 2.6, 1);
+  follow.position.set(x + .6, 2.2, z + 1.4);
+  halos.forEach(({ h, sh }, i) => { const k = i === 2 ? (Math.sin(t * 31) > .2 && (t % 2.9) > .5 ? 1 : .25) : .9 + Math.sin(t * 2 + i * 1.7) * .1; h.material.opacity = .5 * k; sh.material.opacity = k; });
+  land.follow(0, -11); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

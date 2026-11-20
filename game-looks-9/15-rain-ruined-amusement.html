@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-15 雨の夜の遊園地 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6f6;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-15 ─ 雨の夜の遊園地 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨の夜の、見すてられた遊園地。地平線のうす明るい空の前に、さびた観覧車とメリーゴーランドが黒いシルエットで立つ。
+// 色の組は「青黒・ぬれた路面の青・消えかけの電球の黄」。電球は 2 つだけ ちらつき、そのあかりを地面に焼きこみ、ぬれた路面に たてに映す（D.streaks）。
+// 黄色いかっぱの探検家（R.actor の toon）が、懐中電灯（前へのびる光の円すい＋地面の輪）で観覧車のほうへ歩く。うしろの低い所から見上げるカメラ。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#3a3048', eyes: 'round', cloth: 'coat', top: '#e8c038', top2: '#f6eed8', bottom: '#3c4a6c', lower: 'pants', shoes: 'boot', shoe: '#c8a030', hat: 'cap', acc: '#e8c038', back: 'pack', gloves: 'glove', glove: '#5a4a40' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 34, level: .92, sky: ['#0a0e22', '#1a2444', '#34466a', '#6478a0'] });
+
+// ---- 懐中電灯：うでの先の筒、前へのびる光の円すい（加算）、地面の明るい輪、SpotLight ----
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, hand = o.hand || 'R', sx = hand === 'L' ? 1 : -1, pv = J['fore' + hand], c = o.c || '#e8f0ff', len = o.len || 7, rad = o.w || .9, reach = o.reach || 5.2, y0 = -B.farm - B.hand[2] * .5;
+  const tip = new THREE.Object3D(); tip.position.y = y0 - .2; pv.add(R.geo().loft(6, [[y0 - .2, .06, .06, 0, 1.1], [y0 - .12, .036, .036, .4, 1], [y0 + .09, .036, .036, 1, .8]], { cap: 'both' }).mesh(T.metal({ c: '#6a6e88' })), tip); tip.add(D.halo({ c, r: .26, k: .9 }));
+  const cg = new THREE.ConeGeometry(rad, len, 10, 4, true); cg.translate(0, -len / 2, 0); cg.rotateX(-PI / 2); const ps = cg.attributes.position, col = new Float32Array(ps.count * 3); for (let i = 0; i < ps.count; i++) col.fill((1 - ps.getZ(i) / len) ** .8, i * 3, i * 3 + 3); cg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: c, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: o.a ?? .3, depthWrite: false, side: THREE.DoubleSide, fog: false })); cone.frustumCulled = false; cone.renderOrder = 3;
+  const spot = D.spot({ c, r: 1, k: o.k ?? .5 }), sl = new THREE.SpotLight(c, o.power || 60, o.range || 15, .44, .7, 1.3), wp = new THREE.Vector3(); actor.parent.add(cone, spot, sl, sl.target);
+  return { cone, spot, light: sl, tick(t) { const a = J['arm' + hand], f = J['fore' + hand]; a.rotation.set(-.85, 0, sx * .12); f.rotation.x = -.5; actor.updateMatrixWorld(); tip.getWorldPosition(wp);
+    const h = actor.rotation.y - (o.side ?? .42) * -sx + Math.sin(t * .6) * .1, gx = actor.position.x + Math.sin(h) * reach, gz = actor.position.z + Math.cos(h) * reach, gy = actor.position.y, fk = .94 + .06 * Math.sin(t * 17);
+    cone.position.copy(wp); cone.lookAt(gx, gy + .15, gz); cone.scale.z = (wp.distanceTo(spot.position) + .6) / len; cone.material.opacity = (o.a ?? .3) * fk;
+    spot.position.set(gx, gy + .07, gz); spot.rotation.z = h; spot.scale.set(rad * 1.7, rad * 2.8, 1); sl.position.copy(wp); sl.target.position.set(gx, gy, gz); } }; }
+
+// ---- 地面：ぬれたアスファルトの道と広場、まわりは枯れ草。電球のあかりを焼きこむ ----
+const FER = [0, -34], CAR = [9.5, -7], BULB = [[-4.2, 3.1, 4.6, 0], [CAR[0] - 4.2, 2.6, CAR[1] + 1.8, 1]], pathX = z => Math.sin(z * .11) * 1.1;
+const LIT = BULB.map(([x, y, z], i) => ({ x, z, r: 6.5, c: '#ffd060', k: i ? .85 : 1.1 }));
+const plaza = (x, z) => Math.min(Math.hypot(x - CAR[0], z - CAR[1]) - 6.6, Math.max(Math.abs(x - FER[0]) - 11, Math.abs(z - FER[1] - 3) - 6), Math.abs(x - pathX(z)) - 3.2);
+const land = R.ground({ w: 130, d: 130, cell: 2, cz: -14, layers: [D.tex.deadGrass({ c: '#44506c' }), C.tex.asphalt({ c: '#4c5474', wet: .75, wetC: '#7488c0' }), D.tex.wetCobble({ c: '#566084', wet: .6 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, .5 - plaza(x, z) / 1.6)), Math.hypot(x - CAR[0], z - CAR[1]) < 7 ? 1 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 遊具と売店（pack-ruins）。色は しずんだ青むらさきに寄せ、草やつたは出さない ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const ferris = PK.ferris({ r: 10.5, n: 12, live: true, rot: .2, seed: 2, c: '#7c86a8', missing: .25, fc: ['#8a5a62', '#8a8056', '#4e6a8c', '#56786a', '#8a8a96'] }); ferris.position.set(FER[0], 0, FER[1]); ferris.rotation.y = -.12; scene.add(ferris);
+put(PK.carousel({ r: 4.4, n: 6, seed: 1, c: '#9a5460', c2: '#a8a8b8', torn: .5, fc: ['#8a4a52', '#4a6a7a', '#8a7a48'] }), CAR[0], CAR[1], .4);
+put(PK.kiosk({ seed: 1, kind: 'sun', c: '#8c90a8', c2: '#8a5460', ivy: 0, torn: .6 }), -5.6, 4.6, PI / 2 - .08); put(PK.kiosk({ seed: 2, c2: '#4a6c7c', c: '#8c90a8', kind: 'wave', w: 2.8, ivy: 0, torn: .7 }), -6, -8.5, PI / 2 + .16); put(PK.kiosk({ seed: 3, c2: '#7c6a48', c: '#8c90a8', kind: 'dots', ivy: 0 }), 5.4, 9, -PI / 2 + .2);
+put(PK.slide({ c: '#7a5a68', c2: '#6c7896' }), -12, -19, .9); put(PK.bench({ c: '#6c6a80', broken: true }), 3.4, 1.5, -PI / 2 + .1); put(PK.bench({ c: '#6c6a80' }), -3.4, -15, PI / 2 - .2);
+put(PK.vending({ seed: 1, c: '#6a7896', ivy: 0, lean: .14 }), -5.2, 1.2, PI / 2 + .1); put(PK.billboard({ kind: 'sun', c: '#8c90a8', c2: '#8a5460', w: 6, h: 3, legs: 4, ivy: 0, peel: .7, lean: .06 }), -15, -6, .6);
+put(PK.billboard({ kind: 'arrow', c: '#8c90a8', c2: '#7c6a48', w: 3, h: 1.5, legs: 1.9, seed: 1, lean: -.14, ivy: 0, peel: .6 }), 3.6, -19, -.5);
+for (const [x, z, ry, len, i] of [[-9, 14, .1, 12, 1], [10, 15, -.08, 12, 2], [17.5, -6, PI / 2, 14, 3], [-19, -16, PI / 2 + .1, 14, 4], [14, -24, -.2, 10, 5]]) put(PK.fence({ len, seed: i, ivy: 0, gap: i % 2 ? .3 : 0, lean: (i % 3 - 1) * .08 }), x, z, ry);
+const poles = [[-4.4, 5.6, .1], [-4.6, -3.5, -.1], [4.6, -13, .12], [-4.2, -22, -.08]].map(([x, z, ln], i) => put(PK.pole({ lean: ln, seed: i, trans: false, ivy: 0, h: 7 }), x, z, .2 * i));
+for (let i = 0; i < poles.length - 1; i++) { const a = poles[i].position, b = poles[i + 1].position; fixed.push(PK.wire([a.x, 6.3, a.z], [b.x, 6.3, b.z], { sag: 1.5 + i * .4 })); }
+put(PK.rubble({ r: 2, h: .7, seed: 2, grass: 0, tufts: 0 }), 4.6, -4); put(PK.bike({ c: '#7a5a62' }), 2.6, 6.4, .7).rotation.z = 1.35;
+[[-9, 9, 8], [13, 4, 9], [-13, 2, 9.5], [16, -15, 10], [-9, -29, 9], [20, 10, 11], [-20, 12, 10], [-22, -28, 12], [22, -30, 11]].forEach(([x, z, h], i) => put(D.deadTree({ h, seed: i + 5, c: '#3c4460' }), x, z, i));
+for (let i = 0; i < 40; i++) { const x = (hash(i, 6) - .5) * 60, z = (hash(i, 7) - .5) * 60 - 8; if (plaza(x, z) < .8) continue; put(R.tuft({ kind: ['reed', 'grass'][i % 2], s: .8 + hash(i, 8) * .6, seed: i % 3, c: '#4a5674' }), x, z, i); }
+for (const [x, z] of [[.5, 5.5], [-1.2, -4], [1.4, -12], [6, -1.5]]) put(PK.decal(PT.puddle({ seed: x, c: '#7c90c8' }), 3, 2, { ur: 1, vr: 1 }), x, z, x);
+scene.add(R.merge(fixed));
+
+// ---- あかり：ちらつく電球 2 つ（売店の ひさしと、メリーゴーランドの屋根のふち）。ぬれた路面に映す ----
+BULB.forEach(([x, y, z, i]) => { const b = D.bulb({ drop: .45, c: '#ffd860', seed: i * 3 + 1, light: i === 0, power: 12, range: 9, halo: .8 }); b.position.set(x, y, z); scene.add(b);
+  const sp = D.spot({ c: '#ffcc50', r: 3.4, k: .4, flicker: 'bulb', seed: i * 3 + 1 }); sp.position.set(x, .06, z); scene.add(sp); });
+scene.add(D.streaks(BULB.map(([x, y, z], i) => ({ x, z, h: y, c: '#ffd060', w: .8, len: 6, k: .7, flicker: 'bulb' })), { y: .05 }));
+// ---- 空気と生きもの：雨、流れる雲、うすい地の霧、とまる からすと飛ぶ からす、遠くの人かげ ----
+scene.add(D.rain({ n: 800, box: [26, 13, 26], slant: [.22, .08], a: .5 }), D.clouds({ n: 9, r: 250, y: 80, s: 100, c: '#34466a', shade: '#141c38', speed: .03 }), D.groundFog({ n: 34, box: [60, 60], c: '#8ea0c8', a: .16, h: 1.3, w: 9 }));
+scene.add(D.perched([[-5.6, 3.05, 5.4, 1], [CAR[0], 5.2, CAR[1], 2], [3.4, .95, 1.5, 0], [-5.2, 1.95, 1.2, 2.5]], { watch: hero, near: 3.4 }), D.flock({ kind: 'crow', n: 7, r: 9, h: 3, center: [FER[0] + 2, 17, FER[1]] }));
+const ghost = D.ghost({ h: 1.9, a: .3, c: '#b8c8ff' }); ghost.position.set(CAR[0] + 1.5, .4, CAR[1] + 3.2); scene.add(ghost);
+
+const lamp = torch(hero, { c: '#e8f0ff' }), crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const Z0 = 12, LEN = 26, SPEED = 1.5;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .85); lamp.tick(t);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(x * .6 + .8, tall ? 2.2 : 1.65, z + Dc); cam.lookAt(x * .5 - .3, tall ? 2.7 : 2.9, z - 6);   // 低い所から見上げて、観覧車を入れる
+  ferris.userData.spin(.2 + Math.sin(t * .35) * .035); ferris.userData.tick(t);      // 風で少しだけ きしむ
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

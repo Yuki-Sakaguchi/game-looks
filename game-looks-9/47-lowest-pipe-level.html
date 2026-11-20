@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-47 配管の最下層を、修理屋がひとり歩く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-47 ─ 配管の最下層を、修理屋がひとり歩く / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 鉄の都市の いちばん下の階。太い配管が何層も重なる すき間を、工具箱をさげた修理屋がひとり歩く。水たまり、もれる蒸気、さびたはしご、たれたくさり。
+// 色の組は「黒青の鉄と水」＋「点めつする赤いランプ」＋通路の先の「白いあかり 1 つ」。差し色は 修理屋の白っぽい作業着と 青みどりの はちまき。
+// 赤い輪と、遠くの白い光の ふち取り・水たまりの映りこみで、配管の丸みと主役を読ませる（D.mood の 'blackout' を、近い霧にした物）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 600, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ hairStyle: 'spiky', hair: '#3a4460', eyes: 'half', beard: 'stubble', cloth: 'overall', sleeve: 'short', top: '#b8c0c8', top2: '#6a7a90', bottom: '#b8c0c8', gloves: 'glove', glove: '#5a4a44', shoes: 'boot', shoe: '#33384a', hat: 'band', acc: '#4ae0c0', hold: 'case', back: 'bag' }); scene.add(hero);
+const FOG = '#0e1626', RED = '#ff3a2c', WH = '#e4f0ff', END = 30, WZ = 2.1;
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, hills: false, range: 22, r: 280, sky: ['#0a101c', '#0c1422', FOG, '#141e32'], fog: [FOG, 7, 58], hemi: ['#7a90c8', '#283048', 1.02], key: ['#bcd4ff', .95, [1, .32, .12]], fill: ['#4a5a90', .5], base: [.62, .7, .92] });
+
+// ---- 地面：水たまりだらけの床。赤いランプと、先の白いあかりを焼きこむ ----
+const REDS = [[-9.5, -1.9, 2.5], [2.5, 1.9, 2.2], [15, -1.9, 2.9]];
+const LIT = [...REDS.map(([x, z]) => ({ x, z: z * .5, r: 6, c: RED, k: .95 })), { x: END, z: 0, r: 15, c: WH, k: 1.5 }, { x: END - 9, z: 0, r: 8, c: WH, k: .35 }];
+const land = R.ground({ w: 120, d: 16, cell: 1, layers: [X.asphalt({ wet: 1, c: '#39445c', wetC: '#42629a' }), X.plate({ c: '#48546e', n: 4 }), X.manhole ? X.conc({ c: '#505a70' }) : X.conc({})], mix: (x, z) => [Math.abs(z) > 1.5 || (Math.round(x / 4) % 3 === 0 && Math.abs(z) < .8) ? 1 : 0, 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 配管：左右に、太い管が何層も重なる。上を横切る管、床から天井へ立つ管、バルブ、メーター ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, PC = ['#4a5a7c', '#56607a', '#6a5650', '#3e5a6a', '#5a5a84', '#7a5a48'];
+for (const s of [-1, 1]) for (const [r, y, z, ci, band] of [[.95, .95, 3.2, 0], [.6, 2.75, 3.1, 1], [1.15, 4.9, 3.5, 3], [.17, 2.0, 2.2, 2, '#c8ccd4'], [.3, 3.6, 2.5, 4], [.12, 1.55, 2.12, 5], [.7, 7, 2.6, 0]]) fixed.push(C.pipe([[-56, y, s * z], [56, y, s * z]], r, { c: PC[(ci + (s > 0 ? 2 : 0)) % 6], band, joint: 3 + r * 4, n: r > .5 ? 10 : 6 }));
+for (let x = -44, i = 0; x < 50; x += 4.2 + hash(i, 1) * 3, i++) { const r = .14 + hash(i, 2) * .34, y = 3.3 + hash(i, 3) * 2.6, k = i % 4, c = PC[i % 6];
+  if (k === 0) fixed.push(C.pipe([[x, y + 1.6, -3], [x, y, -2], [x, y, 2], [x, y - 1, 3]], r, { c, joint: 0, bend: .6 }));
+  else if (k === 1) fixed.push(C.pipe([[x, 0, 1.75], [x, y - .5, 1.75], [x, y, 1.2], [x, y, -3]], r * .7, { c, joint: 2, bend: .5 }));
+  else if (k === 2) fixed.push(C.pipe([[x, 8, -1.7], [x, .6, -1.7], [x + .7, .25, -1.7], [x + 5, .25, -1.7]], r * .6, { c, joint: 2.5, bend: .4 }));
+  else fixed.push(C.pipe([[x, y, -3], [x, y, 3]], r, { c, joint: 1.6, band: i % 8 === 3 ? '#b84a3a' : null })); }
+for (const [x, s, r] of [[-11, 1, .17], [-3, -1, .12], [6.5, 1, .17], [12, -1, .12], [20, 1, .17], [-18, -1, .12]]) { const v = C.valve({ r, c: '#a8483a' }); put(v, x, s * (r > .15 ? 2.2 : 2.12), 0, r > .15 ? 2 : 1.55); put(C.meter({ r: .2 }), x + 1.2, s * 2.0, s < 0 ? 0 : PI, 1.1); }
+fixed.push(C.duct([[-40, 6.1, 1.2], [-6, 6.1, 1.2], [-6, 6.1, -1], [26, 6.1, -1]], 1, .6, { c: '#4a546c' }));
+{ const G = R.geo(); for (const s of [-1, 1]) for (let x = -56; x < 56; x += 4) G.quad(...(s < 0 ? [[x, 0, -4.7], [x + 4, 0, -4.7], [x + 4, 9, -4.7], [x, 9, -4.7]] : [[x + 4, 0, 4.7], [x, 0, 4.7], [x, 9, 4.7], [x + 4, 9, 4.7]]), [0, 0, 1.33, 3], [.6, .6, .9, .9]); for (let x = -56; x < 56; x += 4) G.quad([x, 8.6, 4.7], [x + 4, 8.6, 4.7], [x + 4, 8.6, -4.7], [x, 8.6, -4.7], [0, 0, 1.33, 3.1], .7); fixed.push(G.mesh(X.plate({ c: '#333e58', n: 2 }))); }   // 奥のかべと天井
+
+// ---- さびたはしご、たれたくさり、ドラムかん、工具の箱、マンホール ----
+for (const [x, s, h, y] of [[-6.5, -1, 4.6, 0], [4.5, 1, 3.4, 1.9], [13.5, -1, 5, 0], [23, 1, 4.4, 0], [-15, 1, 4, 0]]) { const l = C.ladder({ h, c: '#9a5a40' }); l.rotation.x = s * .12; put(l, x, s * 2.02, s < 0 ? 0 : PI, y); }
+const chains = [[-7, .6, 4.2, 2.6], [-1.5, -.9, 5, 3], [3.5, 1.1, 4.4, 2.2], [8, -.5, 5.2, 3.4], [12.5, .8, 4, 2], [18, -1, 4.8, 2.8], [22, .3, 5, 2.4], [-12, -.7, 4.6, 2.6]].map(([x, z, y, len], i) => { const c = D.chain({ len, sway: .05 + hash(i, 5) * .06, seed: i * 1.7, c: '#7a8498' }); c.position.set(x, y, z); c.rotation.y = PI / 2; scene.add(c); return c; });
+put(C.drum({ c: '#5a4a48', mark: 'band' }), -4.2, 1.75); put(C.drum({ c: '#3e5a6a', mark: 'none', h: .7 }), 9.8, -1.7); put(R.crate({ s: .5, c: '#6a5a50' }), 16.8, 1.6, .3); put(C.drum({ c: '#5a4a48' }), 21.2, -1.75);
+for (const [x, z, k] of [[-5, .2, 'grate'], [5.5, -.3, 'round'], [17, .2, 'grate'], [25, 0, 'plate']]) put(C.manhole({ kind: k, r: .45 }), x, z);
+scene.add(R.merge(fixed));
+
+// ---- あかり：赤いランプ 3 つ（点めつ・回る）と、通路の先の白い 1 つ ----
+const lamps = REDS.map(([x, z, y], i) => { const w = D.warnLamp({ kind: i === 1 ? 'spin' : 'blink', c: RED, r: .15, light: i < 2, power: 9, range: 8, seed: i * 2.1 }); w.position.set(x, y, z); w.rotation.z = z < 0 ? -.5 : .5; scene.add(w); const s = D.spot({ c: RED, r: 3.6, k: .5 }); s.position.set(x, .05, z * .55); scene.add(s); return { s, i }; });
+scene.add(D.pools(REDS.map(([x, z, y]) => ({ p: [x, y, z + (z < 0 ? -.2 : .2)], n: [0, 0, z < 0 ? 1 : -1], r: 2.6, c: RED, k: .4 }))));
+{ const b = D.bulb({ drop: .9, c: WH, flicker: false }); b.position.set(END, 4.3, 0); scene.add(b); const h = D.halo({ c: WH, r: 3.6, k: .9 }); h.position.set(END, 3.2, 0); scene.add(h);
+  scene.add(D.pools([{ p: [END, .05, 0], r: 7, c: WH, k: .5 }, { p: [END, 3, -2.4], n: [0, 0, 1], r: 4.5, c: WH, k: .35 }, { p: [END, 3, 2.4], n: [0, 0, -1], r: 4.5, c: WH, k: .35 }]), D.streaks([{ x: END, z: 0, h: 3.2, c: WH, k: 1, w: 1.5, len: 22 }, ...REDS.map(([x, z]) => ({ x, z: z * .6, h: 2.4, c: RED, k: .7, w: 1, len: 6 }))], { far: 60 })); }
+
+// ---- 蒸気（つぎ目からふく・床からのぼる）、天井からの しずく、うすい もや ----
+[[-6, 2.75, -2.5, [.2, .2, 1], 1], [1.5, 3.6, 2.2, [-.2, -.3, -1], 1], [5.5, .08, -.3, [0, 1, 0], 0], [10.5, 2, -2.05, [.3, .5, 1], 1], [17, .08, .2, [0, 1, 0], 0], [21, 4.6, 2.3, [0, -.6, -1], 1], [-13, 2, 2.05, [.2, .4, -1], 1]].forEach(([x, y, z, dir, jet], i) => { const s = C.steam({ dir, jet, rise: jet ? 2.6 : 3.2, r: jet ? .5 : .65, n: jet ? 10 : 8, speed: jet ? .55 : .28, spread: jet ? .32 : .45, c: '#a8bcdc', a: jet ? .42 : .32, phase: i * .37 }); s.position.set(x, y, z); scene.add(s); });
+scene.add(D.rain({ n: 26, box: [14, 6, 3.6], speed: 7, slant: [0, 0], len: .13, c: '#9ab8e8', a: .5 }), D.groundFog({ n: 22, box: [50, 5], y: .05, h: 1, w: 5, c: '#3a5078', a: .22, wind: [.3, 0] }));
+const follow = new THREE.PointLight('#a8c0ff', 9, 7, 1.4); scene.add(follow);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.12 }); onResize(crt.resize);
+const X0 = -14, SPAN = 30, SPEED = 1.4;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .24) * .4, tall = innerWidth < innerHeight, Dc = tall ? 3.4 : 4;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .24) * .09; R.walk(hero, t * SPEED * 4.6, .9);
+  cam.position.set(x - Dc, tall ? 1.95 : 1.8, z * .4 - .35); cam.lookAt(x + 4, tall ? 1.7 : 1.55, z * .3 + .15);
+  crt.u.bright.value = 1.12 * Math.min(1, d / .5, (SPAN - d) / .5);
+  for (const { s, i } of lamps) s.material.opacity = .5 * (i === 1 ? .7 + .3 * Math.sin(t * 3.2 + i * 2.1) : (Math.sin(t * 3.2 * 1.4 + i * 2.1) > 0 ? 1 : .12));
+  follow.position.set(x - .8, 2.3, z - .6);
+  land.follow(0, 0); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

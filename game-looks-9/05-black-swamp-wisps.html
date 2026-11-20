@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-05 黒い沼と鬼火 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dcf4ec;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-05 ─ 黒い沼と鬼火 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の黒い沼。たおれかけた くいの上の、古い板の桟橋が霧の奥へ続く。枯れ木といばらのあいだに、青や緑の鬼火がいくつもただよい、黒い水面に映る。
+// 色の組は「沼と木の黒緑・霧のうす緑・鬼火の青」＋差し色は旅人の からし色の上着とランタンの だいだい。
+// つえとランタンの旅人が桟橋を歩く。遠くの霧の中に、光る目の大きな影が じっとこちらを見ている。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', hair: '#c4553a', mouth: 'small', cloth: 'coat', top: '#c8a03c', top2: '#6a4a30', bottom: '#4a5058', shoe: '#5a4030', gloves: 'glove', glove: '#6a5040', neck: 'scarf', acc: '#e8e0c8', back: 'pack', hold: 'staff' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'moon', { sky: ['#050c10', '#0b2022', '#1e443a', '#4a7a62'], fog: ['#1c3c34', 12, 105], hemi: ['#8ed8b4', '#22342c', 1.08], key: ['#baf4d8', 1.45, [-.5, .5, -.68]], fill: ['#3c7a70', .5], hills: '#0c2620', base: [.62, .82, .74], stars: 90, follow: hero, range: 30 });
+
+// ---- 沼の底と小島、黒い水、桟橋 ----
+const DY = .42, pathX = z => Math.sin(z * .12) * 2.4 + Math.sin(z * .05 + 1) * 1.2, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const HF = (x, z) => -.8 + sm(.5, .68, W.vn(x * .11, z * .11, 5)) * sm(2.6, 5, Math.abs(x - pathX(z))) * 1.25;
+const land = R.ground({ w: 130, d: 130, cell: 2, cz: -22, H: HF, layers: [T.dirt({ c: '#2e3a34', pebbles: .2 }), D.tex.deadGrass({ c: '#3c5648' })], mix: (x, z) => [HF(x, z) > 0 ? 1 : 0, 0], shade: () => mood.base });
+const swamp = W.pool({ kind: 'swamp', r: 75, seg: 30, rings: 18, c: '#183432', wobble: 0, y: 0 }); swamp.position.z = -22; scene.add(land.mesh, swamp);
+const fixed = [], put = (o, x, z, ry = 0, y = Math.max(0, HF(x, z))) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const plankT = D.tex.plank({ c: '#665a5c' }), pts = []; for (let z = 26; z >= -64; z -= 1.5) pts.push([pathX(z), DY + Math.sin(z * 1.7) * .035, z]);
+fixed.push(R.strip(pts, 1.75, plankT, { lift: 0, mat: { side: true } }));
+// わきへのびて、水にしずむ こわれた桟橋（2 か所）と、水にうく板
+for (const [z0, sx] of [[-3, 1], [-31, -1]]) fixed.push(R.strip([0, 1, 2, 3, 4].map(i => [pathX(z0) + sx * (.8 + i * 1.25), DY - i * i * .055, z0 - i * .5]), 1.4, plankT, { lift: 0, mat: { side: true } }));
+{ const B = R.parts(), PG = B.g(T.bark({ c: '#4e4a4c' })).smooth(1), Pl = B.g(plankT, { side: true });
+  // くい：桟橋の両がわ。ところどころ高く、大きくかたむく。横木でつなぐ
+  for (let i = 0; i < 46; i++) for (const s of [-1, 1]) { const z = 25 - i * 1.95, x = pathX(z) + s * .95, tall = hash(i, s + 2) > .7, h = tall ? .7 + hash(i, s + 4) * .4 : .2 + hash(i, s + 6) * .25, lean = (hash(i, s + 8) - .5) * (tall ? .6 : .34);
+    PG.at(R.TR(x, 0, z, i, (hash(i, s + 9) - .5) * .3, lean)).loft(5, [[-.9, .11, .11, 0, .6], [DY, .09, .09, .5, .9], [DY + h, .07, .07, 1, 1.05]], { cap: 'top' }); }
+  for (const [z0, sx] of [[-3, 1], [-31, -1]]) for (let i = 1; i < 5; i++) for (const s of [-1, 1]) PG.at(R.TR(pathX(z0) + sx * (.8 + i * 1.25), 0, z0 - i * .5 + s * .75, i, s * .2, sx * (.1 + i * .09))).loft(5, [[-.9, .1, .1, 0, .6], [DY + .5 - i * .12, .07, .07, 1, 1]], { cap: 'top' });
+  PG.at(null);
+  for (let i = 0; i < 7; i++) { const z = 12 - i * 9.3, x = pathX(z) + (i % 2 ? 2.6 : -2.9) + hash(i, 31), a = i * 1.3, c = Math.cos(a), s = Math.sin(a), q = (u, v) => [x + c * u - s * v, .035, z + s * u + c * v]; Pl.quad(q(-.7, -.14), q(.7, -.14), q(.7, .14), q(-.7, .14), [0, 0, .5, .2], .9); }
+  fixed.push(B.group()); }
+
+// ---- 枯れ木、いばら、あし、岩、こわれた小舟 ----
+const clear = (x, z, r = 2.4) => Math.abs(x - pathX(z)) > r, trees = [];
+for (let i = 0; i < 64; i++) { const x = (hash(i, 1) - .5) * 84, z = 26 - hash(i, 2) * 96; if (!clear(x, z, 6)) continue; const isle = HF(x, z) > 0, q = i % 5;
+  if (q < 2) trees.push(put(D.deadTree({ h: 6 + hash(i, 3) * 7, seed: i + 3, c: '#3c4a46', twigs: 2 }), x, z, i, isle ? HF(x, z) : -.3));
+  else if (q === 2) put(isle ? D.thorns({ len: 3 + hash(i, 4) * 2, h: 1.1, seed: i, c: '#4a4a50' }) : R.rock({ s: .7 + hash(i, 4), c: '#3e4c4a', moss: .8, seed: i }), x, z, i, isle ? HF(x, z) : -.25);
+  else put(R.tuft({ kind: 'reed', s: 1.1 + hash(i, 5) * .7, c: '#6e9474', seed: i % 3 }), x, z, i, Math.max(-.05, HF(x, z))); }
+[[-6.5, 7, 9], [6.2, 0, 11], [-7.5, -9, 12], [7, -17, 9], [-6.2, -26, 10], [7.5, -33, 12], [-7, -42, 11], [6.4, -50, 10]].forEach(([dx, z, h], i) => trees.push(put(D.deadTree({ h, seed: i + 40, c: '#3c4a46' }), pathX(z) + dx, z, i * 2.1, -.3)));
+for (let i = 0; i < 16; i++) { const z = 22 - i * 5.2, s = i % 2 ? 1 : -1, x = pathX(z) + s * (1.7 + hash(i, 7) * 1.4); put(i % 4 === 3 ? D.thorns({ len: 2.6, h: .9, seed: i, c: '#4a4a50' }) : R.tuft({ kind: 'reed', s: 1 + hash(i, 8) * .5, c: '#6e9474', seed: i % 3 }), x, z, i, i % 4 === 3 ? -.15 : -.05); }
+{ const b = R.boat({ c: '#5a4e50' }); b.position.set(pathX(1) + 3.3, -.12, 1.2); b.rotation.set(.1, .9, .5); fixed.push(b); }   // かたむいて半分しずんだ小舟
+scene.add(R.merge(fixed));
+
+// ---- 鬼火：青と緑。水面に輪と、手前へのびる映りこみ ----
+const WISPS = [[-3.4, 1.2, 8, 0], [3.2, 1.5, 4.5, 1], [-5.5, 1.1, -1, 2], [2.8, 1.3, -6.5, 0], [-2.9, 1.6, -11.5, 1], [6.5, 1.2, -15, 0], [-6.8, 1.4, -19, 2], [3.4, 1.2, -24, 1], [-3.2, 1.5, -30, 0], [8, 1.3, -34, 2], [-9, 1.6, -42, 1], [3, 1.2, -44, 0], [-12, 1.4, -8, 0], [12, 1.5, -26, 1]].map(([dx, y, z, k]) => [pathX(z) + dx, y, z, ['#58b4ff', '#7ef0d8', '#8aa4ff'][k]]);
+WISPS.forEach(([x, y, z, c], i) => { const w = D.wisp({ c, seed: i * 2 + 1, light: i === 1 || i === 4, power: 7, range: 8, r: .8 + (i % 3) * .15, pool: 3.4, k: .6 }); w.position.set(x, y, z); scene.add(w); });
+scene.add(D.streaks(WISPS.map(([x, y, z, c]) => ({ x, z, h: y, c, w: 1, k: .85 })), { y: .05, far: 60 }));
+
+// ---- 空と空気：流れる雲、水の上の霧、ほたるのような ちり、ふくろう、からす、遠くの大きな影 ----
+scene.add(D.clouds({ n: 9, r: 250, y: 70, s: 100, c: '#2c5a50', shade: '#102c2a', speed: .016 }), D.groundFog({ n: 64, box: [62, 62], c: '#a4dcc8', a: .3, h: 1.7, w: 9, y: .05, wind: [.35, .1] }), D.flakes({ kind: 'dust', n: 90, c: '#b8f4d0', box: [22, 5, 22], size: 1.2 }));
+const perchOf = (i, k) => { const t = trees[i]; t.updateMatrixWorld(); const p = t.userData.perch && t.userData.perch[k]; return p ? p.clone().applyMatrix4(t.matrixWorld) : null; };
+{ const n = trees.length, op = perchOf(n - 6, 0); if (op) { const owl = D.owl({ s: 1.6 }); owl.position.copy(op); owl.rotation.y = 2.2; scene.add(owl); }
+  const ps = [perchOf(n - 7, 0), perchOf(n - 5, 1), perchOf(n - 3, 0)].filter(Boolean).map((p, i) => [p.x, p.y, p.z, i * 2]); scene.add(D.perched(ps, { watch: hero, near: 5.5 })); }
+const loomer = D.loomer({ w: 150, h: 92, c: '#15362e', eye: '#f0ffa0', gap: .12 }); loomer.position.set(-46, -9, -215); scene.add(loomer);
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffb050', power: 10, range: 8, r: 2.4, k: .7 }), crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 14, LEN = 40, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, DY, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.2, cx = pathX(z + Dc * .7); cam.position.set(cx * .6 + x * .4 + .15, DY + (tall ? 2.2 : 1.75), z + Dc); cam.lookAt(x * .6 + pathX(z - 8) * .4 - .6, DY + (tall ? 1.9 : 1.95), z - 6);
+  swamp.userData.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

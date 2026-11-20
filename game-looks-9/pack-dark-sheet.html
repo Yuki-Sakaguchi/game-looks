@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9 追加の部品「ダークな雰囲気」の一覧</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+#cap a{color:#ffd080;margin-right:6px}
+</style>
+<div id="cap"></div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// pack-dark.js の確認用のページ。?p=mood&i=0〜7 で雰囲気の組（同じ小さな場面を、8 つの光で見る）、?p=parts&i=0〜3 で形、?p=tex でテクスチャ。&raw=1 でブラウン管なし。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), D = PACK_DARK(THREE, K, R), T = R.tex, q = new URLSearchParams(location.search), page = q.get('p') || 'mood', idx = +(q.get('i') || 0);
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const KINDS = ['storm', 'moon', 'fog', 'ember', 'blood', 'abyss', 'blackout', 'ash'], kind = page === 'mood' ? KINDS[idx % 8] : page === 'tex' ? 'ash' : 'moon';
+const mood = D.mood(scene, renderer, kind, { range: 26 }), put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; scene.add(o); return o; };
+let label = '', hero = null;
+if (page === 'tex') {   // テクスチャを 2.4 m の板にはって並べる
+  const L = [['stone', D.tex.stone()], ['wetCobble', D.tex.wetCobble()], ['deadGrass', D.tex.deadGrass()], ['ash', D.tex.ash()], ['plank', D.tex.plank()], ['grave', D.tex.grave()], ['glass', D.tex.glass()], ['glass lit', D.tex.glass({ lit: 1 })], ['rose', D.tex.glass({ kind: 'rose', lit: 1 })], ['fence', D.tex.fence()], ['thorn', D.tex.thorn()], ['web', D.tex.web()], ['moon', D.tex.moon()], ['owl', D.tex.owl()], ['loomer', D.tex.loomer()]];
+  L.forEach(([n, t], i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: t, alphaTest: t.userData.cut ? .5 : 0 })); m.position.set((i % 5 - 2) * 2.7, 4.6 - Math.floor(i / 5) * 2.7, 0); scene.add(m); });
+  cam.position.set(0, 1.9, 11.5); cam.lookAt(0, 1.9, 0); label = 'テクスチャ：' + L.map(l => l[0]).join(' / ');
+} else {
+  const lights = page === 'mood' ? [{ x: 3, z: -1, r: 6, c: mood.glow, k: 1.1 }, { x: -1.6, z: 1.5, r: 3.5, c: mood.glow, k: .8 }] : [];
+  scene.add(R.ground({ w: 280, d: 280, cell: 4, layers: [D.tex.deadGrass(), D.tex.wetCobble(), D.tex.ash()], mix: (x, z) => [Math.abs(x) < 2.2 ? 1 : 0, kind === 'ash' || kind === 'ember' ? 1 : 0], shade: mood.shade(lights) }).mesh);
+  if (page === 'mood') {   // 同じ場面：主役、礼拝堂、墓石、枯れ木、かがり火、像。光だけ変える
+    hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#d8c8a0', cloth: 'coat', top: '#4a5a90', neck: 'scarf', acc: '#c84a3c' }); put(hero, 0, 2.5, Math.PI); D.lantern(hero, { c: mood.glow });
+    put(D.chapel({ lit: 1, glow: mood.glow }), -9, -13, .5); put(D.brazier({ c: mood.glow }), 3, -1); put(D.statue({ kind: 'angel' }), -3.6, -3, .5); put(D.graves({ n: 10, area: [10, 8], seed: 2 }), 7.5, -7);
+    [[-5, 3, 6], [6, -14, 9], [11, 2, 8], [-13, -2, 9]].forEach(([x, z, h], i) => put(D.deadTree({ h, seed: i }), x, z)); put(D.fence({ len: 9 }), 6, 3.5, -.3); put(D.loomer({ c: R.mix(mood.P.fog[0], '#000010', .35), eye: mood.glow }), 60, -200);
+    if (kind === 'storm') scene.add(D.rain(), D.lightning(mood, { first: 4 })); if (kind === 'moon' || kind === 'blood') scene.add(D.moon({ red: kind === 'blood', az: 12 }), D.clouds({ c: R.mix(mood.P.sky[2], '#ffffff', .12), shade: mood.P.sky[1] }));
+    if (kind === 'fog' || kind === 'moon' || kind === 'abyss') scene.add(D.groundFog({ c: R.mix(mood.P.fog[0], '#ffffff', .6) })); if (kind === 'ash' || kind === 'ember') scene.add(D.flakes({ kind: kind === 'ash' ? 'ash' : 'ember' }));
+    if (kind === 'blackout') { put(D.warnLamp({ light: true }), -1.6, 1.5, 0, 2.2); put(D.bulb({ light: false }), 2.2, 2, 0, 3); } if (kind === 'abyss') { const w = put(D.wisp({}), -1.6, 1.5, 0, 1.2); }
+    scene.add(D.flock({ kind: kind === 'abyss' ? 'bat' : 'crow', center: [-9, 8, -13] })); label = '雰囲気の組：' + kind + '（i=0〜7：' + KINDS.join(' / ') + '）';
+  } else {
+    const SETS = [
+      ['墓石 6 種・墓標・像・柱・台', () => { ['round', 'point', 'slab', 'obelisk', 'disc', 'post'].forEach((k, i) => put(D.grave({ kind: k, seed: i, s: 1.3 }), (i - 2.5) * 1.5, 1.5)); put(D.statue({ kind: 'angel' }), -4, -2.5); put(D.statue({ kind: 'knight' }), -1.5, -2.5); put(D.column({}), 1.2, -2.5); put(D.bier({}), 4.2, -2.5, .4); }],
+      ['礼拝堂・さく・門・枯れ木・いばら', () => { put(D.chapel({}), -3, -8, .4); put(D.fence({ len: 6 }), 4.5, 1); put(D.gate({}), 0, 2); put(D.deadTree({ h: 7, seed: 3 }), 7, -5); put(D.deadTree({ h: 5, seed: 5 }), -8, 0); put(D.thorns({ len: 3 }), -4, 2.4); }],
+      ['あかり：かがり火・ろうそく・窓・警告灯・非常灯・電球', () => { put(D.brazier({ light: true }), -4, 0); put(D.candles({ n: 6 }), -1.6, 1.2); put(D.windowLight({}), .4, -.5, 0, 1); put(D.windowLight({ kind: 'rose' }), 2.4, -.5, 0, 1); put(D.warnLamp({}), 4.4, 0, 0, 1.6); put(D.exitLamp({}), 5.8, 0, 0, 1.8); put(D.bulb({}), -2.8, 0, 0, 2.6); }],
+      ['生きもの・影・小物：からす・ふくろう・ねこ・鬼火・人かげ・かかし・馬車・くもの巣・くさり', () => { put(D.crow(), -5, 1.5, .5); put(D.owl({}), -3.6, 1.5); put(D.cat({}), -2.2, 1.5, .5); put(D.wisp({}), -.6, 1, 0, 1.2); put(D.ghost({}), 1.4, 0); put(D.scarecrow({}), 3.4, -.5); put(D.wreckCart({}), 6.5, -3, -.4); put(D.web({ s: 1.2 }), -5, -2, 0, 2.6); put(D.chain({ len: 2 }), -3, -2, 0, 2.6); scene.add(D.flock({ kind: 'bat', center: [0, 2, -4], h: 3, r: 5 })); }]];
+    const S = SETS[idx % SETS.length]; S[1](); label = '形 ' + (idx % SETS.length) + '：' + S[0];
+  }
+  cam.position.set(1.2, 2.4, 9.5); cam.lookAt(0, 1.7, -2);
+}
+document.getElementById('cap').innerHTML = '9 ─ pack-dark の一覧　｜　' + label + '　' + ['mood&i=0', 'mood&i=1', 'parts&i=0', 'parts&i=1', 'parts&i=2', 'parts&i=3', 'tex'].map(s => `<a href="?p=${s}">${s}</a>`).join('');
+const raw = q.get('raw'), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+K.loop((dt, t) => { if (hero) { R.idle(hero, t, Math.sin(t * .5) * .3); D.lanternPose(hero); } D.tick(t, cam); if (raw) { R.U.snap.value.set(0, 0); renderer.setRenderTarget(null); renderer.render(scene, cam); } else crt.render(scene, cam, t); });
+</script>
+</html>
