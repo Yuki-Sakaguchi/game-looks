@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>テクスチャとブラウン管の世界 50 案 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#0c0d10;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{display:flex;gap:10px;padding:8px 10px 9px;align-items:baseline}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a}
+.genre{color:#9a988f;font-size:11px}
+.look{font-weight:600}
+.tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>テクスチャとブラウン管の世界 50 案</h1>
+  <p>第 8 集。第 7 集の「描きこんだテクスチャとブラウン管」のテイストで、題材を広げた 50 案です。面は少ないまま、ドット絵のテクスチャを描きこみ、5 頭身の人物が歩きます。ファンタジー（01〜22）、廃墟（23〜30）、海の中（31〜37）、海に浮かぶ廃墟（38〜43）、鉄の都市の下町（44〜50）の順に並んでいます。廃墟も海の底も下町も、こわくない、歩いてみたくなる場所として描いています。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
+</header>
+<div id="grid"></div>
+<script>
+// [ファイル名, 場面, ルック, 3D なら 1]
+const LOOKS = [
+  ['01-castle-town-avenue', '城下町の大通り', 'ファンタジー：城の見える石だたみ', 1],
+  ['02-airship-dock', '飛空艇の発着場', 'ファンタジー：高台の桟橋と雲海', 1],
+  ['03-magic-school-courtyard', '魔法学校の中庭', 'ファンタジー：塔と回廊', 1],
+  ['04-windmill-hill-village', '風車の丘の村', 'ファンタジー：風車と麦の丘', 1],
+  ['05-treetop-village', '樹上の町', 'ファンタジー：つり橋と木の上の家', 1],
+  ['06-mountain-temple-steps', '山寺の石段', 'ファンタジー：東方風の門と石灯ろう', 1],
+  ['07-pirate-harbor', '海賊の港町', 'ファンタジー：帆船と桟橋', 1],
+  ['08-snow-fortress-gate', '雪山の砦の門', 'ファンタジー：城壁と吹雪のあと', 1],
+  ['09-desert-palace', '砂漠の王宮前', 'ファンタジー：ドームと尖塔', 1],
+  ['10-inn-fireside', '宿屋の中', 'ファンタジー：暖炉のある室内', 1],
+  ['11-canal-city', '運河の水の都', 'ファンタジー：ゴンドラと橋', 1],
+  ['12-crystal-cave', '水晶の洞くつ', 'ファンタジー：光る水晶と地底の池', 1],
+  ['13-giant-mushroom-forest', '巨大きのこの森', 'ファンタジー：きのこの家と胞子の光', 1],
+  ['14-dragon-volcano-road', '竜のいる火山の道', 'ファンタジー：溶岩と竜', 1],
+  ['15-fairy-spring', '妖精の泉の森', 'ファンタジー：光の粒と泉', 1],
+  ['16-sky-islands-waterfall', '空の浮島と滝', 'ファンタジー：浮島とつり橋', 1],
+  ['17-dwarf-mine', 'ドワーフの鉱山', 'ファンタジー：トロッコとたいまつ', 1],
+  ['18-witch-swamp-hut', '魔女の沼の小屋', 'ファンタジー：高床の小屋とうき草', 1],
+  ['19-giant-bone-wasteland', '巨人の骨の荒野', 'ファンタジー：ろっ骨のアーチ', 1],
+  ['20-ice-lake-aurora', '氷の湖とオーロラ', 'ファンタジー：氷とオーロラ', 1],
+  ['21-dungeon-treasury', 'ダンジョンの宝物庫', 'ファンタジー：金貨と宝箱', 1],
+  ['22-starfall-observatory', '星降る草原の天文塔', 'ファンタジー：星空と流れ星', 1],
+  ['23-overgrown-amusement-park', '草にのまれた遊園地', '廃墟：さびた観覧車と花', 1],
+  ['24-mossy-city-crossing', '苔むしたビル街の交差点', '廃墟：草のアスファルトとしか', 1],
+  ['25-abandoned-station', '廃駅と草の線路', '廃墟：ホームと止まった電車', 1],
+  ['26-broken-highway', '崩れた高速道路の上', '廃墟：とぎれた高架と空', 1],
+  ['27-factory-light', '廃工場の中の光', '廃墟：天窓からの光', 1],
+  ['28-sand-buried-town', '砂にうもれた町', '廃墟：砂丘と屋根', 1],
+  ['29-ancient-temple-ruins', '古代神殿の遺跡', '廃墟：石の柱とくずれたアーチ', 1],
+  ['30-old-school-sakura', '廃校の校庭と桜', '廃墟：校舎と桜', 1],
+  ['31-coral-reef-dive', 'さんご礁を泳ぐ', '海の中：さんごと魚の群れ', 1],
+  ['32-sunken-sailing-ship', '沈んだ帆船', '海の中：帆柱と宝箱', 1],
+  ['33-undersea-temple', '海底神殿', '海の中：石の柱と光のすじ', 1],
+  ['34-kelp-forest', '昆布の森', '海の中：ゆれる昆布とあわ', 1],
+  ['35-glowing-jellyfish-deep', '光るくらげの深み', '海の中：深い青とくらげの光', 1],
+  ['36-dome-town-seabed', '海底のドームの町', '海の中：ガラスのドームと窓あかり', 1],
+  ['37-under-the-ice', '氷の下の海', '海の中：氷の天井と青い光', 1],
+  ['38-flooded-city-boat', '水没したビル街を小舟で', '海に浮かぶ廃墟：ビルの谷間の海', 1],
+  ['39-sea-platform-life', '海上の廃プラットフォーム', '海に浮かぶ廃墟：鉄の足場のくらし', 1],
+  ['40-sinking-viaduct-train', '沈みかけた高架と電車', '海に浮かぶ廃墟：波にひたる線路', 1],
+  ['41-flooded-shrine-path', '水没した神殿の参道', '海に浮かぶ廃墟：水の中の門と柱', 1],
+  ['42-rooftop-raft-village', '屋上のいかだの集落', '海に浮かぶ廃墟：屋上と桟橋', 1],
+  ['43-broken-bridge-lighthouse', '崩れた橋と灯台', '海に浮かぶ廃墟：橋げたと灯台', 1],
+  ['44-underplate-market', '鉄板の下の市場通り', '鉄の都市の下町：裸電球と屋台', 1],
+  ['45-pipe-alley', '配管だらけの路地', '鉄の都市の下町：配管と蒸気', 1],
+  ['46-neon-rain-street', '雨のネオン街', '鉄の都市の下町：ぬれた路面の映りこみ', 1],
+  ['47-train-graveyard', '列車の墓場', '鉄の都市の下町：古い車両とすき間の光', 1],
+  ['48-scrapyard-kids', 'スクラップ置き場', '鉄の都市の下町：鉄くずの山と子どもたち', 1],
+  ['49-pillar-station', '支柱のふもとの駅前', '鉄の都市の下町：巨大な柱と小さな駅', 1],
+  ['50-rooftop-life', '屋根の上のくらし', '鉄の都市の下町：上の層からもれる光', 1],
+];
+const grid = document.getElementById('grid');
+for (const [file, genre, look, is3d] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>

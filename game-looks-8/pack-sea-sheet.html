@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8 海の部品（pack-sea.js）の確認</title>
+<style>
+html,body{margin:0;min-height:100%;background:#14161c;color:#d8d0c0;font:12px/1.5 ui-monospace,Menlo,monospace}
+canvas{display:block}
+#nav{position:fixed;left:0;top:0;right:0;padding:6px 10px;background:#14161cd0;z-index:5}
+#nav a{color:#9fd8e8;margin-right:12px}
+#grid{display:flex;flex-wrap:wrap;gap:4px;padding:26px 4px 4px;align-content:flex-start}
+.c{position:relative;line-height:0}.c canvas{image-rendering:pixelated;display:block;background:repeating-conic-gradient(#4a4e60 0 25%,#3c4050 0 50%) 0 0/16px 16px}
+.c span{position:absolute;left:0;top:0;background:#000a;color:#fff;font-size:10px;line-height:1.3;padding:0 3px}
+#cap{position:fixed;left:12px;bottom:10px;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="nav"></div><div id="grid"></div><div id="cap"></div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 海の部品（pack-sea.js）を全部ならべて見る確認用のページ（一覧には入れない）。
+// ?p=tex（既定）でテクスチャの一覧（&i=0〜3 で 1 組だけ）。?p=parts&i=0〜4 で部品がブラウン管ごしに回る
+//   i=0 さんご・海草・貝  1 生きもの  2 ダイバーと大きな生きもの  3 沈んだ物  4 海面と浮かぶ物。&raw=1 でブラウン管なし、&spin=角度 で止める、&cam=x,y,z,x,y,z でカメラ、&depth=shallow/mid/deep/ice、&solo=番号 で 1 つだけをまん中に
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), q = new URLSearchParams(location.search), mode = q.get('p') || 'tex', sel = q.get('i');
+document.getElementById('nav').innerHTML = '<a href="?p=tex">テクスチャ</a>' + ['さんご・海草', '生きもの', 'ダイバー・大きな生きもの', '沈んだ物', '海面'].map((n, i) => `<a href="?p=parts&i=${i}">${n}</a>`).join('');
+if (mode === 'tex') {
+  const t = S.tex, G = [
+    ['海底・光', [['sand', t.sand()], ['sand 桃', t.sand({ c: '#f0d8c8' })], ['caustic 0', t.caustic()[0]], ['caustic 2', t.caustic()[2]], ['under 0', t.under()[0]], ['under 2', t.under()[2]], ['under ice', t.under({ kind: 'ice', frames: 1 })[0]], ['shaft', t.shaft()], ['bubble', t.bubble()], ['swell 0', t.swell()[0]], ['swell 2', t.swell()[2]], ['swell 緑', t.swell({ c: '#3aa890' })[1]], ['foam 0', t.foam()[0]], ['foam 2', t.foam()[2]]]],
+    ['さんご・海草', [['coral pore', t.coral()], ['coral pore 紫', t.coral({ c: '#9a6ad0' })], ['coral brain', t.coral({ kind: 'brain', c: '#f4a03c' })], ['coral cell', t.coral({ kind: 'cell', c: '#4ab8c8' })], ['fan', t.fan()], ['fan 黄', t.fan({ c: '#f6d24a', seed: 1 })], ['anemone', t.anemone()], ['anemone 緑', t.anemone({ c: '#8ad88a', body: '#7a5ac0', tip: '#f8a0c0' })], ['kelp', t.kelp()], ['kelp ribbon', t.kelp({ kind: 'ribbon', c: '#4a9a5a' })], ['seagrass', t.seagrass()], ['bits（貝・ひとで・うに）', t.bits()]]],
+    ['生きもの', [...['clown', 'butter', 'angel', 'tang', 'parrot', 'grouper', 'silver'].map(k => ['fish ' + k, t.fish({ kind: k })]), ['turtle', t.turtle()], ['manta', t.manta()], ['octo', t.octo()], ['jelly bell', t.jelly()], ['jelly arms', t.jelly({ kind: 'arms' })], ['whale dolphin', t.whale()], ['whale', t.whale({ kind: 'whale' })], ['crab', t.crab()], ['gull', t.gull()]]],
+    ['沈んだ物・道具', [['grown planks', t.grown()], ['grown stone', t.grown({ base: 'stone', grow: .7 })], ['grown concrete bottom', t.grown({ base: 'concrete', from: 'bottom', grow: .8 })], ['grown brick', t.grown({ base: 'brick', grow: .5 })], ['grown rock', t.grown({ base: 'rock', o: { c: '#8c8898' }, grow: .6 })], ['column', t.column()], ['iron', t.iron()], ['sail', t.sail()], ['pot', t.pot()], ['chest', t.chest()], ['domeFrame', t.domeFrame()], ['glass', t.glass()], ['gear', t.gear()], ['buoy', t.buoy()]]]];
+  const grid = document.getElementById('grid');
+  G.forEach(([name, list], gi) => { if (sel !== null && +sel !== gi) return; for (const [label, tx] of list) { const im = tx.image, cut = tx.userData.cut, one = cut || /fish|turtle|manta|octo|jelly|whale|crab|gull|chest|gear|bits|shaft|bubble|pot|buoy|anemone/.test(label), rep = one ? 1 : 1.5, sc = Math.max(1, Math.floor(160 / (Math.max(im.width, im.height) * rep))), c = document.createElement('canvas'); c.width = Math.round(im.width * rep); c.height = Math.round(im.height * rep); const g = c.getContext('2d'); for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) g.drawImage(im, x * im.width, y * im.height); c.style.width = c.width * sc + 'px'; c.style.height = c.height * sc + 'px'; const d = document.createElement('div'); d.className = 'c'; d.append(c); const s = document.createElement('span'); s.textContent = label; d.append(s); grid.append(d); } });
+}
+if (mode === 'parts') {
+  document.getElementById('grid').remove(); document.body.style.overflow = 'hidden';
+  const { scene, cam, renderer, onResize } = K.stage({ fov: 40, far: 900, aa: false }), raw = q.get('raw'), gi = +(sel || 0), spin = [], ticks = [];
+  let pn = 0; const solo = q.get('solo'), put = (o, x, z, y = 0, s = 1) => { if (solo !== null) { if (pn++ !== +solo) return o; x = 0; z = 0; } o.position.set(x, y, z); if (s !== 1) o.scale.multiplyScalar(s); scene.add(o); spin.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+  let cp = [0, 4, 11], look = [0, 1, 0], env = null, bed = null, sea = null;
+  if (gi < 4) { env = S.underwater(scene, renderer, { depth: q.get('depth') || 'shallow', top: 12 }); bed = S.seabed({ env, w: 80, d: 80 }); scene.add(bed.mesh); }
+  if (gi === 0) { ['branch', 'table', 'brain', 'fan', 'tube', 'finger'].forEach((k, i) => { put(S.coral({ kind: k, seed: 0 }), -7.5 + i * 3, -3); put(S.coral({ kind: k, seed: 2, s: .8 }), -7.5 + i * 3, -.5); });
+    put(S.anemone(), -8, 2); put(S.anemone({ c: '#8ad88a', body: '#7a5ac0', tip: '#f8a0c0', s: 1.3 }), -6.5, 2); put(S.seagrass(), -5, 2); put(S.seagrass({ c: '#8aa84a', s: 1.2, seed: 1 }), -4, 2); put(S.shell(), -2.8, 2); put(S.starfish(), -1.8, 2); put(S.starfish({ c: '#e85a8a', s: 1.3 }), -.8, 2); put(S.urchin(), .2, 2); put(S.rock({ s: .8 }), 1.8, 2); put(S.reef({ seed: 3 }), 5, 2.2);
+    put(S.kelp({ h: 7 }), 8.5, 1); put(S.kelp({ h: 9, kind: 'ribbon', c: '#4a9a5a', seed: 1 }), 9.6, -1); put(S.kelp({ h: 8, seed: 3 }), 10.5, .5); const cf = put(S.cliff({ len: 30, h: 6 }), 0, -12); cf.userData.nospin = 1; cp = [.5, 3.4, 9.5]; look = [.5, 1.2, -1]; }
+  if (gi === 1) { ['clown', 'butter', 'angel', 'tang', 'parrot', 'grouper'].forEach((k, i) => put(S.fish({ kind: k, seed: i }), -5 + i * 1.6 + (i > 3 ? i - 3 : 0) * .5, 1.5, 1.2));
+    put(S.turtle(), -4.5, -1.5, 1.4); put(S.ray(), -1, -2, 1.6); put(S.octopus(), 2.6, -1.2, 0); put(S.jelly(), 5, -1.5, 2); put(S.jelly({ c: '#8ae0f0', s: .7, seed: 2 }), 6.2, -.5, 1.6); put(S.crab(), -1.5, 3.6, 0); put(S.crab({ c: '#4a8ad0', s: 1.3 }), -.5, 3.6, 0);
+    const sc = S.school({ n: 50, rx: 7, rz: 4, speed: 1.4 }); sc.position.set(0, 3.4, -1); if (solo === null) scene.add(sc); ticks.push(sc.userData.tick); const s2 = S.school({ n: 24, kind: 'butter', rx: 3, rz: 2, speed: -1, s: .7, h: .8, tints: ['#ffffff', '#ffd8c0', '#c0f0ff'] }); s2.position.set(-3, 2.4, 2); if (solo === null) scene.add(s2); ticks.push(s2.userData.tick); cp = [.5, 2.6, 9.5]; look = [.5, 1.3, 0]; }
+  if (gi === 2) { const mk = (o, x, z, arms) => { const d = put(S.diver(o), x, z, 1.3); ticks.push(t => { S.swim(d, t, { arms }); S.breathe(d, env.bubbles, 1 / 60); }); return d; };
+    mk({}, -3, 2.5); mk({ head: 'snorkel', tank: false, fin: '#4ac8a0', actor: { sex: 'f', hairStyle: 'tail', hair: '#5a3a28', top: '#e8684a', bottom: '#e8684a', top2: '#f4f0e0' } }, -.5, 2.5, 'reach'); mk({ head: 'helmet', tank: '#c8553a', actor: { top: '#c8a060', bottom: '#8a6a4a', top2: '#5a4a3a' } }, 2, 2.5, 'glide');
+    put(S.whale(), -3.5, -1.5, 2.6); put(S.whale({ kind: 'whale' }), 5, -8, 4.5); const gl = put(S.gull({ s: 1.5 }), 4.5, 2.5, 1.5); cp = [.5, 3.2, 10.5]; look = [.5, 1.8, 0]; }
+  if (gi === 3) { const sh = put(S.ship(), -6, -6); sh.rotation.z = .2; sh.userData.nospin = 1; sh.rotation.y = 1.9; put(S.chest(), -4, 3); put(S.chest({ open: 0 }), -2.6, 3); put(S.anchor(), -1, 3); put(S.pot(), .6, 3); put(S.pot({ c: '#8a9ab0', c2: '#f0e0b0', seed: 2, s: 1.3 }), 1.8, 3); put(S.pillar({ h: 5 }), 4, 2); put(S.pillar({ h: 2.6, broken: true, seed: 1 }), 6, 3); const d = put(S.dome({ r: 5 }), 12, -5); d.userData.nospin = 1; cp = [1, 5.5, 15]; look = [1, 2.2, 0]; }
+  if (gi === 4) { scene.add(R.skyDome([[0, '#4a8ad0'], [.6, '#a8d8f0'], [1, '#e8f4f0']], { r: 380 })); scene.fog = new THREE.Fog('#c8e4ec', 30, 160); K.lights(scene, renderer, { sky: 0xd8ecff, ground: 0x6a9ab0, amb: 1.5, sun: 0xfff0d0, power: 2.4, pos: [-14, 20, 10], range: 24 });
+    const bedG = R.ground({ w: 80, d: 80, layers: [S.tex.sand()], H: (x, z) => -3.5 + Math.max(0, 9 - Math.hypot(x + 12, z + 6)) * .55 }); S.sink(bedG.mesh, { level: 0, depth: 4 }); scene.add(bedG.mesh);
+    sea = S.sea({ w: 120, d: 120, cell: 2, shore: (x, z) => 1 - Math.abs(Math.hypot(x + 12, z + 6) - 2.6) / 4 }); scene.add(sea.mesh);
+    const fl = (o, x, z, k = 1) => { put(o, x, z); o.userData.nospin = 1; ticks.push(t => { o.position.y = sea.h(x, z, t) + (o.userData.off || 0); o.rotation.z = Math.sin(t * 1.1 + x) * .05 * k; o.rotation.x = Math.sin(t * .9 + z) * .04 * k; }); return o; };
+    fl(S.raft(), -3, 2).rotation.y = .5; fl(S.buoy(), 2, 3); fl(R.boat({ c: '#c8704a' }), 5.5, 1).userData.off = .05; const pr = put(S.pier({ len: 10 }), 5, -4); pr.userData.nospin = 1;
+    const fixed = []; for (const [x, z, h] of [[-1, -5, 5], [1.5, -6.5, 3]]) { const p = S.pillar({ h: h + 3, broken: h < 4 }); p.position.set(x, -3, z); const f = S.foamRing({ r: .6, wd: .6 }); f.position.set(x, 0, z); fixed.push(p, f); }
+    const tw = R.house({ w: 5, d: 5, h: 6, wall: S.tex.grown({ base: 'concrete', grow: .7, from: 'bottom' }), roofKind: 'flat', roof: R.tex.concrete() }); tw.position.set(-9, -3.2, -7); const f2 = S.foamRing({ w: 5, d: 5 }); f2.position.set(-9, 0, -7); fixed.push(tw, f2); const mg = R.merge(fixed); S.sink(mg, { level: 0, depth: 4 }); scene.add(mg);
+    for (let i = 0; i < 3; i++) { const g = S.gull({ s: 1.4 }); scene.add(g); ticks.push(t => { const a = t * .5 + i * 2.1; g.position.set(Math.cos(a) * 6, 4 + i * .6, Math.sin(a) * 4 - 2); g.rotation.y = -a; g.userData.tick(t + i, i === 1 ? .8 : 0); }); } cp = [1, 6, 15]; look = [0, .5, -1]; }
+  if (q.get('cam')) { const c = q.get('cam').split(',').map(Number); cp = c.slice(0, 3); look = c.slice(3, 6); }
+  const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+  K.loop((dt, tt) => { for (const o of spin) if (!o.userData.nospin) o.rotation.y = q.get('spin') !== null ? +q.get('spin') : tt * .5; for (const f of ticks) f(tt); cam.position.set(...cp); cam.lookAt(...look);
+    if (env) { env.tick(tt, cam, dt); bed.tick(tt); } else S.tick(tt); if (sea) sea.tick(tt, 0, 0); if (raw) { renderer.setRenderTarget(null); renderer.render(scene, cam); } else crt.render(scene, cam, tt); });
+}
+</script>
+</html>

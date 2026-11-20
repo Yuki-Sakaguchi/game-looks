@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-16 空の浮島と滝 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffffff;opacity:.95;text-shadow:0 1px 0 #1a4a8a}
+</style>
+<div id="cap">8-16 ─ 空の浮島と滝 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない浮島（上は草、下は逆さの岩山）に、手で打ったドット絵（草花・岩はだ・落ちる水・板とつな）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 空の青・雲の白・草の緑。差し色は旅人の赤いマント。昼のまっすぐな日ざしで、島の下の岩と雲の海に影を落とす。
+// 旅人が 3 つの浮島をつり橋でわたって回る。島の泉から小川が流れ、ふちから滝になって雲の海へ落ちる。風車が回り、白い鳥がとび、雲が流れる。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）。風車だけ pack-fantasy-town.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), FT = PACK_FTOWN(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 800, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#1f5ed0'], [.45, '#3f8cec'], [.8, '#6cb2f6'], [1, '#a8d2fc']], { r: 400 })); scene.fog = new THREE.Fog('#a8d2fc', 50, 260);
+const { sun } = K.lights(scene, renderer, { sky: 0xdcefff, ground: 0x9ac8a0, amb: 1.65, sun: 0xfff6dc, power: 2.6, range: 30 }), SUN = new THREE.Vector3(-.4, .82, .4).normalize();
+
+// ---- 3 つの浮島（草の面が y=0）と、島をつなぐ つり橋。道は 島に入る → 泉を遠まわりに回る → 次の橋 ----
+const IS = [[0, 0, 9.5, 1], [30, 4, 9.5, 2], [13, -26, 9.5, 5]], wrap = a => Math.atan2(Math.sin(a), Math.cos(a)), ang = (i, j) => Math.atan2(IS[j][1] - IS[i][1], IS[j][0] - IS[i][0]), EDGE = .8;
+const ends = IS.map((s, i) => { const n = (i + 1) % 3, a = ang(i, n), b = ang(n, i); return [[s[0] + Math.cos(a) * s[2] * EDGE, s[1] + Math.sin(a) * s[2] * EDGE], [IS[n][0] + Math.cos(b) * IS[n][2] * EDGE, IS[n][1] + Math.sin(b) * IS[n][2] * EDGE]]; });   // 橋 i（島 i → 島 i+1）の両はし
+const CP = [], gaps = [];
+IS.forEach((s, i) => { const aIn = ang(i, (i + 2) % 3), aOut = ang(i, (i + 1) % 3), dl = wrap(aOut - aIn), long = dl - Math.sign(dl) * TAU; gaps.push(aIn + dl / 2);
+  CP.push(ends[(i + 2) % 3][1]); for (const k of [.17, .34, .5, .66, .83]) CP.push([s[0] + Math.cos(aIn + long * k) * s[2] * .47, s[1] + Math.sin(aIn + long * k) * s[2] * .47]);
+  const [e0, e1] = ends[i]; CP.push(e0, [e0[0] + (e1[0] - e0[0]) / 3, e0[1] + (e1[1] - e0[1]) / 3], [e0[0] + (e1[0] - e0[0]) * 2 / 3, e0[1] + (e1[1] - e0[1]) * 2 / 3]); });
+const path = new THREE.CatmullRomCurve3(CP.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), SP = path.getSpacedPoints(300);
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+const bridges = ends.map(([e0, e1], i) => { const dx = e1[0] - e0[0], dz = e1[1] - e0[1], len = Math.hypot(dx, dz), b = put(F.ropeBridge({ len, w: 1.8, sag: len * .05, h: 1.05, gaps: 0, c: '#a87a4c', seed: i }), (e0[0] + e1[0]) / 2, (e0[1] + e1[1]) / 2, Math.atan2(-dz, dx)); return { mx: b.position.x, mz: b.position.z, dx: dx / len, dz: dz / len, len, deckY: b.userData.deckY }; });
+const onBridge = (x, z) => { for (const b of bridges) { const s = (x - b.mx) * b.dx + (z - b.mz) * b.dz, l = Math.abs((x - b.mx) * b.dz - (z - b.mz) * b.dx); if (Math.abs(s) < b.len / 2 && l < 1.3) return b.deckY(s); } return null; };
+// 島・泉・小川・滝（滝は、島のふちの辺のまん中から落とす）
+const FH = 17, grass = T.grass({ c: '#5cb452', flowers: .35, fc: ['#ffffff', '#ffe27a', '#ff9ab8'] }), rockT = X.caveRock({ c: '#9a8672', glint: false, seed: 1 }), dirt = T.dirt({ c: '#dcc490', pebbles: .4 });
+const fallAt = (x, z, r, sd, want, h = FH, w = 2) => { const sec = F.blobSec(10, sd, .16).pts; let best = 0, bd = 9; for (let k = 0; k < 10; k++) { const a = sec[k], b = sec[(k + 1) % 10], d = Math.abs(wrap(Math.atan2(a[1] + b[1], a[0] + b[0]) - want)); if (d < bd) { bd = d; best = k; } }
+  const a = sec[best], b = sec[(best + 1) % 10], mx = x + (a[0] + b[0]) / 2 * r, mz = z + (a[1] + b[1]) / 2 * r, nx = -(b[1] - a[1]), nz = b[0] - a[0], sg = nx * (mx - x) + nz * (mz - z) > 0 ? 1 : -1, nl = Math.hypot(nx, nz), ux = nx / nl * sg, uz = nz / nl * sg;
+  const f = F.waterfall({ w, h, c: '#9cd8f8', lip: 1.2 }); f.position.set(mx + ux * .15, -h, mz + uz * .15); f.rotation.y = Math.atan2(ux, uz); fixed.push(f); ticks.push(f.userData.tick); const mist = F.halo('#ffffff', w * 5, .5); mist.position.set(mx + ux * 1.5, -h + 1.5, mz + uz * 1.5); scene.add(mist); return [mx, mz]; };
+IS.forEach(([x, z, r, sd], i) => { put(F.floatIsle({ r, h: r * 1.5, grass, rock: rockT, seed: sd }), x, z); const [mx, mz] = fallAt(x, z, r, sd, gaps[i]), g = gaps[i], px = x + Math.cos(g) * 1, pz = z + Math.sin(g) * 1;
+  const pond = F.pool({ r: 2.3, c: '#4aa4e4', seg: 12, y: .07, seed: i }); pond.position.x = px; pond.position.z = pz; scene.add(pond); ticks.push(pond.userData.tick);
+  const st = F.flow([[px + Math.cos(g) * 1.6, 0, pz + Math.sin(g) * 1.6], [(px + mx) / 2 + Math.sin(g) * .5, 0, (pz + mz) / 2 - Math.cos(g) * .5], [mx, 0, mz]], 1.9, { kind: 'water', c: '#4aa4e4', speed: 1.3, lift: .06 }); scene.add(st); ticks.push(st.userData.tick);
+  for (let k = 0; k < 7; k++) { const a = g + 1.1 + k * .75, rr = 2.9 + hash(k, i) * .5; put(R.rock({ s: .3 + hash(i, k) * .35, c: '#b8b4a8', moss: .5, seed: k }), px + Math.cos(a) * rr, pz + Math.sin(a) * rr, k, -.06); } });
+// 島の上の小道（土の帯）と草花・木・岩
+{ let run = []; const flush = () => { if (run.length > 2) fixed.push(R.strip(run, 1.5, dirt, { lift: .05 })); run = []; }; for (const q of SP) { if (onBridge(q.x, q.z) === null) run.push([q.x, 0, q.z]); else flush(); } flush(); }
+const offP = (x, z) => { let m = 1e9; for (const q of SP) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < m) m = d; } return Math.sqrt(m); };
+IS.forEach(([x, z, r], i) => { const g = gaps[i]; for (let k = 0; k < 46; k++) { const a = hash(k, i, 3) * TAU, rr = Math.sqrt(hash(k, i, 4)) * r * .8, qx = x + Math.cos(a) * rr, qz = z + Math.sin(a) * rr, d = offP(qx, qz); if (d < 1.2 || (rr < 4 && Math.abs(wrap(a - g)) < 1.2) || Math.abs(wrap(a - g)) < .3) continue; const q = k % 8;
+    if (q === 0 && d > 2.2 && rr > r * .55) put(R.tree({ kind: 'round', h: 3.6 + hash(k, i, 5) * 2.4, c: '#58b060', flowers: k % 16 ? 0 : .5, fc: ['#ffd0e0'], seed: k }), qx, qz, k); else if (q === 1) put(R.rock({ s: .35 + hash(k, i, 6) * .6, c: '#b8b4a8', moss: .4, seed: k }), qx, qz, k, -.08); else put(R.tuft({ kind: ['flower', 'grass', 'flower', 'bush', 'grass', 'wheat'][q - 2], s: .5 + hash(k, i, 7) * .45, c: '#62b854', fc: ['#ffffff', '#ffe27a', '#ff9ab8'], seed: k % 3 }), qx, qz, k); } });
+const rim = (i, k, q = .68) => { const g = gaps[i] + Math.PI + k; return [IS[i][0] + Math.cos(g) * IS[i][2] * q, IS[i][1] + Math.sin(g) * IS[i][2] * q, Math.atan2(-Math.cos(g), -Math.sin(g))]; };
+const [wx, wz, wr] = rim(1, .25, .7), mill = put(FT.windmill({ h: 7.5, stone: '#f2e8d0', roof: T.shingle({ c: '#3f78c8' }), c: '#fff4e0', speed: 1.1 }), wx, wz, wr - .5);
+const [hx, hz, hr] = rim(2, -.2, .7); put(R.house({ w: 3.4, d: 3, h: 2.2, wall: T.plaster({ frame: 'cross', c: '#f4ecd8' }), roof: T.roof({ c: '#3f78c8' }), chimney: true, seed: 2 }), hx, hz, hr);
+const [tx, tz] = rim(0, .1, .72); put(R.tree({ kind: 'round', h: 8.5, c: '#4fa85a', flowers: .4, fc: ['#ffd0e0', '#ffffff'], seed: 4 }), tx, tz, 1);
+// 遠くの浮島（高さいろいろ。いくつかは滝つき）と、橋のそばの小さな岩の島
+for (let i = 0; i < 13; i++) { const a = i / 13 * TAU + hash(i, 8) * .3, d = 44 + hash(i, 9) * 80, r = 4 + hash(i, 10) * 8, x = 14 + Math.cos(a) * d, z = -7 + Math.sin(a) * d, y = -12 + hash(i, 11) * 34; const isle = put(F.floatIsle({ r, h: r * 1.6, grass, rock: rockT, seed: i + 10 }), x, z, 0, y);
+  for (let k = 0; k < 3; k++) { const t = R.tree({ kind: k ? 'round' : 'tall', h: 3 + hash(i, k) * 3, c: '#58b060', seed: i + k }); t.position.set(x + (hash(i, k, 2) - .5) * r, y, z + (hash(i, k, 3) - .5) * r); fixed.push(t); }
+  if (i % 3 === 0) { const sec = F.blobSec(10, i + 10, .16).pts, want = Math.atan2(-7 - z, 14 - x); let bk = 0, bd = 9; sec.forEach((p0, k) => { const p1 = sec[(k + 1) % 10], dd = Math.abs(wrap(Math.atan2(p0[1] + p1[1], p0[0] + p1[0]) - want)); if (dd < bd) { bd = dd; bk = k; } }); const p0 = sec[bk], p1 = sec[(bk + 1) % 10], f = F.waterfall({ w: 2.6, h: 22, c: '#9cd8f8', lip: 1.4 }); f.position.set(x + (p0[0] + p1[0]) / 2 * r * 1.02, y - 22, z + (p0[1] + p1[1]) / 2 * r * 1.02); f.rotation.y = Math.atan2(p0[0] + p1[0], p0[1] + p1[1]); fixed.push(f); ticks.push(f.userData.tick); } }
+for (let i = 0; i < 7; i++) { const b = bridges[i % 3], s = (hash(i, 12) - .5) * b.len * .8, l = (i % 2 ? 1 : -1) * (4 + hash(i, 13) * 5); put(F.floatIsle({ r: .9 + hash(i, 14) * 1.3, h: 2.2 + hash(i, 15) * 2, grass, rock: rockT, seed: i + 30 }), b.mx + b.dx * s + b.dz * l, b.mz + b.dz * s - b.dx * l, i, -3 + hash(i, 16) * 5); }
+scene.add(R.merge(fixed));
+// 雲の海（でこぼこの白い面）と、流れる雲
+const CY = -27, sea = R.ground({ w: 320, d: 320, cell: 5, H: (x, z) => CY + F.vn(x * .05, z * .05, 3) * 5 + F.vn(x * .13, z * .13, 5) * 2.2, layers: [T.snow({ c: '#f4f9ff' })], shade: (x, z) => .92 + F.vn(x * .05, z * .05, 3) * .2 }); sea.mesh.receiveShadow = false; scene.add(sea.mesh);
+const clouds = [...Array(18)].map((_, i) => { const c = R.cloud({ s: 16 + hash(i, 17) * 26, c: '#ffffff', shade: '#bcd8f4', seed: i }), a = hash(i, 18) * TAU, d = 30 + hash(i, 19) * 110; c.position.set(14 + Math.cos(a) * d, i % 3 ? -16 + hash(i, 20) * 12 : 8 + hash(i, 20) * 34, -7 + Math.sin(a) * d); scene.add(c); return c; });
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'tail', hair: '#2e2c40', eye: '#3a6ac8', brow: 'soft', mouth: 'smile', cloth: 'tunic', sleeve: 'long', top: '#fbf4e4', top2: '#3f78c8', lower: 'baggy', bottom: '#c8a468', belt: '#6a4630', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', shoe: '#6a4630', neck: 'cape', skirtC: '#d8443a', acc: '#d8443a', hat: 'band', s: 1.05 }); scene.add(hero);
+const miller = R.actor({ hairStyle: 'short', hair: '#b8743a', beard: 'mustache', mouth: 'smile', cloth: 'overall', top: '#3f78c8', top2: '#f4ecd8', bottom: '#6a5a48', shoes: 'boot', shoe: '#5a4030', s: 1 }); FT.wear(miller, 'strawHat'); { const [x, z, r] = rim(1, -.3, .52); miller.position.set(x, 0, z); miller.rotation.y = r + 2.2; scene.add(miller); }
+const girl = R.actor({ sex: 'f', hairStyle: 'bob', hair: '#f0c860', eyes: 'round', mouth: 'open', blush: true, cloth: 'tunic', top: '#f08aa0', top2: '#fff4e0', lower: 'skirt', skirt: .5, skirtC: '#f4ecd8', shoes: 'shoe', shoe: '#8a5a3a', s: .78 }); { const [x, z, r] = rim(0, -1.3, .66); girl.position.set(x, 0, z); girl.rotation.y = r + .4; scene.add(girl); }
+const birds = [...Array(7)].map((_, i) => { const g = R.bird({ c: '#ffffff', belly: '#f4f8ff', neck: '#dce8f8', s: 5 }); g.userData.orb = [hash(i, 21) * TAU, 7 + hash(i, 22) * 9, 3 + hash(i, 23) * 6, .22 + hash(i, 24) * .12]; scene.add(g); return g; });
+const crits = [[0, 1.9, '#f4ecd8'], [1, -1.2, '#e8c890'], [2, .6, '#f4ecd8']].map(([i, k, c], n) => { const g = F.critter({ c, s: 1.5 }), [x, z, r] = rim(i, k, .5); g.position.set(x, 0, z); g.rotation.y = r + 2 + n; scene.add(g); return g; });
+const slimes = [[1, 1.4, '#8ad0ff', .32], [1, 1.55, '#ffffff', .22], [2, -1.4, '#a8e8a0', .34], [0, .9, '#8ad0ff', .3]].map(([i, k, c, s]) => { const g = F.slime({ c, s }), [x, z, r] = rim(i, k, .6); g.position.set(x, 0, z); g.rotation.y = r + 2.6; scene.add(g); return g; });
+
+// ---- 旅人の道（開いて 2.5 秒で、最初のつり橋をわたりはじめる） ----
+const LEN = path.getLength(), SPEED = 1.75, S0 = SP.reduce((b, q, i) => { const d = Math.hypot(q.x - ends[0][0][0], q.z - ends[0][0][1]); return d < b[0] ? [d, i / 300] : b; }, [1e9, 0])[1] - (2.5 * SPEED - 2.2) / LEN + 1;
+const cd = new THREE.Vector3(), cp = new THREE.Vector3(), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), by = onBridge(p.x, p.z); p.y = by ?? 0;
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  const J = hero.userData.J; if (J.cape) { J.cape.rotation.x = -.75 - Math.sin(t * 5.2) * .16 - Math.sin(t * 8.3) * .06; J.cape.rotation.z = Math.sin(t * 3.1) * .24; }   // 風でマントがなびく
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.6)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5;
+  cp.set(p.x - cd.x * D, p.y + (tall ? 2.2 : 2.5), p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, p.y + (tall ? 1.2 : 1.35), p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 滝・泉・小川・風車・雲・鳥・村の人・ミミナガ・しずく玉
+  for (const f of ticks) f(t); FT.tick(t);
+  clouds.forEach((c, i) => { c.position.x += dt * (.5 + (i % 4) * .2); if (c.position.x > 150) c.position.x -= 280; c.rotation.y = Math.atan2(cp.x - c.position.x, cp.z - c.position.z); });
+  birds.forEach((b, i) => { const [ph, r, h, sp] = b.userData.orb, a = ph + t * sp * (i % 2 ? 1 : -1), dir = i % 2 ? 1 : -1; b.position.set(15 + Math.cos(a) * r, h + Math.sin(t * .6 + ph) * 1.2, -8 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a) * dir, Math.cos(a) * dir); R.birdPose(b, 'fly', t * .5 + ph); });
+  R.idle(miller, t, Math.sin(t * .4) * .5); { const A = miller.userData.J; A.armR.rotation.set(-2.6 + Math.sin(t * 6) * .25, 0, -.5); A.foreR.rotation.x = -.3; } R.idle(girl, t + 2, Math.sin(t * .6) * .6);
+  crits.forEach((c, i) => F.critterPose(c, 'sit', t + i * 2)); slimes.forEach((s, i) => F.slimePose(s, t * 1.05 + i * 1.7, .26));
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

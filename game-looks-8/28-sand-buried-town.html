@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-28 砂にうもれた町を行く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff6dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-28 ─ 砂にうもれた町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-ruins.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 砂丘にうもれた町。昼の強い日ざしと こい青の空、こい影。色は砂の黄土と空の青、看板と屋根の はげた赤をさし色にする。
+// 砂丘（R.ground の高さ）から、ビルの上の階・屋根・看板・電柱の先（pack-ruins.js）だけが出ている。屋上には木が育ち、砂のくぼみに草と花がもどっている。
+// 布をまいた旅人（R.actor の toon）が歩き、仲間が荷をつんだ そりを引く。砂が風で地面を流れ、鳥が空をまわる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#1a62c8'], [.55, '#3c8ee0'], [.9, '#74b6ec'], [1, '#f2e4b8']], { r: 380 })); scene.fog = new THREE.Fog('#ecd8a4', 60, 290);
+const { sun } = K.lights(scene, renderer, { sky: 0xbcd8ff, ground: 0xe8c488, amb: 1.3, sun: 0xfff2d0, power: 2.9, range: 34, map: 2048 }), SUN = new THREE.Vector3(-.5, .8, .34).normalize();
+
+// ---- 砂丘：なだらかな波を 2 つ重ね、通り（x = 0 のあたり）は少し低く。遠くは平らにして、外がわの大きな砂地につなぐ ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => { const a = Math.sin(x * .075 + z * .04 + Math.sin(z * .055) * 1.1), b = Math.sin(x * .034 - z * .078 + 1.7), st = sm(2, 11, Math.abs(x - Math.sin(z * .06) * 2));
+  return ((.5 + .5 * a) ** 1.6 * 2.9 * (.35 + .65 * st) + (.5 + .5 * b) * 1.7 * (.45 + .55 * st)) * (1 - sm(62, 96, Math.hypot(x - 14, z))); };
+const path = new THREE.CatmullRomCurve3([[0, 30], [.5, 10], [-1, -10], [2, -26], [12, -36], [25, -33], [32, -17], [30, 3], [26, 21], [15, 33], [5, 37]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength();
+const SANDC = '#e8c67e', land = R.ground({ w: 220, d: 220, cell: 2.5, cx: 14, cz: 0, H, layers: [T.sand({ c: SANDC }), T.sand({ c: '#d6a85e', seed: 1 }), PT.asphalt({ c: '#8e877a', grass: 0, line: 'center', crack: .8 })],
+  mix: (x, z) => [.5 + (1.5 - H(x, z)) * .22 + Math.sin(x * .21 + z * .13) * .2, Math.abs(x - Math.sin(z * .06) * 2) < 2.6 && z > -22 && z < 34 ? .5 + (.52 - H(x, z)) * 1.6 + Math.sin(z * .5) * .2 : 0],
+  shade: (x, z) => { const s = Math.max(.74, Math.min(1.12, 1 + ((H(x - 1.5, z) - H(x + 1.5, z)) * SUN.x + (H(x, z - 1.5) - H(x, z + 1.5)) * SUN.z) * .7)); return [s, s * (s < 1 ? .99 : 1), s < 1 ? s + (1 - s) * .45 : s * .96]; } });   // 日かげの面は青みの影
+land.follow(14, 0); scene.add(land.mesh); const outer = R.ground({ w: 704, d: 704, cell: 32, layers: [T.sand({ c: SANDC })] }); outer.mesh.position.set(14, -.12, 0); scene.add(outer.mesh);   // 遠くまでつづく砂
+
+// ---- うもれた町（pack-ruins）：どれも砂の下へしずめて、上だけ見せる ----
+const fixed = [], put = (o, x, z, ry = 0, sink = 0, rz = 0) => { o.position.set(x, H(x, z) - sink, z); o.rotation.set(0, ry, rz); fixed.push(o); return o; };
+const BL = [[-14, 13, 9, 9, 4, 1.6, '#e4d6b4', .5, 1], [-15, -7, 12, 9, 5, 2.2, '#d8c4a0', .25, 0], [14, 3, 9, 9, 5, 1.5, '#e8dcc0', .6, 1], [13, -17, 9, 12, 4, 2.4, '#dccaa8', .2, 0], [-13, -29, 9, 9, 6, 2.6, '#e6d8b8', .45, 0], [15, 21, 9, 6, 3, 1.3, '#dcc8a4', .3, 0],
+  [47, -8, 12, 12, 9, 5, '#d8c8a8', .35, 1], [-36, 6, 12, 9, 8, 4.4, '#e0d0b0', .5, 0], [44, 26, 9, 9, 7, 3.2, '#d6c4a2', .4, 0], [-30, -44, 12, 12, 10, 6, '#dccca8', .3, 1], [22, -62, 15, 9, 9, 5, '#e2d4b4', .5, 0], [-44, 38, 9, 9, 7, 3.6, '#d8c6a4', .4, 0]];
+BL.forEach(([x, z, w, d, fl, vis, c, br, tr], i) => { put(PK.building({ w, d, floors: fl, c, broken: br, moss: .12, holes: .7, plants: .25, ivy: .2, flowers: .5, roofGreen: tr ? .7 : .25, tree: !!tr, treeC: '#5aa24a', treeH: 4.5, hut: i % 3 === 1, seed: i + 1 }), x, z, (i % 4) * .05 - .08, (fl - vis) * 3, (i % 3 - 1) * .03);
+  for (let k = 0; k < 3; k++) { const a = i * 1.7 + k * 2.1, mx = x + Math.cos(a) * (w / 2 + .5), mz = z + Math.sin(a) * (d / 2 + .5); put(PK.mound({ r: 4 + hash(i, k) * 2.5, h: 1.3 + hash(k, i) * 1.4, tex: T.sand({ c: SANDC }), seed: i * 3 + k, squash: .9 }), mx, mz, a, .25); } });   // かべぎわの ふきだまり
+// 屋根だけ出た家（はげた赤のかわら）
+[[-6.5, 22, .2, '#b8604a'], [7, -9, -.3, '#a8584a'], [-7.5, -17, 1.5, '#c06a50'], [21, 12, .9, '#b05c48'], [40, 6, .4, '#b8604a'], [8, 44, -.5, '#a8584a']].forEach(([x, z, ry, c], i) => put(R.house({ w: 6.5, d: 5, h: 3, wall: T.plaster({ c: '#e6dabc', frame: 'none' }), roof: T.roof({ c, kind: i % 2 ? 'wave' : 'scale' }), roofKind: 'gable', chimney: i % 2 === 0, door: false, seed: i }), x, z, ry, 2.55, (i % 2 ? 1 : -1) * .05));
+// 看板・標識・電柱・車
+put(PK.billboard({ kind: 'sun', c: '#f0e2c0', c2: '#c8483a', w: 6.5, h: 3.2, legs: 4, peel: .28, ivy: 0, lean: .09, seed: 1 }), 6.5, 8, -.9, 3.2); put(PK.billboard({ kind: 'stripe', c: '#f0e2c0', c2: '#c0503e', w: 4.5, h: 2.2, legs: 3, peel: .35, ivy: 0, lean: -.12, seed: 2 }), -6, -24, .7, 2.3);
+put(PK.billboard({ kind: 'arrow', c: '#f0e2c0', c2: '#c8483a', w: 3.4, h: 1.7, legs: 2, peel: .3, ivy: 0, lean: .16 }), 24, -24, -1.9, 1.5); put(PK.billboard({ kind: 'wave', c: '#f0e2c0', c2: '#c0503e', w: 5, h: 2.5, legs: 4, peel: .35, ivy: 0, lean: -.06, seed: 1 }), 35, 20, -1.2, 3);
+put(PK.sign({ kind: 'stop', lean: .2 }), 3.6, 16, .3, 1.5); put(PK.sign({ kind: 'arrow', lean: -.25 }), -3.4, -3, -.4, 1.3); put(PK.signal({ lean: .14, ivy: 0 }), 4.2, -14, -1.4, 3);
+const PL = [[-4.6, 27, .1], [-4.8, 9, -.12], [-5.4, -9, .16], [-4.4, -26, -.07], [22, -6, .12], [21, 26, -.14]].map(([x, z, lean], i) => { const o = put(PK.pole({ lean, seed: i, trans: i % 2 === 0, ivy: 0 }), x, z, 0, 5.2); return o.userData.tips.map(([a, b, c]) => [x + a, o.position.y + b, z + c]); });
+for (let i = 0; i < 3; i++) for (const k of [0, 1]) fixed.push(PK.wire(PL[i][k], PL[i + 1][k], { sag: 1.5 + k * .4 }));
+put(PK.wreck({ c: '#c0584a', moss: .1, grass: .2 }), 3.4, 1, .5, .55, .12); put(PK.coach({ kind: 'bus', c: '#e8dcc0', c2: '#c8483a', moss: .1, ivy: .1 }), 19, -27, 1.1, 1.5, .1); put(PK.vending({ c: '#c8584a', lean: .3, ivy: 0 }), -3.6, 19, 1.2, .9);
+// もどってきた草と花：砂のくぼみと かべぎわに少しずつ
+for (let i = 0; i < 90; i++) { const x = (hash(i, 6) - .5) * 100 + 14, z = (hash(i, 7) - .5) * 110; if (H(x, z) > 1.5 + hash(i, 9) * 1.2 || Math.abs(x - Math.sin(z * .06) * 2) < 2.2) continue; put(R.tuft({ kind: ['grass', 'reed', 'grass', 'flower', 'bush'][i % 5], s: .55 + hash(i, 8) * .6, c: i % 5 === 4 ? '#7aa652' : '#a8b25a', fc: ['#ffffff', '#ffe27a'], seed: i % 3 }), x, z, i); }
+[[2.6, 22], [-2.8, 4], [3, -8], [-2.6, -20], [9, -31], [28, -10], [27, 12], [11, 30]].forEach(([x, z], i) => put(PK.flowers({ n: 8, r: 1.3, seed: i, fc: i % 2 ? ['#ffffff', '#ffe27a'] : ['#ffd86a', '#f08a5a'], c: '#8aae56', s: .7 }), x, z));
+scene.add(R.merge(fixed));
+
+// ---- 風で流れる砂：地面にそった帯に、砂つぶのすじの絵をはって横へ送る ----
+const SP = R.Px(64, 16); for (let k = 0; k < 15; k++) { const x = Math.floor(hash(k, 1, 3) * 64), y = 1 + Math.floor(hash(k, 2, 3) * 14), n = 4 + Math.floor(hash(k, 3, 3) * 12); for (let i = 0; i < n; i++) if (i < n - 3 || i % 2) SP.set(x + i, y + (i > n * .6 ? 1 : 0), i < 2 ? '#fff8dc' : i < n * .5 ? '#fbe6ae' : '#f2d594'); }
+const sandT = T.from(SP, { m: 6, cut: true }), SG = R.geo().normal([0, 1, 0]);
+for (let i = 0; i < 150; i++) { const x = (hash(i, 11) - .5) * 96 + 14, z = (hash(i, 12) - .5) * 100, w = 6, d = 1.6 + hash(i, 13) * 1.4, u = hash(i, 14), y = (a, b) => H(a, b) + .09;
+  for (const s of [0, 1]) { const x0 = x + (s - 1) * w, x1 = x0 + w; SG.quad([x0, y(x0, z + d), z + d], [x1, y(x1, z + d), z + d], [x1, y(x1, z), z], [x0, y(x0, z), z], [u + s, 0, u + s + 1, 1]); } }
+const sandFlow = SG.mesh(sandT, { offset: true }); sandFlow.castShadow = false; sandFlow.frustumCulled = false; scene.add(sandFlow);
+const dust = PK.motes({ n: 70, area: [16, 2.6, 16], c: '#ffe6b0', size: 1.6, a: .7 }); scene.add(dust);
+
+// ---- 空と遠景 ----
+scene.add(R.backdrop({ c: '#d8ae68', haze: '#ecd8a4', r: 250, y: -5, h: 30 }));
+for (let i = 0; i < 6; i++) { const c = R.cloud({ s: 34 + hash(i, 9) * 24, c: '#ffffff', shade: '#b8d2f0', seed: i }), a = i * 1.05 + .7; c.position.set(Math.cos(a) * 225, 60 + hash(i, 10) * 40, Math.sin(a) * 225); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 旅人と仲間、そり、鳥 ----
+const wrap = (p, c) => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, m = R.geo().smooth(1).loft(8, [[.56 * Hd, HW * 1.14, HW * 1.18, 0, .78], [.74 * Hd, HW * 1.4, HW * 1.44, .3, 1], [.98 * Hd, HW * 1.32, HW * 1.36, .65, 1.06], [1.13 * Hd, HW * .7, HW * .76, 1, 1.12]], { cap: 'top', ur: 3 }).mesh(T.fabric({ c, c2: R.mix(c, '#ffffff', .3), w: 4 })); m.rotation.x = .08; p.userData.J.head.add(m); return p; };
+const hero = wrap(R.actor({ build: 'toon', skin: '#d8a070', hairStyle: 'short', bangs: 'none', hair: '#3a2a22', eyes: 'sharp', cloth: 'robe', top: '#f2e8cc', top2: '#2f8f9a', bottom: '#b89868', belt: '#7a4a2c', lower: 'baggy', gloves: 'wrap', glove: '#e0d2b0', shoes: 'boot', shoe: '#7a4a32', neck: 'cape', acc: '#2f8f9a', hold: 'staff' }), '#f6eeda'); scene.add(hero);
+const mate = wrap(R.actor({ build: 'toon', sex: 'f', s: .94, skin: '#c89064', hairStyle: 'tail', hair: '#2a2024', eyes: 'round', cloth: 'tunic', top: '#e0cfa0', top2: '#c8583e', bottom: '#8a6a4a', lower: 'baggy', gloves: 'wrap', glove: '#e0d2b0', shoes: 'boot', shoe: '#6a4028', neck: 'scarf', acc: '#c8583e', back: 'pack' }), '#c8583e'); scene.add(mate);
+const sled = new THREE.Group(); sled.rotation.order = 'YXZ'; { const G = R.geo(); for (const s of [-1, 1]) { G.box(.07, .1, 1.7, s * .36, 0, -.1, { m: 2 }); G.at(R.TR(s * .36, .02, .78, 0, -.55)).box(.07, .09, .5, 0, 0, .2, { m: 2 }).at(null); for (const z of [-.7, .3]) G.box(.05, .22, .05, s * .36, .08, z, { m: 2 }); } G.box(.9, .05, 1.6, 0, .3, -.1, { m: 2 }); sled.add(G.mesh(T.planks({ c: '#a06e42' })));
+  const add = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; sled.add(o); };
+  add(R.geo().smooth(1).loft(7, [[0, .3, .36, 0, .78], [.2, .33, .4, .5, 1], [.34, .2, .27, 1, 1.08]], { cap: 'top', ur: 2 }).mesh(T.fabric({ c: '#2f8f9a', c2: '#f2e8cc', pattern: 'stripe' })), 0, .35, -.42); add(R.crate({ s: .46, c: '#b88a54' }), -.17, .35, .34, .2); add(R.barrel({ h: .5, r: .19 }), .24, .35, .36); }
+scene.add(sled);
+const rope = R.geo().quad([-.02, 0, 0], [.02, 0, 0], [.02, 0, 1], [-.02, 0, 1], [0, 0, .1, 1]).quad([0, -.02, 0], [0, .02, 0], [0, .02, 1], [0, -.02, 1], [0, 0, .1, 1]).mesh(T.planks({ c: '#c8a878' }), { side: true }); rope.frustumCulled = false; scene.add(rope);
+const flock = PK.flock({ n: 5, r: 12, h: 3, speed: .22, squash: .5, c: '#f4f0e8' }); flock.position.set(4, 16, -16); scene.add(flock);
+const birds = [[PL[1][0], 1.2], [PL[1][1], 4], [PL[2][0], 2.5], [PL[4][1], .5]].map(([[x, y, z], ry], i) => { const b = R.bird(i % 2 ? { c: '#f0ece4', neck: false } : { c: '#7a9ac0', belly: '#f4ead8' }); b.position.set(x, y + .05, z); b.rotation.y = ry; b.userData.home = [x, y + .05, z, ry]; b.userData.fly = -1; scene.add(b); return b; });
+
+const tall0 = () => innerWidth < innerHeight, SPEED = 2.05, S0 = .012, cd = new THREE.Vector3(), cp = new THREE.Vector3(), q = new THREE.Vector3(), q2 = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u); p.y = H(p.x, p.z);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5); const J = hero.userData.J; J.armR.rotation.set(-.5 + Math.sin(dist * 3.5) * .16, 0, 0); J.foreR.rotation.x = -.5; if (J.cape) J.cape.rotation.x = .28 + Math.sin(t * 5) * .1 + Math.sin(t * 2.3) * .06;   // つえをつき、布が風になびく
+  // 仲間は右ななめ前を歩き、そりを引く
+  const OFF = tall0() ? 1.15 : 1.9, um = (u + 3.1 / LEN) % 1, pm = path.getPointAt(um), tm = path.getTangentAt(um); q.set(pm.x - tm.z * OFF, 0, pm.z + tm.x * OFF); q.y = H(q.x, q.z); mate.position.copy(q); const ry = Math.atan2(tm.x, tm.z); mate.rotation.y = ry; R.walk(mate, dist * 3.7 + 1); const M = mate.userData.J; M.armL.rotation.set(.62, 0, 0); M.armR.rotation.set(.62, 0, 0); M.foreL.rotation.x = M.foreR.rotation.x = -.1; M.torso.rotation.x = .16;
+  const us = (u + 1.15 / LEN) % 1, ps = path.getPointAt(us), ts = path.getTangentAt(us), sx = ps.x - ts.z * OFF, sz = ps.z + ts.x * OFF, sy = Math.atan2(q.x - sx, q.z - sz), hf = H(sx + Math.sin(sy) * .8, sz + Math.cos(sy) * .8), hb = H(sx - Math.sin(sy) * .8, sz - Math.cos(sy) * .8);
+  sled.position.set(sx, (hf + hb) / 2 + .02, sz); sled.rotation.set(-Math.atan2(hf - hb, 1.6), sy, Math.sin(dist * 2.1) * .02);
+  q2.set(sx + Math.sin(sy) * .95, hf + .3, sz + Math.cos(sy) * .95); rope.position.copy(q2); q.set(q.x - Math.sin(ry) * .3, q.y + .62, q.z - Math.cos(ry) * .3); rope.lookAt(q); rope.scale.z = q2.distanceTo(q);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 5.2;
+  cp.set(p.x - cd.x * D, 0, p.z - cd.z * D); cp.y = Math.max(H(cp.x, cp.z) + 1.5, p.y + (tall ? 2.1 : 2.5)); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, p.y + (tall ? 1.4 : 1.15), p.z + cd.z * 3.4);
+  sun.position.set(p.x + SUN.x * 60, p.y + SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  sandT.offset.x = -t * .16; dust.position.set(p.x + Math.sin(t * .11) * 2, p.y + .1, p.z); dust.userData.tick(t * 2.4); flock.userData.tick(t);
+  for (const b of birds) { const [hx, hy, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
+    if (b.userData.fly < 0) { R.birdPose(b, 'stand', t + hr * 3); if (dh < 5) b.userData.fly = 0; }
+    else { const f = (b.userData.fly += dt); b.visible = f < 5; b.position.set(hx + Math.cos(hr) * f * 3.2, hy + Math.min(8, f * 2.2 - f * f * .1), hz + Math.sin(hr) * f * 3.2); b.rotation.y = Math.atan2(Math.cos(hr), Math.sin(hr)); R.birdPose(b, 'fly', t + hr);
+      if (f > 5 && dh > 16) { b.userData.fly = -1; b.visible = true; b.position.set(hx, hy, hz); b.rotation.y = hr; } } }
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

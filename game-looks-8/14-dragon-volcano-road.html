@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-14 竜のいる火山の道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe6c8;opacity:.9;text-shadow:0 1px 0 #2a0c10}
+</style>
+<div id="cap">8-14 ─ 竜のいる火山の道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない黒い岩（割れ目の面のドット絵）と、白→黄→だいだい→赤の割れ目が走る溶岩のドット絵を、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 岩の黒むらさき・溶岩の赤・火のだいだい。差し色は旅人の青いよろいと たて。溶岩のあかりを地面の頂点の色に焼きこんで、暗くせずに岩の形を見せる。
+// たてを持った旅人が、溶岩の川にかかる石のそり橋をわたる。岩の台に赤い竜がとまり、もう 1 頭が空をゆっくり回る。火の粉がのぼり、かがり火がゆれる。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 600, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#2c1a3a'], [.45, '#8a2c40'], [.8, '#e8703a'], [1, '#ffc060']], { r: 300 })); scene.fog = new THREE.Fog('#8a3440', 22, 120);
+const { sun } = K.lights(scene, renderer, { sky: 0xa890b0, ground: 0xff8040, amb: 1.75, sun: 0xffb890, power: 1.5, range: 28 });
+
+// ---- 道（角のまるい四角の輪。z = ±14 のまっすぐな所が橋）。pt(u, e) は道から右へ e m の点、off(x, z) は道からのへだたり ----
+const path = new THREE.CatmullRomCurve3([[8, 14], [14, 10], [16.5, 0], [14, -10], [8, -14], [4, -14], [0, -14], [-4, -14], [-8, -14], [-14, -10], [-16.5, 0], [-14, 10], [-8, 14], [-4, 14], [0, 14], [4, 14]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const SP = path.getSpacedPoints(200), off = (x, z) => { let m = 1e9; for (const q of SP) { const d = (q.x - x) ** 2 + (q.z - z) ** 2; if (d < m) m = d; } return Math.sqrt(m); };
+const pt = (u, e = 0) => { u = ((u % 1) + 1) % 1; const q = path.getPointAt(u), g = path.getTangentAt(u); return [q.x - g.z * e, q.z + g.x * e, Math.atan2(g.x, g.z)]; };
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+// 溶岩の川（z の向きに流れ、まん中で池になる）と地面の高さ
+const wig = z => Math.sin(z * .12) * 2, lavaD = (x, z) => Math.min(Math.abs(x - wig(z)), Math.max(0, Math.hypot(x, z) - 5)), LY = -1;
+const HF = (x, z) => { const dl = lavaD(x, z), d = off(x, z); return -1.9 * (1 - sm(2.8, 4.6, dl)) + sm(2.5, 7, d) * sm(4, 7, dl) * (F.vn(x * .2, z * .2, 2) - .3) * 1.8; };
+const lights = [{ x: 0, y: 0, z: 0, c: '#ff7028', r: 17, k: 1 }]; for (let z = -38; z <= 38; z += 4) lights.push({ x: wig(z), y: -.4, z, c: '#ff6a24', r: 10.5, k: .8 });
+const BR = [[wig(14), 14], [wig(-14), -14]], fires = []; for (const [bx, bz] of BR) for (const sx of [-1, 1]) for (const sz of [-1, 1]) fires.push([bx + sx * 6.3, bz + sz * 2.1]);
+for (const [x, z] of fires) lights.push({ x, y: 1.4, z, c: '#ffa040', r: 6.5, k: .7 });
+const bake = F.bake(lights, [.6, .5, .58]);
+const land = R.ground({ w: 96, d: 96, cell: 2, H: HF, layers: [X.caveRock({ c: '#4c3c4a', glint: '#ff9a4a', seed: 2 }), T.cobble({ c: '#8a7480', n: 6, kind: 'slab' }), T.dirt({ c: '#6e4a4c', pebbles: .6 })],
+  mix: (x, z) => { const d = off(x, z); return [Math.max(0, Math.min(1, 1.25 - d / 1.4)), d > 2.4 && F.vn(x * .25, z * .25, 7) > .6 ? .75 : 0]; }, shade: (x, z) => bake(x, z, HF(x, z)) });
+scene.add(land.mesh);
+const river = F.flow([...Array(25)].map((_, i) => { const z = -44 + i * 3.67; return [wig(z), LY, z]; }), 9.4, { kind: 'lava', speed: .3 }), lake = F.pool({ kind: 'lava', r: 9.8, seg: 18, y: LY + .02, seed: 1 }); scene.add(river, lake);
+
+// ---- 動かない物：橋・かがり火・岩の塔・岩・枯れ木・火の色の花 ----
+const fixed = [], ticks = [river.userData.tick, lake.userData.tick], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+const bridges = BR.map(([bx, bz]) => put(F.stoneBridge({ len: 11.4, w: 3.3, rise: 1.15, rail: .62, c: '#8a7a84', moss: 0 }), bx, bz, 0, 0)), deckY = bridges[0].userData.deckY;
+fires.forEach(([x, z], i) => put(F.brazier({ s: .85, light: i === 0 || i === 3, power: 22, range: 13, seed: i }), x, z, i));
+const rockC = '#54424e', spire = (x, z, h, r, i, sp = true) => put(F.pillar({ h, r, spire: sp, seed: i, c: rockC }), x, z, i, HF(x, z) - .5);
+const PERCH = [16.2, 18.2, 4.3]; spire(PERCH[0], PERCH[1], PERCH[2] + .5, 1.7, 3, false); spire(0, 0, 7.5, 2.2, 5); put(R.rock({ s: 2.6, c: rockC, seed: 2 }), 2.2, -1.5, 1, LY - .5);
+for (let i = 0; i < 46; i++) { const u = (i + hash(i, 1) * .7) / 46, e = (i % 3 === 2 ? -1 : 1) * (4.5 + hash(i, 2) * 12), [x, z] = pt(u, e); if (lavaD(x, z) < 6 || off(x, z) < 4 || Math.hypot(x - PERCH[0], z - PERCH[1]) < 5) continue; spire(x, z, 3 + hash(i, 3) ** 1.6 * 11, 1 + hash(i, 4) * 1.2, i + 10); }
+for (let i = 0; i < 60; i++) { const [x, z] = pt(hash(i, 5), (i % 2 ? 1 : -1) * (1.9 + hash(i, 6) ** 1.3 * 6)); if (lavaD(x, z) < 4.9 || fires.some(f => Math.hypot(x - f[0], z - f[1]) < 1.4)) continue; const q = i % 6;
+  if (q < 2) put(R.rock({ s: .4 + hash(i, 7) * 1.1, c: rockC, seed: i }), x, z, i, HF(x, z) - .1); else if (q === 2) put(F.deadTree({ h: 2.6 + hash(i, 8) * 2.4, seed: i, c: '#4a3438' }), x, z, i); else if (q === 3) put(F.bloom({ s: .5 + hash(i, 9) * .3, c: i % 4 ? '#ffb040' : '#fff0a0', leaf: '#7a5a4a' }), x, z, i); else if (q === 4) put(F.gemOre({ s: .5 + hash(i, 9) * .4, c: '#ff8a3a', rock: rockC, seed: i }), x, z, i, HF(x, z) - .08); else put(R.tuft({ kind: 'grass', s: .5 + hash(i, 9) * .3, c: '#b87a4a', seed: i % 3 }), x, z, i); }
+// 遠くの火山（火口のあかりと、斜面を下る溶岩のすじ）
+const VOL = [86, 30, 46]; put(F.pillar({ h: VOL[2], r: 20, spire: true, seed: 8, c: '#3e2c3a' }), VOL[0], VOL[1], 1, -4);
+scene.add(R.merge(fixed), R.backdrop({ c: '#3a2434', haze: '#c8583a', r: 150, h: 34, y: -2, rep: 6 }), R.backdrop({ c: '#5a2c3c', haze: '#f08a44', r: 210, h: 60, y: -3, rep: 5, seed: 4 }));
+const vflow = F.flow([[VOL[0] - 4, VOL[2] - 5.5, VOL[1]], [VOL[0] - 9, 34, VOL[1] + 1.5], [VOL[0] - 15.5, 25, VOL[1] - 1], [VOL[0] - 20.5, 13, VOL[1] + 2], [VOL[0] - 25.5, 2, VOL[1] + .5], [VOL[0] - 33, -3, VOL[1] + 2]], 3.6, { kind: 'lava', speed: .8, seed: 1 }); vflow.material.fog = false; scene.add(vflow); ticks.push(vflow.userData.tick);
+const vglow = F.halo('#ff8a3a', 34, .55); vglow.material.fog = false; vglow.position.set(VOL[0], VOL[2] - 3, VOL[1]); scene.add(vglow);
+const lavaL = new THREE.PointLight('#ff6a28', 40, 20, 1.4); scene.add(lavaL);
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'spiky', hair: '#e8dcc0', eye: '#3a6a9a', brow: 'thick', cloth: 'armor', top: '#4a78c0', top2: '#e8e4d8', gear: '#c8ccd8', shoulder: 'left', lower: 'pants', bottom: '#3a3c5a', gloves: 'gauntlet', glove: '#8a90a8', shoe: '#5a4640', neck: 'scarf', acc: '#f0d060', back: 'sword', belt: '#6a4a30', s: 1.05 }); scene.add(hero);
+// たて（R.actor の持ち物に無いので、ページの中で打って左のうでに付ける。まるい鉄のたて：ふちの鉄とびょう・青い地に白い光のすじ・金のまん中）
+const SP2 = R.Px(32, 16), SB = R.ramp('#3f72c8'), SI = R.ramp('#a8acb8'), SG = R.ramp('#e8b840');
+SP2.each((x, y) => { const i = x % 8; if (y >= 13) return y === 13 ? SI[5] : y === 15 ? SI[1] : i === 3 && y === 14 ? SI[1] : i === 4 && y === 14 ? '#ffffff' : SI[3]; if (y === 12) return SB[0]; if (y <= 2) return y === 0 ? SG[5] : y === 2 ? SG[1] : SG[3]; if (y === 3) return SG[0];
+  const w = (y - 3) * .2; return Math.abs(i - 3.5) < w ? (Math.abs(i - 3.5) > w - 1 ? '#c8d8f0' : '#f4f4ec') : (x >> 3) % 2 ? SB[3] : SB[2]; });
+const shield = new THREE.Group(), shTilt = new THREE.Group(), shT = T.from(SP2, { m: 1 }); shTilt.add(R.geo().smooth(0).loft(8, [[0, .3, .3, 0, .8], [.025, .285, .285, .2, 1], [.075, .12, .12, .8, 1.05], [.105, .02, .02, 1, 1.2]], { cap: 'top', ur: 4, capUV: [.5, .95] }).mesh(shT, { side: true })); shTilt.rotation.z = -Math.PI / 2; shield.add(shTilt); shield.rotation.y = .75; shield.position.set(.07, -.13, -.02); hero.userData.J.foreL.add(shield);
+const elder = R.actor({ hairStyle: 'bald', hair: '#d8d0d8', beard: 'beard', eyes: 'closed', cloth: 'robe', lower: 'skirt', skirt: .85, top: '#7a4a8a', top2: '#f0d890', belt: '#c8a04a', shoes: 'shoe', shoe: '#4a3a40', hold: 'staff', s: .95 }), [ex, ez, er] = pt(.985, -2.2); elder.position.set(ex, HF(ex, ez), ez); elder.rotation.y = er + 1.9; scene.add(elder);
+const dragonA = F.dragon({ s: 1.7, c: '#c8403a', belly: '#f4c878', wing: '#f08a3a', eye: '#fff0a0' }); dragonA.position.set(PERCH[0], PERCH[2] - .05, PERCH[1]); dragonA.rotation.y = -.75; scene.add(dragonA);
+const dragonB = F.dragon({ s: 1.15, c: '#8a3a6a', belly: '#f0b890', wing: '#e8607a', eye: '#fff0a0' }); scene.add(dragonB);
+const slimes = [[.03, 2.1, '#ff8a4a', .34], [.045, 2.7, '#ffc84a', .25], [.3, -2.3, '#ff6a5a', .36], [.55, 2.2, '#ffa04a', .3], [.8, -2.4, '#ffc84a', .32]].map(([u, e, c, s]) => { const g = F.slime({ c, s, glow: true }), [x, z, r] = pt(u, e); g.position.set(x, HF(x, z), z); g.rotation.y = r + 2.6; scene.add(g); return g; });
+const embers = F.motes({ n: 110, box: [28, 9, 28], c: '#ffb050', size: .13, rise: .8, drift: .7, y: -.6 }); scene.add(embers);
+
+// ---- 旅人の道（開いて 2.5 秒で、橋にさしかかる） ----
+const LEN = path.getLength(), SPEED = 1.75, S0 = SP.reduce((b, q, i) => { const d = Math.hypot(q.x - (BR[0][0] - 8), q.z - 14); return d < b[0] ? [d, i / 200] : b; }, [1e9, 0])[1];
+const cd = new THREE.Vector3(), cp = new THREE.Vector3(), dc = new THREE.Vector3(), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const onDeck = (x, z) => { for (const [bx, bz] of BR) if (Math.abs(z - bz) < 1.7 && Math.abs(x - bx) < 5.7) return deckY(x - bx); return HF(x, z); };
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u); p.y = onDeck(p.x, p.z);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.9);
+  const J = hero.userData.J; J.armL.rotation.set(-.25 + Math.sin(dist * 3.9) * .08, 0, .3); J.foreL.rotation.x = -.75;   // たてを体の横にかまえる
+  if (first) { cd.copy(tg); dc.set(p.x + tg.x * 16, 0, p.z + tg.z * 16); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5;
+  cp.set(p.x - cd.x * D, p.y + (tall ? 2.0 : 2.15), p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, p.y + (tall ? 1.3 : 1.55), p.z + cd.z * 3);   // 少し見上げて、空の竜を入れる
+  sun.position.set(p.x - 30, 40, p.z + 20); sun.target.position.copy(p);
+  lavaL.position.set(wig(p.z) * .6 + p.x * .25, .8, p.z * .8); lavaL.intensity = 40 * (.9 + .1 * Math.sin(t * 2.3));
+  // 溶岩・かがり火・竜・しずく玉・火の粉
+  for (const f of ticks) f(t); vglow.material.opacity = .5 + .1 * Math.sin(t * 1.3);
+  F.dragonPose(dragonA, 'perch', t); { const DJ = dragonA.userData.J, k = .7 + Math.sin(t * .9) * .12; DJ.wL.rotation.set(0, .6, k); DJ.wR.rotation.set(0, -.6, -k); DJ.wL2.rotation.z = -1.5; DJ.wR2.rotation.z = 1.5; }   // つばさを半分ひらいて、形を見せる R.idle(elder, t, Math.sin(t * .4) * .4);
+  dc.lerp(cp.set(p.x + tg.x * 16, 0, p.z + tg.z * 16), 1 - Math.exp(-dt * .5)); const a = t * .2 + 4.4, rx = 7, rz = 5;
+  dragonB.position.set(dc.x + Math.cos(a) * rx, 5.3 + Math.sin(t * .5) * .6, dc.z + Math.sin(a) * rz); dragonB.rotation.set(0, Math.atan2(-Math.sin(a) * rx, Math.cos(a) * rz), -.3, 'YXZ'); F.dragonPose(dragonB, 'fly', t * .55);
+  slimes.forEach((s, i) => F.slimePose(s, t * 1.05 + i * 1.7, .24));
+  embers.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-39 海上の廃プラットフォームのくらし 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f0dc;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-39 ─ 海上の廃プラットフォームのくらし / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-ruins.js"></script>
+<script src="pack-sea.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 海に立つ、さびた鉄の足場の夕方。色は 夕日の金色の海・さびの赤茶・はげた青緑のペンキ、さし色に洗たく物の白と花。空は もも色から金色で、暗くしない。
+// 足場は 3 つ（鉄板 2 つと板 1 つ）を板の橋でつないだ輪。上に小屋・洗たく物・鉢植えの畑・水のタンク・つり人。下に小舟・いかだ・うき。海のむこうに鉄塔と骨組み。
+// かごをさげた住人（R.actor の toon）が足場をひと回りし、うしろからカメラが追う。部品は pack-ruins.js（PK.〜）と pack-sea.js（S.〜）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), S = PACK_SEA(THREE, K, R), F = PACK_FTOWN(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#5a62a8'], [.45, '#b47aa2'], [.72, '#f4a070'], [.9, '#ffd27a'], [1, '#fff0b8']], { r: 380 })); scene.fog = new THREE.Fog('#ffd8a4', 70, 270);
+const SUN = new THREE.Vector3(.8, .42, -.46).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xffe4d8, ground: 0xe0b080, amb: 1.9, sun: 0xffc880, power: 2.7, range: 30, map: 2048 });
+// 夕日（手で打った まるい絵）
+{ const P = R.Px(32); P.clip = true; P.each((x, y) => { const r = Math.hypot(x - 15.5, y - 15.5); return r < 8 ? '#fffbe0' : r < 10 ? '#fff0a8' : r < 12 ? ((x + y) & 1 ? '#fff0a8' : '#ffd070') : r < 14.5 && ((x + y) & 1) ? '#ffc868' : null; });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshBasicMaterial({ map: T.from(P, { m: 1, cut: true }), alphaTest: .5, fog: false })); m.position.set(SUN.x * 380, 30, SUN.z * 380); m.lookAt(0, 10, 0); scene.add(m); }
+
+// ---- 海：水面は y=0。金色。夕日のほうへ、光の道（shore の明るい帯）がのびる ----
+const GOLD = '#e8b05c', CX = 5, CZ = -7.5, SINK = { level: 0, depth: 5, c: '#d09a58', k: .8, dark: .3 }, sx = SUN.x / Math.hypot(SUN.x, SUN.z), sz = SUN.z / Math.hypot(SUN.x, SUN.z);
+const floor = R.ground({ w: 704, d: 704, cell: 32, layers: [S.tex.sand({ c: '#b08458' })] }); floor.mesh.position.y = -7; scene.add(floor.mesh);
+const sea = S.sea({ w: 150, d: 150, cell: 2.5, c: GOLD, wave: .22, alpha: .84, shore: (x, z) => { const al = (x - CX) * sx + (z - CZ) * sz, pe = (x - CX) * sz - (z - CZ) * sx; return al < 8 ? 0 : .66 * Math.exp(-((pe / (5 + al * .16)) ** 2)) * Math.min(1, (al - 8) / 12) * (.72 + .28 * Math.sin(x * .9 + z * 1.7)); } }); scene.add(sea.mesh);
+{ const mm = sea.mat.map.userData.m || 8; for (const [x0, x1, z0, z1] of [[-352, -75, -352, 352], [75, 352, -352, 352], [-75, 75, -352, -75], [-75, 75, 75, 352]]) { const nx = Math.ceil((x1 - x0) / 26), nz = Math.ceil((z1 - z0) / 26), g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2 + CX, -.02, (z0 + z1) / 2 + CZ);
+    const P = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < P.count; i++) uv.setXY(i, P.getX(i) / mm, -P.getZ(i) / mm); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(P.count * 3).fill(1), 3)); const m = new THREE.Mesh(g, sea.mat); m.renderOrder = 2; scene.add(m); } }
+
+// ---- 足場：鉄板（はげた青緑のペンキ）か板の床、さびた丸い足、すじかい、金あみの手すり ----
+const DK = 3.2, BASE = 6, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const PLATE = PT.rust({ paint: '#9ccfc6', peel: .5 }), LEG = PT.rust({ c: '#a9603a', panel: 0 }), BRACE = PT.truss({ kind: 'x' }), NET = PT.chain({});
+function deck(w, d, top, rails) { const g = new THREE.Group(), a = w / 2, b = d / 2, nx = Math.max(2, Math.round(w / 5) + 1), X = i => -a + .6 + i * (w - 1.2) / (nx - 1), L = R.geo().smooth(1), Q = R.geo(), N = R.geo();
+  g.add(R.geo().box(w, .3, d, 0, DK - .3, 0, { m: 2, bottom: true, c0: .7 }).mesh(top));
+  for (let i = 0; i < nx; i++) for (const z of [-b + .6, b - .6]) { L.loft(6, [[-BASE, .3, .3, 0, .6, X(i), z], [0, .3, .3, BASE / 2, .9, X(i), z], [DK - .3, .26, .26, (DK + BASE) / 2, 1, X(i), z]]);
+    if (i < nx - 1) Q.quad([X(i), .35, z], [X(i + 1), .35, z], [X(i + 1), DK - .3, z], [X(i), DK - .3, z], [0, 0, Math.max(1, Math.round((X(i + 1) - X(i)) / 2.8)), 1]); }
+  for (const x of [X(0), X(nx - 1)]) Q.quad([x, .35, -b + .6], [x, .35, b - .6], [x, DK - .3, b - .6], [x, DK - .3, -b + .6], [0, 0, Math.max(1, Math.round((d - 1.2) / 2.8)), 1]);
+  for (const [x0, z0, x1, z1] of rails) N.quad([x0, DK, z0], [x1, DK, z1], [x1, DK + 1, z1], [x0, DK + 1, z0], [0, 0, Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) / 2)), 1]);
+  g.add(L.mesh(LEG), Q.mesh(BRACE, { side: true }), N.mesh(NET, { side: true })); return g; }
+const bridge = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0) + .5, g = new THREE.Group(), G = R.geo().box(L, .12, 1.5, 0, DK - .1, 0, { m: 2, bottom: true, c0: .7 }), N = R.geo(); for (const s of [-.75, .75]) N.quad([-L / 2, DK, s], [L / 2, DK, s], [L / 2, DK + .9, s], [-L / 2, DK + .9, s], [0, 0, Math.round(L / 2), 1]); g.add(G.mesh(T.planks({ c: '#b08a5c' })), N.mesh(NET, { side: true })); return put(g, (x0 + x1) / 2, (z0 + z1) / 2, -Math.atan2(z1 - z0, x1 - x0)); };
+put(deck(14, 10, PLATE, [[-7, -5, -7, .4], [-7, 2.6, -7, 5], [-7, 5, 7, 5], [7, 5, 7, -1], [7, -3, 7, -5], [7, -5, -1, -5], [-3, -5, -7, -5]]), 0, 0);                    // A：小屋と畑
+put(deck(9, 8, PT.rust({ paint: '#f0ecd8', peel: .5, seed: 1 }), [[-4.5, -4, -4.5, -.4], [-4.5, 1.4, -4.5, 4], [-4.5, 4, -1.6, 4], [1, 4, 4.5, 4], [4.5, 4, 4.5, -4], [4.5, -4, -1, -4]]), 16, -4);   // B：タンクとつり場
+put(deck(10, 8, T.planks({ c: '#b08a5c' }), [[-5, 4, -5, -4], [-5, -4, 5, -4], [5, -4, 5, 4], [5, 4, 4.8, 4], [3.2, 4, -2.6, 4]]), 5, -17);                               // C：板の物置き場
+bridge(6.8, -2, 11.7, -3.5); bridge(13.5, -8.2, 9, -12.8); bridge(1.5, -12.8, -2, -5.2);
+for (const [x, z, w, d] of [[0, 0, 12.8, 8.8], [16, -4, 7.8, 6.8], [5, -17, 8.8, 6.8]]) for (const ex of [-1, 1]) for (const ez of [-1, 1]) put(S.foamRing({ r: .34, n: 6, wd: .5 }), x + ex * w / 2, z + ez * d / 2);
+// A の上：洗たく物・鉢植えの畑・ベンチ。小屋は C の上
+const hut = put(R.house({ w: 4.4, d: 2.5, h: 2.3, wall: T.boards({ c: '#c69668' }), roof: PT.rust({ wave: 1, paint: '#e0725a', peel: .4 }), roofKind: 'gable', pitch: .4, base: false, lit: 1, chimney: true }), 5.6, -19.2, 0, DK);
+const CLOTH = ['#fff6e4', '#fff6e4', '#f4d070', '#8ac8c0', '#f0a090', '#fff6e4'];
+const laundry = (a, b, sd = 0, sag = .5) => { const g = new THREE.Group(), L = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.round(L / .95), dx = (b[0] - a[0]) / L, dz = (b[2] - a[2]) / L; g.add(PK.wire(a, b, { sag, n: 8 }));
+  for (let i = 1; i < n; i++) { if (hash(i, sd) < .15) continue; const u = i / n, x = a[0] + (b[0] - a[0]) * u, z = a[2] + (b[2] - a[2]) * u, y = a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * sag + .03, w = .28 + hash(i, sd + 1) * .14, h = .5 + hash(i, sd + 2) * .5;
+    g.add(R.geo().quad([x - dx * w, y - h, z - dz * w], [x + dx * w, y - h, z + dz * w], [x + dx * w, y, z + dz * w], [x - dx * w, y, z - dz * w], [0, 0, .5, .6]).mesh(T.fabric({ c: CLOTH[Math.floor(hash(i, sd + 3) * 6)], pattern: i % 3 ? 'plain' : 'stripe' }), { side: true })); } return g; };
+const post = (x, z, h = 2.5) => put(R.geo().smooth(1).loft(5, [[0, .07, .07, 0, .8], [h, .05, .05, h / 1.5, 1]], { cap: 'top' }).mesh(T.planks({ c: '#8a6a4a' })), x, z, 0, DK);
+post(-6.5, 3.6); post(-.2, 4.2); post(6.5, 4.3); post(6.6, -.5, 2.4); fixed.push(laundry([6.5, DK + 2.4, 4.3], [6.6, DK + 2.35, -.5], 7, .4), laundry([20, DK + 2.2, -7.6], [12, DK + 2.2, -7.6], 9, .5), laundry([-6.5, DK + 2.45, 3.6], [-.2, DK + 2.45, 4.2], 2), laundry([-.2, DK + 2.45, 4.2], [6.5, DK + 2.45, 4.3], 5));
+const bedBox = (x, z, w, d, sd) => { const g = new THREE.Group(); g.add(R.geo().box(w, .34, d, 0, 0, 0, { m: 1.5, top: false }).mesh(T.boards({ c: '#a87a50' })), R.geo().quad([-w / 2 + .06, .3, d / 2 - .06], [w / 2 - .06, .3, d / 2 - .06], [w / 2 - .06, .3, -d / 2 + .06], [-w / 2 + .06, .3, -d / 2 + .06], [0, 0, w / 2, d / 2]).mesh(T.dirt({ c: '#7a5a44' })));
+  const n = Math.round(w / .42); for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++) { const tf = R.tuft({ kind: ['bush', 'flower', 'grass', 'flower'][(i + j + sd) % 4], s: .42 + hash(i, j, sd) * .2, seed: i + sd, fc: ['#fff2c0', '#ff9a8a', '#ffffff'], c: '#6aae52' }); tf.position.set(-w / 2 + (i + .5) * w / n, .3, (j - .5) * d * .45); tf.rotation.y = i; g.add(tf); } return g; };
+put(bedBox(0, 0, 3.4, 1.1, 0), 3.6, -3.9, 0, DK); put(bedBox(0, 0, 2.6, 1.1, 3), -5.2, -3.9, 0, DK); put(bedBox(0, 0, 1.1, 2.4, 5), -6.2, -1.6, 0, DK);
+[[1.2, -4.2, 0], [5.9, -4.3, 1], [-3.6, -4.2, 2], [-6.3, .2, 0], [.1, 3.2, 1]].forEach(([x, z, i]) => { put(R.barrel({ h: .36, r: .22, c: ['#c8704a', '#e8d8b0', '#5a9aa8'][i] }), x, z, 0, DK); put(R.tuft({ kind: i === 1 ? 'bush' : 'flower', s: .6, seed: i, fc: ['#ffe27a', '#ffffff', '#ff9a8a'] }), x, z, i, DK + .32); });
+put(R.bench({ w: 1.6 }), -3.2, 4.3, Math.PI, DK); put(R.barrel({ c: '#5a9aa8' }), 5.6, 3.9, 0, DK); put(R.crate({ s: .7 }), 3.4, 3.9, .3, DK); put(R.crate({ s: .55, c: '#b89060' }), 2.5, 4, .8, DK);
+// B の上：水のタンク・木箱・つりざお立て。 C の上：木箱とたる、ほした あみ、ベンチ
+put(PK.tank({ r: 1.7, h: 3, legs: 1.5, c: '#e8ecd8', seed: 1 }), 18.3, -2.2, -2.2, DK); post(20, -7.6, 2.3); post(12, -7.6, 2.3); put(R.crate({ s: .8 }), 19.6, -6.6, .2, DK); put(R.crate({ s: .6, c: '#b89060' }), 18.7, -7, .7, DK); put(R.barrel({ c: '#c8704a' }), 12.4, -6.9, 0, DK); put(bedBox(0, 0, 2.2, 1, 2), 13.4, -1, Math.PI / 2 + 1.57, DK);
+put(R.crate({ s: .8 }), 9.2, -17.2, .1, DK); put(R.crate({ s: .6, c: '#b89060' }), 9.3, -16.2, .5, DK); put(R.barrel({ c: '#8a6a4a' }), 2.6, -20.2, 0, DK); put(R.barrel({ c: '#5a9aa8' }), 1.8, -20.1, 0, DK);
+put(bedBox(0, 0, 3, 1.1, 4), .9, -17.6, Math.PI / 2, DK);
+// 海から立つ物：鉄塔（やぐら）・骨組み・古いタンク・遠くのビル。下に桟橋と はしご
+put(PK.pylon({ h: 21, w: 5, base: BASE, lean: .05, seed: 1 }), 25.5, -13); put(PK.pylon({ h: 24, w: 5.5, base: BASE, lean: -.12, leanX: .06 }), 62, -44, .5); put(PK.pylon({ h: 22, w: 5, base: BASE, lean: .2 }), 96, 10, 1);
+put(PK.frame({ nx: 2, nz: 1, floors: 3, seed: 2, base: BASE, moss: .6 }), -12, -16, .2); put(PK.tank({ r: 3, h: 5, base: BASE, c: '#d8e0cc', seed: 2 }), -15, 8, 1); put(S.foamRing({ r: 3, n: 10 }), -15, 8);
+put(PK.building({ w: 12, d: 12, floors: 5, broken: .4, seed: 4, base: BASE, roofGreen: .8, tree: true }), 70, 22); put(PK.building({ w: 12, d: 9, floors: 7, broken: .2, seed: 7, base: BASE, c: '#c8bca8' }), -60, -50); put(PK.chimney({ h: 20, base: BASE }), 44, -70); put(PK.building({ w: 9, d: 9, floors: 3, broken: .5, seed: 9, base: BASE, tree: true }), 30, 34);
+put(S.pier({ len: 6, w: 1.5, h: .45, depth: 4 }), 2, 6.4, 0); fixed.push((() => { const g = R.geo().quad([4.2, .4, 5.06], [4.9, .4, 5.06], [4.9, DK, 5.06], [4.2, DK, 5.06], [0, 0, 1, 2]).mesh(PT.truss({ kind: 'ladder' }), { side: true }); return g; })());
+scene.add(S.sink(R.merge(fixed), SINK));
+const lampA = new THREE.PointLight('#ffb050', 9, 9, 1.6); lampA.position.set(5.6, DK + 1.4, -17.4); scene.add(lampA);
+
+// ---- 空と雲 ----
+for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 40 + hash(i, 9) * 36, c: '#ffe0b8', shade: '#d890a0', seed: i }), a = i * .8 + .1; c.position.set(Math.cos(a) * 240, 44 + hash(i, 10) * 50, Math.sin(a) * 240); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 動く物：うかぶ舟・いかだ・うき、かもめ、つり人、畑の人、ねこ、えんとつのけむり ----
+const live = [], float = (o, x, z, ry = 0, off = 0, k = 1) => { o.position.set(x, 0, z); o.rotation.y = ry; scene.add(o); live.push(t => { o.position.y = sea.h(x, z, t) + off; o.rotation.z = Math.sin(t * 1.1 + x) * .05 * k; o.rotation.x = Math.sin(t * .9 + z) * .04 * k; }); return o; };
+float(S.raft({ cloth: '#f4d070' }), 10.6, 3, .4); float(R.boat({ c: '#c8604a' }), 3.4, 7.8, 1.5, .04); float(R.boat({ c: '#e8dcc0', sail: '#fff2d8' }), 31, 2, 1.2, .04, 1.5); float(S.buoy(), 22, 4.5, 0, 0, 1.6); float(S.buoy({ c: '#f0b83a' }), 12, -24, 0, 0, 1.6); float(S.raft({ mast: false }), -1, -11.5, 1.2);
+const gulls = [...Array(7)].map(() => { const g = S.gull({ s: 1.5 }); scene.add(g); return g; });
+const perch = [[7, DK + 1, 1.5, 1.6], [7, DK + 1, 2.3, 1.2], [11.5, DK + 1, -6.4, -1.4], [20.5, DK + 1, -5, 1.5], [6.5, DK + 3.42, 4.3, .5]].map(([x, y, z, r]) => { const b = R.bird({ c: '#f6f4ee', neck: false, belly: '#ffffff', s: 1.5 }); b.position.set(x, y, z); b.rotation.y = r; scene.add(b); return b; });
+const rod = R.geo().smooth(1).loft(4, [[-.25, .022, .022, 0, .7], [2.5, .008, .008, 2, 1]], { cap: 'top' }).mesh(T.planks({ c: '#c8a868' }));
+const fisher = R.actor({ build: 'toon', hairStyle: 'bald', hair: '#e0e0dc', skin: '#d8a078', eyes: 'closed', brow: 'thick', beard: 'beard', cloth: 'jacket', top: '#6a8a5a', top2: '#f0e4c8', bottom: '#6a5a4a', shoe: '#4a3a30', hat: 'cap', acc: '#c8553a' }), FB = fisher.userData.build;
+fisher.position.set(14.2, DK - FB.shin - FB.foot + .06, -.02); scene.add(fisher); rod.position.set(-.08, -.26, 0); rod.rotation.x = 2.4; fisher.userData.J.foreR.add(rod);
+const bob = R.barrel({ h: .2, r: .09, c: '#e8503c' }); scene.add(bob);
+const farmer = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bun', hair: '#8a5a48', cloth: 'tunic', top: '#f0e4c8', top2: '#c8553a', lower: 'skirt', bottom: '#7a5a8a', shoe: '#6a4a3a' }); F.wear(farmer, 'apron', { c: '#8ac8c0' }); F.wear(farmer, 'strawHat', { c2: '#c8553a' }); farmer.position.set(3.2, DK, -2.9); farmer.rotation.y = Math.PI - .3; scene.add(farmer);
+const cat = R.cat({ c: '#f0ece0', plain: true }); cat.position.set(15.2, DK, -.6); cat.rotation.y = .4; scene.add(cat); const cat2 = R.cat({ c: '#4a4a52' }); cat2.position.set(-3.2, DK + .48, 4.3); cat2.rotation.y = 2.6; scene.add(cat2);
+const fx = K.fx(scene, 40); let sm = 0; hut.updateMatrixWorld(true);
+
+// ---- 主役：かごをさげて足場をひと回りする住人 ----
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bob', bangs: 'straight', hair: '#a8603c', eyes: 'big', blush: true, cloth: 'overall', top: '#2f8f96', top2: '#fff0d0', bottom: '#2f8f96', shoes: 'boot', shoe: '#6a4434', hat: 'band', acc: '#f4d070', gloves: 'glove', glove: '#fff0d0' }); F.wear(hero, 'basket', { hand: 'L', fc: ['#ff9a8a', '#ffe27a', '#8ad070'] }); scene.add(hero);
+const path = new THREE.CatmullRomCurve3([[-3.6, -1.2], [-.6, -.3], [3.4, -.6], [6.2, -1.9], [9.2, -2.75], [12.4, -3.8], [14.8, -4.2], [15.4, -6.3], [13.7, -8], [11.2, -10.6], [9, -13.2], [6.6, -15.4], [3.6, -15.3], [1.6, -13.2], [-.2, -9], [-2, -5.2]].map(([x, z]) => new THREE.Vector3(x, DK, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.5, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x + .2, q.z + .3); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  S.tick(t); sea.tick(t, CX, CZ);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.8, .85); hero.userData.J.armL.rotation.set(-.15, 0, .1); hero.userData.J.foreL.rotation.x = -.25;
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.5)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 5;
+  cp.set(p.x - cd.x * D + cd.z * .6, DK + (tall ? 2.3 : 2.5), p.z - cd.z * D - cd.x * .6); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.6, DK + (tall ? 1.4 : 1.15), p.z + cd.z * 3.6);
+  sun.position.set(p.x + SUN.x * 70, SUN.y * 70 + 4, p.z + SUN.z * 70); sun.target.position.copy(p);
+  for (const f of live) f(t);
+  gulls.forEach((g, i) => { const dir = i % 2 ? 1 : -1, a = t * (.2 + i * .02) * dir + i * 1.9, r = 8 + i * 2.6; g.position.set(9 + Math.cos(a) * r, DK + 5 + i * 1.2 + Math.sin(t * .5 + i) * .8, -6 + Math.sin(a) * r * .8); g.rotation.y = Math.atan2(-Math.sin(a) * dir, Math.cos(a) * .8 * dir); g.userData.tick(t + i, Math.sin(t * .4 + i * 2) > 0 ? .85 : 0); });
+  perch.forEach((b, i) => R.birdPose(b, i % 2 ? 'peck' : 'stand', t + i * 1.7));
+  // つり人（足場のふちに すわる）、うき、畑の世話をする人、ねこ
+  R.idle(fisher, t, Math.sin(t * .4) * .2); const Fj = fisher.userData.J; for (const n of ['L', 'R']) { Fj['leg' + n].rotation.x = -1.5; Fj['shin' + n].rotation.x = 1.45 + Math.sin(t * 1.2 + (n === 'L' ? 0 : 2)) * .12; } Fj.armR.rotation.x = -.95 + Math.sin(t * .9) * .05; Fj.foreR.rotation.x = -.55; bob.position.set(14.1, sea.h(14.1, 3.2, t) - .06, 3.2);
+  R.idle(farmer, t, Math.sin(t * .5) * .3); const Mj = farmer.userData.J, bend = .45 + Math.sin(t * .8) * .2; Mj.torso.rotation.x = bend; Mj.armL.rotation.x = Mj.armR.rotation.x = -.9 - bend * .4; Mj.foreL.rotation.x = Mj.foreR.rotation.x = -.3;
+  R.catPose(cat, 'sit', t); R.catPose(cat2, 'sit', t + 3);
+  if ((sm += dt) > .7) { sm = 0; fx.emit('smoke', 6.66, DK + 3.9, -19.65, { size: .5, life: 3.4, vy: .7, vx: -.3, grow: 1.6, spread: .1, tint: '#fff0e0' }); } fx.update(dt);
+  lampA.intensity = 9 + Math.sin(t * 3) * .6;
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-24 苔むしたビル街の交差点を歩く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f0dc;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-24 ─ 苔むしたビル街の交差点 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-ruins.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 人のいなくなったビル街の朝。窓のぬけたビルは こけとつたにおおわれ、屋上に木が生える。色は こけの緑・青みの灰色のかべ・朝のクリーム色の光、さし色に黄色。
+// 東（右）の横の通りから朝日がさしこみ、交差点に光のすじが落ちる。しかの親子が横断歩道をわたり、鳥が信号にとまる。部品は pack-ruins.js（PK.〜）。
+// 自転車を押す旅人（R.actor の toon）が通りをまっすぐ歩き、うしろからカメラが追う。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#3f94d2'], [.55, '#6fbee0'], [.86, '#aadcd6'], [1, '#f2e6b4']], { r: 380 })); scene.fog = new THREE.Fog('#d8e6c4', 44, 220);
+const { sun } = K.lights(scene, renderer, { sky: 0xd4ecf4, ground: 0xa8b890, amb: 1.75, sun: 0xffe8b8, power: 2.5, range: 36, map: 2048 }), SUN = new THREE.Vector3(.84, .52, .1).normalize();
+
+// ---- 地面：ひびわれたアスファルト（下地）＋歩道の敷石＋草。通りは x と z の向きに 1 本ずつ（はば 12 m） ----
+const cl = v => Math.max(0, Math.min(1, v)), vn = (x, z) => { const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz, sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz); return (hash(ix, iz) * (1 - sx) + hash(ix + 1, iz) * sx) * (1 - sz) + (hash(ix, iz + 1) * (1 - sx) + hash(ix + 1, iz + 1) * sx) * sz; };
+const RW = 6, SW = 8.5, dRoad = (x, z) => Math.min(Math.abs(x), Math.abs(z));
+const land = R.ground({ w: 124, d: 132, cell: 2, cz: -4, layers: [PT.asphalt({ c: '#7e7e84', grass: .75, m: 4 }), T.cobble({ kind: 'slab', c: '#b4b0a0', moss: .6 }), T.grass({ c: '#6aa84e', flowers: .22, fc: ['#ffffff', '#ffe27a'] })],
+  mix: (x, z) => { const d = dRoad(x, z), n = vn(x / 5 + 3, z / 5 + 7), n2 = vn(x / 2.3, z / 2.3); return [d > RW - .3 ? 1 : 0, d < RW ? cl(.5 + (n * .7 + n2 * .3 - .66 + Math.max(0, d - 4.2) * .12) * 5) : d < SW ? cl(.5 + (n * .6 + n2 * .4 - .5) * 5) : 1]; },
+  shade: (x, z) => { const k = cl(1 - (Math.abs(z) - 4) / 5); return [.9 + .22 * k, .93 + .13 * k, .97 - .05 * k]; } });
+scene.add(land.mesh); const outer = R.ground({ w: 704, d: 704, cell: 32, layers: [T.grass({ c: '#6aa84e', flowers: .22, fc: ['#ffffff', '#ffe27a'] })] }); outer.mesh.position.y = -.1; scene.add(outer.mesh);
+
+// ---- ビル（pack-ruins の building。色・階数・こわれ方を変える） ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const C = ['#bcb8a8', '#a9bcc0', '#d8c6a8', '#cbbab2', '#b6c4aa'];
+[[-14.5, 15, 12, 12, 7, 1, .25, 0], [-14.5, 29, 12, 12, 4, 2, .5, 3], [-14.5, 43, 12, 12, 9, 0, .1, 1], [13, 13.5, 9, 9, 2, 3, .7, 1], [14.5, 27.5, 12, 15, 8, 0, .15, 2], [14.5, 43, 12, 12, 5, 3, .3, 0],
+  [-16, -14.5, 15, 12, 10, 0, .2, 2], [14.5, -14.5, 12, 12, 6, 4, .5, 2], [-14.5, -29, 12, 12, 5, 2, .3, 1], [16, -29, 15, 12, 11, 1, .1, 0], [-32, -14.5, 12, 12, 6, 3, .3, 3], [-32, 15, 12, 12, 8, 4, .2, 1], [31, -14.5, 12, 12, 4, 2, .5, 0], [43, -16, 12, 12, 9, 1, .15, 2], [-46, -16, 12, 15, 11, 0, .1, 1], [-45, 16, 12, 12, 5, 2, .4, 0]]
+  .forEach(([x, z, w, d, fl, ci, br, cn], i) => put(PK.building({ w, d, floors: fl, c: C[ci], broken: br, corner: cn, seed: i + 1, moss: .3 + (i % 3) * .1, roofGreen: .7, flowers: .35 }), x, z));
+put(PK.wall({ len: 12, h: 5, tex: PT.ruinWall({ c: C[2], moss: .5 }), seed: 3, fall: .7 }), 26, 9, 0); put(PK.frame({ nx: 2, nz: 2, floors: 3, seed: 2 }), 30, 17.5); put(PK.rubble({ r: 3, h: 1.1, seed: 1 }), 21, 11.5); put(PK.rubble({ r: 2, h: .8, seed: 3 }), 8.2, 10.2);
+const via = put(PK.viaduct({ len: 84, w: 6, h: 9, kind: 'rail', gap: [-34, -18], seed: 2 }), 0, -50); put(PK.coach({ kind: 'train', c2: '#e2a83a', seed: 1 }), 9, -50, Math.PI / 2, 9);
+put(PK.billboard({ kind: 'leaf', c2: '#6aa850', legs: 0, w: 5, h: 2.5, seed: 2, lean: .04 }), 14.5, 22.2, -Math.PI / 2 + .2, 24); put(PK.tank({ r: 1.4, h: 2.4, legs: 1.6, c: '#d8d0b8', ivy: 0 }), 18.5, -31, 0, 33);
+
+// ---- 残された物：信号・標識・電柱・車・バス・自動販売機 ----
+put(PK.signal({ h: 6.2, arm: 4.2, lean: -.26, leanX: .1, seed: 1 }), -7.4, -7.2); put(PK.signal({ arm: 2.4, lean: -.1, leanX: -.12, seed: 2 }), 7.3, 7.4, Math.PI); put(PK.signal({ arm: 0, lean: .32, seed: 3, walk: 1 }), -7.3, 7.6, .6);
+put(PK.sign({ kind: 'stop', lean: .22 }), -6.9, 10.6, .2); put(PK.sign({ kind: 'arrow', lean: -.16, seed: 1 }), 6.8, -9.5, .1); put(PK.sign({ kind: 'warn', lean: .1, seed: 2 }), -6.8, 25, 0); put(PK.sign({ kind: 'no', lean: -.3, seed: 3 }), 7, 21, Math.PI);
+const poles = [[-7.6, 19.5, .09, 0], [-7.6, 34, -.12, 1], [7.7, 30, .06, 2], [7.6, -10.5, -.08, 3], [-7.7, -24, .14, 4]].map(([x, z, ln, i]) => put(PK.pole({ lean: ln, leanX: (i % 2 - .5) * .12, seed: i, trans: i % 2 === 0 }), x, z, Math.PI / 2));
+put(PK.wreck({ c: '#d8a040', seed: 1 }), 2.7, 12.5, Math.PI + .12); put(PK.wreck({ kind: 'van', c: '#5a9ab8', seed: 2 }), -2.9, -13.5, -.1); put(PK.wreck({ c: '#c8584a', seed: 3 }), -12.5, 2.8, Math.PI / 2 + .2); put(PK.wreck({ c: '#e8e4d8', seed: 4 }), 3.2, 27, Math.PI - .5);
+put(PK.coach({ c2: '#5aa890', seed: 2 }), 14.5, -2.9, -Math.PI / 2 + .07);
+put(PK.vending({ seed: 1, c: '#c4d6cc' }), -7.7, 14.2, Math.PI / 2); put(PK.vending({ c: '#5a9ab8', seed: 2, lean: .14 }), -7.7, 12.9, Math.PI / 2 + .2); put(PK.bench({}), 7.6, 17.5, -Math.PI / 2); put(PK.fence({ len: 8, seed: 2, ivy: .8 }), 12.5, 8.8, 0);
+// 路面の白線（かすれている）
+put(PK.decal(PT.marking({ kind: 'zebra' }), 12, 3), 0, 8.2); put(PK.decal(PT.marking({ kind: 'zebra', seed: 1 }), 12, 3), 0, -8.2); put(PK.decal(PT.marking({ kind: 'zebra', seed: 2 }), 12, 3), 8.2, 0, Math.PI / 2); put(PK.decal(PT.marking({ kind: 'zebra', seed: 3 }), 12, 3), -8.2, 0, Math.PI / 2);
+put(PK.decal(PT.marking({ kind: 'dash' }), 3, 30), 0, 26); put(PK.decal(PT.marking({ kind: 'dash', seed: 1 }), 3, 30), 0, -26); put(PK.decal(PT.marking({ kind: 'dash', seed: 2 }), 3, 30), 26, 0, Math.PI / 2); put(PK.decal(PT.marking({ kind: 'dash', seed: 3 }), 3, 30), -26, 0, Math.PI / 2);
+put(PK.decal(PT.marking({ kind: 'stop' }), 5.4, 3), -3, 10.6); put(PK.decal(PT.marking({ kind: 'arrow' }), 3, 3), -3, 15.5); put(PK.decal(PT.marking({ kind: 'stop', seed: 1 }), 5.4, 3), 3, -10.6); put(PK.decal(PT.marking({ kind: 'diamond' }), 3, 3), -3, 24);
+for (const [x, z] of [[-4.2, 5], [2, -2.5], [1.2, 20]]) put(PK.decal(PT.puddle({ c: '#bfe0e8', seed: x }), 3.2, 2.1, { ur: 1, vr: 1 }), x, z, x);
+// 木と草花：歩道をつきやぶって生えた木、道ばたの草
+[[-8, 22.5, 6.5], [7.9, 12.3, 5], [6.4, -17.5, 7], [-6.6, 28.5, 6], [5.2, 36, 6.5], [-5, -31, 6], [20, 6, 6], [-20, -6.4, 5.5], [-1, -33.5, 5]].forEach(([x, z, h], i) => put(R.tree({ h, c: ['#58a84c', '#6ab452', '#4a9a4e'][i % 3], seed: i + 3 }), x, z, i));
+for (let i = 0; i < 90; i++) { const x = (hash(i, 6) - .5) * 60, z = (hash(i, 7) - .5) * 84 - 2, d = dRoad(x, z); if (d > SW || (d < RW - 1 && hash(i, 9) > .22) || (Math.abs(x + 2.2) < 1.2 && z > -30)) continue; put(R.tuft({ kind: ['grass', 'bush', 'grass', 'flower', 'reed'][i % 5], s: .6 + hash(i, 8) * .7, seed: i % 3, fc: ['#ffe27a', '#ffffff'] }), x, z, i); }
+for (const [x, z, i] of [[-6.6, 17, 0], [6.5, 9.5, 1], [-6.4, -9.5, 2], [5.6, -4.5, 3], [-5.5, 2, 0], [6.4, 24, 1], [-6.3, 31, 2]]) put(PK.flowers({ n: 9, r: 1.3, seed: i, fc: [['#ffe27a', '#ffffff'], ['#ffffff', '#ffd86a'], ['#ffd86a', '#f6c8a0'], ['#ffffff', '#c8e0ff']][i], s: .7 }), x, z);
+scene.add(R.merge(fixed));
+// たれた電線
+scene.updateMatrixWorld(); const tip = (o, i) => { o.updateMatrixWorld(); return o.localToWorld(new THREE.Vector3(...o.userData.tips[i])).toArray(); };
+scene.add(PK.wire(tip(poles[0], 0), tip(poles[1], 0), { sag: 1.8 }), PK.wire(tip(poles[0], 1), tip(poles[1], 1), { sag: 2.6 }), PK.wire(tip(poles[2], 0), [7.4, .1, 22], { sag: .6 }), PK.wire(tip(poles[3], 1), tip(poles[4], 0).map((v, k) => k === 0 ? 7.6 : k === 2 ? -30 : 1.2), { sag: 1 }), PK.wire(tip(poles[0], 2), [-7.3, 4.6, 7.6], { sag: 1.5 }));
+
+// ---- 空と遠景、光のすじ ----
+scene.add(R.backdrop({ c: '#6a9a86', haze: '#d8e6c4', r: 250, y: -5, h: 40 }));
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 38 + hash(i, 9) * 30, c: '#fffaf0', shade: '#c8dce8', seed: i }), a = i * .9 + .2; c.position.set(Math.cos(a) * 220, 60 + hash(i, 10) * 40, Math.sin(a) * 220); c.lookAt(0, 30, 0); scene.add(c); }
+const dyn = [];
+for (const [x, z, w, h, a] of [[-3.5, -2.5, 4.5, 15, .3], [1.5, 2.2, 3.6, 13, .26], [-6.5, 3.4, 3, 12, .22], [4.5, -3.4, 4, 16, .24], [-1.5, 12.5, 2.6, 9, .2], [1.8, 15.8, 2.2, 8, .17]]) { const s = PK.shaft({ w, h, dx: h * 1.55, dz: h * .16, a, seed: x, c: '#fff0b8' }); s.position.set(x, 0, z); scene.add(s); dyn.push(s); }
+const motes = PK.motes({ n: 70, area: [16, 6, 11], c: '#fff6c8' }); motes.position.set(0, .3, 0); scene.add(motes); dyn.push(motes);
+
+// ---- 人（自転車を押す）・しか・鳥・ちょう ----
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', bangs: 'part', hair: '#4a3230', eyes: 'big', cloth: 'coat', top: '#4fa8a0', top2: '#f4ead2', bottom: '#d8c8a8', lower: 'pants', shoes: 'boot', shoe: '#8a5a3a', neck: 'scarf', acc: '#e8b040', back: 'bag' }); scene.add(hero);
+const bike = PK.bike({ c: '#e8b040' }); bike.position.set(-.5, 0, .34); bike.rotation.z = .05; hero.add(bike);
+const buck = PK.deer({}), doe = PK.deer({ antlers: false, s: .88, c: '#d09860' }), fawn = PK.deer({ antlers: false, s: .58, c: '#d8a068' }); scene.add(buck, doe, fawn);
+const flock = PK.flock({ n: 7, r: 11, h: 4, speed: .28, squash: .5, c: '#f6f2e8' }); flock.position.set(2, 13, -6); scene.add(flock); dyn.push(flock);
+for (const [x, z] of [[-3, 1], [3.5, -3], [-5.5, 15], [5, 22]]) { const b = PK.butterflies({ n: 5, area: [6, 1.5, 5], fc: ['#fff8d8', '#ffe27a', '#ffffff'] }); b.position.set(x, 0, z); scene.add(b); dyn.push(b); }
+// 信号のうで・車の屋根・道にとまる鳥。旅人が近づくと飛びたつ
+const birds = [[-4.6, 5.4, -7.1], [-3.9, 5.25, -7.1], [2.5, 1.36, 12.3], [3, 1.36, 13], [-1, 0, 9.5], [-3.4, 0, 6.5], [.5, 0, 22.5]].map(([x, y, z], i) => { const b = R.bird(i % 2 ? { c: '#f0ece4', neck: false } : { c: '#7a9ab8', belly: '#f4ead8' }); b.position.set(x, y, z); b.rotation.y = i * 2.1; b.userData.home = [x, y, z, i * 2.1]; b.userData.fly = -1; scene.add(b); return b; });
+
+// 旅人の道：通りを北へ進み、先でまわって、となりの車線をもどる
+const path = new THREE.CatmullRomCurve3([[-2.2, 34], [-2.2, 16], [-2.2, 0], [-2.4, -16], [-3.4, -26], [-1.6, -36], [2.6, -35], [3.2, -24], [2.4, -8], [2.2, 8], [3.6, 20], [2.4, 34], [1.6, 41], [-1.4, 41.5]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.9, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x + 2.2, q.z - 17); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), J = hero.userData.J;
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6, .85);
+  J.armR.rotation.set(-.95, 0, .12); J.foreR.rotation.x = -.5; J.armL.rotation.set(-.8, 0, -.55); J.foreL.rotation.x = -.75; J.torso.rotation.set(.12, -.12, 0);   // 両手をハンドルへ
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.6)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 4.9;
+  cp.set(p.x - cd.x * D + cd.z * .5, tall ? 2.2 : 2.5, p.z - cd.z * D - cd.x * .5); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.6, tall ? 1.5 : 1.15, p.z + cd.z * 3.6);
+  sun.position.set(p.x + SUN.x * 70, SUN.y * 70, p.z + SUN.z * 70); sun.target.position.copy(p);
+  // しか：おすは横断歩道を行ったり来たり、めすは草を食べ、子じかはそばで見ている
+  const bt = (t * .62 + 2.6) % 26, bx = bt < 13 ? -9 + bt * 1.4 : 9.2 - (bt - 13) * 1.4, turn = Math.min(1, Math.min(bt % 13, 13 - (bt % 13)) / .8); buck.position.set(bx, 0, 1.4 + Math.sin(bt * .5) * .6); buck.rotation.y = (bt < 13 ? 1 : -1) * Math.PI / 2 * turn + (1 - turn) * 0; PK.beastPose(buck, 'walk', t * 4.6);
+  doe.position.set(4.8, 0, -3.4); doe.rotation.y = -2.2; PK.beastPose(doe, Math.sin(t * .23 + 1) > -.5 ? 'graze' : 'stand', t); fawn.position.set(3 + Math.sin(t * .3) * .5, 0, -1.9); fawn.rotation.y = -1 + Math.sin(t * .3) * .4; PK.beastPose(fawn, Math.sin(t * .3 + 1.5) > .3 ? 'walk' : 'stand', t * 6);
+  for (const o of dyn) o.userData.tick(t);
+  for (const b of birds) { const [hx, hy, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
+    if (b.userData.fly < 0) { R.birdPose(b, hy > 0 ? 'stand' : 'peck', t + hr * 3); if (dh < (hy > 2 ? 0 : 3.8)) b.userData.fly = 0; }
+    else { const f = (b.userData.fly += dt); b.visible = f < 5; b.position.set(hx + Math.cos(hr) * f * 3.2, hy + Math.min(9, f * 2.8 - f * f * .1), hz + Math.sin(hr) * f * 3.2); b.rotation.y = Math.atan2(Math.cos(hr), Math.sin(hr)); R.birdPose(b, 'fly', t + hr);
+      if (f > 5 && dh > 16) { b.userData.fly = -1; b.visible = true; b.position.set(hx, hy, hz); b.rotation.y = hr; } } }
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

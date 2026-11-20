@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-31 さんご礁を泳ぐ 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f8f0;opacity:.85;text-shadow:0 1px 0 #024}
+</style>
+<div id="cap">8-31 ─ さんご礁を泳ぐ / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（さんご・魚・かめ・ダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 浅い さんご礁。色は 水のエメラルド・白い砂・さんごの赤だいだい黄ピンクむらさき。上から光のすじがさし、砂の上で光のあみ目がゆれる。
+// ダイバーが さんごの間の白い砂の道を、足ひれで泳いでいく。うしろ斜め上からカメラが追う。部品は retro.js（R.〜）と pack-sea.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const env = S.underwater(scene, renderer, { depth: 'shallow', top: 10.5, rays: 12, range: 30 }), sun = env.sun;
+
+// ---- 泳ぐ道（さんごの間をぬけて ひと回り）と、海底：白い砂に、さんごの岩山がならぶ ----
+const path = new THREE.CatmullRomCurve3([[0, 0], [14, -5], [27, -1], [36, 9], [33, 22], [20, 28], [6, 24], [-6, 28], [-18, 22], [-22, 10], [-14, 2]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), LEN = path.getLength(), PP = path.getSpacedPoints(200);
+const dP = (x, z) => { let b = 1e9; for (const p of PP) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
+const mounds = []; for (let k = 0; k < 26; k++) { const u = (k + hash(k, 1) * .5) / 26, p = path.getPointAt(u), tg = path.getTangentAt(u), sd = k % 2 ? 1 : -1, off = 3.9 + hash(k, 2) * 4.4, r = Math.min(off - 1.7, 2.4 + hash(k, 3) * 2); mounds.push([p.x + tg.z * sd * off, p.z - tg.x * sd * off, r, .7 + hash(k, 4) * 1.5]); }
+const H = (x, z) => { let h = .22 * Math.sin(x * .23 + 1) * Math.cos(z * .19) + .12 * Math.sin(x * .5 + z * .4); for (const [mx, mz, r, mh] of mounds) { const d = Math.hypot(x - mx, z - mz) / r; if (d < 1.5) h += mh * Math.max(0, 1 - d * d / 2.25) ** 2; } return h; };
+const bed = S.seabed({ env, w: 116, d: 116, cell: 2, H, caustic: .42, layers: [S.tex.sand({ c: '#ece6d0' }), S.tex.grown({ base: 'rock', o: { c: '#b4a69a' }, grow: .9, seed: 2 })], mix: (x, z) => [Math.min(1, Math.max(0, (H(x, z) - .35) * 1.3)), 0] }); scene.add(bed.mesh);
+
+// ---- さんご礁：岩山ごとに、岩・さんごのかたまり・大きなテーブルさんご・うちわ。砂の上に ひとで・貝・うに・海草 ----
+const fixed = [], put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; }, anem = [];
+mounds.forEach(([mx, mz, r, mh], k) => { const a0 = hash(k, 5) * 6.28;
+  put(S.rock({ s: r * .42, seed: k, flat: .7, c: '#a89c98', grow: .8 }), mx, mz, a0, -.15);
+  put(S.reef({ s: 1.1 + hash(k, 6) * .5, seed: k, n: 6 }), mx + Math.cos(a0) * r * .5, mz + Math.sin(a0) * r * .5, a0);
+  put(S.coral({ kind: 'table', s: 1.2 + hash(k, 7) * .8, seed: k }), mx - Math.cos(a0) * r * .45, mz - Math.sin(a0) * r * .45, a0, -.05);
+  for (let i = 0; i < 6; i++) { const a = a0 + 1.2 + i * .9, d = r * (.45 + hash(k, 8 + i) * .6), kind = ['branch', 'fan', 'brain', 'finger', 'tube'][(k + i) % 5]; put(S.coral({ kind, s: .9 + hash(k, 12 + i) * .8, seed: k * 4 + i }), mx + Math.cos(a) * d, mz + Math.sin(a) * d, a, -.04); }
+  if (k % 2 === 0) { const a = a0 + 3.3, x = mx + Math.cos(a) * r * .95, z = mz + Math.sin(a) * r * .95; put(S.anemone({ s: 1.5, c: ['#f0a060', '#8ad88a', '#f08ab0'][k % 3], body: ['#c8506a', '#7a5ac0', '#4a9ab0'][k % 3], seed: k }), x, z); anem.push([x, H(x, z) + .7, z]); } });
+for (let i = 0; i < 150; i++) { const u = hash(i, 20), p = path.getPointAt(u), tg = path.getTangentAt(u), sd = i % 2 ? 1 : -1, off = 1.5 + hash(i, 21) * 3.4, x = p.x + tg.z * sd * off, z = p.z - tg.x * sd * off, k = i % 12;
+  put(k < 4 ? S.seagrass({ s: .6 + hash(i, 22) * .5, c: i % 3 ? '#4fa86a' : '#8ab04a', seed: i }) : k < 6 ? S.starfish({ c: ['#f0863a', '#e85a8a', '#8a6ad8'][i % 3], s: 1.1 }) : k < 7 ? S.shell({ c: ['#f4c0c8', '#f4e0a8'][i % 2], s: 1.2 }) : k < 8 ? S.urchin({ s: 1.2 }) : S.coral({ kind: ['brain', 'finger', 'branch', 'tube'][i % 4], s: .55 + hash(i, 23) * .4, seed: i }), x, z, i * 1.7, .01); }
+scene.add(R.merge(fixed));
+
+// ---- 生きもの：小魚の群れ 3 つ・色とりどりの魚・うみがめ・えい・いるか・かに ----
+const P0 = path.getPointAt(.035), live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (cx, cy, cz, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(cx + Math.cos(a) * rx, cy + Math.sin(t * .6 + ph) * bob, cz + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+add(S.school({ n: 70, rx: 7, rz: 4.5, h: 1.8, wide: 1.4, speed: 1.5, spread: 2.2 })).position.set(P0.x + 8, 3, P0.z - 2);
+add(S.school({ n: 34, kind: 'butter', rx: 4.5, rz: 3, h: 1.2, speed: -1.1, s: .8, spread: 2.2, seed: 2 })).position.set(mounds[1][0], 2.6, mounds[1][1]);
+add(S.school({ n: 26, kind: 'tang', rx: 5, rz: 3.5, h: 1.4, speed: 1.2, s: .7, spread: 1.8, seed: 5 })).position.set(mounds[4][0], 2.8, mounds[4][1]);
+add(S.school({ n: 40, rx: 7, rz: 5, h: 1.6, speed: -1.5, spread: 2, seed: 8, tints: ['#ffd0e0', '#ffffff', '#ffe8a0'] })).position.set(path.getPointAt(.5).x, 3.2, path.getPointAt(.5).z);
+anem.forEach(([x, y, z], i) => { for (let j = 0; j < 2; j++) add(S.fish({ kind: 'clown', s: .9, seed: i * 2 + j }), circ(x, y + j * .25, z, .7 + j * .3, .6, 1.3 * (j ? -1 : 1), i + j * 3, .12)); });
+mounds.forEach(([mx, mz, r, mh], k) => { if (k % 3 === 0) add(S.fish({ kind: ['angel', 'parrot', 'butter', 'tang'][(k / 3) % 4 | 0], seed: k }), circ(mx, mh + 1.6, mz, r * .9, r * .7, .5 * (k % 2 ? 1 : -1), k, .3)); });
+add(S.fish({ kind: 'grouper', s: .9 }), circ(P0.x + 10, 1.5, P0.z + 4, 4, 2.5, -.22, 1));
+add(S.fish({ kind: 'parrot', seed: 3 }), circ(P0.x + 5, 1.7, P0.z - 4, 2.4, 1.6, .5, 2));
+const turtle = S.turtle({ s: 1.5 }); scene.add(turtle);   // うみがめは、主役の少し前を いっしょに泳ぐ
+add(S.turtle({ s: 1, c: '#8a7a4a' }), circ(path.getPointAt(.6).x, 3, path.getPointAt(.6).z, 7, 5, .18, 1, .4));
+add(S.ray({ s: 1.3 }), circ(P0.x + 12, 4.6, P0.z + 6, 15, 10, .11, 3.6, .5));
+for (let i = 0; i < 2; i++) add(S.whale({ s: .95 }), circ(8, 6.6 + i * .8, 12, 34 + i * 3, 26 + i * 2, .09, 4.2 + i * .12, .6));
+for (let i = 0; i < 3; i++) { const u = [.05, .09, .42][i], p = path.getPointAt(u), tg = path.getTangentAt(u), c = S.crab({ s: 1.5, c: i === 1 ? '#f0a03a' : '#e8553a' }), x0 = p.x + tg.z * 2.2, z0 = p.z - tg.x * 2.2; add(c, (o, t) => { const s = Math.sin(t * .5 + i * 2) * 1.2; o.position.set(x0 + tg.x * s, H(x0 + tg.x * s, z0 + tg.z * s), z0 + tg.z * s); o.rotation.y = Math.atan2(tg.z, -tg.x) + 1.57; }); }
+
+// ---- 主役：泳ぐダイバー（マスク・タンク・足ひれ） ----
+const hero = S.diver({ tank: '#f0c23a', fin: '#f4d23a', actor: { sex: 'f', hairStyle: 'tail', hair: '#e8783a', top: '#4460d8', top2: '#f4d23a', bottom: '#3a50c0', glove: '#f4d23a', shoe: '#3a4898', belt: '#f4d23a' } }); scene.add(hero);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const cd = new THREE.Vector3(), SPEED = 1.5; let dist = .035 * LEN, first = true, hy = 2;
+K.loop((dt, t) => {
+  dist += SPEED * dt; const u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), gy = H(p.x, p.z) + 1.75 + Math.sin(t * .5) * .2; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); S.swim(hero, t); S.breathe(hero, env.bubbles, dt);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3 : 3.3, Sd = tall ? 1.2 : 2.3;
+  cam.position.set(p.x - cd.x * D + cd.z * Sd, hy + (tall ? 1.5 : 1.15), p.z - cd.z * D - cd.x * Sd); cam.lookAt(p.x + cd.x * 1.8, hy + .15, p.z + cd.z * 1.8);
+  const u2 = ((dist + 3.7 + Math.sin(t * .23) * .6) / LEN) % 1, q = path.getPointAt(u2), tq = path.getTangentAt(u2); turtle.position.set(q.x - tq.z * 1.5, H(q.x, q.z) + 2.2 + Math.sin(t * .4) * .3, q.z + tq.x * 1.5); turtle.rotation.y = Math.atan2(tq.x, tq.z) + Math.sin(t * .3) * .15; turtle.userData.tick(t);
+  sun.position.set(p.x - 8, 40, p.z + 6); sun.target.position.set(p.x, 0, p.z);
+  for (const f of live) f(t); bed.follow(p.x, p.z); bed.tick(t); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

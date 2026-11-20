@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-06 山寺の石段 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8ec;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-06 ─ 山寺の石段 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝霧の山寺。こけた長い石段が霧の中へのぼり、赤い門がいくつも立つ。両がわに石灯ろうと松、もみじ。のぼりきると反った屋根のお堂と鐘。
+// 色の組は「霧の白・石の灰・松の深い緑」＋差し色の門の赤と、もみじの朱。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は旅の僧ふうの人（R.actor の toon。あみがさと つえ）。石段をのぼってお堂の前をまわり、また下る。うしろからカメラが追う。石段・門・灯ろう・お堂・鐘は pack-fantasy-town.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 500, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#b8c8d8'], [.5, '#dce4e8'], [1, '#f4f2ec']], { r: 300 })); scene.fog = new THREE.Fog('#e6eaea', 9, 78);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8f0ff, ground: 0xb0b8a8, amb: 1.75, sun: 0xfff0d8, power: 1.9, range: 30 }), SUN = new THREE.Vector3(.5, .7, .4).normalize();
+
+// ---- 山の形：石段 5 つ（1 つで 3 m のぼる）と おどり場。両わきは土手、上はお堂の平地 ----
+const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); }, NF = 5, FD = 6, FH = 3, LD = 4, Z0 = 2, TOPZ = Z0 - NF * FD - (NF - 1) * LD, TOPY = NF * FH, SW = 4.4;
+const flightZ = i => Z0 - i * (FD + LD), prof = z => { if (z >= Z0) return 0; if (z <= TOPZ) return TOPY; const q = (Z0 - z) / (FD + LD), i = Math.floor(q), f = (q - i) * (FD + LD); return i * FH + Math.min(1, f / FD) * FH; };
+const H = (x, z) => { const ax = Math.abs(x), sx = sstep(2.5, 8, ax), k = sstep(TOPZ + 3, TOPZ - 3, z), k2 = sstep(1, 6, z), b = (sx * (1 - k) + sstep(13, 21, Math.hypot(x, z - TOPZ + 11)) * k) * (1 - k2) + sstep(8, 15, Math.hypot(x, z - 8)) * k2;
+  return prof(z) - .3 + b * (3 + Math.sin(x * .3 + z * .2) * 1.1) + sstep(16, 60, ax) * 9; };
+const land = R.ground({ w: 130, d: 130, cell: 1.5, cz: -26, H, layers: [T.grass({ c: '#5a8a58', flowers: .08 }), T.dirt({ c: '#8a8272' }), T.cobble({ kind: 'slab', c: '#a8a8a0', moss: .3 })],
+  mix: (x, z) => [Math.abs(x) < 3.2 && z > TOPZ ? .8 : 0, (z > 1.5 && Math.hypot(x, z - 8) < 7) || (z < TOPZ + 1 && Math.hypot(x, z - TOPZ + 11) < 12.5) ? 1 : 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const STEP = F.tex.ashlar({ c: '#a4a69c', moss: .5 }), flights = [...Array(NF)].map((_, i) => put(F.stairs({ w: SW, h: FH, d: FD, n: 14, tex: STEP }), 0, flightZ(i) - FD / 2, 0, i * FH));
+{ const G = R.geo(), m = 3; for (let i = 1; i < NF; i++) { const z0 = flightZ(i - 1) - FD, y = i * FH; G.quad([-SW / 2, y, z0], [SW / 2, y, z0], [SW / 2, y, z0 - LD], [-SW / 2, y, z0 - LD], [0, 0, SW / m, LD / m], 1.04); for (const s of [-1, 1]) G.quad([s * SW / 2, y - 1, z0 - (s > 0 ? 0 : LD)], [s * SW / 2, y - 1, z0 - (s > 0 ? LD : 0)], [s * SW / 2, y, z0 - (s > 0 ? LD : 0)], [s * SW / 2, y, z0 - (s > 0 ? 0 : LD)], [0, 0, LD / m, 1 / m], .8); } fixed.push(G.mesh(STEP)); }
+const stepY = z => { if (z >= Z0) return 0; if (z <= TOPZ) return TOPY; const q = (Z0 - z) / (FD + LD), i = Math.floor(q), f = (q - i) * (FD + LD); return f >= FD ? (i + 1) * FH : i * FH + flights[i].userData.y(FD / 2 - f); };
+
+// ---- 赤い門・石灯ろう・お堂・鐘つき堂 ----
+const RED = '#c8402e'; put(F.torii({ w: 5.2, h: 5.8, c: RED }), 0, 4.6, 0, 0); for (const i of [1, 2, 3, 4]) put(F.torii({ w: 4.6, h: 5, c: RED }), 0, flightZ(i) + LD / 2, 0, i * FH); put(F.torii({ w: 5.2, h: 5.6, c: RED }), 0, TOPZ - 1.6, 0, TOPY);
+const lights = []; for (let i = 0; i <= NF; i++) for (const s of [-1, 1]) { const z = i === 0 ? 3 : i === NF ? TOPZ - 3.6 : flightZ(i) + LD / 2 + s * .9, y = i * FH; put(F.stoneLantern({ h: 1.8, lit: true }), s * (SW / 2 + .75), z, 0, y - .2); if (s < 0 && i % 2 === 0) lights.push([s * 2.9, y + 1.2, z]); }
+for (const [x, y, z] of lights) { const l = new THREE.PointLight('#ffc070', 7, 6, 1.6); l.position.set(x, y, z); scene.add(l); }
+const HZ = TOPZ - 17; put(F.eastHall({ w: 10, d: 7, h: 3.6, tiers: 2, c: RED, lit: true, roof: F.tex.kawara({ c: '#4a5560' }) }), 0, HZ, 0, TOPY);
+{ const bx = -8, bz = TOPZ - 7.5; for (const sx of [-1, 1]) for (const sz of [-1, 1]) put(F.column({ kind: 'east', h: 3.1, r: .16, tex: RED }), bx + sx * 1.3, bz + sz * 1.3, 0, TOPY); put(F.eastRoof({ w: 2.8, d: 2.8, h: 1.5, eave: 1, roof: F.tex.kawara({ c: '#4a5560' }) }), bx, bz, 0, TOPY + 3.1);
+  const bell = F.bell({ s: 1.15, c: '#7a9a84' }); bell.position.set(bx, TOPY + 3.1, bz); scene.add(bell); put(R.geo().box(3.4, .3, 3.4, 0, 0, 0, { m: 3 }).mesh(STEP), bx, bz, 0, TOPY - .05); }
+// 香ろ（石の台に火。けむりが立つ）と、手水のおけ
+const CEN = [0, TOPY, TOPZ - 9.5]; put(F.stoneLantern({ h: 1.25, lit: true }), CEN[0], CEN[2], .78, TOPY); put(R.well ? R.well({ roof: F.tex.kawara({ c: '#4a5560' }) }) : R.barrel(), 8.6, TOPZ - 9, -.6, TOPY); put(R.bench(), 7, TOPZ - 4.2, -2.4, TOPY);
+
+// ---- 松・もみじ・岩・草 ----
+const MAPLE = ['#d8482a', '#e8742a', '#c83a34'];
+[[-4.6, 0], [5.2, -6], [-5.4, -16], [4.8, -26.5], [-5, -36], [5.6, -45], [-12, -50], [9.5, -58.5], [8.4, 9], [-7.5, 11]].forEach(([x, z], i) => put(R.tree({ kind: 'round', h: 5 + hash(i, 2) * 2.5, c: MAPLE[i % 3], seed: i + 3 }), x, z, i));
+for (let i = 0; i < 110; i++) { const x = (hash(i, 11) - .5) * 110, z = 18 - hash(i, 12) * 100, ax = Math.abs(x); if (ax < 4.2 || (z > 0 && Math.hypot(x, z - 8) < 8) || (z < TOPZ + 2 && Math.hypot(x, z - TOPZ + 11) < 14)) continue; put(R.tree({ kind: i % 5 === 4 ? 'tall' : 'pine', h: 6 + hash(i, 13) * 6, c: ['#2f6a4a', '#3a7450', '#28604a'][i % 3], seed: i }), x, z, i); }
+for (let i = 0; i < 26; i++) { const s = i % 2 ? 1 : -1, z = 8 - i * 2.3, x = s * (3 + hash(i, 21) * 2.2); put(i % 3 === 0 ? R.rock({ s: .6 + hash(i, 22) * .7, moss: .6, seed: i }) : R.tuft({ kind: i % 3 === 1 ? 'grass' : 'bush', s: .7 + hash(i, 23) * .5, seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#7a9088', haze: '#eef0ee', r: 120, h: 70, y: -4, rep: 2 }), R.backdrop({ c: '#98a8a8', haze: '#f2f2ee', r: 220, h: 130, y: -6, seed: 5 }));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(11, 20), new THREE.MeshBasicMaterial({ color: '#fffbe8', fog: false, transparent: true, opacity: .75 })); sunD.position.set(60, 150, -250); sunD.lookAt(0, 20, 0); scene.add(sunD);
+
+// ---- まう もみじの葉（ドット絵の板。主役のまわりで落ちつづける） ----
+const leafT = c => { const P = R.Px(8), M = R.ramp(c); P.disc(3.5, 3.5, 3.2, M[3]); P.rect(3, 0, 2, 8, M[4]); P.rect(0, 3, 8, 2, M[3]); P.set(3, 4, M[1]); P.set(4, 5, M[1]); P.set(4, 7, M[1]); return T.from(P, { m: 1, cut: true }); };
+const leaves = [...Array(34)].map((_, i) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(.2, .2), R.mat(leafT(MAPLE[i % 3]), { cut: true, side: true })); o.userData.p = [(hash(i, 31) - .5) * 16, hash(i, 32) * 9, (hash(i, 33) - .5) * 24, i * 1.9, .5 + hash(i, 34) * .5]; scene.add(o); return o; });
+
+// ---- 人・ねこ・鳥（人は 5 頭身の toon。どれもこの場面のためのオリジナル）。あみがさは、ここで作って頭に付ける ----
+const act = (o, x = 0, z = 0, ry = 0, y) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, y ?? stepY(z), z); p.rotation.y = ry; scene.add(p); return p; };
+const kasa = (p, c = '#d8c084') => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k, v, s]; p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.62, 2.5, 0, .8), r(.86, 1.5, .5, 1), r(1.2, .1, 1, 1.08)], { ur: 3, cap: 'top' }).mesh(T.thatch({ c }), { side: true })); return p; };
+const hero = kasa(act({ hairStyle: 'bald', hair: '#3a3438', brow: 'soft', mouth: 'line', cloth: 'robe', top: '#3f4a6a', top2: '#f0ece0', skirt: .7, shoe: '#c8b890', shoes: 'shoe', gloves: 'wrap', glove: '#f0ece0', neck: 'collar', back: 'pack', acc: '#b89a5a' })); F.wear(hero, 'staff', { len: 1.45, c: '#6a4a30' });
+const MONK = { hairStyle: 'bald', hair: '#4a4448', cloth: 'robe', top: '#c8843a', top2: '#f4ecd8', skirt: .8, shoes: 'shoe', shoe: '#8a6a4a' };
+const sweeper = act({ ...MONK, eyes: 'closed', mouth: 'smile' }, 1.3, flightZ(2) + LD / 2 + .4, -.8); F.wear(sweeper, 'staff', { len: 1.3, hand: 'R' });
+const novice = act({ ...MONK, s: .74, top: '#d89a4a', mouth: 'open', blush: true }, -6.3, TOPZ - 6.4, 2.4, TOPY), abbot = act({ ...MONK, top: '#8a3a34', top2: '#e8c058', beard: 'beard', brow: 'thick', eyes: 'closed', neck: 'collar', bulk: 1.1 }, 1.6, HZ + 6.2, -.3, TOPY);
+const pil1 = kasa(act({ sex: 'f', hairStyle: 'bun', hair: '#2a2a30', mouth: 'smile', cloth: 'robe', top: '#f0ece4', top2: '#c8402e', skirt: .8, shoes: 'shoe', shoe: '#8a6a4a' }), '#e0cc94'), pil2 = act({ hairStyle: 'short', hair: '#8a8a8a', beard: 'mustache', eyes: 'closed', cloth: 'tunic', top: '#6a7a6a', top2: '#f0ece0', bottom: '#4a4a54', shoe: '#5a4a3a' }); F.wear(pil2, 'staff', { hand: 'L' });
+const cat = R.cat({ c: '#f4f0e8', belly: '#ffffff' }); cat.position.set(-1.5, FH, flightZ(1) + LD / 2 + 1); cat.rotation.y = .9; scene.add(cat);
+const birds = [0, 1, 2, 3].map(i => { const b = R.bird({ c: '#f8f6f0', belly: '#ffffff', neck: false, s: 1.7 }); scene.add(b); return b; });
+
+// ---- 主役の道（左がわをのぼり、お堂の前をまわって、右がわを下る） ----
+const TZ = TOPZ, path = new THREE.CatmullRomCurve3([[-.95, 9], [-.95, 0], [-.95, -15], [-.95, -30], [-.95, TZ - 1], [-1.4, TZ - 5], [-2.4, TZ - 9], [-1.4, TZ - 12.2], [1.4, TZ - 12.2], [2.6, TZ - 9], [1.4, TZ - 5], [.95, TZ - 1], [.95, -30], [.95, -15], [.95, 0], [.95, 9], [.6, 11.2], [0, 12], [-.6, 11.2]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 2, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, sm = 0, ys = 0, cys = 0, lys = 0;
+const walker = (q, u, sp, t, ph) => { u = ((u % 1) + 1) % 1; const p = path.getPointAt(u), tg = path.getTangentAt(u); q.position.set(p.x, stepY(p.z), p.z); q.rotation.y = Math.atan2(tg.x, tg.z); R.walk(q, t * sp + ph, .8); };
+K.loop((dt, t) => {
+  const dist = t * SPEED + 1, u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), hy = stepY(p.z);
+  if (first) { cd.copy(tg); ys = hy; cys = prof(p.z + 4.6); lys = prof(p.z - 5); first = false; } ys += (hy - ys) * (1 - Math.exp(-dt * 14));
+  hero.position.set(p.x, ys, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6, .9);
+  cd.lerp(tg, 1 - Math.exp(-dt * 1.8)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.7 : 4.6, cx = p.x - cd.x * D, cz = p.z - cd.z * D;
+  cys += (Math.max(prof(cz), ys - 1.3) - cys) * (1 - Math.exp(-dt * 4)); lys += (prof(p.z + cd.z * 5) - lys) * (1 - Math.exp(-dt * 4));
+  cp.set(cx, cys + (tall ? 2.2 : 2.3), cz); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 5, ys + (lys - ys) * .36 + 1.5, p.z + cd.z * 5);   // のぼりは見上げ、下りは霧の谷を見おろす
+  sun.position.set(p.x + SUN.x * 60, ys + SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(hero.position);
+  // 参る人 2 人は道を先へ歩く。ほうきの僧・小僧・和尚は立っている
+  walker(pil1, u + .5, 5.2, t, 0); walker(pil2, u + .5 - 1.6 / LEN, 5.2, t, 2);
+  R.idle(sweeper, t, Math.sin(t * .6) * .4); sweeper.userData.J.armR.rotation.x = -.5 + Math.sin(t * 2.4) * .25; R.idle(novice, t + 1, Math.sin(t * .7) * .5); R.idle(abbot, t + 2, Math.sin(t * .4) * .3); R.catPose(cat, 'sit', t);
+  birds.forEach((b, i) => { const a = t * (.2 + i * .03) + i * 1.6, r = 12 + i * 4; b.position.set(Math.cos(a) * r, ys + 9 + i * 1.5 + Math.sin(t * .6 + i) * 1.3, p.z - 8 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .4 + i); });
+  leaves.forEach(o => { const [x, y, z, ph, v] = o.userData.p, f = ((y - t * v) % 9 + 9) % 9; o.position.set(p.x + x + Math.sin(t * .9 + ph) * .8, ys - 1 + f, p.z + ((z - p.z * 0) % 24) + Math.cos(t * .7 + ph) * .6); o.rotation.set(t * 1.3 + ph, t * .9 + ph, ph); });
+  F.tick(t); if ((sm += dt) > .5) { sm = 0; fx.emit('smoke', CEN[0], CEN[1] + 1.3, CEN[2], { size: .35, life: 3.6, vy: .7, vx: .15, grow: 1.6, spread: .08, tint: '#f4f4f4' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

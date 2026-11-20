@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8 「鉄の都市の下町」の部品の確認（テクスチャと形）</title>
+<style>
+html,body{margin:0;min-height:100%;background:#2a2c38;color:#e8e4d8;font:12px/1.4 ui-monospace,Menlo,monospace}
+#nav{position:fixed;right:8px;top:6px;z-index:5;background:#000a;padding:2px 6px}#nav a{color:#ffd88a;margin-left:10px}
+#grid{display:flex;flex-wrap:wrap;gap:4px;padding:4px;align-content:flex-start}
+.c{position:relative;line-height:0}.c canvas{image-rendering:pixelated;display:block;background:repeating-conic-gradient(#4a4e60 0 25%,#3c4050 0 50%) 0 0/16px 16px}
+.c span{position:absolute;left:0;top:0;background:#000a;color:#fff;font-size:10px;line-height:1.3;padding:0 3px}
+#cap{position:fixed;left:12px;bottom:10px;opacity:.8}
+</style>
+<div id="nav"></div><div id="grid"></div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-city.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 「鉄の都市の下町」の部品（pack-city.js）を全部ならべて見る確認用のページ（一覧には入れない）。
+// ?p=tex（既定）でテクスチャの一覧（&i=0〜 で 1 組だけ）、?p=parts&i=0〜5 で部品がブラウン管ごしに見える（&raw=1 でブラウン管なし、&cam=x,y,z,lx,ly,lz でカメラ）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), q = new URLSearchParams(location.search), mode = q.get('p') || 'tex', sel = q.get('i');
+document.getElementById('nav').innerHTML = '<a href="?p=tex">テクスチャ</a>' + ['骨組み', '建物', '配管・機械', 'あかり', '小物', '乗りもの・効果'].map((n, i) => `<a href="?p=parts&i=${i}">${n}</a>`).join('');
+if (mode === 'tex') {
+  const t = C.tex, NK = ['ring', 'moon', 'star', 'zig', 'arrow', 'wave', 'cup', 'fish', 'bottle', 'gear', 'heart', 'eye'], NC = [C.LIGHT.pink, C.LIGHT.cyan, C.LIGHT.amber, C.LIGHT.green, '#ff7a4a', '#b08aff'], G = [
+    ['かべ・屋根', [['tin', t.tin()], ['tin 青みどり', t.tin({ c: C.PAL[1], seed: 1 })], ['tin からし さび多め', t.tin({ c: C.PAL[2], rust: 1, seed: 2 })], ['tin h', t.tin({ c: C.PAL[3], dir: 'h' })], ['plate', t.plate()], ['plate warn', t.plate({ c: '#6c8a84', warn: 1 })], ['plate n4', t.plate({ n: 4, c: C.PAL[0] })], ['patch 0', t.patch()], ['patch 1', t.patch({ seed: 1 })], ['patch 2', t.patch({ seed: 2 })], ['conc', t.conc()], ['tile', t.tile()], ['tile check', t.tile({ check: 1, c2: '#c2453a' })], ['container', t.container()], ['containerEnd', t.containerEnd()]]],
+    ['地面・天井・骨組み', [['asphalt', t.asphalt()], ['asphalt wet 1', t.asphalt({ wet: 1 })], ['asphalt wet 0', t.asphalt({ wet: 0, c: '#5a5660' })], ['track', t.track()], ['manhole', t.manhole()], ['manhole grate', t.manhole({ kind: 'grate' })], ['manhole plate', t.manhole({ kind: 'plate' })], ['ceil', t.ceil()], ['ceil leak 1', t.ceil({ leak: 1, seed: 2 })], ['gap', t.gap()], ['girder', t.girder()], ['girder z', t.girder({ kind: 'z' })], ['pillar', t.pillar()], ['pillarLights', t.pillarLights()], ['skyline', t.skyline()]]],
+    ['ネオン', [...NK.map((k, i) => ['neon ' + k, t.neon({ kind: k, c: NC[i % 6], c2: NC[(i + 2) % 6] })]), ['neon wide glyphs', t.neon({ kind: 'glyphs', shape: 'wide', c2: C.LIGHT.cyan, border: 1 })], ['neon wide cup', t.neon({ kind: 'cup', shape: 'wide', c: C.LIGHT.amber, c2: C.LIGHT.pink, seed: 2 })], ['neon wide fish', t.neon({ kind: 'fish', shape: 'wide', c: C.LIGHT.cyan, c2: C.LIGHT.green, seed: 4, border: 1 })], ['neon tall', t.neon({ kind: 'glyphs', shape: 'tall', c: C.LIGHT.cyan })], ['neon tall star', t.neon({ kind: 'star', shape: 'tall', c: C.LIGHT.amber, c2: C.LIGHT.pink, seed: 3 })], ['neon tall 2', t.neon({ kind: 'glyphs', shape: 'tall', seed: 5 })], ['neon 管だけ', t.neon({ kind: 'heart', bg: null })]]],
+    ['あかり・布・店', [['lantern', t.lantern()], ['lantern white', t.lantern({ kind: 'white' })], ['lantern yellow', t.lantern({ kind: 'yellow', mark: 0 })], ['bulb', t.bulb()], ['shopwin goods', t.shopwin()], ['shopwin food', t.shopwin({ kind: 'food' })], ['shopwin parts', t.shopwin({ kind: 'parts' })], ['shopwin room', t.shopwin({ kind: 'room' })], ['shopwin 暗い', t.shopwin({ lit: 0 })], ['vend', t.vend()], ['noren ring', t.noren()], ['noren wave', t.noren({ kind: 'wave', c: '#b8302a' })], ['noren dots', t.noren({ kind: 'dots', c: '#2f7a5a' })], ['noren bars', t.noren({ kind: 'bars', c: '#5a3a7a' })], ['hood', t.hood()], ['hood scallop', t.hood({ c: '#2f7a8a', scallop: 1 })], ['laundry', t.laundry()], ['counter', t.counter()]]],
+    ['配管・機械', [['pipe', t.pipe()], ['pipe band', t.pipe({ c: C.PAL[0], band: '#e8e4d8' })], ['drum', t.drum()], ['drum band', t.drum({ c: '#c2453a', mark: 'band' })], ['drumTop', t.drumTop()], ['panel', t.panel()], ['grille', t.grille()], ['meter', t.meter()], ['valve', t.valve()], ['blade', t.blade()], ['turbine', t.turbine()], ['mesh', t.mesh()], ['mesh bar', t.mesh({ bar: 1 })], ['ladder', t.ladder()], ['rail', t.rail()], ['stair', t.stair()], ['antenna', t.antenna()]]],
+    ['小物・乗りもの', [['scrap', t.scrap()], ['scrap 1', t.scrap({ seed: 1 })], ['tire', t.tire()], ['tire hole', t.tire({ kind: 'hole' })], ['tread', t.tread()], ...[0, 1, 2, 3, 4, 5].map(k => ['poster ' + k, t.poster({ kind: k })]), ['bike', t.bike()], ['moto', t.moto()], ['train pass', t.train()], ['train lit', t.train({ lit: 1, c: '#c2603a' })], ['train wreck', t.train({ wreck: 1 })], ['train box', t.train({ kind: 'box' })], ['trainEnd', t.trainEnd()], ['trainEnd box', t.trainEnd({ kind: 'box' })], ['bogie', t.bogie()], ['truckSide', t.truckSide()], ['truckFront', t.truckFront()]]]];
+  const grid = document.getElementById('grid');
+  G.forEach(([name, list], gi) => { if (sel !== null && +sel !== gi) return; for (const [label, tx] of list) { const im = tx.image, cut = tx.userData.cut, one = cut || im.width !== im.height || im.width < 32 || /neon|shopwin|vend|lantern|panel|grille|container|poster|truck|train|counter/.test(label), rep = one ? 1 : 1.5, sc = Math.max(1, Math.floor(160 / (Math.max(im.width, im.height) * rep))), c = document.createElement('canvas'); c.width = Math.round(im.width * rep); c.height = Math.round(im.height * rep); const g = c.getContext('2d'); for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) g.drawImage(im, x * im.width, y * im.height); c.style.width = c.width * sc + 'px'; c.style.height = c.height * sc + 'px'; const d = document.createElement('div'); d.className = 'c'; d.append(c); const s = document.createElement('span'); s.textContent = label; d.append(s); grid.append(d); } });
+}
+
+if (mode === 'parts') {
+  document.getElementById('grid').remove(); document.body.style.overflow = 'hidden';
+  const { scene, cam, renderer, onResize } = K.stage({ fov: 40, far: 900, aa: false }), raw = q.get('raw'), gi = +(sel || 0), L = C.LIGHT;
+  scene.add(C.dome({ r: 400 }), C.backdrop({ r: 150, h: 34, y: -2 })); scene.fog = new THREE.Fog('#6a4a62', 50, 190);
+  const { sun } = K.lights(scene, renderer, { sky: 0xb8b4e0, ground: 0x8a6a5a, amb: 1.9, sun: 0xffd8a8, power: 1.6, pos: [-14, 20, 14], range: 26 });
+  const land = R.ground({ w: 70, d: 60, cell: 2, layers: [C.tex.asphalt({ wet: .6 }), C.tex.conc({ c: '#8e8a88' })], mix: (x, z) => [z < -6 ? 1 : 0, 0], shade: () => [.95, .92, 1] }); scene.add(land.mesh);
+  const put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; scene.add(o); return o; };
+  let cp = [0, 6, 16], look = [0, 2, 0];
+  if (gi === 0) { put(C.ceiling({ w: 48, d: 32, y: 13, hole: (x, z) => Math.abs(x - 4) < 4 && Math.abs(z + 4) < 4 }), 0, -6); put(C.pillar({ r: 2.2, h: 13 }), -12, -8); put(C.pillar({ r: 5, h: 60 }), 40, -90); put(C.beam({ len: 8 }), -4, 3); put(C.truss({ len: 8 }), -4, 5.5); put(C.elevated({ len: 24, h: 5 }), 6, -3); put(C.shaft({ w: 5, h: 13, a: .35 }), 4, -4); cp = [-2, 5, 20]; look = [0, 4.5, 0]; }
+  if (gi === 1) { put(C.shack({ seed: 1, shop: 'noren', awning: true, sign: { kind: 'cup', c: L.pink, shape: 'tall' }, laundry: true }), -11, 0); put(C.shack({ seed: 2, floors: 3, w: 4.4, shop: 'shutter', stairs: 'r', sign: { kind: 'glyphs', shape: 'wide', c: L.cyan }, tank: true }), -5, 0); put(C.shack({ seed: 3, floors: 1, w: 5.5, shop: 'window', awning: 'tin', sign: { kind: 'gear', shape: 'sq', c: L.amber } }), 1.5, 0);
+    put(C.shack({ seed: 4, floors: 2, w: 3.8, shop: 'door', vent: true, antenna: true }), 7, 0); put(C.containerHouse({ n: 3, seed: 1 }), 14, -1); put(C.platform({ len: 14 }), -4, 7); put(C.shack({ seed: 7, floors: 2, shop: 'open', awning: '#2f7a8a' }), 8, 8, -.3); cp = [1.5, 6, 25]; look = [1.5, 3, 0]; }
+  if (gi === 2) { put(C.pipeRun([[-12, -4], [-2, -4], [4, -2], [12, -2]], { off: 0, riser: 6, seed: 2 }), 0, 0); put(C.pipe([[0, 0, 0], [0, 2.5, 0], [2, 2.5, 0], [2, 4, 0], [4, 4, 0]], .25, { c: C.PAL[1], band: '#e8c040' }), -11, -1); put(C.duct([[0, 3, 0], [3, 3, 0], [3, 3, 2], [3, .2, 2]], .8, .5), -6, -1);
+    put(C.valve({ r: .2 }), -8, 3, 0, .8); put(C.meter(), -7, 3, 0, .5); put(C.fan({ r: .6 }), -5.5, 3); put(C.fan({ kind: 'roof', r: .45 }), -4, 3); put(C.tank({ r: .9, h: 2.2 }), -1.5, 2); put(C.tank({ kind: 'h', r: .6, h: 2.4, c: C.PAL[2] }), 1.5, 3); put(C.generator(), 4.5, 3); put(C.acbox({ fan: true }), 6.6, 3); put(C.acbox({ wall: true, c: '#a8b4b0' }), 7.8, 3, 0, 1);
+    put(C.manhole(), -8, 6); put(C.manhole({ kind: 'grate' }), -6.8, 6); put(C.manhole({ kind: 'plate' }), -5.6, 6); put(C.fence({ len: 5 }), -2, 6); put(C.fence({ len: 5, kind: 'tin' }), 3.6, 6); put(C.ladder({ h: 3 }), 7, 6); put(C.stairs({}), 9, 1.5); put(C.fireEscape({}), 12, -5); cp = [0.5, 5, 19]; look = [0.5, 2, 0]; }
+  if (gi === 3) { const NK = ['ring', 'moon', 'star', 'zig', 'arrow', 'wave', 'cup', 'fish', 'bottle', 'gear', 'heart', 'eye'], NC = [L.pink, L.cyan, L.amber, L.green, '#ff7a4a', '#b08aff']; NK.forEach((k, i) => put(C.neon({ kind: k, c: NC[i % 6], c2: NC[(i + 2) % 6], flicker: i === 3 }), -8.2 + (i % 6) * 1.3, -2, 0, 2.2 + Math.floor(i / 6) * 1.3));
+    put(C.neon({ kind: 'glyphs', shape: 'wide', c2: L.cyan, border: 1, w: 2.6 }), 1.5, -2, 0, 2.6); put(C.neon({ kind: 'cup', shape: 'wide', c: L.amber, c2: L.pink, w: 2.6, seed: 2 }), 4.4, -2, 0, 2.6); for (let i = 0; i < 4; i++) put(C.neon({ kind: ['glyphs', 'star', 'glyphs', 'fish'][i], shape: 'tall', c: NC[i], c2: NC[i + 1], seed: i, two: true, flicker: i === 2 }), 6.6 + i * .9, -2, 0, 1.6); put(C.neon({ kind: 'heart', bg: null, w: 1.4 }), 10.5, -2, 0, 2.2);
+    scene.add(C.bulbs([-9, 3.2, 1], [-2, 3.2, 1], {}), C.bulbs([-9, 2.4, 2.5], [-2, 2.4, 2.5], { cs: [L.bulb, L.pink, L.cyan, L.green] }), C.lanterns([-1, 3.4, 1], [6, 3.4, 1], { kinds: ['red', 'white', 'red', 'yellow'] }));
+    put(C.streetLamp({ light: true }), 7.5, 2, PI()); put(C.signal({}), 9.5, 2); put(C.shaft({ w: 2.5, h: 8, lean: .15 }), 12, 0); put(C.lantern({ r: .3 }), 11, 2, 0, 2.6);
+    scene.add(C.pools([{ p: [7.5 - .9, 0, 2], r: 3, c: L.bulb }, { p: [-6, 0, 3], r: 2.5, c: L.pink, k: .8 }, { p: [-3, 0, 4], r: 2.5, c: L.cyan, k: .8 }, { p: [2, 2, -1.95], n: [0, 0, 1], r: 2, c: L.amber }]), C.streaks([{ x: -6, z: -1, c: L.pink }, { x: -4, z: -1, c: L.cyan }, { x: 2, z: -1, c: L.amber }, { x: 9.5, z: 2, c: '#ff5a4a', h: 3.4 }]));
+    scene.children.find(o => o.isHemisphereLight).intensity = .9; sun.intensity = .5; cp = [1, 3.4, 15]; look = [1, 2, 0]; }
+  if (gi === 4) { put(C.yatai({}), -9, 0); put(C.yatai({ c: '#2f7a8a', kind: 'ring', noren: '#b8302a', w: 1.8 }), -6, 0, .4); put(C.drum(), -4, 1); put(C.drum({ c: '#c2453a', mark: 'band' }), -3.3, 1.2); put(C.drum({ c: C.PAL[2], mark: 'none' }), -3.6, .5); put(C.tires({ n: 4 }), -2, 1); put(C.tires({ kind: 'pile' }), -.5, 1.5); put(C.scrap({ s: 2 }), 3.5, -1); put(C.scrap({ s: 1.2, seed: 2 }), 7, 0);
+    put(C.vending({}), -9, 4); put(C.vending({ c: '#c2453a' }), -7.9, 4); put(C.trash({}), -6.6, 4); put(C.trash({ kind: 'bin', c: C.PAL[1] }), -5.4, 4); put(C.bike({}), -3.4, 4, .3); put(C.trike({}), -.6, 4, -.3); put(C.trike({ load: 'drum', c: '#c2453a' }), 2.2, 4.4, .5); put(C.bench({}), 5, 4);
+    const p1 = put(C.pole({ lamp: true }), 9, 3), p2 = put(C.pole({ h: 6, arms: 1 }), -11, -3); scene.add(C.wires(p1.userData.tips.slice(0, 2).map((a, i) => [[a[0] + 9, a[1], a[2] + 3], [p2.userData.tips[i][0] - 11, p2.userData.tips[i][1], -3 + .12], 1.2])));
+    for (let i = 0; i < 6; i++) put(C.poster({ kind: i }), 4 + i * .7, 6, 0, .3); cp = [0, 4.2, 14]; look = [0, 1.4, 0]; }
+  if (gi === 5) { put(C.train({ lit: 1 }), -7, -3); put(C.train({ kind: 'box', len: 6 }), 4, -3); put(C.train({ wreck: 1, c: '#c2603a', len: 6, seed: 3 }), 11, -3, .2).rotation.z = .08; put(C.truck({}), -8, 3, .4); put(C.truck({ c: '#c2453a', load: 'crates' }), -3, 3, -2.6); put(C.moto({}), 1, 3, .5); put(C.moto({ c: '#3f8a8a' }), 3, 3.5, -2.4);
+    put(C.steam({}), 6, 3, 0, .2); put(C.steam({ dir: [1, .15, 0], jet: 1, rise: 3, r: .4, n: 12, speed: .6 }), 7.5, 3, 0, 1.2); put(C.sparks({}), 10, 3, 0, 1); scene.add(C.rain({})); { const G = R.geo(); for (let x = -16; x < 16; x += 8) C.trackQuad(G, x, x + 8, .04, -3); scene.add(G.mesh(C.tex.track(), { offset: true })); } cp = [0, 4.5, 15]; look = [0, 1.6, 0]; }
+  function PI() { return Math.PI; }
+  if (q.get('cam')) { const c = q.get('cam').split(',').map(Number); cp = c.slice(0, 3); look = c.slice(3, 6); }
+  const crt = R.crt(renderer, { width: +(q.get('w') || 320), noise: 0 }); onResize(crt.resize);
+  K.loop((dt, tt) => { const a = q.get('orbit') ? Math.sin(tt * .35) * .35 : 0, dx = cp[0] - look[0], dz = cp[2] - look[2]; cam.position.set(look[0] + dx * Math.cos(a) + dz * Math.sin(a), cp[1], look[2] - dx * Math.sin(a) + dz * Math.cos(a)); cam.lookAt(...look); C.update(tt, cam); if (raw) { renderer.setRenderTarget(null); renderer.render(scene, cam); } else crt.render(scene, cam, tt); });
+}
+</script>
+</html>

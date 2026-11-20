@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-36 海底のドームの町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f8f0;opacity:.85;text-shadow:0 1px 0 #024}
+</style>
+<div id="cap">8-36 ─ 海底のドームの町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（ガラスのドーム・家・木・管・街灯・魚・ダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 砂の海底にならぶ ガラスのドームの町。色は 水の青と、ドームの中のあたたかい だいだい（窓あかり・屋根・あかりに てらされた草）。ドームは鉄の管でつながり、外の道に街灯がともる。
+// ダイバーが街灯の道を泳いで、いちばん大きなドームへ帰ってくる。うしろ斜めからカメラが追う。部品は retro.js（R.〜）と pack-sea.js（S.〜）。ドームの中の庭・管は このページで作る
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const env = S.underwater(scene, renderer, { depth: 'mid', top: 20, rays: 9, range: 30, hi: '#8cd4f4', mid: '#2e86d0', low: '#1c50a4', fog: '#2a7cc8', near: 12, far: 96, amb: 1.2, power: 1.0, rayA: .3 }), sun = env.sun;
+
+// ---- 町のならび：ドーム 6 つ [x, z, 半径]。道は ドームの間をぬって ひと回り ----
+const DOMES = [[0, 30, 9], [-17, 20, 7], [20, 20, 7], [-3, 59, 6], [25, 41, 6.5], [13, 1, 5.5]];
+const path = new THREE.CatmullRomCurve3([[0, -12], [0, 2], [1, 13], [9.5, 19], [13.5, 30], [10.5, 42], [0, 47], [-11, 43], [-19, 34], [-27.5, 21], [-22, 5], [-10, -8]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), LEN = path.getLength(), PP = path.getSpacedPoints(200);
+const dP = (x, z) => { let b = 1e9; for (const p of PP) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
+const dD = (x, z) => Math.min(...DOMES.map(([cx, cz, r]) => Math.hypot(x - cx, z - cz) - r));   // いちばん近いドームのふちまで
+const H = (x, z) => { const k = Math.min(1, Math.max(0, Math.min(dD(x, z) - 1.5, dP(x, z) - 2.5) / 6)); return k * (.4 + .6 * Math.sin(x * .17 + 1) * Math.cos(z * .14) + .25 * Math.sin(x * .4 + z * .35)); };
+const bed = S.seabed({ env, w: 124, d: 124, cell: 2, H, caustic: .3, layers: [S.tex.sand({ c: '#d4dce4' }), S.tex.grown({ base: 'rock', o: { c: '#8088b0' }, grow: .7, seed: 2 })], mix: (x, z) => [H(x, z) > .75 ? 1 : 0, 0] }); scene.add(bed.mesh);
+const fixed = [], put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; };
+fixed.push(R.strip(path.getSpacedPoints(90).map(p => [p.x, 0, p.z]), 2.6, S.tex.grown({ base: 'cobble', o: { kind: 'slab', c: '#b8c0d0' }, grow: .25, seed: 1 }), { lift: .05 }));
+
+// ---- ドームと中の庭：草の床・家（窓あかり）・木・小さな街灯。中に だいだいの あかりを 1 つ ----
+const grassT = R.tex.grass({ c: '#9ab84a', flowers: .5, fc: ['#ffd84a', '#ff9a5a', '#ffffff'] }), winLit = R.tex.window({ lit: true, curtain: false, frame: '#7a4a2a' }), doorT = R.tex.door({ style: 'panel', lit: true });
+const WALLS = [R.tex.plaster({ c: '#f4e2b8', frame: 'box' }), R.tex.brick({ c: '#d88a5a' }), R.tex.plaster({ c: '#f8d8a0', frame: 'cross' })], ROOFS = [R.tex.roof({ c: '#e8703a' }), R.tex.roof({ c: '#d8503a', kind: 'wave' }), R.tex.shingle({ c: '#c8803a' })];
+const domeLights = [];
+DOMES.forEach(([cx, cz, r], k) => { const g = new THREE.Group(), hh = r * .8; g.add(S.dome({ r, h: hh, n: 12, alpha: .06, glass: '#ffe4bc' }));
+  const warm = R.geo().smooth(1).loft(12, [[0, 1], [.2, .985], [.44, .89], [.66, .72], [.84, .48], [.96, .22]].map(([y, f], i) => [.3 + y * hh * .95, f * r * .95, f * r * .95, i, 1]), { ur: 4, cap: 'top', capUV: [.5, .5] }).mesh(S.mat(S.tex.glass({ c: '#ff8418' }), { glow: true, add: true, alpha: .27 })); warm.castShadow = false; warm.renderOrder = 4; warm.userData.dyn = true; g.add(warm);   // 中のあかりで、ドームの内がわが だいだいに かすむ
+  const G = R.geo(), fr = r * .97, n = 12; for (let i = 0; i < n; i++) { const a = i / n * 6.2832, b = (i + 1) / n * 6.2832; G.tri([0, .36, 0], [Math.sin(a) * fr, .36, Math.cos(a) * fr], [Math.sin(b) * fr, .36, Math.cos(b) * fr], [.5, .5], [.5 + Math.sin(a) * fr / 3, .5 + Math.cos(a) * fr / 3], [.5 + Math.sin(b) * fr / 3, .5 + Math.cos(b) * fr / 3], [1.15, .9, .9]); } g.add(G.mesh(grassT));
+  const inside = (o, x, z, ry = 0) => { o.position.set(x, .36, z); o.rotation.y = ry; g.add(o); return o; }, face = Math.atan2(-cx * .3, -(cz - 8)) ;   // 家の正面は、主役が来る南のほうへ
+  const nh = r > 8 ? 3 : r > 6.2 ? 2 : 1; for (let i = 0; i < nh; i++) { const a = face + (i - (nh - 1) / 2) * 1.5 + 3.1416, d = nh === 1 ? r * .12 : r * .36, w = r > 8 ? 3.6 : 3.1;
+    inside(R.house({ w, d: w * .85, h: 2.2, wall: WALLS[(k + i) % 3], roof: ROOFS[(k * 2 + i) % 3], roofKind: i % 2 ? 'hip' : 'gable', ridge: i % 2 ? 'x' : 'z', pitch: .9, eave: .35, door: doorT, win: winLit, winLit, lit: 1, chimney: i === 0, seed: k * 3 + i }), Math.sin(a) * d, Math.cos(a) * d, face + (i - (nh - 1) / 2) * .5); }
+  for (let i = 0; i < (r > 8 ? 5 : 3); i++) { const a = face + .7 + i * (r > 8 ? 1.26 : 2.1), d = r * .68; inside(R.tree({ kind: i % 2 ? 'round' : 'bush', h: i % 2 ? 2.6 + hash(k, i) * .6 : 1.1, c: ['#6aa83a', '#8ab040', '#5a9a48'][i % 3], flowers: i % 2 ? 0 : .5, fc: ['#ffb04a'], seed: k + i }), Math.sin(a) * d, Math.cos(a) * d, i); }
+  inside(R.lamp({ h: 2.2 }), Math.sin(face) * r * .5, Math.cos(face) * r * .5); for (let i = 0; i < 8; i++) { const a = hash(k, i, 3) * 6.28, d = r * (.25 + hash(k, i, 4) * .6); inside(R.tuft({ kind: i % 2 ? 'flower' : 'grass', s: .6, fc: ['#ffd84a', '#ff8a4a'] }), Math.sin(a) * d, Math.cos(a) * d, i); }
+  g.position.set(cx, 0, cz); fixed.push(g);
+  const L = new THREE.PointLight('#ffa850', r * 13, r * 2.3, 1.3); L.position.set(cx, hh * .62, cz); scene.add(L); domeLights.push(L); });
+// ドームをつなぐ鉄の管（丸い窓つき）。両はしは ドームの土台にささる
+const ironT = S.tex.iron({ c: '#9a8a66', grow: .35 }), portT = R.tex.lamp(), Gp = R.geo().smooth(1), Gw = R.geo();
+for (const [a, b] of [[0, 1], [0, 2], [0, 3], [2, 4], [2, 5], [0, 4]]) { const A = DOMES[a], B = DOMES[b], dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz), ry = Math.atan2(dx, dz), l0 = A[2] * .98, l1 = L - B[2] * .98, M = R.TR(A[0], 1.15, A[1], ry, Math.PI / 2, 0);
+  Gp.at(M).loft(8, [[l0, .95, .95, 0, .8], [l0 + .3, 1.1, 1.1, .2, 1.05], [l0 + .6, .85, .85, .4, 1], [l1 - .6, .85, .85, (l1 - l0) / 1.5, 1], [l1 - .3, 1.1, 1.1, (l1 - l0) / 1.5 + .2, 1.05], [l1, .95, .95, (l1 - l0) / 1.5 + .4, .8]], { ur: 4 }).at(null);
+  const n = Math.floor((l1 - l0 - 1.6) / 1.6); for (let i = 0; i < n; i++) for (const sx of [1, -1]) { const d = l0 + 1.4 + i * 1.6, px = A[0] + Math.sin(ry) * d + Math.cos(ry) * sx * .87, pz = A[1] + Math.cos(ry) * d - Math.sin(ry) * sx * .87, ex = Math.sin(ry) * .3, ez = Math.cos(ry) * .3; Gw.quad(sx > 0 ? [px - ex, 1, pz - ez] : [px + ex, 1, pz + ez], sx > 0 ? [px + ex, 1, pz + ez] : [px - ex, 1, pz - ez], sx > 0 ? [px + ex, 1.55, pz + ez] : [px - ex, 1.55, pz - ez], sx > 0 ? [px - ex, 1.55, pz - ez] : [px + ex, 1.55, pz + ez]); } }
+fixed.push(Gp.mesh(ironT), Gw.mesh(R.mat(portT, { glow: true, side: true })));
+// 外の道の街灯（道の両がわに たがいちがい。近い 4 本だけ PointLight）と、砂の上の物
+const lampsOut = [];
+for (let i = 0; i < 22; i++) { const u = (i + .3) / 22, p = path.getPointAt(u), tg = path.getTangentAt(u), sd = i % 2 ? 1 : -1, x = p.x + tg.z * sd * 2.1, z = p.z - tg.x * sd * 2.1; if (dD(x, z) < .6) continue; put(R.lamp({ h: 3.1, c: '#8a7a5a' }), x, z, 0); lampsOut.push(new THREE.Vector3(x, 3.1, z)); }
+const outL = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight('#ffc070', 12, 9, 1.5); scene.add(l); return l; });
+for (let i = 0; i < 130; i++) { const x = (hash(i, 7) - .5) * 84 + 2, z = -22 + hash(i, 8) * 94, k = i % 10; if (dD(x, z) < 1.2 || dP(x, z) < 1.9) continue;
+  put(k < 4 ? S.seagrass({ s: .6 + hash(i, 9) * .5, c: i % 2 ? '#4a9aa0' : '#5ab08a', seed: i }) : k < 5 ? S.starfish({ c: '#f0a04a', s: 1.2 }) : k < 6 ? S.shell({ c: '#f4e8d8', s: 1.3 }) : k < 7 ? S.rock({ s: .8 + hash(i, 10), seed: i, c: '#8890b8' }) : k < 8 ? S.kelp({ h: 4 + hash(i, 11) * 4, c: '#4a9a7a', seed: i }) : S.coral({ kind: ['tube', 'finger', 'brain', 'fan'][i % 4], s: .6 + hash(i, 12) * .5, c: ['#f0a04a', '#f4c060', '#e8785a'][i % 3], seed: i }), x, z, i * 1.7, k === 6 ? -.2 : .01); }
+scene.add(R.merge(fixed));
+
+// ---- 生きもの と 行きかうダイバー ----
+const live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (cx, cy, cz, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(cx + Math.cos(a) * rx, cy + Math.sin(t * .6 + ph) * bob, cz + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+add(S.school({ n: 60, rx: 10.5, rz: 10.5, h: 2, wide: 1.2, speed: 1.2, spread: 1.6, tints: ['#ffffff', '#ffe8b0', '#c8ecff'] })).position.set(0, 7.6, 30);   // 大きなドームのまわりを回る群れ
+add(S.school({ n: 40, rx: 6, rz: 4, h: 1.6, speed: -1.3, spread: 2, seed: 3 })).position.set(4, 5, 9);
+add(S.school({ n: 30, kind: 'butter', rx: 5, rz: 4, h: 1.4, speed: 1, s: .8, spread: 2, seed: 5 })).position.set(-17, 7.4, 20);
+add(S.school({ n: 26, kind: 'tang', rx: 5, rz: 4, h: 1.2, speed: -1.1, s: .75, spread: 2, seed: 7 })).position.set(20, 7.5, 20);
+add(S.ray({ s: 1.5 }), circ(2, 11.5, 26, 20, 16, .12, 1.2, .5)); add(S.turtle({ s: 1.2 }), circ(-8, 6.5, 8, 6, 5, .18, 2.4, .4));
+add(S.whale({ s: 1 }), circ(4, 12, 30, 30, 24, -.1, 4.4, .6)); add(S.whale({ s: .9 }), circ(4, 12.8, 30, 32, 26, -.1, 4.52, .6));
+const pals = [[{ tank: '#f0c23a', fin: '#f0c23a', actor: { hairStyle: 'spiky', hair: '#3a3048', top: '#e8503a', top2: '#f4f0e0', bottom: '#c83a2e', glove: '#f4f0e0', shoe: '#7a2a26' } }, -1.2, 2.8, .175], [{ head: 'snorkel', tank: '#c4d0dc', fin: '#f08ab0', actor: { sex: 'f', hairStyle: 'twin', hair: '#f4d86a', top: '#f08ab0', top2: '#ffffff', bottom: '#e06a98', glove: '#ffffff', shoe: '#a04a70' } }, -1.2, 3.4, .2], [{ tank: '#5ad0b4', fin: '#5ad0b4', actor: { hairStyle: 'short', hair: '#8a5a30', top: '#f4a03a', top2: '#3a4cb8', bottom: '#3a4cb8', glove: '#3a4cb8', shoe: '#2a3478' } }, 1.3, 2.6, .62]]
+  .map(([o, sp, y, u0], i) => { const d = S.diver(o); scene.add(d); return { d, sp, y, u0, sd: i === 1 ? 1.6 : -1.5 }; });
+
+// ---- 主役：ドームへ帰るダイバー（黄緑の服に白。もも色の おだんご） ----
+const hero = S.diver({ tank: '#f4f0e0', fin: '#c8f03a', actor: { sex: 'f', hairStyle: 'bun', hair: '#f07aa8', top: '#b4e83a', top2: '#f4f0e0', bottom: '#98d030', glove: '#f4f0e0', shoe: '#5a8a2a', belt: '#f4f0e0' } }); scene.add(hero);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const cd = new THREE.Vector3(), SPEED = 1.5, U0 = 8 / LEN; let dist = U0 * LEN, first = true, hy = 2.4;
+K.loop((dt, t) => {
+  dist += SPEED * dt; const u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), gy = H(p.x, p.z) + 2.5 + Math.sin(t * .5) * .2; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); S.swim(hero, t); S.breathe(hero, env.bubbles, dt);
+  pals.forEach((a, i) => { const uu = (((a.u0 + t * a.sp / LEN) % 1) + 1) % 1, q = path.getPointAt(uu), tq = path.getTangentAt(uu), dir = Math.sign(a.sp); a.d.position.set(q.x + tq.z * a.sd, a.y + Math.sin(t * .5 + i) * .2, q.z - tq.x * a.sd); a.d.rotation.y = Math.atan2(tq.x * dir, tq.z * dir); S.swim(a.d, t + i, { rate: 5 }); S.breathe(a.d, env.bubbles, dt, 2.9 + i * .4); });
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3 : 3.4, Sd = tall ? .8 : 1.7;
+  cam.position.set(p.x - cd.x * D + cd.z * Sd, hy + (tall ? 1.2 : .9), p.z - cd.z * D - cd.x * Sd); cam.lookAt(p.x + cd.x * 2.4, hy + (tall ? .8 : .45), p.z + cd.z * 2.4);
+  lampsOut.sort((a, b) => a.distanceToSquared(hero.position) - b.distanceToSquared(hero.position)); outL.forEach((l, i) => l.position.copy(lampsOut[i]));
+  sun.position.set(p.x - 8, 44, p.z + 6); sun.target.position.set(p.x, 0, p.z);
+  for (const f of live) f(t); bed.follow(p.x, p.z); bed.tick(t); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

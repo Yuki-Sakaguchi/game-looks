@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-48 スクラップ置き場で部品をひろう 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4dc;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-48 ─ スクラップ置き場で部品をひろう / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-city.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。鉄の都市の下町の スクラップ置き場。鉄くずとタイヤの山が子どもたちの遊び場で、手作りの旗が立つ。天井の大きなすき間から、上の層の光がひろく落ちて明るい。
+// 色の組は「鉄のこげ茶（鉄くず・土）と、白っぽい光」＋旗と服の原色（赤・青・黄・緑）。原色は小さく、こげ茶の中に ちらす。
+// 主役は部品をひろう子（子どもの大きさ。背中に部品のかご）。うしろから追うカメラ。旗・クレーン・タイヤのぶらんこはページの中で作る。部品は retro.js（R.〜）と pack-city.js（C.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const HAZE = '#d6c4a2', RED = '#d8402c', BLUE = '#2f6ac8', YEL = '#f0c020', GRN = '#3aa050', IRON = ['#7a5a48', '#8a6a50', '#6a5a52', '#9a7a58', '#5e5048'];
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.background = new THREE.Color(HAZE); scene.add(C.dome({ r: 420, c: '#7a6a5a', haze: HAZE, lights: ['#fff4d0', '#ffe0a0'] }), C.backdrop({ r: 210, h: 40, y: -3, c: '#7a6252', haze: HAZE })); scene.fog = new THREE.Fog(HAZE, 34, 180);
+const { sun } = K.lights(scene, renderer, { sky: 0xfff0d8, ground: 0x8a705a, amb: 1.55, sun: 0xfff0c8, power: 1.5, range: 30 }), SUN = new THREE.Vector3(.25, .92, .2).normalize();
+
+// ---- 地面：こげ茶の土と、鉄板・草。上からの広い光を焼きこむ ----
+const OPEN = (x, z) => Math.abs(x - 12) < 16.1 && Math.abs(z + 2) < 12.1;   // 天井のすき間
+const lights = [{ x: 4, z: -2, r: 15, c: '#fff0c0', k: .55 }, { x: 18, z: -1, r: 15, c: '#fff0c0', k: .55 }, { x: 11, z: 5, r: 12, c: '#fff0c0', k: .4 }];
+const land = R.ground({ w: 170, d: 110, cell: 2, layers: [T.dirt({ c: '#7a5e48', pebbles: .8 }), X.plate({ c: '#8a7868', n: 2, rust: .8 }), T.grass({ c: '#6aa04a', flowers: .3 })], mix: (x, z) => [hash(Math.round(x / 4), Math.round(z / 4)) > .8 ? 1 : 0, Math.sin(x * .23) * Math.cos(z * .31) > .55 ? 1 : 0], shade: C.lightShade(lights, [.74, .7, .66]) });
+scene.add(land.mesh);
+
+// ---- 鉄くずの山・タイヤ・こわれたトラック・コンテナ・ドラムかん・フェンス ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// [x, z, 大きさ]：山の てっぺんは 高さ 大きさ×.62
+const MOUNDS = [[7, -6.2, 4.4], [17.5, 4.6, 3], [-1, -7.5, 2.6], [25, -6, 3.4], [2, 6.5, 2], [31, 5, 2.4], [-9, 5.5, 2.8], [14, -12, 3], [38, -3, 3.6], [-12, -5, 2]];
+MOUNDS.forEach(([x, z, s], i) => put(C.scrap({ s, seed: i, cs: [...IRON, '#b5603c', '#4f8f88', '#c8a04a'] }), x, z, i * 1.3)); put(C.scrap({ s: 2.2, seed: 12, cs: [...IRON, '#b5603c', '#c8a04a'] }), 7, -6.2, 5.14, 1.5);   // まん中の山は 2 段
+for (const [x, z, n, k] of [[4.5, -1.6, 4, 'stack'], [5.3, -2.2, 2, 'stack'], [12.5, 2.6, 3, 'pile'], [21, 1.5, 5, 'stack'], [21.8, 2.2, 3, 'stack'], [-3, 2.6, 3, 'pile'], [28, -1.5, 4, 'stack'], [15, -2, 2, 'pile'], [-6, -2.4, 3, 'stack']]) put(C.tires({ n, kind: k, seed: x }), x, z, x);
+{ const tr = C.truck({ c: '#c8a04a', load: 'crates', seed: 2 }), g = new THREE.Group(); tr.rotation.z = -.07; tr.rotation.x = .05; tr.position.y = -.12; g.add(tr); put(g, 6.5, 4.2, 2.7); const t2 = C.truck({ c: '#5a8ab0', load: 'none', seed: 5 }), g2 = new THREE.Group(); t2.rotation.z = .1; t2.position.y = -.2; g2.add(t2); put(g2, 30, -9.5, .5); }
+put(C.container({ c: '#8a5a3c', len: 6 }), -9, -11, .2); put(C.container({ c: '#5a7a70', len: 6 }), -8.6, -10.8, .1, 2.45); put(C.container({ c: '#9a7a48', len: 6 }), 24, 11, -.3); put(C.containerHouse({ n: 3, seed: 4, lit: .6 }), 40, 9, -1.1);
+for (const [x, z, c, m] of [[1.2, -2.6, RED, 'band'], [1.9, -3, '#8a6a50', 'none'], [10.5, 3.2, BLUE, 'diamond'], [23.5, -1.2, YEL, 'band'], [16, -7.4, '#6a5a52', 'none'], [-4.5, 4.8, GRN, 'band']]) put(C.drum({ c, mark: m }), x, z, x);
+put(R.crate({ s: .7 }), 13.6, 6.6, .3); put(R.crate({ s: .5, kind: 'x' }), 14.3, 6.2, .8); put(C.trike({ c: RED, load: 'drum' }), 19, -3.4, 2.2); put(C.bike({ c: BLUE }), 1.5, 4.6, 1.2); put(C.moto({ c: '#8a6a50' }), 27.5, 2.4, .6);
+for (const [x, z, len, ry, k] of [[10, -17, 30, 0, 'tin'], [-17, -2, 22, PI / 2, 'tin'], [10, 14.5, 26, 0, 'mesh'], [44, -8, 14, PI / 2 + .1, 'tin']]) put(C.fence({ len, h: 2.1, kind: k, cs: ['#8a5a3c', '#7a6a58', '#9a7a48', '#5a7a70'], seed: x }), x, z, ry);
+for (let i = 0; i < 44; i++) { const x = -14 + hash(i, 1) * 56, z = -15 + hash(i, 2) * 28; if (Math.abs(z) < 1.5 || MOUNDS.some(([mx, mz, s]) => Math.hypot(x - mx, z - mz) < s * 1.1)) continue; put(R.tuft({ kind: ['grass', 'flower', 'grass'][i % 3], s: .7 + hash(i, 3) * .5 }), x, z, hash(i, 4) * 6); }
+put(R.tree({ kind: 'round', h: 4.6, c: '#5a9a4a', seed: 2 }), -13, 9.5); put(R.tree({ kind: 'bush', h: 2.6, c: '#5a9a4a', seed: 5 }), 34, 11);
+
+// ---- クレーンの骨組み（鉄骨のトラスを立てる）と、タイヤのぶらんこ ----
+const CR = [22, -10.5], JIB = 12, TIP = [CR[0] - 9.2, 10.2, CR[1] + 5.3];
+{ const tower = C.truss({ len: 11, h: 1.3, w: 1.3, c: '#8a6a44' }); tower.rotation.z = PI / 2; tower.position.set(CR[0] + .65, 5.5, CR[1]); fixed.push(tower);
+  const jib = C.truss({ len: JIB + 3, h: 1, w: .8, c: '#c8a04a' }); jib.rotation.y = PI + .52; jib.position.set(CR[0] - 4.2, 10, CR[1] + 2.4); fixed.push(jib);
+  const G = R.geo(); G.box(2.2, .5, 2.2, CR[0], 0, CR[1], { m: 3, taper: .9 }); G.box(1.5, 1.3, 1.5, CR[0] + 2.6, 9.4, CR[1] - 1.5, { m: 3 }); fixed.push(G.mesh(X.plate({ c: '#8a6a44', rust: .8 })), C.pipe([[CR[0], 12.6, CR[1]], TIP.map((v, i) => i === 1 ? v + .9 : v)], .04, { c: '#5a5048', joint: 0 }), C.pipe([[CR[0], 11, CR[1]], [CR[0], 12.7, CR[1]]], .1, { c: '#8a6a44', joint: 0 })); }
+const swing = new THREE.Group(); { const G = R.geo(); G.box(.05, 8.2, .05, 0, -8.2, 0, { m: 1 }); swing.add(G.mesh(T.metal({ c: '#a89878' }))); const ty = C.tires({ n: 1, r: .5 }); ty.rotation.x = PI / 2; ty.position.set(0, -8.5, -.1); swing.add(ty); swing.position.set(...TIP); scene.add(swing); }
+
+// ---- 手作りの旗（さおと、ゆれる布）。山のてっぺん・クレーン・フェンスに ----
+const flags = [], flag = (x, y, z, h, c, c2, pat, w = 1.2) => { const g = new THREE.Group(), P = R.geo(); P.box(.07, h, .07, 0, 0, 0, { m: 2 }); g.add(P.mesh(T.planks({ c: '#b08a5a' }))); const F = R.geo(), n = 4, fh = w * .62; for (let i = 0; i < n; i++) F.quad([i * w / n, 0, 0], [(i + 1) * w / n, 0, 0], [(i + 1) * w / n, fh, Math.sin(i + 1) * .08], [i * w / n, fh, Math.sin(i) * .08], [i / n, 0, (i + 1) / n, 1], 1 - (i % 2) * .12);
+  const m = F.mesh(T.fabric({ c, c2, pattern: pat, m: w }), { side: true }); m.position.y = h - fh - .04; g.add(m); g.userData.cloth = m; g.position.set(x, y, z); scene.add(g); flags.push(g); return g; };
+flag(7.6, 2.75, -6.5, 2.8, RED, '#fff4dc', 'stripe', 1.9); flag(17.5, 1.7, 4.6, 1.9, YEL, BLUE, 'check'); flag(25, 1.95, -6, 2, GRN, '#fff4dc', 'stripe'); flag(-1, 1.5, -7.5, 1.7, BLUE, '#fff4dc', 'check', 1); flag(CR[0], 12.7, CR[1], 1.6, RED, YEL, 'check', 1.4); flag(38, 2.1, -3, 1.8, YEL, '#fff4dc', 'stripe');
+// 山から山へ わたした、三角の小旗の ひも
+{ const P = R.Px(32, 8); P.clip = true; [RED, YEL, BLUE, GRN].forEach((c, i) => { const M = R.ramp(c); for (let y = 1; y < 8; y++) for (let x = 0; x < 8; x++) if (Math.abs(x - 3.5) < (8 - y) * .5) P.set(i * 8 + x, y, x < 3 ? M[4] : M[3]); }); P.rect(0, 0, 32, 1, '#5a5048'); const bt = T.from(P, { m: 2, cut: true }), G = R.geo();
+  for (const [a, b] of [[[7.6, 5.4, -6.5], [17.5, 3.5, 4.6]], [[7.6, 5.4, -6.5], [-1, 3.1, -7.5]], [[7.6, 5.4, -6.5], [25, 3.8, -6]]]) for (let i = 0, n = 7; i < n; i++) { const p = k => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k - Math.sin(k * PI) * 1.1, a[2] + (b[2] - a[2]) * k], p0 = p(i / n), p1 = p((i + 1) / n); G.quad([p0[0], p0[1] - .5, p0[2]], [p1[0], p1[1] - .5, p1[2]], p1, p0, [0, 0, 2, 1]); } fixed.push(G.mesh(bt, { side: true })); }
+scene.add(R.merge(fixed));
+
+// ---- 天井（大きなすき間と、またぐ鉄骨）・ひろい光のすじ・遠くの柱 ----
+scene.add(C.ceiling({ w: 256, d: 144, y: 18, cx: 8, c: '#6a5a50', leak: .8, hole: OPEN }));
+{ const tr = []; for (const x of [0, 8, 16, 24]) { const t = C.truss({ len: 24, h: 1.6, w: 1.2, c: '#6a5a50' }); t.rotation.y = PI / 2; t.position.set(x, 17.2, -2); tr.push(t); } scene.add(R.merge(tr)); }
+[[3, -3, 13, .05], [15, -6, 12, -.04], [21, 2, 13, .06], [9, 5, 10, -.06]].forEach(([x, z, w, lean], i) => { const s = C.shaft({ w, h: 18.5, c: '#fff2c8', a: .2, lean, n: 3, rot: i * .7 }); s.position.set(x, 0, z); scene.add(s); });
+scene.add(R.merge([[60, -20, 6], [-50, 10, 6], [46, 46, 5.5], [0, -58, 6], [-34, -44, 5]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 18.4, seed: i, c: '#8a7260', emissive: '#4a382c', lm: 60 }); p.position.set(x, 0, z); return p; })));
+
+// ---- 人（主役と、遊ぶ子ども 4 人・鉄くず屋のおじさん）・ねこ・鳥 ----
+const hero = R.actor({ hairStyle: 'spiky', hair: '#7a4a28', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'short', top: RED, top2: '#fff4dc', lower: 'shorts', bottom: '#3a5a9a', belt: '#8a5a2c', gloves: 'glove', glove: '#c8a04a', shoes: 'boot', shoe: '#6a4a34', hat: 'cap', acc: YEL, s: .74 }); scene.add(hero);
+{ const J = hero.userData.J, g = new THREE.Group(), b = R.barrel({ h: .36, r: .17, c: '#b08a5a' }); b.position.set(0, -.08, -.27); g.add(b, C.pipe([[-.05, .25, -.27], [-.08, .52, -.3]], .03, { c: '#8a8e9a', joint: 0 }), C.pipe([[.06, .25, -.25], [.14, .44, -.24]], .025, { c: '#c8a04a', joint: 0 })); const G = R.geo(); G.box(.05, .3, .12, -.11, -.05, -.1, {}); G.box(.05, .3, .12, .11, -.05, -.1, {}); g.add(G.mesh(T.fabric({ c: '#3a5a9a', pattern: 'plain' }))); J.torso.add(g); }   // 背中の部品かご
+const npc = (o, x, z, ry, y = 0) => { const p = R.actor(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const topKid = npc({ sex: 'f', hairStyle: 'twin', hair: '#8a4a2a', mouth: 'open', blush: true, cloth: 'tunic', top: YEL, top2: '#fff4dc', lower: 'skirt', skirt: .5, skirtC: BLUE, shoes: 'shoe', s: .7 }, 6.8, -5.9, -2.2, 2.8);
+const tireKid = npc({ hairStyle: 'tufts', hair: '#c8743a', mouth: 'smile', cloth: 'overall', top: GRN, top2: '#fff4dc', bottom: GRN, shoes: 'shoe', shoe: '#fff4dc', s: .68 }, 4.5, -1.6, -2.4, .88);
+const runners = [npc({ hairStyle: 'short', hair: '#4a3428', mouth: 'open', blush: true, cloth: 'tunic', top: BLUE, top2: '#fff4dc', lower: 'shorts', bottom: '#6a5a4a', shoes: 'shoe', s: .7 }, 0, 0, 0), npc({ sex: 'f', hairStyle: 'tail', hair: '#2a2a34', mouth: 'open', blush: true, cloth: 'overall', top: '#e86a9a', top2: '#fff4dc', lower: 'shorts', shoes: 'shoe', s: .64 }, 0, 0, 0)];
+const boss = npc({ hairStyle: 'bald', hair: '#8a8a8a', beard: 'mustache', bulk: 1.15, cloth: 'overall', top: '#6a7a8a', top2: '#e8dcc0', bottom: '#6a7a8a', gloves: 'glove', shoes: 'boot', hat: 'cap', acc: '#c8a04a', hold: 'wrench' }, 28.6, -8.2, -2.2);
+const cat = R.cat({ c: '#f0ece4', belly: '#ffffff', plain: 1 }); cat.position.set(5.3, .44, -2.2); cat.rotation.y = 2.2; scene.add(cat); const cat2 = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); scene.add(cat2);
+const birds = [[11.5, -.8, 1], [12.2, -1.3, 3], [12.8, -.5, 5]].map(([x, z, ry]) => { const b = R.bird({ c: '#a8a098', s: 1.1 }); b.position.set(x, 0, z); b.rotation.y = ry; scene.add(b); return b; }), fly = [0, 1].map(i => { const b = R.bird({ c: '#fff4dc', s: 1.2 }); scene.add(b); return b; });
+const spark = C.sparks({ n: 14, every: 1.4, c: '#ffe08a', power: .8 }); spark.position.set(29.3, .9, -8.8); scene.add(spark);
+
+// ---- 主人公：鉄くずの山のあいだを東へ ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = 1.6, SPAN = 34, X0 = -5;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .2 + 1) * .7, tall = innerWidth < innerHeight, D = tall ? 3.2 : 3.9;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - Math.cos(x * .2 + 1) * .14; R.walk(hero, t * SPEED * 6.2); hero.userData.J.head.rotation.y = Math.sin(t * .8) * .5;
+  cam.position.set(x - D, tall ? 1.8 : 1.85, z * .5 + .9); cam.lookAt(x + 4, tall ? 1.6 : 1.4, z * .4 - .5);
+  crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, SUN.z * 50); sun.target.position.set(x, 0, 0);
+  flags.forEach((f, i) => { f.userData.cloth.rotation.y = Math.sin(t * 2.2 + i * 1.3) * .4 + Math.sin(t * 5 + i) * .1; f.rotation.z = Math.sin(t * 1.1 + i) * .03; });
+  swing.rotation.z = Math.sin(t * 1.3) * .16; swing.rotation.x = Math.cos(t * 1.1) * .08;
+  R.idle(topKid, t, Math.sin(t * .8) * .4); topKid.userData.J.armR.rotation.set(-2.7 + Math.sin(t * 4) * .3, 0, -.3); topKid.userData.J.armL.rotation.set(-2.7 - Math.sin(t * 4) * .3, 0, .3); topKid.position.y = 2.8 + Math.abs(Math.sin(t * 4)) * .12;
+  R.idle(tireKid, t + 1, Math.sin(t * .6) * .5); tireKid.userData.J.armR.rotation.x = -2.4 + Math.sin(t * 3) * .3; R.idle(boss, t + 2, Math.sin(t * .4) * .3); boss.userData.J.armR.rotation.x = -.7 - Math.max(0, Math.sin(t * 4.5)) * .5;
+  runners.forEach((w, i) => { const a = t * .85 + i * .6 + 1.2, cx = 7, cz = 1.4; w.position.set(cx + Math.cos(a) * (4.6 - i * .3), 0, cz + Math.sin(a) * 2.2); w.rotation.y = Math.atan2(-Math.sin(a) * 4.6, Math.cos(a) * 2.2); R.walk(w, t * 11 + i, 1.25); });
+  R.catPose(cat, 'sit', t); const cu = (t * .8 / 26 + .1) % 1; cat2.position.set(2 + cu * 26, 0, 2.2); cat2.rotation.y = PI / 2; R.catPose(cat2, 'walk', t * 9);
+  birds.forEach((b, i) => R.birdPose(b, 'peck', t + i * .7)); fly.forEach((b, i) => { const a = t * .45 + i * 2; b.position.set(12 + Math.cos(a) * (10 + i * 2), 10 + Math.sin(t * .8 + i), -2 + Math.sin(a) * 7); b.rotation.y = -a; R.birdPose(b, 'fly', t + i); });
+  C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

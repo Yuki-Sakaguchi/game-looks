@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-08 雪山の砦の門 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-08 ─ 雪山の砦の門 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方の雪山の峠。もも色の空の下、青い雪の山道の先に、砦の城壁と塔と大きな門。落とし格子は上がり、空ぼりに はね橋がおりている。
+// 色の組は「空のもも色・雪の青・石の灰むらさき・松の深緑」＋差し色は かがり火のだいだいと、のぼりのえんじ。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は毛皮のマントの旅人（R.actor の toon。つえ）。門へ歩いて はね橋をわたり、うしろからカメラが追う。門をくぐったら、山道の手前へもどる。城壁・塔・門・はね橋・旗は pack-fantasy-town.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#35478c'], [.42, '#6c70b4'], [.72, '#c890b4'], [.9, '#f6b0a4'], [1, '#ffd8b0']], { r: 400 })); scene.fog = new THREE.Fog('#dca8b8', 45, 250);
+const { sun } = K.lights(scene, renderer, { sky: 0xb4b8ff, ground: 0x8a94cc, amb: 1.45, sun: 0xffb48c, power: 2.5, range: 34 }), SUN = new THREE.Vector3(.5, .36, .78).normalize();
+
+// ---- 地面：青い雪＋踏み固めた道＋空ぼりの岩。峠の両がわは山の斜面 ----
+const GZ = -30, sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); }, mod = (a, n) => ((a % n) + n) % n;
+const ditch = (x, z) => Math.max(0, 1 - Math.abs(z + 26) / 2) * (1 - sstep(11, 17, Math.abs(x)));
+const H = (x, z) => sstep(15, 50, Math.abs(x)) * 24 + sstep(8, 30, Math.abs(x)) * (Math.sin(x * .4 + z * .23) + Math.sin(z * .37 - x * .2)) * .5 - ditch(x, z) * 3.2;
+const FIRES = [[-2.9, -22.2], [2.9, -22.2], [-3.4, -8], [3.6, 3]], roadX = z => z > -20 ? Math.sin((z + 20) * .09) * 1.6 : 0;
+const land = R.ground({ w: 150, d: 170, cell: 2, cz: -30, H, layers: [T.snow({ c: '#dfe6fa' }), T.snow({ c: '#8e9cce', seed: 2 }), T.rock({ c: '#7c7a9a' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - Math.abs(x - roadX(z)) / 1.9)) * (z > -27 || z < -24 ? 1 : 0), ditch(x, z) > .3 ? 1 : 0],
+  shade: (x, z) => { let k = 0; for (const [lx, lz] of FIRES) k = Math.max(k, 1 - Math.hypot(x - lx, z - lz) / 5.5); k = Math.max(0, k) ** 2; return [.86 + .7 * k, .88 + .18 * k, 1 - .5 * k]; } });
+scene.add(land.mesh);
+
+// ---- 砦：門（落とし格子は上）、はね橋、城壁、塔、奥の本丸。上に雪をのせる ----
+const stone = F.tex.ashlar({ c: '#a29cae' }), slate = F.tex.slate({ c: '#55628e', c2: '#8a8ab4' }), snowT = T.snow({ m: 2 }), RED = '#b03c4c';
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const gate = F.gate({ w: 8, h: 8.6, d: 3.4, aw: 4, ah: 5.2, stone, open: .92, banner: { c: RED, crest: 'tower', cc: '#f4ecd8' } }); gate.position.set(0, 0, GZ); scene.add(gate);
+const bridge = F.drawbridge({ w: 3.9, len: 5.4, open: 0, chainH: 5 }); bridge.position.set(0, .06, GZ + 1.7); scene.add(bridge);
+const Sn = R.geo();   // 城壁・門・塔の上の雪
+const snowCap = (x, z, r, h, rh) => Sn.loft(8, [[h + rh * .5, r * 1.34 * .56 + .1, r * 1.34 * .56 + .1, 0, .8, x, z], [h + rh * .8, r * 1.34 * .24 + .08, r * 1.34 * .24 + .08, .6, 1, x, z], [h + rh + .1, .02, .02, 1, 1.1, x, z]], { ur: 2 });
+for (const sx of [-1, 1]) {
+  put(F.wall({ len: 7.4, h: 5.6, th: 1.5, stone }), sx * 7.6, GZ); Sn.box(7.4, .14, .8, sx * 7.6, 5.6, GZ, { m: 2 });
+  put(F.wall({ len: 22, h: 8.5, th: 1.5, stone }), sx * 26, GZ, 0, -1); Sn.box(22, .14, .8, sx * 26, 7.5, GZ, { m: 2 });
+  put(F.tower({ r: 2.6, h: 10.5, stone, roof: slate, lit: .6, seed: sx, flag: { c: RED, crest: 'moon', cc: '#f4ecd8' } }), sx * 13.4, GZ + .4); snowCap(sx * 13.4, GZ + .4, 2.6, 10.5, 2.6 * 2.4);
+  put(F.tower({ r: 1.9, h: 13, stone, roof: slate, lit: .5, seed: sx + 4 }), sx * 9, GZ - 22); snowCap(sx * 9, GZ - 22, 1.9, 13, 1.9 * 2.4);
+  put(F.flag({ kind: 'banner', c: RED, crest: 'tower', cc: '#f4ecd8', pole: 4.2 }), sx * 5.4, GZ + 3.6, sx < 0 ? .3 : Math.PI - .3);
+  put(R.house({ w: 6, d: 5, h: 2.8, wall: T.stone({ c: '#9a94a6' }), roof: snowT, win: T.window({ shutters: 1 }), winLit: T.window({ shutters: 1, lit: 1 }), lit: 1, chimney: true, seed: sx + 2 }), sx * 8.5, GZ - 9, -sx * Math.PI / 2);
+}
+Sn.box(7, .14, 2.4, 0, 8.6, GZ, { m: 2 });
+put(F.tower({ kind: 'square', r: 4.2, h: 14, stone, top: 'crenel', lit: .7, flag: { c: RED, crest: 'tower', cc: '#f4ecd8', w: 2.4, h: 1.5, pole: 3.6 } }), 0, GZ - 24); Sn.box(7.6, .14, 7.6, 0, 14, GZ - 24, { m: 2 });
+fixed.push(Sn.mesh(snowT));
+
+// ---- かがり火（鉄の三脚と火ざら。火は 4 コマ）----
+const fireT = F.tex.fire(), fireM = new THREE.MeshBasicMaterial({ map: fireT[0], alphaTest: .5, side: THREE.DoubleSide, fog: false }), iron = F.tex.iron({ c: '#4c4e5e', rust: .2 }), Fg = R.geo();
+FIRES.forEach(([x, z], i) => { const y = H(x, z), G = R.geo(); for (let k = 0; k < 3; k++) G.at(R.TR(x, y, z, k * 2.094 + i, 0, .3)).box(.07, 1.1, .07, -.3, 0, 0, { m: 1.5 }).at(null);
+  G.loft(8, [[y + .88, .13, .13, 0, .75, x, z], [y + 1.04, .4, .4, .5, 1, x, z], [y + 1.12, .45, .45, .7, 1.1, x, z], [y + 1.06, .3, .3, 1, .5, x, z]], { ur: 2, cap: 'top' }); fixed.push(G.mesh(iron));
+  for (const a of [.4, -1.1]) Fg.at(R.TR(x, y + 1.02, z, a)).quad([-.48, 0, 0], [.48, 0, 0], [.48, 1.05, 0], [-.48, 1.05, 0]).at(null);
+  if (i < 2) { const L = new THREE.PointLight('#ff9a4a', 26, 12, 1.5); L.position.set(x, y + 1.7, z + .4); scene.add(L); } });
+const fires = new THREE.Mesh(Fg.build(), fireM); scene.add(fires);
+
+// ---- 雪をのせた松・岩・荷 ----
+const pine = (h, seed) => { const g = new THREE.Group(), G = R.geo().smooth(2); g.add(R.tree({ kind: 'pine', h, c: '#2c6a5c', seed }));
+  for (let k = 0; k < 4; k++) { const y0 = h * (.16 + k * .19), r = h * (.25 - k * .048); G.loft(6, [[y0 + h * .13, r * .7, r * .7, 0, .72], [y0 + h * .2, r * .5, r * .5, .4, 1], [y0 + h * .37, .03, .03, 1, 1.1]], { rot: k * .5, ur: 2 }); } g.add(G.mesh(snowT)); return g; };
+for (let i = 0; i < 64; i++) { const x = (hash(i, 1) - .5) * 96, z = 26 - hash(i, 2) * 52; if (Math.abs(x - roadX(z)) < 4.6 || (z < -19 && Math.abs(x) < 17)) continue; put(i % 6 === 5 ? R.rock({ s: 1.2 + hash(i, 5) * 1.4, c: '#84829e', seed: i }) : pine(4.6 + hash(i, 3) * 4.4, i), x, z, i, H(x, z) - .1); }
+[[-4.6, -1, 7], [4.8, -11, 6.2], [-5.2, -15.5, 5.4], [5, 8, 7.4], [-4.8, 11, 6]].forEach(([x, z, h], i) => put(pine(h, i + 70), x + roadX(z), z, i, H(x, z)));
+for (let i = 0; i < 14; i++) { const sx = i % 2 ? 1 : -1, x = sx * (20 + hash(i, 6) * 26), z = GZ - 6 - hash(i, 7) * 30; put(pine(5 + hash(i, 8) * 4, i + 90), x, z, i, H(x, z) - .1); }
+put(F.wagon({ load: 'barrels', cover: '#d8d4e0' }), -6.4, -19.6, 1.9); put(R.barrel(), 5.6, -21.4); put(R.barrel({ h: .8, r: .32 }), 6.3, -20.8, 1); put(R.crate({ s: .8 }), 6.5, -22, .4); put(R.crate({ s: .6, kind: 'x', c: '#8a8aa0' }), 6.5, -22, .9, .8);
+// 遠くの雪の峰（下は岩、上は雪）
+{ const Rk = R.geo().smooth(1), Sw = R.geo().smooth(1); [[-70, -150, 95, 62], [20, -190, 120, 80], [95, -140, 84, 58], [-150, -90, 70, 60], [160, -70, 66, 56], [-30, -120, 58, 44]].forEach(([x, z, h, r], i) => { const q = hash(i, 9) * 3;
+    Rk.loft(6, [[-6, r, r, 0, .75, x, z], [h * .55, r * .46, r * .42, 2, 1, x + q, z]], { rot: q, ur: 5 }); Sw.loft(6, [[h * .43, r * .59, r * .55, 0, .82, x + q * .7, z], [h * .78, r * .22, r * .2, 1.5, 1, x + q, z], [h, .5, .5, 2.4, 1.12, x + q * 2, z]], { rot: q, ur: 5 }); });
+  const a = Rk.mesh(T.rock({ c: '#7a78a0', m: 24 })), b = Sw.mesh(T.snow({ c: '#f0e4f2', m: 24 })); a.castShadow = b.castShadow = false; fixed.push(a, b); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#6c6aa4', haze: '#f2b4b0', r: 330, h: 80, y: -8, rep: 3 }));
+for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 44 + hash(i, 8) * 30, c: '#ffd8c8', shade: '#b890c0', seed: i }), a = i * .8 + .2; c.position.set(Math.cos(a) * 280, 70 + hash(i, 9) * 50, Math.sin(a) * 280 - 30); c.lookAt(0, 40, -20); scene.add(c); }
+
+// ---- 人・鳥（人は 5 頭身の toon。どれもこの場面のためのオリジナル） ----
+const act = (o, x, z, ry, y = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+// 毛皮（手で打つ：ふさの段々）。えりと帽子のふちに使う
+const furT = (() => { const P = R.Px(32), C = R.ramp('#efe4d0'); P.each((x, y) => { const s = (x >> 2) & 1 ? 3 : 0, v = (y + s) % 6, e = x % 4; return v === 0 ? C[1] : v === 1 ? (e === 1 || e === 2 ? C[2] : C[1]) : v === 5 ? (e === 0 ? C[3] : C[5]) : v === 4 ? C[4] : (e === 3 ? C[2] : C[3]); }); return T.from(P, { m: .5 }); })();
+const fur = p => { const D = p.userData.build, J = p.userData.J, Tt = D.torso, G = R.geo().smooth(1); G.loft(8, [[Tt * .74, D.sh * 1.2, D.chest * 1.7, 0, .8], [Tt * .88, D.sh * 1.42, D.chest * 2.1, .5, 1], [Tt * 1.02, D.sh * .8, D.chest * 1.35, 1, 1.06]], { ur: 3 }); const m = G.mesh(furT); J.torso.add(m);
+  const Hd = D.head, HW = D.hw * Hd, G2 = R.geo().smooth(1); G2.loft(8, [[Hd * .6, HW * 1.2, HW * 1.2, 0, .85], [Hd * .8, HW * 1.24, HW * 1.24, 1, 1.05]], { ur: 3 }); J.head.add(G2.mesh(furT)); };
+const hero = act({ sex: 'f', hairStyle: 'tail', hair: '#7a3428', eye: '#3a6a8a', mouth: 'smile', blush: true, cloth: 'coat', top: '#a8683c', top2: '#efe4d0', bottom: '#5a4a5a', shoe: '#6a4630', gloves: 'glove', glove: '#efe4d0', neck: 'cape', skirtC: '#a8683c', hat: 'cap', acc: '#8a4a34' }, 0, 0, 0); fur(hero); F.wear(hero, 'staff');
+const GUARD = { hairStyle: 'short', hair: '#4a3a2a', brow: 'thick', mouth: 'line', cloth: 'armor', top: '#7c8cb0', top2: '#d8c070', bottom: '#4a4a66', gloves: 'gauntlet', glove: '#7c8cb0', shoe: '#4a4a58', shoulder: 'both', gear: '#98a6c8', hat: 'helm', hold: 'spear', neck: 'cape', skirtC: RED, bulk: 1.1 };
+const gL = act(GUARD, -2.6, -23.6, .35), gR = act({ ...GUARD, skin: '#d8a070', beard: 'beard' }, 2.6, -23.6, -.35), gW = act({ ...GUARD, shoulder: 'left' }, 7, GZ, 0, 5.6); [gL, gR].forEach(fur);
+const porter = act({ hairStyle: 'bald', hair: '#8a8a8a', beard: 'beard', eyes: 'closed', cloth: 'jacket', top: '#5a7a6a', top2: '#efe4d0', bottom: '#5a4a3a', shoe: '#5a4030', neck: 'scarf', acc: '#d8a83a', bulk: 1.1 }, 0, 0, 0); F.wear(porter, 'sack', { c: '#c8b898' });
+const birds = [0, 1, 2].map(i => { const b = R.bird({ c: '#3a3a4a', belly: '#5a5a6a', neck: false, s: 1.5 }); scene.add(b); return b; });
+const NS = 260, flakeG = new THREE.BufferGeometry(), fp = new Float32Array(NS * 3); flakeG.setAttribute('position', new THREE.BufferAttribute(fp, 3));
+const flakes = new THREE.Points(flakeG, new THREE.PointsMaterial({ color: '#ffffff', size: .065, fog: false })); flakes.frustumCulled = false; scene.add(flakes);
+
+// ---- 主役の道（山道 → はね橋 → 門の中。着いたら手前へもどる） ----
+const path = new THREE.CatmullRomCurve3([[2.2, 12], [1.4, 3], [.9, -6], [.2, -15], [0, -21], [0, -27], [0, -33], [0, -38]].map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
+const LEN = path.getLength(), SPEED = 2.1, cd = new THREE.Vector3(), cp = new THREE.Vector3(), fx = K.fx(scene, 40), gy = z => z < -23.3 && z > GZ + 1.6 ? .14 : 0, SM = [[-9.9, 6.2, GZ - 9.9], [9.9, 6.2, GZ - 8.1]];
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let lap = -1, sm = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED + 9, u = (dist % LEN) / LEN, p = path.getPointAt(u), tg = path.getTangentAt(u), hy = gy(p.z);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.5);
+  if (lap !== Math.floor(dist / LEN)) { lap = Math.floor(dist / LEN); cd.copy(tg); } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 5.1;
+  cp.set(p.x - cd.x * D, hy + (tall ? 2.1 : 2.3), p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 5, hy + (tall ? 1.9 : 1.7), p.z + cd.z * 5);   // 少し見上げて、門と塔を画面に入れる
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  // 衛兵：門の両わきに立つ 2 人と、城壁の上を行き来する 1 人。荷をかついだ人が門から出てくる
+  R.idle(gL, t, .3 + Math.sin(t * .5) * .3); R.idle(gR, t + 1.3, -.3 + Math.sin(t * .4) * .3);
+  const wk = mod(t * .16, 2), wx = wk < 1 ? 5.4 + wk * 5 : 10.4 - (wk - 1) * 5; gW.position.x = wx; gW.rotation.y = wk < 1 ? Math.PI / 2 : -Math.PI / 2; R.walk(gW, t * 4.6, .8);
+  const pz = -36 + mod(t * 1.5 + 10, 52); porter.position.set(-1.5 + roadX(pz) * .9, gy(pz), pz); porter.rotation.y = 0; R.walk(porter, t * 5.2, .8); porter.userData.J.armL.rotation.set(-2.2, 0, -.5); porter.userData.J.foreL.rotation.x = -1.2;
+  birds.forEach((b, i) => { const a = t * (.3 + i * .04) + i * 2.1, r = 9 + i * 4; b.position.set(Math.cos(a) * r, 15 + i * 1.5 + Math.sin(t * .6 + i) * 1.2, GZ - 6 + Math.sin(a) * r * .6); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .6); R.birdPose(b, 'fly', t * .5 + i); });
+  // 旗・火・ふる雪（カメラのまわりの箱の中でくり返す）・えんとつのけむり
+  F.tick(t); R.flip(fireM, fireT, t, 8);
+  for (let i = 0; i < NS; i++) { const f = .7 + hash(i, 4) * .8; fp[i * 3] = cp.x + mod(hash(i, 1) * 30 + Math.sin(t * .7 + i) * .4 + t * .5 - cp.x, 30) - 15; fp[i * 3 + 1] = mod(hash(i, 2) * 13 - t * f * 1.3, 13); fp[i * 3 + 2] = cp.z + mod(hash(i, 3) * 30 + Math.cos(t * .6 + i * 1.7) * .4 - cp.z, 30) - 15; } flakeG.attributes.position.needsUpdate = true;
+  if ((sm += dt) > .55) { sm = 0; for (const s of SM) fx.emit('smoke', s[0], s[1], s[2], { size: .55, life: 3.4, vy: .8, vx: .4, grow: 1.6, spread: .12, tint: '#e8c8d0' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

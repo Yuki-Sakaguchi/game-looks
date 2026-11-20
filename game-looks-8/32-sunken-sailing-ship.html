@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-32 沈んだ帆船 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8f4f8;opacity:.85;text-shadow:0 1px 0 #013}
+</style>
+<div id="cap">8-32 ─ 沈んだ帆船 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（帆船・宝箱・魚・えい・たこ・ダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 少し深い海の底。色は 水の青・砂のうす青白・船の木の茶と、さんごのピンクだいだい・金貨の黄。上から青白い光のすじがさす。
+// 砂にかたむいた木の帆船（折れた帆柱・やぶれた帆・船腹の穴）のまわりを、ダイバーが ひと回りする。うしろ斜めからカメラが追う。部品は retro.js（R.〜）と pack-sea.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const env = S.underwater(scene, renderer, { depth: 'mid', top: 17, rays: 14, range: 30 }), sun = env.sun;
+
+// ---- 海底：砂。船のまわりは砂がよって、少し高い ----
+const YAW = .5, CY = Math.cos(YAW), SY = Math.sin(YAW), toL = (x, z) => [x * CY - z * SY, x * SY + z * CY], toW = (lx, lz) => [lx * CY + lz * SY, -lx * SY + lz * CY];   // 船の向きに合わせた座標 ⇄ 世界
+const H = (x, z) => { const [lx, lz] = toL(x, z), e = Math.hypot(lx / 3.4, lz / 8.5); return .25 * Math.sin(x * .2 + 1) * Math.cos(z * .16) + .1 * Math.sin(x * .45 + z * .5) + .9 * Math.exp(-e * e) + .7 * Math.exp(-(((lx + 3.5) / 2.2) ** 2) - (lz / 7) ** 2); };
+const bed = S.seabed({ env, w: 116, d: 116, cell: 2, H, caustic: .34, layers: [S.tex.sand({ c: '#dfe0cc' }), S.tex.grown({ base: 'rock', o: { c: '#9a98a4' }, grow: .8, seed: 2 })], mix: (x, z) => [Math.hypot(x, z) > 24 && Math.sin(x * .16 + 2) * Math.cos(z * .13) > .55 ? 1 : 0, 0] }); scene.add(bed.mesh);
+
+// ---- 沈んだ帆船（左へかたむき、右げんの穴が見える）。甲板に さんご・いそぎんちゃく・海草がつく ----
+const fixed = [], wreck = new THREE.Group(); wreck.position.set(0, -.55, 0); wreck.rotation.set(0, YAW, .2); wreck.add(S.ship({ c: '#8a6448', deck: '#b0906a', grow: .65 }));
+const on = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; wreck.add(o); return o; };
+on(S.coral({ kind: 'table', s: 1.1, c: '#f08a5a' }), 1, 2.52, .5); on(S.coral({ kind: 'fan', s: 1.2, c: '#e85a9a' }), -1.2, 2.55, 1.6, .5); on(S.coral({ kind: 'branch', s: .9, c: '#f4a03c' }), -.9, 4.2, -4.6); on(S.coral({ kind: 'brain', s: .8, c: '#f6d24a' }), .9, 4.2, -5.9); on(S.anemone({ s: 1.4, c: '#f08ab0', body: '#7a5ac0' }), .7, 4.2, -4.2);
+on(S.coral({ kind: 'finger', s: .9, c: '#9a6ad0' }), .4, 3.48, 4.5); on(S.coral({ kind: 'tube', s: .9, c: '#4ab8c8' }), -.7, 3.45, 5.2); on(S.coral({ kind: 'fan', s: .9, c: '#f4a03c', seed: 1 }), 1.3, 2.55, -2.6, -.6); on(S.starfish({ c: '#f0863a', s: 1.3 }), -.4, 2.55, -.2); on(S.starfish({ c: '#e85a8a', s: 1.1 }), .3, 4.22, -6.4);
+for (let i = 0; i < 9; i++) on(S.seagrass({ s: .6 + hash(i, 1) * .5, seed: i }), (hash(i, 2) - .5) * 3.4, i < 6 ? 2.52 : 4.2, i < 6 ? -3 + hash(i, 3) * 6 : -6.6 + hash(i, 3) * 3, i);
+on(S.coral({ kind: 'table', s: .8, c: '#e86aa0', tiers: 1 }), 2.25, 2.9, -1.6, 0).rotation.z = -1.1; on(S.coral({ kind: 'brain', s: .6, c: '#f08a5a' }), 2.2, 2.1, 4.4);
+fixed.push(wreck); wreck.updateMatrixWorld(true);
+const W = (lx, ly, lz) => wreck.localToWorld(new THREE.Vector3(lx, ly, lz)), put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; }, putL = (o, lx, lz, ry = 0, dy = 0) => put(o, ...toW(lx, lz), ry, dy);
+
+// ---- 船のまわり：開いた宝箱・つぼ・たる・いかり・昆布・岩とさんご。うしろに海底のがけ ----
+const chest = putL(S.chest({ s: 1.5 }), 5, 1.8, YAW + 1.9, .02); putL(S.chest({ s: 1.1, open: 0, c: '#6a5a4a' }), 4.4, 3.6, 1.2, -.1).rotation.z = .25;
+putL(S.pot({ s: 1.2 }), 6.2, .4, 0, -.05); const p2 = putL(S.pot({ s: 1, c: '#8a9ab0', c2: '#f0e0b0', seed: 2 }), 5.6, -.9, 1, .22); p2.rotation.x = 1.3; putL(R.barrel({ c: '#7a5a40' }), 3.9, -1.4, 0, -.3).rotation.z = .5; putL(R.barrel({ c: '#6a5440' }), -5, 3, 0, -.2).rotation.x = 1.2; putL(R.crate({ s: .9, c: '#7a6448' }), 5.4, 4.6, .6, -.25);
+const an = putL(S.anchor({ s: 1.2 }), 2.6, 8.6, YAW, .1); an.rotation.z = -1.15; an.rotation.x = .2;
+for (let i = 0; i < 14; i++) { const lx = i < 8 ? -4.5 - hash(i, 4) * 3 : -3 + hash(i, 4) * 5, lz = i < 8 ? -8 + hash(i, 5) * 6 : -17 + hash(i, 5) * 3; putL(S.kelp({ h: 5 + hash(i, 6) * 5, kind: i % 3 ? 'kelp' : 'ribbon', c: i % 2 ? '#7a9a3a' : '#5a9a5a', seed: i }), lx, lz); }
+for (let i = 0; i < 22; i++) { const a = i / 22 * 6.283 + hash(i, 7) * .3, r = 15 + hash(i, 8) * 12, x = Math.cos(a) * r, z = Math.sin(a) * r; if (i % 3 === 0) put(S.rock({ s: 1.2 + hash(i, 9) * 1.6, seed: i, c: '#8e8ca0' }), x, z, i, -.2); put(S.reef({ s: .9 + hash(i, 10) * .6, seed: i + 3, n: 5 }), x + 1.5, z + 1, i); }
+for (let i = 0; i < 46; i++) { const a = hash(i, 11) * 6.283, r = 8.5 + hash(i, 12) * 7, x = Math.cos(a) * r * .85, z = Math.sin(a) * r, k = i % 6; put(k < 3 ? S.seagrass({ s: .6 + hash(i, 13) * .5, c: '#4a9a7a', seed: i }) : k === 3 ? S.starfish({ c: ['#f0863a', '#e85a8a'][i % 2], s: 1.1 }) : k === 4 ? S.shell({ s: 1.2 }) : S.coral({ kind: ['brain', 'finger', 'branch'][i % 3], s: .6, seed: i }), x, z, i, .01); }
+const cl = S.cliff({ len: 90, h: 13, back: 10, c: '#6a78a8', seed: 3 }); cl.position.set(toW(-30, 4)[0], -.5, toW(-30, 4)[1]); cl.rotation.y = YAW + Math.PI / 2; fixed.push(cl);
+scene.add(R.merge(fixed));
+const gold = new THREE.PointLight('#ffd060', 7, 7, 1.6); gold.position.copy(chest.position); gold.position.y += 1.1; scene.add(gold);
+
+// ---- 生きもの：帆柱をまわる小魚の群れ・船の上をすべる えい・宝箱の番をする たこ・穴からのぞく大きな魚・くらげ・かに ----
+const live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (c, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(c.x + Math.cos(a) * rx, c.y + Math.sin(t * .6 + ph) * bob, c.z + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+add(S.school({ n: 60, rx: 4.2, rz: 4.2, h: 3, wide: 1.2, speed: 1.5, spread: 3.2 })).position.copy(W(0, 7.5, 2.1));
+add(S.school({ n: 26, kind: 'tang', rx: 3.4, rz: 2.4, h: 1.4, speed: -1.1, s: .75, spread: 2.4, seed: 4 })).position.copy(W(0, 6, -5.5));
+add(S.school({ n: 30, kind: 'butter', rx: 5, rz: 3, h: 1.2, speed: 1, s: .75, spread: 2, seed: 6 })).position.copy(W(3, 4.2, -9));
+add(S.ray({ s: 1.6 }), circ(new THREE.Vector3(1, 8.6, 1), 9, 7, .2, 4.1, .5));
+const oc = W(6.4, 0, 2.6), octo = add(S.octopus({ s: 1.5 })); octo.position.set(oc.x, H(oc.x, oc.z) + .02, oc.z); octo.rotation.y = YAW + 2.4;
+const gp = W(1.5, 1.05, 1.7), grouper = add(S.fish({ kind: 'grouper', s: .85 }), (o, t) => { o.position.set(gp.x + CY * Math.sin(t * .5) * .35, gp.y + Math.sin(t * .8) * .06, gp.z - SY * Math.sin(t * .5) * .35); }); grouper.rotation.y = YAW + 1.57;
+add(S.fish({ kind: 'angel', seed: 1 }), circ(W(.5, 3.6, .5), 1.8, 1.4, .6, 0, .2)); add(S.fish({ kind: 'angel', seed: 2, s: .85 }), circ(W(.5, 3.9, .3), 2, 1.5, .6, .5, .2)); add(S.fish({ kind: 'parrot', seed: 3 }), circ(W(0, 5.4, -5), 2.4, 1.8, -.45, 1, .3)); add(S.fish({ kind: 'clown', seed: 4 }), circ(W(.7, 4.9, -4.2), .6, .5, 1.4, 0, .1)); add(S.fish({ kind: 'clown', seed: 5, s: .8 }), circ(W(.7, 5.1, -4.2), .8, .6, -1.2, 2, .1));
+[['#f0a0d8', 1.1, 7, 9, 4], ['#8ae0f0', .8, 10, 7.5, -6], ['#f0a0d8', .7, 12, 10.5, 2], ['#c8a0f8', .9, -9, 8, 9]].forEach(([c, s, x, y, z], i) => add(S.jelly({ c, s, seed: i }), (o, t) => o.position.set(x + Math.sin(t * .15 + i) * 1.2, y + Math.sin(t * .25 + i * 2) * .8, z + Math.cos(t * .12 + i) * 1.2)));
+const cr = S.crab({ s: 1.6 }), cw = W(7.6, 0, 0); add(cr, (o, t) => { const s = Math.sin(t * .5) * 1.1; o.position.set(cw.x + SY * s, H(cw.x + SY * s, cw.z + CY * s), cw.z + CY * s); o.rotation.y = YAW + 1.57; });
+
+// ---- 主役のダイバーと、宝箱を見つけた なかま ----
+const hero = S.diver({ tank: '#c4d0dc', fin: '#3ad0b4', actor: { hairStyle: 'spiky', hair: '#f4d86a', top: '#e8603a', top2: '#f4f0e0', bottom: '#d0502e', glove: '#f4f0e0', shoe: '#8a3a2a', belt: '#f4f0e0' } }); scene.add(hero);
+const pal = S.diver({ pitch: .55, tank: '#f0c23a', fin: '#f08ab0', actor: { sex: 'f', hairStyle: 'twin', hair: '#5a3a70', top: '#f4d23a', top2: '#3a4cb8', bottom: '#e8b82a', glove: '#3a4cb8', shoe: '#3a4cb8' } }), pw = W(6.9, 0, 4.2); pal.position.set(pw.x, H(pw.x, pw.z) + 1.25, pw.z); pal.rotation.y = Math.atan2(chest.position.x - pw.x, chest.position.z - pw.z); scene.add(pal);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const pos = a => { const [x, z] = toW(Math.cos(a) * 9.5, Math.sin(a) * 13); return [x, z]; }, cd = new THREE.Vector3(), tg = new THREE.Vector3(); let ang = -.8, first = true, hy = 2.6;
+K.loop((dt, t) => {
+  ang += dt * .105; const [x, z] = pos(ang), [x1, z1] = pos(ang + .02); tg.set(x1 - x, 0, z1 - z).normalize(); const gy = H(x, z) + 2.3 + Math.sin(t * .5) * .25 + Math.max(0, Math.sin(ang + 1.2)) * 1.2; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(x, hy, z); hero.rotation.y = Math.atan2(tg.x, tg.z); S.swim(hero, t); S.breathe(hero, env.bubbles, dt);
+  S.swim(pal, t * .6, { kick: .5, arms: 'reach', look: .2 }); S.breathe(pal, env.bubbles, dt, 3.4);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3 : 3.2, Sd = tall ? .9 : 2.7;
+  cam.position.set(x - cd.x * D + cd.z * Sd, hy + (tall ? 1.4 : 1.05), z - cd.z * D - cd.x * Sd); const lk = tall ? .16 : .42; cam.lookAt(x + cd.x * 1.4 - x * lk, hy + (tall ? .3 : .7), z + cd.z * 1.4 - z * lk);
+  sun.position.set(x - 8, 44, z + 6); sun.target.position.set(x * .5, 0, z * .5); gold.intensity = 7 + Math.sin(t * 3) * 1;
+  for (const f of live) f(t); bed.follow(x, z); bed.tick(t); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
