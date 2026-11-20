@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-37 氷の下の海 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f8f0;opacity:.85;text-shadow:0 1px 0 #024}
+</style>
+<div id="cap">8-37 ─ 氷の下の海 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（つらら・氷のかたまり・いるか・くじら・ダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 氷の天井の下の海。色は 氷の白と水色・下へいくほど こい青。氷のすき間（水面のゆれる穴）から光のすじがさし、天井から つららが下がる。
+// 厚い服のダイバーが、いるか 2 頭といっしょに氷のすぐ下を泳ぐ。うしろ斜め下から見上げるカメラが追う。部品は retro.js（R.〜）と pack-sea.js（S.〜）。つらら・氷のかたまり・氷の穴は このページで作る
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+// 'ice' は暗くはなかったが、下の水を こい青にしたかったので low と fog を青へ寄せてある
+const TOP = 13, env = S.underwater(scene, renderer, { depth: 'ice', top: TOP, rays: 16, range: 30, hi: '#f0ffff', mid: '#58b4e0', low: '#1a479c', fog: '#4a9cd4', near: 6, far: 62, amb: 1.4, ground: 0x4a78d0, power: 1.1, ray: '#f0ffff', rayA: .5, surf: '#c8eef4' }), sun = env.sun;
+
+// ---- 泳ぐ道（ひと回り）と、ずっと下の海底：青白い砂に、落ちた氷のかたまり ----
+const path = new THREE.CatmullRomCurve3([[0, 0], [12, -6], [25, -2], [33, 9], [30, 23], [18, 30], [5, 26], [-7, 31], [-19, 24], [-22, 11], [-13, 2]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), LEN = path.getLength(), PP = path.getSpacedPoints(200);
+const dP = (x, z) => { let b = 1e9; for (const p of PP) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
+const H = (x, z) => .6 * Math.sin(x * .15 + 1) * Math.cos(z * .13) + .3 * Math.sin(x * .38 + z * .33);
+const bed = S.seabed({ env, w: 124, d: 124, cell: 2, H, caustic: .3, layers: [S.tex.sand({ c: '#c4d8ee' }), S.tex.grown({ base: 'rock', o: { c: '#7088c0' }, grow: .5, algae: '#5a9ad0', seed: 2 })], mix: (x, z) => [Math.sin(x * .2 + 2) * Math.cos(z * .17) > .45 ? 1 : 0, 0] }); scene.add(bed.mesh);
+const fixed = [], iceT = S.tex.under({ kind: 'ice', c: '#d4f2f6', frames: 1, m: 2.5 })[0], iceM = S.mat(iceT, { emissive: '#6a9cb8' });
+for (let i = 0; i < 46; i++) { const u = (i + hash(i, 1) * .7) / 46, p = path.getPointAt(u), tg = path.getTangentAt(u), sd = i % 2 ? 1 : -1, off = hash(i, 2) * 10, x = p.x + tg.z * sd * off, z = p.z - tg.x * sd * off;
+  const o = i % 3 ? S.rock({ s: 1 + hash(i, 3) * 2, seed: i, tex: iceT, flat: .8 }) : S.rock({ s: 1 + hash(i, 3) * 1.4, seed: i, c: '#7890c8', grow: .4 }); o.position.set(x, H(x, z) - .2, z); o.rotation.y = i; fixed.push(o);
+  if (i % 2) { const c = S.coral({ kind: ['tube', 'finger'][i % 4 >> 1], s: .9, c: ['#f4f8ff', '#a8e0f8'][i % 4 >> 1], seed: i }); c.position.set(x + 1.6, H(x + 1.6, z + 1), z + 1); fixed.push(c); } }
+
+// ---- 氷の天井：つらら（先のとがった つつ）・下がった氷のかたまり・水面の見える穴 ----
+const GI = R.geo().smooth(1), ice = (x, z, len, r, n = 5, sk = 0) => GI.loft(n, [[TOP + .05, r, r, 0, 1.1, x, z], [TOP - len * .35, r * .7, r * .7, len * .35 / 2.5, 1, x + sk * .3, z], [TOP - len * .75, r * .34, r * .34, len * .75 / 2.5, .92, x + sk * .7, z + sk * .2], [TOP - len, .02, .02, len / 2.5, .8, x + sk, z + sk * .3]], { rot: hash(x, z) });
+const lump = (x, z, w, dp, sd) => GI.loft(7, [[TOP + .05, w, w * (.7 + hash(sd, 1) * .5), 0, 1.12, x, z], [TOP - dp * .4, w * .82, w * .7, dp * .4 / 2.5, 1, x + .2, z], [TOP - dp * .8, w * .5, w * .4, dp * .8 / 2.5, .9, x + .3, z + .2], [TOP - dp, w * .16, w * .12, dp / 2.5, .78, x + .4, z + .2]], { cap: 'bot', capUV: [.5, .5], rot: hash(sd, 2) });
+const HOLES = []; for (let i = 0; i < 9; i++) { const u = (i + .2) / 9, p = path.getPointAt(u), tg = path.getTangentAt(u), sd = i % 2 ? 1 : -1, off = 2.5 + hash(i, 5) * 4; HOLES.push([p.x + tg.z * sd * off, p.z - tg.x * sd * off, 2.2 + hash(i, 6) * 1.8]); }
+const dHole = (x, z) => Math.min(...HOLES.map(([hx, hz, r]) => Math.hypot(x - hx, z - hz) - r));
+for (let j = -12; j <= 17; j++) for (let i = -13; i <= 16; i++) { const x = i * 2.6 + (hash(i, j, 1) - .5) * 2.4 + 3, z = j * 2.6 + (hash(i, j, 2) - .5) * 2.4 + 9, d = dP(x, z), k = hash(i, j, 3); if (d > 24 || dHole(x, z) < .2) continue;
+  if (k > .9 && d > 3.4) { lump(x, z, 1.6 + hash(i, j, 4) * 1.8, 2.2 + hash(i, j, 5) * 2.8, i * 31 + j); for (let m = 0; m < 4; m++) ice(x + (hash(i, j, 6 + m) - .5) * 4, z + (hash(i, j, 10 + m) - .5) * 4, 1 + hash(i, j, 14 + m) * 1.6, .22); }
+  else if (k > .28) { const n = 1 + (hash(i, j, 7) * 3 | 0), near = d < 2.2; for (let m = 0; m < n; m++) ice(x + (hash(i, j, 8 + m) - .5) * 1.4, z + (hash(i, j, 12 + m) - .5) * 1.4, Math.min(near ? 1.5 : 4, .6 + hash(i, j, 16 + m) * (m ? 1.4 : 3)), .16 + hash(i, j, 20 + m) * .2, 5, (hash(i, j, 24 + m) - .5) * .3); } }
+HOLES.forEach(([hx, hz, r], k) => { for (let m = 0; m < 12; m++) { const a = m / 12 * 6.283 + hash(k, m) * .3; ice(hx + Math.cos(a) * (r + .25), hz + Math.sin(a) * (r + .25), .8 + hash(k, m, 2) * 1.6, .3, 5, 0); } });
+fixed.push(GI.mesh(iceM)); scene.add(R.merge(fixed));
+// 氷の穴：水面のゆれる絵を、天井のすぐ下にはる（光る）。ここから光がさす
+const holeF = S.tex.under({ c: '#f4ffff', m: 5 }), GH = R.geo(); HOLES.forEach(([hx, hz, r], k) => { const n = 9, P = [...Array(n)].map((_, m) => { const a = m / n * 6.283, rr = r * (.8 + hash(k, m, 5) * .4); return [hx + Math.cos(a) * rr, TOP - .04, hz + Math.sin(a) * rr]; }), uv = q => [q[0] / 5, q[2] / 5]; for (let m = 0; m < n; m++) GH.tri([hx, TOP - .04, hz], P[m], P[(m + 1) % n], uv([hx, 0, hz]), uv(P[m]), uv(P[(m + 1) % n])); });
+const holeM = new THREE.MeshBasicMaterial({ map: holeF[0], side: THREE.DoubleSide, fog: false }), holes = new THREE.Mesh(GH.build(), holeM); scene.add(holes);
+const holeL = [0, 1].map(() => { const l = new THREE.PointLight('#e8ffff', 26, 16, 1.3); scene.add(l); return l; }), HV = HOLES.map(([x, z]) => new THREE.Vector3(x, TOP - 1.2, z));
+
+// ---- 生きもの：いっしょに泳ぐ いるか 2 頭・遠くの くじら・小魚の群れ・えい ----
+const live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (cx, cy, cz, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(cx + Math.cos(a) * rx, cy + Math.sin(t * .6 + ph) * bob, cz + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+const dol = [S.whale({ s: 1.05 }), S.whale({ s: .85, c: '#7a98c8' })]; dol.forEach(d => scene.add(d));
+add(S.whale({ s: .95 }), circ(8, 7, 12, 12, 9, .3, 1, .8));
+add(S.whale({ kind: 'whale', s: 1.2, c: '#4a68b0', c2: '#d8e8f8' }), circ(6, 4.6, 12, 40, 33, .05, 5.75, .6));
+const P0 = path.getPointAt(.04), TINT = ['#ffffff', '#d8f4ff', '#f8f0c8'];
+add(S.school({ n: 70, rx: 7, rz: 4.5, h: 2, wide: 1.3, speed: 1.4, spread: 2, tints: TINT })).position.set(P0.x + 10, 8.4, P0.z - 2);
+add(S.school({ n: 46, rx: 6, rz: 4, h: 1.8, speed: -1.3, spread: 2, seed: 3, tints: TINT })).position.set(path.getPointAt(.3).x, 8, path.getPointAt(.3).z);
+add(S.school({ n: 46, rx: 6, rz: 4, h: 1.8, speed: 1.3, spread: 2, seed: 6, tints: TINT })).position.set(path.getPointAt(.62).x, 8.6, path.getPointAt(.62).z);
+add(S.school({ n: 30, kind: 'tang', c: '#f4f8ff', c2: '#8ac8f0', rx: 5, rz: 3.4, h: 1.4, speed: -1, s: .8, spread: 2, seed: 8 })).position.set(P0.x + 16, 6, P0.z + 5);
+add(S.ray({ s: 1.5, c: '#5a78b8' }), circ(P0.x + 12, 3.4, P0.z + 8, 15, 11, .11, 3.6, .5));
+
+// ---- 主役：厚い服のダイバー（だいだいの ぶあつい上着に こんの ズボン、えりまき） ----
+const hero = S.diver({ tank: '#f4d23a', fin: '#f4d23a', actor: { bulk: 1.22, hairStyle: 'short', hair: '#f0e8d0', cloth: 'coat', top: '#f07a26', top2: '#2a3a78', bottom: '#2a3a78', gloves: 'gauntlet', glove: '#2a3a78', shoes: 'boot', shoe: '#2a3068', belt: '#f4d23a', neck: 'scarf', acc: '#f4f0e0' } }); scene.add(hero);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const cd = new THREE.Vector3(), SPEED = 1.5; let dist = .04 * LEN, first = true, hy = 9;
+K.loop((dt, t) => {
+  dist += SPEED * dt; const u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), gy = 9 + Math.sin(t * .4) * .35; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); S.swim(hero, t, { rate: 4.8 }); S.breathe(hero, env.bubbles, dt);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.1 : 3.5, Sd = tall ? .8 : 1.9;
+  cam.position.set(p.x - cd.x * D + cd.z * Sd, hy + (tall ? .2 : -.25), p.z - cd.z * D - cd.x * Sd); cam.lookAt(p.x + cd.x * 2.4, hy + (tall ? .9 : .85), p.z + cd.z * 2.4);
+  dol.forEach((d, i) => { const u2 = ((dist + 4.2 + i * 1.6 + Math.sin(t * .3 + i) * .7) / LEN) % 1, q = path.getPointAt(u2), tq = path.getTangentAt(u2), sd = i ? 2.2 : -1.5, w = Math.sin(t * .9 + i * 2.2); d.position.set(q.x + tq.z * sd, 9.3 + i * .9 + w * .7, q.z - tq.x * sd); d.rotation.set(-Math.cos(t * .9 + i * 2.2) * .3, Math.atan2(tq.x, tq.z), 0, 'YXZ'); d.userData.tick(t + i); });
+  R.flip(holeM, holeF, t, 4); HV.sort((a, b) => a.distanceToSquared(hero.position) - b.distanceToSquared(hero.position)); holeL.forEach((l, i) => l.position.copy(HV[i]));
+  sun.position.set(p.x - 8, 44, p.z + 6); sun.target.position.set(p.x, 0, p.z);
+  for (const f of live) f(t); bed.follow(p.x, p.z); bed.tick(t); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

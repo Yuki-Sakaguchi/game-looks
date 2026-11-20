@@ -15,7 +15,7 @@ canvas{display:block}
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 // 丘の上の古代神殿。朝のやわらかい光。色は石のクリームと草の緑、空の水色に、学者の上着のあい色をさし色にする。
-// 石の柱・くずれたアーチ・石段・彫りのある石は pack-ruins.js（PK.〜）。つたと花がからみ、ふもとの池に柱が映る（水の下に、さかさの柱を置いている）。
+// 石の柱・くずれたアーチ・石段・彫りのある石は pack-ruins.js（PK.〜）。つたと花がからみ、ふもとの池に柱が映る（水面に柱の絵をはっている）。
 // 地図を持つ学者（R.actor の toon）が池のわきから石段をのぼり、柱のあいだをぬけて、草の坂を下りてひとまわりする。鳥、ちょう、水を飲む しか。
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
@@ -23,10 +23,10 @@ const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: fals
 scene.add(R.skyDome([[0, '#58a6e0'], [.5, '#84c4ec'], [.85, '#b2dcf2'], [1, '#e8f4ec']], { r: 380 })); scene.fog = new THREE.Fog('#dcefe6', 50, 240);
 const { sun } = K.lights(scene, renderer, { sky: 0xd4ecff, ground: 0xa8c490, amb: 1.6, sun: 0xffe6bc, power: 2.2, range: 36, map: 2048 }), SUN = new THREE.Vector3(.6, .58, .52).normalize();
 
-// ---- 丘（上は平らな神殿の床。まわりは 1:2 の坂）と、ふもとの池（深くほって、水の下に さかさの柱を置く） ----
-const TOP = 4.2, STZ = 8.4, POOL = [-6.5, 14.2, 5], WY = -.12, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+// ---- 丘（上は平らな神殿の床。まわりは 1:2 の坂）と、ふもとの池 ----
+const TOP = 4.2, STZ = 8.4, POOL = [-6.5, 14.2, 5], WY = -.06, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
 const dOut = (x, z) => Math.hypot(Math.max(0, Math.abs(x) - 9), Math.max(0, z, -18 - z)), dPool = (x, z) => Math.hypot(x - POOL[0], (z - POOL[1]) * 1.15) - POOL[2];
-const H = (x, z) => { const d = dOut(x, z), h = Math.max(0, TOP - d * .5) + (d > 9 ? Math.sin(x * .13) * Math.cos(z * .11) * .5 * sm(9, 20, d) : 0); return h - 8 * (1 - sm(-1.2, .5, dPool(x, z))); };
+const H = (x, z) => { const d = dOut(x, z), h = Math.max(0, TOP - d * .5) + (d > 9 ? Math.sin(x * .13) * Math.cos(z * .11) * .5 * sm(9, 20, d) : 0); return h - 2.4 * (1 - sm(-1.2, .5, dPool(x, z))); };
 const onStep = (x, z) => Math.abs(x) < 2.5 && z > 0 && z < STZ, Y = (x, z) => onStep(x, z) ? (Math.floor((STZ - z) / .6) + 1) * .3 : H(x, z);
 const path = new THREE.CatmullRomCurve3([[5, 25], [1.6, 18.5], [0, 12], [0, 8], [0, 0], [.4, -8], [3, -13.6], [10, -14.2], [18, -11], [21.5, -1], [20, 10], [15, 20], [10, 26]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
 const LEN = path.getLength(), PTS = path.getSpacedPoints(110), dPath = (x, z) => { let d = 1e9; for (const p of PTS) d = Math.min(d, (p.x - x) ** 2 + (p.z - z) ** 2); return Math.sqrt(d); };
@@ -34,8 +34,8 @@ const GR = { c: '#78b456', flowers: .35, fc: ['#ffffff', '#ffe27a', '#c8b8f0'] }
 const land = R.ground({ w: 108, d: 108, cell: 1.5, H, layers: [T.grass(GR), PT.ancient({ kind: 'block', c: STONE, moss: .45 }), T.cobble({ kind: 'slab', c: '#d2c6a4', moss: .6 })],
   mix: (x, z) => [.5 + (.4 - dOut(x, z)) * .8, dOut(x, z) > .6 && dPath(x, z) < 6 ? .5 + (1.1 - dPath(x, z)) * .5 : 0],
   shade: (x, z) => { const w = dPool(x, z); return w < .3 ? [.5, .8, 1.25] : [1, 1, .96]; } });
-scene.add(land.mesh); const outer = R.ground({ w: 704, d: 704, cell: 32, layers: [T.grass(GR)] }); outer.mesh.position.y = -.1; scene.add(outer.mesh);   // 遠くまでつづく草地
-const WF = T.water({ c: '#7cc0dc' }), water = R.ground({ w: 14, d: 14, cell: 2, layers: [WF[0]] }); water.mesh.position.set(POOL[0], WY, POOL[1]); water.mesh.receiveShadow = false; water.mat.transparent = true; water.mat.opacity = .7; scene.add(water.mesh);
+scene.add(land.mesh); for (const [w, d, x, z] of [[320, 704, -213, 0], [320, 704, 213, 0], [128, 320, 0, -213], [128, 320, 0, 213]]) { const o = R.ground({ w, d, cell: 32, layers: [T.grass(GR)] }); o.mesh.position.set(x, -.1, z); scene.add(o.mesh); }   // 遠くまでつづく草地（池の底をふさがないよう、まわりだけに 4 枚）
+const WF = T.water({ c: '#5aaad6' }), water = R.ground({ w: 14, d: 14, cell: 2, layers: [WF[0]] }); water.mesh.position.set(POOL[0], WY, POOL[1]); water.mesh.receiveShadow = false; water.mat.transparent = true; water.mat.opacity = .8; water.mat.depthWrite = false; scene.add(water.mesh);
 
 // ---- 神殿（pack-ruins）：置く高さは地面にあわせる ----
 const fixed = [], put = (o, x, z, ry = 0, y = Y(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
@@ -49,10 +49,11 @@ put(PK.arch({ w: 5, h: 6.6, c: STONE, seed: 1 }), 0, -1.3, 0, TOP); put(PK.arch(
 put(PK.wall({ len: 10, h: 4.6, tex: PT.ancient({ kind: 'carve', c: STONE, moss: .3 }), seed: 4, rebar: false, fall: .35 }), -1.5, -17.2, 0, TOP);
 { const f = put(PK.column({ h: 5.5, r: .5, c: STONE, seed: 3, ivy: 0 }), -2.6, -13.2, .5, TOP + .58); f.rotation.z = Math.PI / 2; }   // たおれた柱
 for (const [x, y, z, ry, w, h] of [[-3.1, TOP + 3.6, -.66, 0, 2.6, 3.2], [3.2, TOP + 2.2, -.66, 0, 2, 2.6], [-1.5, TOP + 1.8, -16.55, 0, 6, 3], [2.56, .3, 6, Math.PI / 2, 6, 2.4], [-2.56, .6, 5, -Math.PI / 2, 6, 2.6]]) put(PK.ivy({ w, h, from: 'top', amount: .75, flowers: .5, seed: x > 0 ? 1 : 0 }), x, z, ry, y);
-// 池の柱と、水に映る さかさの柱（水面で折りかえした写し。光を受けない材質で、少し水色に）
-const PC = [[-4.4, 12.6, 0, 5.4], [-7.6, 11.4, .55, 6], [-9.2, 15.2, 0, 6.4], [-6, 16.6, .8, 5]], mk = ([x, z, br, h], i) => { const c = PK.column({ h, r: .5, c: STONE, broken: br, seed: i + 5, ivy: 0, base: 1 }); c.position.set(x, -.35, z); c.rotation.y = i; return c; };
-PC.forEach((c, i) => fixed.push(mk(c, i)));
-const mirror = R.merge(PC.map(mk)); mirror.position.y = 2 * WY; mirror.scale.y = -1; mirror.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshBasicMaterial({ map: m.material.map, vertexColors: true, side: THREE.BackSide, color: '#a8c4d2' }); m.castShadow = false; } }); scene.add(mirror);
+// 池の柱と、水に映る柱（水面に、柱の絵を手前へのばしてはる。昔の 3D ゲーム機ふうの見せ方。段ごとに左右へずらして、さざ波に見せる）
+const PC = [[-4.4, 12.6, 0, 5.4], [-7.6, 11.4, .55, 6], [-9.2, 15.2, 0, 6.4], [-6, 16.6, .8, 5]]; PC.forEach(([x, z, br, h], i) => { const c = PK.column({ h, r: .5, c: STONE, broken: br, seed: i + 5, ivy: 0, base: 1.5 }); c.position.set(x, -.35, z); c.rotation.y = i; fixed.push(c); });
+const RG = R.geo().normal([0, 1, 0]); for (const [x, z, br, h] of PC) { const L = Math.min(h * (br ? 1 - br * .7 : 1) * .62, 3.4), n = 6; for (let k = 0; k < n; k++) { const a = k / n, b = (k + 1) / n, o = (k % 2 ? .07 : -.07) * (1 + a), w = .56 - a * .1, dx = .3, dz = .95, X = t => x + dx * (.7 + t * L), Z = t => z + dz * (.7 + t * L);
+  RG.quad([X(a) - w + o, WY + .03, Z(a)], [X(a) + w + o, WY + .03, Z(a)], [X(b) + w + o, WY + .03, Z(b)], [X(b) - w + o, WY + .03, Z(b)], [0, .15 + a * .8, .5, .15 + b * .8], 1 - a * .25); } }
+const refl = RG.mesh(PT.ancient({ kind: 'flute', c: STONE, moss: .1 })); refl.material.transparent = true; refl.material.opacity = .5; refl.material.depthWrite = false; refl.material.color.set('#cfe2ee'); refl.castShadow = refl.receiveShadow = false; refl.renderOrder = 2; scene.add(refl);
 // 木（神殿のうしろは こい緑の高い木で、光のすじの背景にする）と草花
 for (let i = 0; i < 16; i++) { const a = -2.5 + i * .23, r = 30 + hash(i, 2) * 8; put(R.tree({ kind: i % 3 ? 'tall' : 'round', h: 13 + hash(i, 3) * 5, c: ['#468a4e', '#4f9650', '#3f8052'][i % 3], seed: i }), Math.sin(a) * r, -9 - Math.cos(a) * r * .9, i); }
 for (let i = 0; i < 26; i++) { const a = hash(i, 1) * 6.283, r = 27 + hash(i, 4) * 26, x = Math.cos(a) * r + 4, z = Math.sin(a) * r + 2; if (z < -14 || dPath(x, z) < 4 || dPool(x, z) < 3) continue; put(R.tree({ kind: ['round', 'round', 'tall'][i % 3], h: 6 + hash(i, 3) * 4, c: ['#5aa850', '#66b058', '#4f9a4a'][i % 3], seed: i + 20 }), x, z, i); }
@@ -87,9 +88,9 @@ K.loop((dt, t) => {
   if (first) { hy = ty; cd.copy(tg); } hy += (ty - hy) * (1 - Math.exp(-dt * 14)); p.y = hy;
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6); const J = hero.userData.J; J.armL.rotation.set(-1.15 + Math.sin(dist * 3.6) * .04, 0, .3); J.foreL.rotation.set(-.45, 0, 0); J.head.rotation.y = .28 + Math.sin(t * .5) * .2;   // 左手に地図をかかげて、見ながら歩く
   cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4 : 4.8;
-  cp.set(p.x - cd.x * D, 0, p.z - cd.z * D); const gy = Math.max(Y(cp.x, cp.z) + 1.5, p.y + (tall ? 2 : 2.2)); if (first) cy = gy; cy += (gy - cy) * (1 - Math.exp(-dt * 4)); cp.y = cy; first = false; cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, p.y + (tall ? 1.75 : 1.85), p.z + cd.z * 3.4);
+  cp.set(p.x - cd.x * D, 0, p.z - cd.z * D); const gy = Math.max(Y(cp.x, cp.z) + 1.5, p.y + (tall ? 2.1 : 2.5)); if (first) cy = gy; cy += (gy - cy) * (1 - Math.exp(-dt * 4)); cp.y = cy; first = false; cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, p.y + (tall ? 1.6 : 1.6), p.z + cd.z * 3.4);
   sun.position.set(p.x + SUN.x * 60, p.y + SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
-  R.flip(water.mat, WF, t, 4); flock.userData.tick(t); motes.userData.tick(t); for (const b of bfs) b.userData.tick(t); for (const s of shafts) s.userData.tick(t);
+  R.flip(water.mat, WF, t, 4); refl.material.opacity = .46 + Math.sin(t * 1.7) * .06; flock.userData.tick(t); motes.userData.tick(t); for (const b of bfs) b.userData.tick(t); for (const s of shafts) s.userData.tick(t);
   PK.beastPose(deer, Math.sin(t * .25 + 1) > -.6 ? 'graze' : 'stand', t); PK.beastPose(fawn, Math.sin(t * .3) > .2 ? 'stand' : 'graze', t);
   for (const b of birds) { const [hx, h0, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
     if (b.userData.fly < 0) { R.birdPose(b, h0 > 6 ? 'stand' : 'peck', t + hr * 3); if (dh < (h0 > 6 ? 4.5 : 3.4)) b.userData.fly = 0; }

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-17 ドワーフの鉱山 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8c8;opacity:.9;text-shadow:0 1px 0 #2a1408}
+</style>
+<div id="cap">8-17 ─ ドワーフの鉱山 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動でトロッコを押す）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 面の少ない坑道（でこぼこの天井とかべ・木のささえ）に、手で打ったドット絵（割れ目の岩はだ・木目の板・まくら木とレール）をはり、横 320 ドットの粗い絵に描いてブラウン管に映す。
+// 色は 土と岩の茶・たいまつのだいだい・宝石の青緑。差し色は鉱夫の青いつなぎ。たいまつと宝石のあかりを地面と天井の頂点の色に焼きこんで、坑道の奥まで形を見せる。
+// ひげの鉱夫（背は低く、体はがっしり）が、宝石の原石をつんだトロッコを押して、輪になった坑道を回る。広い採掘場では仲間がつるはしをふるう。部品は retro.js（R.〜）と pack-fantasy-wild.js（F.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), T = R.tex, X = F.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 300, aa: false, fitAspect: .9, maxFov: 76 });
+scene.background = new THREE.Color('#2e1c14'); scene.fog = new THREE.Fog('#5e3c26', 13, 56);
+const { sun } = K.lights(scene, renderer, { sky: 0xf0c8a0, ground: 0xa87048, amb: 1.5, sun: 0xffd8a8, power: 1.2, range: 26 });
+
+// ---- 輪の坑道。pt(a, e) は線路から外へ e m の点と進む向き、off(x, z) は線路からのへだたり、hw(a) は坑道の はばの半分（採掘場 A1 で広がる） ----
+const rr = a => 17 + 1.5 * Math.sin(2 * a) + 1 * Math.sin(3 * a + 1), wrap = a => Math.atan2(Math.sin(a), Math.cos(a)), A1 = 1.9;
+const pt = (a, e = 0) => { const r = rr(a) + e, a2 = a + .004, r2 = rr(a2) + e, x = Math.cos(a) * r, z = Math.sin(a) * r; return [x, z, Math.atan2(Math.cos(a2) * r2 - x, Math.sin(a2) * r2 - z)]; };
+const off = (x, z) => Math.hypot(x, z) - rr(Math.atan2(z, x)), sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const hw = a => 4.5 + .5 * Math.sin(5 * a) + 3.4 * Math.exp(-((wrap(a - A1) / .42) ** 2)), dist = (x, z) => { const a = Math.atan2(z, x), e = off(x, z); return Math.abs(e) / (hw(a) + (e > 0 ? 3.2 * Math.exp(-((wrap(a - A1) / .42) ** 2)) : 0)); };   // 採掘場は外がわへ広い
+const HF = (x, z) => sm(1.6, 4.5, Math.abs(off(x, z))) * (F.vn(x * .3, z * .3, 2) - .3) * .7, HC = F.caveH({ h: 5.3, seed: 4, bump: 1.5, dist });
+// たいまつ・宝石の場所（あかりは頂点の色に焼きこむ）
+const NP = 16, torches = [...Array(NP)].map((_, i) => { const a = (i + .5) / NP * TAU, s = i % 2 ? 1 : -1, [x, z, r] = pt(a, s * hw(a) * .5); return { x, z, y: 1.9, a, r, c: '#ffa040', rr: 10, k: .85 }; });
+const GC = ['#3ad8c0', '#4ab8f0', '#3ad8c0', '#7af0c8'], gems = []; for (let i = 0; i < 46; i++) { const a = hash(i, 1) * TAU, near = Math.abs(wrap(a - A1)) < .6, s = i % 2 ? 1 : -1, e = s * hw(a) * (.6 + hash(i, 2) * .22) + (near && s > 0 ? 1 + hash(i, 3) * 3 : 0), [x, z] = pt(a, e); gems.push({ x, z, y: .6, c: GC[i % 4], rr: near ? 5 : 3.8, k: .55, s: .45 + hash(i, 4) * (near ? .9 : .5), tall: i % 3 === 0, i }); }
+const lamps = [...torches, ...gems].map(l => ({ x: l.x, y: l.y, z: l.z, c: l.c, r: l.rr, k: l.k })), bakeF = F.bake(lamps, [.6, .5, .44]), bakeC = F.bake(lamps.map(l => ({ ...l, r: l.r * 1.7, k: l.k * .9 })), [.56, .46, .4]);
+const rockT = X.caveRock({ c: '#7e5c46', glint: '#5ae8d0', seed: 2 });
+const land = R.ground({ w: 60, d: 60, cell: 2, H: HF, layers: [X.caveRock({ c: '#74543e', glint: false, seed: 1 }), T.dirt({ c: '#a07c54', pebbles: .7 }), T.cobble({ c: '#8a7260', n: 7 })],
+  mix: (x, z) => { const d = Math.abs(off(x, z)); return [Math.max(0, Math.min(1, 1.3 - d / 1.7)), d > 2.6 && F.vn(x * .3, z * .3, 6) > .6 ? .75 : 0]; }, shade: (x, z) => bakeF(x, z, HF(x, z)) });
+scene.add(land.mesh, F.caveCeil({ w: 62, d: 62, cell: 2.4, H: HC, tex: rockT, shade: bakeC }));
+
+// ---- 動かない物：線路・木のささえ・たいまつ・宝石の原石・水晶・たる・木箱・とまったトロッコ ----
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); if (o.userData.tick) ticks.push(o.userData.tick); return o; };
+fixed.push(F.rail([...Array(97)].map((_, i) => { const [x, z] = pt(i / 96 * TAU); return [x, 0, z]; }), { w: 1.7 }));
+torches.forEach((q, i) => { const [x, z, r] = pt(q.a), w = Math.min(7.5, hw(q.a) * 1.18); put(F.mineProp({ w, h: Math.min(3.5, HC(x, z) - .5), c: '#8a6440', lamp: i % 4 === 1 }), x, z, r, 0); put(F.torch({ h: 1.55, light: false, seed: i }), q.x, q.z, i); });
+gems.forEach(g => { if (g.tall) put(F.crystal({ h: g.s * 1.5, n: 4, c: g.c, seed: g.i, halo: true }), g.x, g.z, g.i, HF(g.x, g.z) - .05); else put(F.gemOre({ s: g.s, c: g.c, rock: '#7e5c46', seed: g.i }), g.x, g.z, g.i, HF(g.x, g.z) - .1); });
+for (let i = 0; i < 40; i++) { const a = hash(i, 5) * TAU, [x, z] = pt(a, (i % 2 ? 1 : -1) * hw(a) * (.45 + hash(i, 6) * .3)), q = i % 5; if (Math.abs(off(x, z)) < 1.7) continue;
+  if (q < 2) put(R.rock({ s: .3 + hash(i, 7) * .7, c: '#8a6a54', seed: i }), x, z, i, HF(x, z) - .08); else if (q === 2) put(R.barrel({ c: '#9a6a3c' }), x, z, i); else if (q === 3) put(R.crate({ s: .7, c: '#a87c4c', kind: i % 2 ? 'x' : 'slash' }), x, z, i); else put(F.spike({ h: .8 + hash(i, 8) * 1.2, seed: i, tex: rockT }), x, z, i, HF(x, z) - .1); }
+for (let i = 0; i < 26; i++) { const a = hash(i, 9) * TAU, [x, z] = pt(a, (hash(i, 10) - .5) * hw(a) * 1.3); if (HC(x, z) > 3) put(F.spike({ h: .6 + hash(i, 11) * 1.1, down: true, seed: i, tex: rockT }), x, z, i, HC(x, z) + .15); }
+const [gx, gz, gr] = pt(A1 + .12, 3.3); put(F.mineCart({ load: 'gold', c: '#8a6440' }), gx, gz, gr + 1.2); const [kx, kz, kr] = pt(A1 - .3, 4.6); put(F.chest({ s: 1, open: .5 }), kx, kz, kr - 1.9);
+scene.add(R.merge(fixed));
+
+// ---- 人と生きもの ----
+R.cfg.actorBuild = 'toon';
+const dwarf = o => R.actor({ bulk: 1.3, s: .84, hairStyle: 'short', beard: 'beard', brow: 'thick', eyes: 'half', cloth: 'overall', sleeve: 'long', lower: 'pants', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', shoe: '#5a4030', hat: 'helm', gear: '#d8a840', belt: '#5a3a28', ...o });
+const hero = dwarf({ hair: '#f2e4c8', eye: '#3a6a9a', mouth: 'smile', top: '#3f6ec0', top2: '#f0e0b8', bottom: '#3a4a8a', neck: 'scarf', acc: '#e85a3a' }); scene.add(hero);
+const cart = F.mineCart({ load: 'ore', gem: '#3ad8c0', c: '#9a6c40' }), cglow = F.halo('#5af0d8', 1.5, .5); cglow.position.y = 1.25; cart.add(cglow); scene.add(cart);
+const cartL = new THREE.PointLight('#ffb468', 16, 12, 1.5); scene.add(cartL);
+// つるはし（R.actor の持ち物に無いので、木のえと鉄の頭を作って右手に付ける）
+const pick = p => { const g = new THREE.Group(), B = R.parts(); B.g(T.bark({ c: '#8a6440' })).smooth(1).loft(5, [[-.12, .02, .02, 0, .8], [.62, .024, .024, .5, 1]], { cap: 'bot' }); const I = B.g(T.metal({ c: '#9a9cac' })).smooth(0); I.at(R.TR(0, .6, 0, 0, 0, Math.PI / 2 + .25)).loft(4, [[0, .035, .03, 0, 1], [.3, .008, .008, .5, 1.15]], {}).at(R.TR(0, .6, 0, 0, 0, -Math.PI / 2 - .25)).loft(4, [[0, .035, .03, 0, .9], [.3, .008, .008, .5, 1.1]], {}).at(null).box(.07, .07, .07, 0, .565, 0, {});
+  g.add(B.group()); g.rotation.x = Math.PI / 2; g.rotation.z = Math.PI / 2; g.position.set(0, -.27, .02); p.userData.J.foreR.add(g); return p; };
+const crew = [[A1 - .14, 5.6, 1, { hair: '#d8742a', top: '#5a9a4a', top2: '#f0e0b8', bottom: '#5a4a3a' }], [A1 + .2, 5.9, 1, { hair: '#4a3a34', top: '#c8a03a', top2: '#f0e0b8', bottom: '#6a4a3a', s: .8 }], [A1 + .34, 2.6, 0, { hair: '#b8b0a8', top: '#b8503a', top2: '#f0e0b8', bottom: '#4a4a5a', eyes: 'closed', mouth: 'smile', s: .88 }]].map(([a, e, dig, o], i) => { const p = dwarf(o), [x, z, r] = pt(a, e), [ox, oz] = pt(a, e + 3); if (dig) pick(p); p.position.set(x, HF(x, z), z); p.rotation.y = dig ? Math.atan2(ox - x, oz - z) + (i ? .3 : -.3) : r + Math.PI * .8; p.userData.dig = dig; scene.add(p); return p; });
+const bats = [...Array(5)].map((_, i) => { const g = F.bat({ s: 1.3, c: '#6a4a5a', wing: '#8a5a6a' }); g.userData.orb = [hash(i, 21) * TAU, 1.2 + hash(i, 22) * 2, 2.5 + hash(i, 23) * .8, .7 + hash(i, 24) * .5]; scene.add(g); return g; });
+const slimes = [[A1 - .5, -2.6, '#3ad8c0', .32], [A1 - .45, -3.3, '#ffc050', .22], [A1 + 1.6, 2.4, '#4ab8f0', .3], [A1 + 3.4, -2.5, '#3ad8c0', .34]].map(([a, e, c, s]) => { const g = F.slime({ c, s, glow: true }), [x, z, r] = pt(a, e); g.position.set(x, HF(x, z), z); g.rotation.y = r + 2.5; scene.add(g); return g; });
+const dust = F.motes({ n: 70, box: [20, 4, 20], c: '#ffc880', size: .09, rise: .1, drift: .5, y: .3 }); scene.add(dust);
+
+// ---- 線路の道（輪を左まわり。開いて 2.5 秒で、採掘場が前に見える） ----
+const path = new THREE.CatmullRomCurve3([...Array(48)].map((_, i) => { const [x, z] = pt(i / 48 * TAU); return new THREE.Vector3(x, 0, z); }), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.6, S0 = (A1 - .72) / TAU, cd = new THREE.Vector3(), cp = new THREE.Vector3(), cw = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true;
+K.loop((dt, t) => {
+  const dist = t * SPEED, u = (S0 + dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), uc = (u + 1.12 / LEN) % 1, pc = path.getPointAt(uc), tc = path.getTangentAt(uc);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 4.6);
+  const J = hero.userData.J; for (const [arm, fore, s] of [[J.armL, J.foreL, 1], [J.armR, J.foreR, -1]]) { arm.rotation.set(-1.15 + Math.sin(dist * 4.6) * .04, 0, -s * .12); fore.rotation.x = -.35; } J.torso.rotation.x = .2;   // 両手でトロッコを押す
+  cart.position.copy(pc); cart.rotation.y = Math.atan2(-tc.z, tc.x); for (const w of cart.userData.wheels) w.rotation.z = -dist / cart.userData.wheelR; cart.position.y = Math.abs(Math.sin(dist * 2.1)) * .012;
+  cglow.material.opacity = .45 + .12 * Math.sin(t * 2.2); cartL.position.set(pc.x, 1.7, pc.z); cartL.intensity = 16 * (.92 + .08 * Math.sin(t * 9));
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.5 : 4.3;
+  cp.set(p.x - cd.x * D, tall ? 1.8 : 1.95, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, 1.0, p.z + cd.z * 3);
+  sun.position.set(p.x - cd.x * 12, 30, p.z - cd.z * 12); sun.target.position.copy(p);
+  // たいまつ・水晶・仲間の鉱夫・こうもり・しずく玉・ほこり
+  for (const f of ticks) f(t);
+  crew.forEach((c, i) => { R.idle(c, t + i, c.userData.dig ? 0 : Math.atan2(p.x - c.position.x, p.z - c.position.z) - c.rotation.y); const A = c.userData.J; if (c.userData.dig) { const k = (t * 1.5 + i * .4) % 1, sw = k < .6 ? k / .6 : 1 - (k - .6) / .4; A.armR.rotation.set(-2.5 + sw * sw * 1.8, 0, -.1); A.foreR.rotation.x = -.5; A.armL.rotation.set(-.6, 0, -.3); A.foreL.rotation.x = -.8; A.torso.rotation.x = sw * .22; } else { A.armR.rotation.set(-2.6 + Math.sin(t * 6) * .25, 0, -.5); A.foreR.rotation.x = -.3; } });
+  bats.forEach((b, i) => { const [ph, r, h, sp] = b.userData.orb, a = ph + t * sp * (i % 2 ? 1 : -1), cx = p.x + tg.x * (5 + i * 1.5), cz = p.z + tg.z * (5 + i * 1.5), dir = i % 2 ? 1 : -1; b.position.set(cx + Math.cos(a) * r, h + Math.sin(t * 1.4 + ph) * .3, cz + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a) * dir, Math.cos(a) * dir); F.batPose(b, t + ph); });
+  slimes.forEach((s, i) => F.slimePose(s, t * 1.05 + i * 1.7, .22));
+  dust.userData.tick(t, p.x, p.z); crt.render(scene, cam, t);
+});
+</script>
+</html>
