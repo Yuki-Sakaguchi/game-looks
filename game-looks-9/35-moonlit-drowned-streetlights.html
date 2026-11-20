@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-35 月夜の、海にしずんだ街灯の道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dff0ec;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-35 ─ 月夜の、海にしずんだ街灯の道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動でこぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 町がしずんだ、しずかな夜の海。大通りの街灯が 上の部分だけ水から出て、月のほうへ点々とならぶ。いくつかだけ、まだ うすく黄色に光る。
+// 色の組は「月と海の青緑・影の紺」＋街灯の黄。大きな月から舟まで、海の上に 月の道 がのびる（海面の頂点の色を明るくして作る）。
+// 小舟をこぐ人が、街灯の列の間を月へ向かって進む。水の下には、もとの道路の白い線と車。光る くらげ、月をよこぎる鳥、ちらつく街灯。さびしく、きれいに。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), S = PACK_SEA(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const boat = new THREE.Group(); scene.add(boat);
+const AZ = -7, moon = D.moon({ r: 30, az: AZ, el: 15, dist: 330 }); scene.add(moon);
+const mood = D.mood(scene, renderer, 'moon', { follow: boat, range: 30, hills: false, dir: moon.userData.dir.toArray().map((v, i) => i === 1 ? v + .25 : v) });
+const MX = Math.sin(AZ * Math.PI / 180), MZ = -Math.cos(AZ * Math.PI / 180);
+
+// ---- あかりのついた街灯（先に決める。水の下の道と海面に、あかりを落とすため） ----
+const BED = -2.9, LH = 5.7, LAMPS = []; for (let k = 0; k < 20; k++) { const s = k % 2 ? 1 : -1; LAMPS.push({ x: s * 6.5, z: 30 - k * 7.5, s, lit: [3, 6, 7, 11, 14, 17].includes(k), ln: (hash(k, 3) - .5) * .22, lx: (hash(k, 4) - .5) * .16, k }); }
+const LIT = LAMPS.filter(l => l.lit).map(l => ({ x: l.x - l.s * 1.3, z: l.z, r: 9, c: '#ffd070', k: 1.2, l }));
+
+// ---- 海：水面は y=0。しずかで、半透明（下の道がうすく見える）。もとの道路は BED ----
+const SEAC = '#14424c', WAVE = .13, SINK = { level: 0, depth: 3.4, c: '#1c5a62', k: .85, dark: .5 };
+const bed = R.ground({ w: 110, d: 150, cell: 2, cz: -30, layers: [PT.asphalt({ c: '#565e6a', grass: .1, m: 4 }), T.cobble({ kind: 'slab', c: '#4c5862', moss: .3 }), S.tex.sand({ c: '#36464c' })], mix: (x, z) => [Math.abs(x) > 5.7 ? 1 : 0, Math.abs(x) > 9 ? 1 : 0], shade: mood.shade(LIT) }); bed.mesh.position.y = BED; S.sink(bed.mesh, SINK); scene.add(bed.mesh);
+const outer = R.ground({ w: 704, d: 704, cell: 32, layers: [S.tex.sand({ c: '#36464c' })] }); outer.mesh.position.y = BED - .1; S.sink(outer.mesh, SINK); scene.add(outer.mesh);
+const sea = S.sea({ w: 110, d: 140, cell: 2, c: SEAC, wave: WAVE, alpha: .79 }); scene.add(sea.mesh);
+{ const mm = sea.mat.map.userData.m || 8; for (const [x0, x1, z0, z1] of [[-352, -55, -352, 352], [55, 352, -352, 352], [-55, 55, -352, -70], [-55, 55, 70, 352]]) { const nx = Math.ceil((x1 - x0) / 26), nz = Math.ceil((z1 - z0) / 26), g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2, -.02, (z0 + z1) / 2);
+    const P = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < P.count; i++) uv.setXY(i, P.getX(i) / mm, -P.getZ(i) / mm); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(P.count * 3).fill(1), 3)); const m = new THREE.Mesh(g, sea.mat); m.renderOrder = 2; sea.mesh.add(m); } }
+const relight = (t, f) => { const g = sea.mesh.geometry, P = g.attributes.position.array, C = g.attributes.color.array, ox = sea.mesh.position.x, oz = sea.mesh.position.z, e = .7;
+  for (let i = 0, n = P.length / 3; i < n; i++) { const x = P[i * 3] + ox, z = P[i * 3 + 2] + oz, y = P[i * 3 + 1], c = f(x, z, y / WAVE, (sea.h(x + e, z, t) - y) / e, (sea.h(x, z + e, t) - y) / e); C[i * 3] = c[0]; C[i * 3 + 1] = c[1]; C[i * 3 + 2] = c[2]; } g.attributes.color.needsUpdate = true; };
+// 遠くの月の道（細かい海面の先を、水平線までつなぐ 加算の帯）
+const far = new THREE.Group(); { const G = R.geo(); G.quad([-7, 0, -62], [7, 0, -62], [17, 0, -330], [-17, 0, -330], [0, 0, 1, 1], [.5, .5, 1, 1]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: '#7fd8cc', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .34, depthWrite: false, fog: false })); m.renderOrder = 3; far.add(m); far.rotation.y = -AZ * Math.PI / 180; far.position.y = .06; scene.add(far); }
+
+// ---- 街灯：水から 上の部分だけ出る。柱・うで・かさ。ともる物は かさの下が光る ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const poleT = PT.rust({ paint: '#6c8088', peel: .45, panel: 0, m: 1.5 }), headW = [];
+for (const l of LAMPS) { const P = R.parts(), M = R.TR(0, 0, 0, 0, l.lx, l.ln), G = P.g(poleT).smooth(1); G.at(M).loft(6, [[-.4, .15, .15, 0, .8], [LH - .3, .085, .085, LH / 1.5, 1], [LH, .07, .07, LH / 1.5 + .2, 1]], { cap: 'top' }); P.g(poleT).at(M).box(1.5, .09, .09, .7, LH - .1, 0, { m: 1.5 }).box(.8, .13, .34, 1.3, LH - .24, 0, { m: 1.5 });
+  if (l.lit) P.g(T.lamp(), { glow: true, side: true }).at(M).quad([.96, LH - .25, -.14], [1.64, LH - .25, -.14], [1.64, LH - .25, .14], [.96, LH - .25, .14]); const g = P.group(); put(g, l.x, l.z, l.s > 0 ? Math.PI : 0, BED); g.updateMatrixWorld(); headW.push(new THREE.Vector3(1.3, LH - .3, 0).applyMatrix4(M).applyMatrix4(g.matrixWorld)); }
+const halos = []; LAMPS.forEach((l, i) => { if (!l.lit) return; const hw = headW[i], h = D.halo({ c: '#ffd070', r: 1.5, k: .85 }), h2 = D.halo({ c: '#ffc050', r: 4, k: .28 }); h.position.copy(hw); h2.position.copy(hw); scene.add(h, h2); halos.push([h, h2, l.k]); });
+const LT = LIT.map((L, i) => ({ x: headW[L.l.k].x, z: headW[L.l.k].z, h: headW[L.l.k].y, c: '#ffd070', k: .7, w: 1, flicker: L.l.k === 7 }));
+// 信号・電柱・標識・しずんだ家の屋根。遠くに、くずれたビルの影
+put(PK.signal({ h: 7.2, arm: 4.2, lean: -.2, leanX: .08, seed: 1, ivy: 0, c: '#6c8088' }), -6.9, 2, 0, BED); put(PK.signal({ h: 6.9, arm: 3, lean: .14, leanX: -.1, seed: 2, ivy: 0, c: '#6c8088' }), 6.9, -42, Math.PI, BED); put(PK.signal({ h: 6.6, arm: 0, lean: .24, seed: 3, walk: 1, ivy: 0, c: '#6c8088' }), 7.2, 4, .6, BED);
+put(PK.sign({ kind: 'warn', lean: .14, seed: 2, h: 5.2 }), -7, -20, 0, BED); put(PK.sign({ kind: 'arrow', lean: -.18, seed: 1, h: 5 }), 7, -11, .1, BED); put(PK.sign({ kind: 'stop', lean: .1, seed: 3, h: 5.1 }), -7.1, -57, 0, BED);
+const poles = [[-9.6, 16, .1, 0], [-9.8, -6, -.12, 1], [-9.6, -30, .07, 2], [9.8, -18, -.1, 3], [9.6, -50, .14, 4], [-9.7, -56, -.06, 5]].map(([x, z, ln, i]) => put(PK.pole({ h: 10, lean: ln, leanX: (i % 2 - .5) * .14, seed: i, trans: i % 2 === 0, ivy: 0 }), x, z, Math.PI / 2, BED));
+[[-15, 9, 6, 5, .1], [15.5, -4, 7, 5, -.08], [-16, -24, 6, 6, .05], [14.5, -33, 5.5, 5, .12], [-14.5, -47, 7, 5, -.1], [16, -62, 6, 5, .06]].forEach(([x, z, w, d, r], i) => put(R.house({ w, d, h: 2.9, wall: T.plaster({ c: '#7a8c90' }), roof: T.roof({ c: i % 2 ? '#4a5a78' : '#5a5270', kind: 'slate', moss: .4 }), lit: 0, chimney: i % 2 === 0, seed: i }), x, z, r + (i % 2) * Math.PI / 2, BED - .5 + (i % 3) * .3));
+[[-34, -30, 12, 12, 4, .4, 1], [38, -52, 12, 12, 6, .3, 2], [-44, -84, 15, 12, 7, .25, 0], [30, -100, 12, 12, 5, .4, 3], [-60, -20, 12, 12, 5, .3, 2], [62, -6, 12, 12, 4, .5, 1], [-28, 30, 12, 9, 3, .5, 0], [70, -90, 12, 12, 8, .2, 1], [4, -150, 15, 12, 6, .3, 2], [-80, -120, 12, 12, 8, .2, 3]]
+  .forEach(([x, z, w, d, fl, br, cn], i) => put(PK.building({ w, d, floors: fl, c: '#7c8e98', broken: br, corner: cn, seed: i + 2, moss: .2, holes: .8, plants: 0, roofGreen: 0, flowers: 0, ivy: 0, tree: false, base: 4 }), x, z, i * .3, -1.4));
+// 水の下：道路の白い線・横断歩道・止まった車
+const decs = [], dec = (t, w, d, x, z, ry = 0) => { const o = PK.decal(t, w, d); o.position.set(x, BED, z); o.rotation.y = ry; decs.push(o); };
+for (let z = 26; z > -100; z -= 30) dec(PT.marking({ kind: 'dash', worn: .15, seed: z & 3 }), 3, 30, 0, z - 15); for (const s of [-1, 1]) for (let z = 26; z > -100; z -= 30) dec(PT.marking({ kind: 'line', worn: .3, seed: 1 }), 3, 30, s * 5.2, z - 15);
+dec(PT.marking({ kind: 'zebra', worn: .15 }), 12, 3, 0, 5); dec(PT.marking({ kind: 'zebra', seed: 1, worn: .15 }), 12, 3, 0, -40); dec(PT.marking({ kind: 'arrow', worn: .15 }), 3, 3, -2.8, -6); dec(PT.marking({ kind: 'stop', worn: .15 }), 5.4, 3, 2.8, 8.6); dec(PT.marking({ kind: 'diamond', worn: .15 }), 3, 3, 2.8, -24); dec(PT.marking({ kind: 'arrow', seed: 1, worn: .15 }), 3, 3, -2.8, -50);
+put(PK.wreck({ c: '#b8b4a8', seed: 1, grass: 0, moss: .2 }), 3.3, -3, Math.PI + .1, BED); put(PK.wreck({ kind: 'van', c: '#8aa0a8', seed: 2, grass: 0, moss: .2 }), -3.4, -29, -.12, BED); put(PK.wreck({ c: '#a89a8a', seed: 3, grass: 0, moss: .2 }), 3.6, -52, Math.PI - .3, BED);
+scene.add(S.sink(R.merge(fixed), SINK)); { const g = S.sink(R.merge(decs), SINK); g.traverse(m => { if (m.isMesh) m.material.emissive.set('#284c4a'); }); scene.add(g); } scene.updateMatrixWorld();   // 道路の線は少し自分で光らせて、暗い水の下でも うすく読めるようにする
+const tip = (o, i) => { o.updateMatrixWorld(); return o.localToWorld(new THREE.Vector3(...o.userData.tips[i])).toArray(); };
+scene.add(PK.wire(tip(poles[0], 0), tip(poles[1], 0), { sag: 2.4 }), PK.wire(tip(poles[1], 1), tip(poles[2], 1), { sag: 3 }), PK.wire(tip(poles[3], 0), tip(poles[4], 0), { sag: 3.2 }), PK.wire(tip(poles[2], 0), tip(poles[5], 0), { sag: 2.6 }), PK.wire(tip(poles[1], 3), [-9.2, .1, -14], { sag: .6 }));
+const streaks = D.streaks(LT, { far: 60 }); streaks.renderOrder = 3; scene.add(streaks);
+for (const l of LAMPS) fixed.length && scene.add(S.foamRing({ r: .32, n: 6, wd: .22 }).translateX(l.x + l.ln * 2.9 * (l.s > 0 ? -1 : 1)).translateZ(l.z));
+
+// ---- 生きもの・空：水の下の光る くらげ、月をよこぎる鳥、うすい雲、街灯にとまる からす ----
+const jel = [[-2.5, -9, '#8ef0e0'], [3.4, -17, '#a0c8ff'], [-4, -33, '#8ef0e0'], [1.8, -44, '#c0b0ff'], [4.4, 2, '#a0c8ff'], [-3.6, -58, '#8ef0e0'], [2.6, -70, '#a0c8ff']].map(([x, z, c], i) => { const j = S.jelly({ s: .8 + (i % 3) * .2, c, seed: i }); j.position.set(x, -.9, z); scene.add(j); return j; });
+scene.add(D.flock({ n: 7, r: 26, h: 5, center: [-28, 46, -200], s: 4, speed: .22 }), D.clouds({ n: 6, r: 270, y: 60, s: 70, c: '#2c5a68', shade: '#16384a', speed: .008 }));
+[3, 8, 12].forEach(i => { const c = D.crow(), hw = headW[i]; c.position.set(hw.x, hw.y + .37, hw.z); c.rotation.y = i; scene.add(c); });
+const live = [], float = (o, x, z, ry = 0, off = 0, k = 1) => { o.position.set(x, 0, z); o.rotation.y = ry; scene.add(o); live.push(t => { o.position.y = sea.h(x, z, t) + off; o.rotation.z = Math.sin(t * 1.1 + x) * .04 * k; o.rotation.x = Math.sin(t * .9 + z) * .03 * k; }); return o; };
+float(S.buoy({ lamp: '#ffe070', c: '#8a5a5a' }), -4.6, -14, 0, 0, 1.4); float(R.boat({ c: '#5a6a78' }), 5.4, -26, 2.2, .04); float(R.crate({ s: .5, c: '#7a7a70' }), -3.2, 6, .4, -.25);
+
+// ---- 主役：白い上着と赤いえりまきで、小舟をこぐ人。へさきに小さなランタン ----
+const hull = R.boat({ c: '#9a8468' }); hull.scale.setScalar(1.25); boat.add(hull);
+hull.traverse(m => { if (m.isMesh && !m.geometry.index && m.geometry.attributes.position.count === 321) m.geometry.setDrawRange(0, 261); });   // R.boat の固定の かい は描かず、手に合わせて動く かい を作る（8-38 と同じやり方）
+const oars = [1, -1].map(() => { const o = R.geo().smooth(1).loft(5, [[-.12, .024, .024, 0, .75], [1.3, .02, .02, 1.6, 1]], { cap: 'bot' }).loft(4, [[1.3, .03, .016, 0, .9], [1.5, .1, .012, .3, 1], [1.95, .11, .012, .8, 1], [2.02, .06, .01, 1, 1.05]], { cap: 'top' }).mesh(T.planks({ c: '#b8a888' })); boat.add(o); return o; });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', bangs: 'swept', hair: '#34425a', cloth: 'tunic', top: '#e6e2d4', top2: '#6aa0a8', lower: 'pants', bottom: '#3c5870', shoes: 'boot', shoe: '#5a4838', neck: 'scarf', acc: '#d8504a', back: 'bag', s: 1.05 }); hero.position.set(0, -.32, -.88); boat.add(hero);
+const lan = new THREE.Group(); { const P = R.parts(), W = P.g(T.planks({ c: '#6a5c50' })); W.loft(4, [[0, .03, .03, 0, .8], [.95, .025, .025, 1, 1]], { cap: 'top' }).box(.34, .035, .035, .16, .9, 0, { m: 1.5 }); P.g(T.metal({ c: '#4a4c5c' })).loft(4, [[.8, .02, .02, 0, 1, .3, 0], [.85, .085, .085, 1, 1.1, .3, 0]], {}).loft(4, [[.62, .06, .06, 0, .8, .3, 0], [.65, .075, .075, 1, .9, .3, 0]], { cap: 'bot' });
+  P.g(T.lamp(), { glow: true }).loft(4, [[.65, .065, .065, 0, 1, .3, 0], [.8, .078, .078, 1, 1, .3, 0]], { ur: 4 }); lan.add(P.group()); }
+const lanH = D.halo({ c: '#ffc060', r: .6, k: .75, flicker: 'fire' }), lanL = new THREE.PointLight('#ffc060', 6, 6, 1.5); lanH.position.set(.3, .73, 0); lanL.position.set(.3, .75, -.2); lan.add(lanH, lanL); lan.position.set(-.1, .34, 1.05); boat.add(lan);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 22, LEN = 84, SPEED = 1.5, UP = new THREE.Vector3(0, 1, 0), hv = new THREE.Vector3(), lv = new THREE.Vector3(), Lx = mood.dir.x, Lz = mood.dir.z;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = Math.sin(t * .23) * 1.5 - .4, fa = Math.PI - Math.cos(t * .23) * .23 * 1.5 / SPEED, row = t * 2.3, by = sea.h(x, z, t);
+  S.tick(t); sea.tick(t, 0, z - 28); bed.follow(0, z - 30);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.7 : 3.9, cx = x * .6 + (tall ? .5 : 1.2), cz = z + Dc;
+  // 海の色：月の道（カメラから月の方角へ、きらきら ゆれる帯）と、ともる街灯の下の黄色、波のかたむき
+  relight(t, (vx, vz, k, sx, sz) => { const d = -(sx * Lx + sz * Lz), b = Math.max(.5, .82 + k * .2 + d * 7), al = (vx - cx) * MX + (vz - cz) * MZ, pe = (vx - cx) * MZ - (vz - cz) * MX; let r = b, g = b, bl = b;
+    if (al > 2) { const w = Math.exp(-((pe / (1.5 + al * .085)) ** 2)) * Math.min(1, al / 7) * (.45 + .55 * Math.sin(vx * 2.1 + t * 1.9) * Math.sin(vz * 1.3 - t * 1.3) + .35 * k) * 3.6; if (w > 0) { r += w * .75; g += w * 1.25; bl += w * 1.15; } }
+    for (const L of LT) { const dx = vx - L.x, dz = vz - L.z; if (Math.abs(dx) < 8 && Math.abs(dz) < 8) { const w = Math.max(0, 1 - Math.hypot(dx, dz) / 8) ** 2 * (1.4 + k * .5); r += w * 2.6; g += w * 1.5; bl += w * .2; } } return [r, g, bl]; });
+  boat.position.set(x, by + .05, z); boat.rotation.set(Math.sin(t * 1.3) * .025, fa, Math.sin(t * 1.1 + 1) * .035, 'YXZ');
+  // こぐ人（すわって、うでを前後に）。かいは手もとから 舟べりの支えを通る向きへ
+  const J = hero.userData.J, s = Math.sin(row * 1.6), c = Math.cos(row * 1.6); R.idle(hero, t, Math.sin(t * .3) * .35); J.torso.rotation.x = .16 - s * .12;
+  [['L', 1], ['R', -1]].forEach(([n, sx]) => { J['leg' + n].rotation.x = -1.35; J['shin' + n].rotation.x = .6; J['arm' + n].rotation.set(-.8 + s * .42 + c * .14, 0, sx * .18); J['fore' + n].rotation.x = -.75 - s * .45; });
+  boat.updateMatrixWorld(true);
+  [['L', 1], ['R', -1]].forEach(([n, sx], i) => { const o = oars[i], h = boat.worldToLocal(J['fore' + n].localToWorld(hv.set(sx * .081, -.263, 0))); o.position.copy(h); o.quaternion.setFromUnitVectors(UP, lv.set(sx * .64, .55, -.42).sub(h).normalize()); });
+  cam.position.set(cx, tall ? 2.3 : 1.7, cz); cam.lookAt(x * .6 - .5, tall ? 2 : 1.55, z - 6);   // 低い所から水平に見て、舟と月と月の道を 1 枚に入れる
+  far.position.set(cx, .06, cz);
+  jel.forEach((j, i) => { j.userData.tick(t + i); j.position.y = -.95 + Math.sin(t * .5 + i * 1.7) * .3; j.position.x += Math.sin(t * .2 + i) * .002; });
+  halos.forEach(([h, h2, k]) => { const f = k === 7 ? (hash(Math.floor(t * 9), 3) < .22 ? .25 : 1) : .92 + .08 * Math.sin(t * 3 + k); h.material.opacity = .85 * f; h2.material.opacity = .28 * f; });
+  for (const f of live) f(t);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

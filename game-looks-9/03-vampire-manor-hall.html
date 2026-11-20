@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-03 古い館の大広間 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e2d0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-03 ─ 古い館の大広間 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 嵐の夜の、古い館の大広間。赤いじゅうたんの先に大きな階段、その上の色ガラスの窓の前に、うすい人かげが立つ。ランタンを持った旅人が、じゅうたんの上を階段へ歩く。
+// 色の組は「えんじのかべとじゅうたん・黒茶の木・ろうそくの黄」＋差し色は旅人の青緑の上着と、いなずまで光る窓の青。
+// 長いテーブルのろうそく、階段の柱のろうそく、暖炉の残り火のあかりを、床の明るさに焼きこんで輪にする。いなずまのたびに、窓と広間が一瞬だけ青白くなる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 500, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#d07a3a', brow: 'soft', mouth: 'small', cloth: 'coat', top: '#3f8a86', top2: '#e8dcc0', bottom: '#4a3c44', shoe: '#5a4030', gloves: 'glove', glove: '#7a5a40', neck: 'scarf', acc: '#e8d49a', back: 'bag' }); scene.add(hero);
+// 室内なので、空と山は見えない。弱い赤茶の空気の光と、奥の窓からの青い ふちの光だけを D.mood で用意する
+const mood = D.mood(scene, renderer, 'blood', { sky: ['#1a0c10', '#1a0c10', '#24121a', '#24121a'], fog: ['#2a141c', 12, 60], hemi: ['#e8b0a0', '#4a2c30', 1.12], key: ['#9aaae8', 1.15, [.12, .55, -.8]], fill: ['#b07860', .5], base: [.72, .56, .56], flash: '#c8d4ff', hills: false, stars: false, follow: hero, range: 16, r: 300 });
+
+// ---- 広間の形（はば 16 m、奥ゆき 24 m、高さ 7.6 m）。奥に階段と、その上のおどり場 ----
+const RW = 16, RD = 24, RH = 7.6, BZ = -RD / 2, ST = { w: 5, h: 3.4, d: 6.4, z: -7.3 }, SZ0 = ST.z + ST.d / 2, SZ1 = ST.z - ST.d / 2, TBL = [-4.4, 1.6, 8];   // TBL = テーブルの x, z, 長さ
+const NEWEL = [[-2.85, SZ0 + .25], [2.85, SZ0 + .25]], HEARTH = [RW / 2 - .9, 1.5];
+const LIT = [...[-3, -1, 1, 3].map(k => ({ x: TBL[0], z: TBL[1] + k, r: 4.6, c: '#ffc860', k: .8 })), ...NEWEL.map(([x, z]) => ({ x, z: z + .5, r: 4.4, c: '#ffc860', k: .95 })), { x: HEARTH[0] - .8, z: HEARTH[1], r: 4.8, c: '#ff7a38', k: .9 }];
+const shade = mood.shade(LIT);
+const land = R.ground({ w: RW, d: RD, cell: 1, layers: [T.planks({ c: '#523832', w: 8 })], shade }); land.mesh.position.y = .02; scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, noShadow = g => { g.traverse(q => { q.castShadow = false; }); return g; };
+put(F.room({ w: RW, d: RD, h: RH, floor: '#5a3e38', wall: T.plaster({ frame: 'box', c: '#7a3440' }) }), 0, 0);
+const stairs = put(noShadow(F.stairs({ w: ST.w, h: ST.h, d: ST.d, tex: T.planks({ c: '#5e4238' }), rail: 'wood' })), 0, ST.z), stY = z => z > SZ0 ? 0 : z < SZ1 ? ST.h : stairs.userData.y(z - ST.z);
+{ const B = R.parts(), Wd = B.g(T.planks({ c: '#5a3e36' })), Rl = B.g(F.tex.rail({ kind: 'wood', c: '#6a4638' }), { side: true }).normal([0, .7, .7]), Cp = B.g(F.tex.carpet({ c: '#8a1f30', c2: '#c8a050', c3: '#3a1820' }), { offset: true }), CW = 1.3;
+  // おどり場（奥のかべにそった 2 階の ろうか）と手すり、階段の下の柱
+  Wd.box(RW, .3, SZ1 - BZ, 0, ST.h - .3, (SZ1 + BZ) / 2, { m: 2, bottom: true, c0: .7 });
+  for (const sx of [-1, 1]) { const x0 = sx * ST.w / 2, x1 = sx * RW / 2; Rl.quad([Math.min(x0, x1), ST.h, SZ1], [Math.max(x0, x1), ST.h, SZ1], [Math.max(x0, x1), ST.h + .95, SZ1], [Math.min(x0, x1), ST.h + .95, SZ1], [0, 0, Math.abs(x1 - x0), 1]); for (const x of [sx * 5.2, sx * 2.5]) Wd.box(.3, ST.h - .3, .3, x, 0, SZ1 + .3, { m: 2, c0: .6 }); }
+  for (const [x, z] of NEWEL) { Wd.box(.34, 1.25, .34, x, 0, z, { m: 1.2, c0: .7 }); Wd.box(.46, .08, .46, x, 1.25, z, { m: 1.2 }); }
+  // 赤いじゅうたん：入口から階段をのぼり、おどり場まで。床の所は、あかりの輪の明るさを頂点の色にうつす
+  for (let z = RD / 2; z > SZ0; z -= 1) { const z1 = Math.max(SZ0, z - 1), c = shade(0, (z + z1) / 2); Cp.quad([-CW, .045, z], [CW, .045, z], [CW, .045, z1], [-CW, .045, z1], [0, z / 2.6, 1, z1 / 2.6], c); }
+  const n = stairs.userData.n, dy = ST.h / n, dz = ST.d / n; for (let i = 0; i < n; i++) { const z = SZ0 - i * dz, y = i * dy, v = i * .3; Cp.quad([-CW, y, z + .012], [CW, y, z + .012], [CW, y + dy, z + .012], [-CW, y + dy, z + .012], [0, v, 1, v + .1], .62).quad([-CW, y + dy + .012, z], [CW, y + dy + .012, z], [CW, y + dy + .012, z - dz], [-CW, y + dy + .012, z - dz], [0, v + .1, 1, v + .3], .95); }
+  Cp.quad([-CW, ST.h + .02, SZ1], [CW, ST.h + .02, SZ1], [CW, ST.h + .02, BZ + .1], [-CW, ST.h + .02, BZ + .1], [0, 0, 1, .6], .9);
+  fixed.push(noShadow(B.group())); }
+
+// ---- 奥のかべの、暗い色ガラスの窓 3 つ（いなずまで光る）。窓から床へ落ちる青白い光は、いなずまの間だけ見せる ----
+const WINS = [[-5.2, 4.1, 1.6, 3.2], [0, 3.9, 2, 4], [5.2, 4.1, 1.6, 3.2]], glassG = R.geo();
+for (const [x, y, w, h] of WINS) glassG.quad([x - w / 2, y, BZ + .06], [x + w / 2, y, BZ + .06], [x + w / 2, y + h, BZ + .06], [x - w / 2, y + h, BZ + .06]);
+const glass = glassG.mesh(D.tex.glass({ kind: 'lancet', cs: ['#7a2f52', '#2a5a7a', '#8a2f3a', '#8a6a2e', '#3a3f90'] }), { glow: true, fog: false }); glass.castShadow = false; scene.add(glass);
+const flashP = D.pools([...WINS.map(([x, y, w, h]) => ({ p: [x, y + h / 2, BZ + .08], n: [0, 0, 1], r: w * 1.3, r2: h * .8, c: '#b8c8ff', k: .9 })), { p: [0, ST.h + .04, SZ1 - 1], r: 2.6, r2: 1.6, c: '#b8c8ff', k: .8 }, { p: [0, .06, SZ0 + 3.4], r: 3, r2: 4.4, c: '#a8b8ff', k: .6 }, { p: [-5.2, .06, -1], r: 2.4, r2: 3.6, c: '#a8b8ff', k: .45 }, { p: [5.2, .06, -1], r: 2.4, r2: 3.6, c: '#a8b8ff', k: .45 }]); scene.add(flashP);
+
+// ---- 長いテーブルと いす、ろうそく、暖炉（残り火）、石の騎士の像、たれ幕、くもの巣 ----
+put(F.table({ w: TBL[2], d: 1.3, c: '#5a3a30' }), TBL[0], TBL[1], PI / 2);
+for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) { if (sx > 0 && i === 3) continue; put(F.chair({ c: '#5e3a30' }), TBL[0] + sx * (.98 + hash(i, sx + 3) * .18), TBL[1] - 3.1 + i * 1.55, -sx * PI / 2 + (hash(i, sx + 5) - .5) * .5); }
+{ const c = F.chair({ c: '#5e3a30' }); c.position.set(-2.5, .2, 3.4); c.rotation.set(-1.45, .7, 0); fixed.push(c); }   // たおれた いす
+const candles = D.candles({ n: 7, len: 6.6, light: true }); candles.position.set(TBL[0], .78, TBL[1]); candles.rotation.y = PI / 2; scene.add(candles);
+for (const [x, z] of NEWEL) { const c = D.candles({ n: 3, len: .34, h: .26 }); c.position.set(x, 1.33, z); scene.add(c); }
+{ const B = R.parts(), Pl = B.g(T.goods ? T.goods({ fc: ['#b8b0a0', '#8a8478'] }) : T.planks()), Mg = B.g(T.metal({ c: '#8a8690' }));   // テーブルの上の、ほこりをかぶった皿と さかずき
+  for (let i = 0; i < 6; i++) { const z = TBL[1] - 3.2 + i * 1.3, x = TBL[0] + (i % 2 ? .38 : -.38); Pl.loft(8, [[.785, .17, .17, 0, 1, x, z]], { cap: 'top', capRect: true, capH: .03 }); Mg.loft(6, [[.78, .05, .05, 0, .8, x * 1 + (i % 2 ? -.3 : .3), z + .25], [.84, .02, .02, .3, .9, x + (i % 2 ? -.3 : .3), z + .25], [.96, .06, .06, 1, 1.05, x + (i % 2 ? -.3 : .3), z + .25]], { cap: 'top' }); }
+  fixed.push(B.group()); }
+const hearth = F.fireplace({ w: 3, h: RH, stone: '#6e6068', lit: false }); put(hearth, RW / 2, HEARTH[1], -PI / 2);
+const ember = D.flame({ s: .5, c: '#ff8848' }); ember.position.set(HEARTH[0] + .45, .14, HEARTH[1]); scene.add(ember);
+const emberH = D.halo({ c: '#ff5a28', r: 1.1, k: .7, flicker: true, seed: 3 }); emberH.position.set(HEARTH[0] + .3, .4, HEARTH[1]); scene.add(emberH);
+const emberL = new THREE.PointLight('#ff7038', 9, 9, 1.5); emberL.position.set(HEARTH[0] - .3, .7, HEARTH[1]); scene.add(emberL);
+for (const sx of [-1, 1]) put(D.statue({ kind: 'knight', s: 1.25, c: '#7c7488', seed: sx + 4 }), sx * 4.3, SZ0 + .2, -sx * .3);
+for (const [x, c] of [[-2.7, 'moon'], [2.7, 'crown']]) { const f = F.flag({ kind: 'drape', w: 1.3, h: 3, pole: 0, c: '#6e1a2c', c2: '#2a1218', crest: c, cc: '#c8a050' }); f.position.set(x, 7.2, BZ + .12); scene.add(f); }
+for (const [x, y, z, ry, s] of [[-RW / 2 + .05, RH - .25, BZ + .1, 0, 2.6], [RW / 2 - .05, RH - .25, BZ + .1, PI, 2.6], [-RW / 2 + .06, RH - .25, 4, -PI / 2, 2.2], [RW / 2 - .06, RH - .25, -3.5, PI / 2, 2.4], [-RW / 2 + .06, RH - .25, -4.5, PI / 2 * 3, 1.8], [NEWEL[0][0] + .1, 1.3, NEWEL[0][1], PI, .9], [TBL[0], 1.5, TBL[1] + 3.4, PI / 2, .8], [1, ST.h + 3.9, BZ + .1, 0, 1.2], [-4.4, 7.3, BZ + .1, 0, 1], [RW / 2 - 1.5, 3.1, HEARTH[1] + 1.6, PI / 2, 1.2]])
+  put(D.web({ s, c: '#d8dcec' }), x, z, ry, y);
+scene.add(R.merge(fixed));
+// かべに当たる あかりの にじみ（テーブルの横のかべ、暖炉のまわり、階段の柱の上）
+scene.add(D.pools([...[-2.2, 1.6, 5.4].map(z => ({ p: [-RW / 2 + .06, 1.9, z], n: [1, 0, 0], r: 2.6, r2: 2.2, c: '#ffb050', k: .34 })), { p: [RW / 2 - .5, 1.3, HEARTH[1]], n: [-1, 0, 0], r: 2.6, r2: 1.8, c: '#ff6a30', k: .4 }, ...NEWEL.map(([x, z]) => ({ p: [x, 1.6, z + .2], n: [0, 0, 1], r: 1.2, r2: 1.2, c: '#ffc060', k: .3 }))]));
+
+// ---- 動く物：階段の上の うすい人かげ、こうもり、ほこり、いなずま ----
+const ghost = D.ghost({ h: 2.3, a: .6, c: '#c0ccff' }); ghost.position.set(0, ST.h, BZ + 1); scene.add(ghost);
+scene.add(D.flock({ kind: 'bat', n: 9, r: 4.4, h: 1.2, center: [0, 5.6, -3], s: 1.5 }), D.flock({ kind: 'bat', n: 4, r: 1.6, h: .6, center: [5, 6.3, -8], s: 1.3, speed: 1.5 }), D.flakes({ kind: 'dust', n: 110, c: '#ffe0b0', box: [14, 6, 16], size: 1.3 }), D.lightning(mood, { first: 2.32, every: 7.5, bolt: false, power: 1 }));
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffc060', power: 12, range: 9, r: 3.2, k: .75 }), crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 6.2, LEN = 9.6, SPEED = 1.25;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = Math.sin(t * .35) * .45;
+  hero.position.set(x, .05, z); hero.rotation.y = PI + Math.cos(t * .35) * .1; R.walk(hero, t * SPEED * 3.7, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = Math.min(tall ? 4.1 : 4.5, RD / 2 - .5 - z); cam.position.set(x * .5 + .9, tall ? 2.2 : 1.7, z + Dc); cam.lookAt(x * .3 - .2, tall ? 2.5 : 2.45, z - 6);   // 低い所から見上げて、階段と窓と人かげを入れる
+  const fl = mood.fl; glass.material.color.setScalar(.66 + fl * 3.2); flashP.material.opacity = fl; flashP.visible = fl > .02; ghost.material.opacity = .6 * (.8 + .2 * Math.sin(t * 1.3)) * (1 - fl * .6);
+  emberL.intensity = 9 * (.8 + .2 * Math.sin(t * 2.1) * Math.sin(t * 5.3));
+  D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

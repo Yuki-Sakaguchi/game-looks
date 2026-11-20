@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-46 ごみ処理場の、赤い炉の口 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe6d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-46 ─ ごみ処理場の、赤い炉の口 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 鉄の都市の下町の はずれ、夜のごみ処理場。鉄くずとタイヤの山の間を、マスクの作業員が荷車を押して、赤く光る大きな炉の口へ運ぶ。
+// 色の組は「黒むらさきの鉄くずと けむり」＋「炉の赤だいだい」＋差し色に 作業員の黄色いヘルメット。
+// あかりは炉の口だけ。その光が 山のふちと地面を赤くふちどり、えんとつとクレーンは 赤い空の前の黒い影になる（D.mood の 'ember' を暗くした物）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ hairStyle: 'short', hair: '#3a3038', bulk: 1.1, cloth: 'overall', sleeve: 'long', top: '#6a7a8c', top2: '#d8d0c0', bottom: '#6a7a8c', gloves: 'glove', glove: '#c8a04a', shoes: 'boot', shoe: '#3a3238', hat: 'helm', gear: '#e8b830', neck: 'scarf', acc: '#e8e4d8' }); scene.add(hero);
+const FZ = -30, OR = '#ff7a2a';
+const mood = D.mood(scene, renderer, 'ember', { follow: hero, hills: false, dir: [.12, .3, -1], range: 30, sky: ['#08070e', '#180c14', '#48181a', '#8e3a1e'], fog: ['#2a1416', 16, 120], hemi: ['#c08a84', '#3a2a3c', 1.15], key: ['#ff8a48', 1.9, [0, .3, -1]], base: [.9, .74, .78] });
+{ const b = C.backdrop({ r: 240, h: 40, y: -3, c: '#12090e', haze: '#6e2c1c' }); b.material.color.set('#a06a5a'); scene.add(b); }
+
+// ---- 地面：灰と油のしみた土。まん中に鉄板の道。炉の前が赤く照らされる ----
+const LIT = [{ x: 0, z: FZ + 4, r: 36, c: OR, k: 1.5 }, { x: 0, z: FZ + 3, r: 9, c: '#ffc060', k: 1 }];
+const land = R.ground({ w: 130, d: 130, cell: 2, cz: -14, layers: [D.tex.ash({ c: '#4a424c' }), X.plate({ c: '#5a5460', n: 2 }), X.asphalt({ wet: .7, c: '#3c3640', wetC: '#8a4a34' })], mix: (x, z) => [Math.abs(x) < 1.7 ? 1 : 0, Math.max(0, Math.min(1, .4 + Math.sin(x * .4) * Math.sin(z * .33) * 1.2))], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 炉：鉄板の大きなかべに、アーチの口。中の火は自作のドット絵（光る材質）。左右に えんとつ ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const IRON = X.plate({ c: '#4a4250', n: 2 }), WARN = X.plate({ c: '#6a5a58', n: 2, warn: 1 }), MW = 4.2, MH = 4.6;
+{ const B = R.parts(), G = B.g(IRON), W = B.g(WARN);
+  for (const [x0, x1, y0, y1] of [[-13, -MW, 0, 12], [MW, 13, 0, 12], [-MW, MW, MH + 1.6, 12]]) for (let x = x0; x < x1 - .01; x += 3.3) for (let y = y0; y < y1 - .01; y += 3) { const w = Math.min(3.3, x1 - x), h = Math.min(3, y1 - y); G.box(w, h, 5, x + w / 2, y, FZ - 2.5, { m: 3, c0: y ? 1 : .8, top: y + 3 >= y1, bottom: y0 > 0 && y === y0 }); }
+  for (const s of [-1, 1]) { W.box(.9, MH + 1.6, .7, s * (MW + .45), 0, FZ + .3, { m: 3 }); G.box(5, 15.5, 5, s * 15.5, 0, FZ - 2.5, { m: 3, c0: .8, taper: .92 }); }
+  W.box(MW * 2 + 1.8, .8, .7, 0, MH + .8, FZ + .3, { m: 3, bottom: true }); G.box(9, .5, 4, 0, 0, FZ + 2, { m: 3 });   // 口の前の鉄の台
+  fixed.push(B.group()); }
+const fireP = R.Px(32); for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const dx = (x - 15.5) / 16, dy = (31 - y) / 32, k = 1 - Math.hypot(dx * 1.1, dy * .9) + hash(x >> 1, y >> 1) * .22; fireP.set(x, y, k > .86 ? '#fff4b0' : k > .7 ? '#ffd058' : k > .52 ? '#ff9a2c' : k > .34 ? '#f0601c' : k > .16 ? '#b83414' : '#6a1c14'); }
+for (let x = 3; x < 32; x += 6) fireP.rect(x, 0, 2, 32, '#2a1418'); fireP.rect(0, 12, 32, 2, '#2a1418');   // 口の鉄ごうし
+const fire = R.geo().quad([-MW, .5, FZ - .6], [MW, .5, FZ - .6], [MW, MH + .8, FZ - .6], [-MW, MH + .8, FZ - .6]).mesh(T.from(fireP, { m: 1 }), { glow: true, fog: false }); fire.castShadow = false; fire.userData.dyn = true; scene.add(fire);
+const glow = D.halo({ c: OR, r: 9, k: .75 }); glow.position.set(0, 2.6, FZ + .8); scene.add(glow); const fl = new THREE.PointLight(OR, 60, 30, 1.2); fl.position.set(0, 2.6, FZ + 3.5); scene.add(fl);
+const STK = [[-15.5, FZ - 2.5, 34], [15.5, FZ - 2.5, 28], [-27, FZ - 8, 40]];
+{ const G = R.geo().smooth(1); for (const [x, z, h] of STK) G.at(R.TR(x, 12, z)).loft(8, [[0, 1.9, 1.9, 0, .8], [h * .5, 1.5, 1.5, h / 6, .9], [h - 12, 1.2, 1.2, h / 3, 1], [h - 11.4, 1.4, 1.4, h / 3 + .2, 1]], { ur: 4 }); fixed.push(G.at(null).mesh(X.conc({ c: '#4a3e44' }))); }
+const smokes = STK.map(([x, z, h], i) => { const s = C.steam({ n: 14, r: 4.2, rise: 26, spread: 1.6, speed: .07, c: '#4e2c2a', a: .75, wind: [14, 3], phase: i * .3 }); s.position.set(x, h + .6, z); scene.add(s); const w = D.warnLamp({ kind: 'blink', c: '#ff3a28', r: .3 }); w.position.set(x, h + .7, z + 1.4); scene.add(w); return s; });
+const mouthSmoke = C.steam({ n: 9, r: 1.5, rise: 9, spread: .9, speed: .16, c: '#2a1a1a', a: .55, wind: [2, 2] }); mouthSmoke.position.set(0, MH + 1.4, FZ + .6); scene.add(mouthSmoke);
+
+// ---- クレーン：トラスの塔と うで、たれたくさりと つかみ。赤い空の前の影になる ----
+{ const c = '#3a3440', tower = C.truss({ len: 22, h: 1.8, w: 1.8, c }); tower.rotation.z = PI / 2; tower.position.set(10.5, 0, -17); fixed.push(tower);
+  const jib = C.truss({ len: 20, h: 1.4, w: 1.2, c }); jib.position.set(3.5, 21, -17); fixed.push(jib); const cab = R.geo().box(2.6, 2.2, 2.4, 10.5, 18.8, -17, { m: 3, bottom: true }).mesh(X.plate({ c: '#4a4250', n: 2 })); fixed.push(cab); }
+const hook = new THREE.Group(); { const ch = D.chain({ len: 8.5, c: '#4a4450' }), G = R.geo(); for (let k = 0; k < 4; k++) { const a = k * PI / 2 + .4; G.quad([Math.cos(a) * .25, -8.5, Math.sin(a) * .25], [Math.cos(a + .5) * .25, -8.5, Math.sin(a + .5) * .25], [Math.cos(a + .25) * .9, -10.2, Math.sin(a + .25) * .9], [Math.cos(a) * 1.1, -9.6, Math.sin(a) * 1.1]); } const claw = G.mesh(X.plate({ c: '#4a4250' }), { side: true }); hook.add(ch, claw); hook.position.set(-3.5, 21, -17); hook.userData.dyn = true; scene.add(hook); }
+
+// ---- 鉄くずとタイヤの山、ドラムかん、フェンス ----
+const CS = ['#5a5260', '#6a5a5a', '#4e5466', '#74605a', '#5c4e5e'];
+for (let i = 0; i < 26; i++) { const s = i % 2 ? 1 : -1, z = 16 - i * 1.9 + hash(i, 2), x = s * (4.2 + hash(i, 1) * 9 + (i % 5 === 0 ? 5 : 0)), big = 1.6 + hash(i, 3) * 2.6; if (z < FZ + 7 && Math.abs(x) < 8) continue; put(C.scrap({ s: big, seed: i, cs: CS }), x, z, i * 1.7); }
+for (const [x, z, n, k] of [[-3.3, 9, 4, 'stack'], [3.5, 3.5, 5, 'pile'], [-3.6, -4, 3, 'stack'], [3.4, -9.5, 4, 'pile'], [-4, -14, 5, 'pile'], [3.2, 13, 3, 'stack'], [-6, 14, 5, 'pile'], [5.6, -3, 3, 'stack']]) put(C.tires({ n, kind: k, seed: n + x }), x, z, x);
+for (const [x, z, c] of [[2.9, 7.6, '#6a4a44'], [-3, 1.5, '#4a5060'], [3.3, -6, '#5a4a52'], [-3.1, -10, '#6a4a44'], [4.6, -20, '#4a5060'], [-5, -21, '#6a4a44'], [-5.7, -20.4, '#5a4a52']]) put(C.drum({ c, mark: 'band' }), x, z, z);
+put(C.fence({ len: 14, h: 2.4, kind: 'mesh' }), -20, 6, PI / 2); put(C.fence({ len: 14, h: 2.4, kind: 'mesh' }), 20, 2, PI / 2); put(C.trike({ c: '#5a4a52', load: 'drum' }), -5.5, 5.5, 2.2);
+scene.add(R.merge(fixed));
+scene.add(D.pools([{ p: [0, .05, FZ + 6], r: 10, r2: 8, c: OR, k: .55 }, { p: [0, MH + 3.5, FZ + .02], n: [0, 0, 1], r: 7, r2: 4, c: OR, k: .5 }]), D.streaks([{ x: 0, z: FZ + 2, h: 2.5, c: OR, k: .8, w: 3.4, len: 16 }]));
+
+// ---- 火の粉、ふる灰、地をはう けむり ----
+scene.add(D.flakes({ kind: 'ember', n: 220, box: [22, 12, 30], size: 2.2 }), D.flakes({ kind: 'ash', n: 160, box: [24, 10, 24], c: '#6a5a5a' }), D.groundFog({ n: 34, box: [60, 60], h: 1.6, w: 9, c: '#4a2c2a', a: .16, wind: [.7, .3] }));
+const sparks = C.sparks({ n: 22, every: 1.1, c: '#ffd070', power: 1.6 }); sparks.position.set(0, 2, FZ + .5); scene.add(sparks);
+
+// ---- 作業員：マスクをつけ、鉄くずをのせた荷車を押す ----
+const J = hero.userData.J; { const G = R.geo(); G.box(.17, .09, .07, 0, .03, .1, { bottom: true }); J.head.add(G.mesh(T.fabric({ c: '#d8d8d0', pattern: 'plain' }))); }
+const cart = new THREE.Group(); { const B = R.parts(), W = B.g(T.planks({ c: '#7a6048' })), M = B.g(T.metal({ c: '#5a5868' })); W.box(.8, .1, 1.1, 0, .42, .95, { bottom: true }); for (const s of [-1, 1]) { W.box(.06, .34, 1.1, s * .4, .5, .95, {}); M.box(.04, .04, .7, s * .3, .78, .28, {}); } W.box(.8, .34, .06, 0, .5, 1.5, {}); W.box(.8, .34, .06, 0, .5, .42, {}); M.box(.7, .04, .04, 0, .78, -.06, {}); M.box(.05, .42, .05, 0, 0, .5, {});
+  const Wh = B.g(T.wheel({ kind: 'wood' }), { side: true }); for (const s of [-1, 1]) Wh.quad([s * .47, 0, 1.3], [s * .47, 0, .7], [s * .47, .6, .7], [s * .47, .6, 1.3]); cart.add(B.group()); const load = C.scrap({ s: .62, seed: 4, cs: CS }); load.position.set(0, .5, .95); const t2 = C.tires({ n: 1 }); t2.position.set(.1, .82, .7); t2.scale.setScalar(.8); cart.add(load, t2); hero.add(cart); }
+const helm = new THREE.PointLight('#e8c0c0', 15, 8, 1.3); scene.add(helm);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 7, SPAN = 25, SPEED = 1.35;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, z = Z0 - d, x = Math.sin(z * .22) * .35, tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 4.6, f = .82 + Math.sin(t * 9) * .08 + Math.sin(t * 23.7) * .06 + Math.sin(t * 3.1) * .08;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .22) * .06; R.walk(hero, t * SPEED * 4.6, .8); J.armL.rotation.set(-.95, 0, .12); J.armR.rotation.set(-.95, 0, -.12); J.foreL.rotation.x = J.foreR.rotation.x = -.35; J.torso.rotation.x = .16;
+  cam.position.set(x * .5 + 2, tall ? 2.2 : 2, z + Dc); cam.lookAt(x * .3 + .2, tall ? 2.5 : 2.45, z - 6);
+  crt.u.bright.value = 1.1 * Math.min(1, d / .5, (SPAN - d) / .5);
+  fire.material.color.setScalar(f * 1.05); glow.material.opacity = .75 * f; fl.intensity = 60 * f; helm.position.set(x + 1.6, 2.3, z + 1.8); hook.rotation.z = Math.sin(t * .7) * .05; hook.rotation.x = Math.sin(t * .5 + 1) * .03;
+  land.follow(0, -14); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

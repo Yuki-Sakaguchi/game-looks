@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-04 地下墓所 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe8f8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-04 ─ 地下墓所 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 地下墓所。丸天井の石のろうかが、霧の奥までまっすぐ続く。左右のかべのくぼみに石のひつぎの台がならび、かべのたいまつが石を だいだいに照らす。
+// 色の組は「石の青灰・たいまつの だいだい」＋差し色は、天井のわれ目から落ちる青白い光と、いつも遠くにただよう鬼火のうすみどり。
+// たいまつを持った探検家が、地をはう霧の中を奥へ歩く。鬼火は近づいても同じだけ先にいる。骨は小さな物をほんの少しだけ。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = W.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 300, aa: false, fitAspect: .9, maxFov: 80 });
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#e4dcc8', brow: 'thick', mouth: 'line', cloth: 'tunic', sleeve: 'long', top: '#e0d0a8', top2: '#8a5a3a', bottom: '#6a7aa8', shoe: '#6a4a34', gloves: 'wrap', glove: '#c8b890', hat: 'band', neck: 'scarf', acc: '#d8483a', back: 'bag' }); scene.add(hero);
+// 地下なので空は見えない。青灰の弱い空気の光だけを D.mood で用意し、霧でろうかの奥をとかす
+const FOG = '#22304a', mood = D.mood(scene, renderer, 'abyss', { sky: [FOG, FOG, FOG, FOG], fog: [FOG, 7, 44], hemi: ['#9ab4e4', '#34405a', 1.2], key: ['#a8c4f0', .55, [.2, .9, .35]], fill: ['#5a78a8', .4], base: [.52, .62, .88], flash: '#ffffff', hills: false, stars: false, shadow: false, r: 200 });
+
+// ---- ろうかの形。8 m ごとに同じ ならび：左のくぼみは z = 8k〜8k+4、右のくぼみは 8k+4〜8k+8。くぼみでない所のまん中に、たいまつ ----
+const HW = 2.6, NX = 4.9, WH = 3.6, VH = 1.15, K0 = -9, K1 = 2, PER = 24, STONE = '#6e7e9c';
+const niches = [], torches = [], shafts = [-60, -36, -12, 12];
+for (let k = K0; k < K1; k++) { niches.push({ s: -1, z: 8 * k + 2, v: ((k % 3) + 3) % 3 }, { s: 1, z: 8 * k + 6, v: ((k % 3) + 4) % 3 }); torches.push({ s: -1, z: 8 * k + 6 }, { s: 1, z: 8 * k + 2 }); }
+const lamps = [...torches.map(t => ({ x: t.s * 2.2, y: 2.3, z: t.z, c: '#ffa050', r: 6.5, k: 1.2 })), ...shafts.map(z => ({ x: 0, y: .4, z, c: '#8ab8ff', r: 3.6, k: .9 })), ...niches.filter(n => n.v < 2).map(n => ({ x: n.s * 3, y: .4, z: n.z + (n.v ? 1.2 : 0), c: '#ffc060', r: n.v ? 2.6 : 3.6, k: n.v ? .7 : 1 }))];
+const bakeF = W.bake(lamps, mood.base), bakeC = W.bake(lamps.map(l => ({ ...l, r: l.r * 1.3, k: l.k * .42 })), [.46, .55, .8]);
+const land = R.ground({ w: 14, d: 96, cell: 1, cz: -28, layers: [X.dungeon({ kind: 'floor', c: STONE, moss: .2 }), D.tex.wetCobble({ c: '#5a6a8a', wet: .5, shine: '#a8c0e8' })], mix: (x, z) => [W.vn(x * .5, z * .5, 3) > .62 ? 1 : 0, 0], shade: (x, z) => bakeF(x, z, 0) }); scene.add(land.mesh);
+
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// かべ：くぼみでない所は あつい石のかたまり、くぼみの奥は うすいかべ。さかい目ごとに柱
+for (const t of torches) put(W.dungeonWall({ len: 4, h: WH, thick: NX - HW + .6, c: STONE, moss: .25 }), t.s * (HW + (NX - HW + .6) / 2), t.z, PI / 2);
+for (const n of niches) put(W.dungeonWall({ len: 4, h: WH, thick: .6, c: '#62728e', moss: .4 }), n.s * (NX + .3), n.z, PI / 2);
+for (let z = 8 * K0; z <= 8 * K1; z += 4) for (const s of [-1, 1]) put(W.column({ h: WH + .25, r: .27, c: '#7e8eac', moss: .2, seed: z + s }), s * (HW - .22), z, z);
+// 丸天井（ろうか）と、くぼみの平らな天井、4 m ごとの あばら石。たいまつの あかりを頂点の色に焼きこむ
+{ const G = R.geo(), Gr = R.geo(), N = 6, P = i => { const a = PI - i / N * PI; return [Math.cos(a) * HW, WH + Math.sin(a) * VH]; };
+  for (let z = 8 * K1; z > 8 * K0; z -= 2) for (let i = 0; i < N; i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1), c = bakeC((x0 + x1) / 2, z - 1, (y0 + y1) / 2); G.quad([x0, y0, z - 2], [x1, y1, z - 2], [x1, y1, z], [x0, y0, z], [i * .32, (z - 2) / 3, (i + 1) * .32, z / 3], c); }
+  for (const n of niches) { const xa = Math.min(n.s * HW, n.s * NX), xb = Math.max(n.s * HW, n.s * NX), c = bakeC(n.s * 4, n.z, WH).map(v => v * .8); G.quad([xa, WH, n.z - 2], [xb, WH, n.z - 2], [xb, WH, n.z + 2], [xa, WH, n.z + 2], [0, 0, 1, 1.33], c); }
+  for (let z = 8 * K0; z <= 8 * K1; z += 4) for (let i = 0; i < N; i++) { const [x0, y0] = P(i), [x1, y1] = P(i + 1), c = bakeC((x0 + x1) / 2, z, y0).map(v => v * 1.15), q = (x, y, dz, k = 1) => [x * k, y - (1 - k) * 4, z + dz]; Gr.quad(q(x0, y0, -.25, .94), q(x1, y1, -.25, .94), q(x1, y1, .25, .94), q(x0, y0, .25, .94), [i * .3, 0, (i + 1) * .3, .17], c); for (const dz of [-.25, .25]) Gr.quad(q(x0, y0, dz, .94), q(x1, y1, dz, .94), q(x1, y1, dz), q(x0, y0, dz), [i * .3, 0, (i + 1) * .3, .06], c.map(v => v * .7)); }
+  const cm = G.mesh(X.dungeon({ kind: 'wall', c: '#5e6e8c', moss: .15 }), { side: true }), rm = Gr.mesh(X.dungeon({ kind: 'wall', c: '#8090ae', moss: 0 }), { side: true }); cm.castShadow = rm.castShadow = false; fixed.push(cm, rm); }
+// くぼみの中：石のひつぎの台。3 つおきに ろうそく／つぼと小さな骨／折れた柱。上のかどに くもの巣
+const dyn = [];
+for (const n of niches) { const { s, z, v } = n, i = z * .37 + s;
+  put(D.bier({ s: 1.12, c: '#8490ac', seed: z & 7 }), s * 3.8, z, (hash(i, 1) - .5) * .16);
+  put(D.web({ s: 1.5, c: '#c4cee4' }), s * (HW + .1), z - 1.98, -PI / 2, WH - .05); if (v !== 1) put(D.web({ s: 1.1, c: '#c4cee4' }), s * (HW + .12), z + 1.98, PI / 2, WH - .05);
+  if (v === 0) { const c = D.candles({ n: 5, len: 1.5, h: .3, seed: z & 15 }); c.position.set(s * 2.95, 0, z); c.rotation.y = PI / 2; scene.add(c); }
+  if (v === 1) { put(R.barrel({ h: .7, r: .26, c: '#6a6478' }), s * 3.05, z + 1.45, i); { const c = D.candles({ n: 2, len: .3, h: .34, seed: z & 15 }); c.position.set(s * 3, 0, z + .95); scene.add(c); } put(W.skull({ s: .2, c: '#c8c4b4', seed: 1 }), s * 3.2, z - 1.1, -s * 1.9 + .4); put(W.skull({ s: .17, c: '#bcb8a8', seed: 2 }), s * 3.8, z - .5, -s * 1.2, .92); }
+  if (v === 2) { put(D.column({ h: 2, r: .26, c: '#7a86a4', seed: z & 7 }), s * 3.1, z + 1.2, i); put(R.rock({ s: .45, c: '#66728c', seed: z & 7 }), s * 3.3, z - 1.3, i); const ch = D.chain({ len: 1.5, sway: .05, seed: z }); ch.position.set(s * 3.2, WH, z - .4); ch.rotation.y = PI / 2; scene.add(ch); } }
+// 天井から下がる くさり、われ目から落ちる青白い光と、その下の くずれた石
+for (let k = K0; k < K1; k++) for (const [x, dz, len] of [[-1.2, 3.2, 1.7], [1.5, 7.1, 1.2]]) { const ch = D.chain({ len, sway: .07, seed: k * 3 + x }); ch.position.set(x, WH + VH * .85, 8 * k + dz); scene.add(ch); }
+for (const z of shafts) { const sh = D.shaft({ w: 2.3, h: WH + VH, c: '#9ac4ff', a: .26, lean: [.3, .2] }); sh.position.set(-.2, 0, z); scene.add(sh); for (const [x, dz, sc] of [[-1.5, .5, .5], [1.6, -.6, .4], [-1.8, -1, .3]]) put(R.rock({ s: sc, c: '#7888a6', seed: z + x * 7 }), x, z + dz, x * 3); }
+scene.add(R.merge(fixed));
+// たいまつ（かべに付ける。PointLight は持たせず、かべには加算のにじみ、床と天井には焼きこみ）
+const tk = torches.map((t, i) => { const g = W.torch({ wall: true, h: .9, y: 2.2, light: false, seed: i }); g.position.set(t.s * HW, 0, t.z); g.rotation.y = -t.s * PI / 2; scene.add(g); return g.userData.tick; });
+scene.add(D.pools(torches.flatMap(t => [{ p: [t.s * (HW - .02), 2.5, t.z], n: [-t.s, 0, 0], r: 2.3, r2: 1.9, c: '#ff9440', k: .6 }, { p: [-t.s * (NX + .02), 1.9, t.z], n: [t.s, 0, 0], r: 2.2, r2: 1.8, c: '#ff9440', k: .2 }])));
+
+// ---- 動く物：地をはう霧、ほこり、いつも遠くにいる鬼火 ----
+scene.add(D.groundFog({ n: 44, box: [9, 34], c: '#a8c0e4', a: .3, h: 1.1, w: 5, wind: [.08, .45] }), D.flakes({ kind: 'dust', n: 90, c: '#ffd8a8', box: [6, 4, 18], size: 1.2 }));
+const wisps = new THREE.Group(); [[-1.1, 1.3, -15, '#8ef0d0'], [1.2, 1.7, -20, '#a8e4ff'], [-.3, 1.1, -26, '#8ef0d0']].forEach(([x, y, z, c], i) => { const w = D.wisp({ c, seed: i * 2 + 1, r: .6, drift: .7 }); w.position.set(x, y, z); wisps.add(w); }); scene.add(wisps);
+
+// ---- 探検家のたいまつ：D.lantern のしくみ（うで・にじみ・あかり・足もとの輪）を使い、ランタンの形を たいまつに入れかえる ----
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffa448', power: 16, range: 11, r: 3.6, k: .8 }), [lbody, lhalo, lpt] = lamp.children; lbody.visible = false; lhalo.visible = false; lpt.position.y = .5;
+const htorch = W.torch({ h: .62, light: false, fs: .42, seed: 7 }); htorch.position.y = -.2; htorch.rotation.x = -.2; htorch.scale.setScalar(.82); lamp.add(htorch);
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 2, SPEED = 1.5;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % PER, x = Math.sin(t * .4) * .35;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(t * .4) * .08; R.walk(hero, t * SPEED * 3.6, .9); D.lanternPose(hero, 1.25);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.8 : 4.1; const pan = Math.sin(t * .22 + .5) * (tall ? 1.2 : 2.6); cam.position.set(x * .5 - pan * .28, tall ? 2.15 : 1.8, z + Dc); cam.lookAt(x * .4 + pan, tall ? 1.9 : 1.9, z - 6);   // ゆっくり左右を見て、くぼみの中を見せる
+  wisps.position.z = z; for (const f of tk) f(t); htorch.userData.tick(t);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

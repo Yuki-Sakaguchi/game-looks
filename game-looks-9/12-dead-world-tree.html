@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-12 灰の荒野の、枯れた大樹 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8e4dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-12 ─ 灰の荒野の、枯れた大樹 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 灰のふる荒野のまん中に、空をおおうほど大きな枯れ木。太い幹から枝だけが広がり、根もとには まだ赤い残り火と、小さな石のほこら。
+// つえの旅人が、うねる根の間の道を大樹へ歩く。色の組は「灰の地面と空・木の黒」＋残り火のだいだい 1 つ。
+// 大樹は明るい地平線の前の黒いシルエットにし、根もとは残り火のあかりの輪で読ませる（D.mood の 'ash' を少し暗くした）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), W = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 58, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tail', hair: '#3a3440', cloth: 'coat', top: '#cfc6b4', top2: '#8a8478', bottom: '#4a4650', shoe: '#5a4636', gloves: 'wrap', glove: '#8a7a6a', neck: 'scarf', acc: '#e0622a', back: 'pack' }); scene.add(hero); F.wear(hero, 'staff', { len: 1.45, c: '#5a4a40' });
+const mood = D.mood(scene, renderer, 'ash', { follow: hero, range: 34, sky: ['#242426', '#3c3a3c', '#5e5a58', '#8e857c'], fog: ['#605c5a', 14, 150], hills: '#3c3a3c', dir: [-.55, .55, -.62] });
+
+// ---- 地面：灰の荒野。道は ふみかためた うすい色。残り火と ほこらの ろうそくの あかりを焼きこむ ----
+const px = z => Math.sin(z * .13) * 2.4, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => sm(3, 9, Math.abs(x - px(z))) * sm(10, 20, Math.hypot(x, z)) * (W.vn(x * .12, z * .12, 5) - .3) * 1.5;
+const EM = [-3.4, 12.2], SH = [5.2, 12.4], LIT = [{ x: EM[0], z: EM[1], r: 12, c: '#ff8438', k: 1.5 }, { x: SH[0], z: SH[1] + 1, r: 4.5, c: '#ffc068', k: .7 }];
+const land = R.ground({ w: 150, d: 150, cell: 2.5, cz: 10, H, layers: [D.tex.ash({ c: '#6c6a6e' }), T.dirt({ c: '#8a8684' }), D.tex.ash({ c: '#4c4a52', seed: 3 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.4 - Math.abs(x - px(z)) / 1.5)) * sm(9, 13, z), Math.max(sm(15, 8, Math.hypot(x, z)), W.vn(x * .2, z * .2, 8) > .62 ? .8 : 0)], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 大樹：太い幹（根もとが広がる）、空へ広がる太い枝、その先の こまかい枝、地をはう根 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const bark = T.bark({ c: '#55525e' }), bark2 = T.bark({ c: '#3c3a46' }), G = R.geo().smooth(1), up = new THREE.Vector3();
+G.loft(12, [[-.5, 10.5, 10, 0, .7], [1.5, 8, 7.6, .7, .8], [5, 6.2, 5.9, 1.8, .92, .3, 0], [12, 5.1, 4.9, 4.2, 1, .8, .3], [21, 4.4, 4.2, 7.2, 1, -.5, .8], [29, 3.7, 3.6, 10, 1.05, .4, -.3], [34, 2.6, 2.6, 11.6, 1.08, .2, -.2]], { ur: 9, cap: 'top' });
+const twig = (x, y, z, a, tilt, h, sd) => { const t = D.deadTree({ h, r: h * .045, seed: sd, c: bark2, twigs: 2 }); t.position.set(x, y, z); t.quaternion.setFromAxisAngle(up.set(Math.sin(a), 0, -Math.cos(a)), tilt); t.rotateY(sd); fixed.push(t); };
+for (let k = 0; k < 11; k++) { const a = k / 11 * TAU + hash(k, 1) * .35, ca = Math.cos(a), sa = Math.sin(a), y0 = 15 + (k % 4) * 4.5 + hash(k, 2) * 2, L = 26 + hash(k, 3) * 12, kx = (hash(k, 4) - .5) * 9, lift = .25 + hash(k, 5) * .35,
+    P = (q, r) => { const d = 3.2 + (L - 3.2) * q, w = Math.sin(q * PI) * kx + Math.sin(q * 7 + k) * 1.6; return [ca * d - sa * w, y0 + L * lift * (q ** .7) + Math.sin(q * 5 + k * 2) * 1.5, sa * d + ca * w, r]; };
+  W.tube(G, [P(0, 2), P(.18, 1.7), P(.4, 1.3), P(.62, 1), P(.82, .7), P(1, .3)], 7, { m: 3, ur: 2 });
+  for (const [q, h, dt] of [[.45, 13, .5], [.7, 12, -.4], [.95, 14, .2]]) { const p = P(q, 0); twig(p[0], p[1], p[2], a + dt, .5 + hash(k, q * 9) * .7, h + hash(k, q * 7) * 4, k * 5 + Math.round(q * 10)); } }
+for (let k = 0; k < 4; k++) { const a = k * 1.7 + .4, ca = Math.cos(a), sa = Math.sin(a); W.tube(G, [[ca * 1.2, 32, sa * 1.2, 1.9], [ca * 3.5, 39, sa * 3.5, 1.4], [ca * 7 - sa * 2, 46, sa * 7 + ca * 2, 1], [ca * 9, 53, sa * 9, .45]], 7, { m: 3, ur: 2 }); twig(ca * 7 - sa * 2, 46, sa * 7 + ca * 2, a + 1, .7, 13, k + 70); twig(ca * 9, 52.5, sa * 9, a, .35, 15, k + 80); }
+// 根：幹から外へ うねって地面にもぐる。道（+z の方角）は あけて、その両わきを 2 本が走る。1 本は道の上をまたぐ
+const ROOTS = [.15, .62, .98, 2.16, 2.55, 3.05, 3.6, 4.15, 4.7, 5.25, 5.8], rootTop = [];
+ROOTS.forEach((a, k) => { const ca = Math.cos(a), sa = Math.sin(a), L = 20 + hash(k, 7) * 9, arch = k % 3 === 0 ? 2.2 : .6, kx = (hash(k, 8) - .5) * 6, P = (q, y, r) => { const d = 4.5 + L * q, w = Math.sin(q * PI) * kx; return [ca * d - sa * w, y, sa * d + ca * w, r]; };
+  W.tube(G, [P(0, 6, 2.3), P(.2, 2.8, 1.7), P(.42, 1 + arch, 1.25), P(.62, .5 + arch * .8, 1), P(.82, .3, .7), P(1, -.9, .4)], 7, { m: 3, ur: 2 }); rootTop.push(P(.42, 2.3 + arch, 0)); });
+const FL = [[-1, .85], [1, .75]].map(([sx, r0]) => [...Array(9)].map((_, i) => { const z = 9 + i * 4; return [px(z) + sx * (Math.max(4.3, (sx > 0 ? 6.4 : 7.8) - i * .45) + Math.sin(i * 2.3 + sx) * 1.1 + i * .3), i === 8 ? -.8 : .15 + Math.abs(Math.sin(i * 1.7 + sx * 2)) * 1.5, z + Math.sin(i * 3.1) * .8, r0 * (1.3 - i * .14)]; })); for (const P of FL) W.tube(G, [[P[0][0] * .55, 4.2, 4.5, P[0][3] * 1.5], [P[0][0] * .8, 2, 6.8, P[0][3] * 1.2], ...P], 6, { m: 2, ur: 1 });
+fixed.push(G.mesh(bark));
+
+// ---- 根もと：残り火（赤く光る おきの山）と、小さな石のほこら、ろうそく ----
+const coal = new THREE.Mesh(R.geo().smooth(1).loft(9, [[-.1, 2.3, 1.9, 0, 1], [.3, 1.6, 1.3, .4, 1.1], [.62, .5, .4, .8, 1.25]], { ur: 3, cap: 'top' }).build(), W.glowMat(W.tex.lava({ crust: '#3a2c34', seed: 2 }), {})); coal.position.set(EM[0], 0, EM[1]); coal.castShadow = false; scene.add(coal);
+for (const [dx, dz, s] of [[-.5, .2, .7], [.6, -.3, .5], [0, .5, .4]]) { const f = D.flame({ s, c: '#ffb070' }); f.position.set(EM[0] + dx, .4, EM[1] + dz); scene.add(f); }
+const emL = new THREE.PointLight('#ff7a30', 60, 22, 1.4); emL.position.set(EM[0] + .4, 1.6, EM[1] + 1.2); scene.add(emL);
+const emH = D.halo({ c: '#ff7a30', r: 3.2, k: .5, flicker: true }); emH.position.set(EM[0], 1, EM[1] + .5); scene.add(emH);
+fixed.push(D.pools([{ p: [EM[0] + .6, 5, 6.2], n: [0, 0, 1], r: 7, r2: 6, c: '#ff7430', k: .75 }, { p: [EM[0], .1, EM[1]], r: 6, c: '#ff8a40', k: .5 }]));
+const sparks = W.motes({ n: 34, box: [5, 7, 5], c: '#ffa040', size: .1, rise: .9, drift: .7, y: .5 }); scene.add(sparks);
+const stone = D.tex.stone({ c: '#74748a', moss: .2, m: 1.5 }), SG = R.geo().smooth(0), roofT = T.shingle({ c: '#4a4a5e', m: 1.5 }), RG = R.geo().smooth(0);
+SG.box(1.7, .35, 1.6, 0, 0, 0, { m: 1.5, c0: .75 }).box(1.3, .3, 1.25, 0, .35, 0, { m: 1.5, c0: .85 }).box(.95, .95, .85, 0, .65, 0, { m: 1.5, c0: .8 });
+SG.tri([-.6, 1.6, .5], [.6, 1.6, .5], [0, 2.1, .5], [0, 0], [.8, 0], [.4, .35]).tri([.6, 1.6, -.5], [-.6, 1.6, -.5], [0, 2.1, -.5], [0, 0], [.8, 0], [.4, .35]);
+RG.quad([-.85, 1.5, .7], [0, 2.2, .7], [0, 2.2, -.7], [-.85, 1.5, -.7], [0, 0, .75, .95], .85).quad([0, 2.2, .7], [.85, 1.5, .7], [.85, 1.5, -.7], [0, 2.2, -.7], [0, 0, .75, .95], 1.05);
+const shrine = new THREE.Group(); shrine.add(SG.mesh(stone), RG.mesh(roofT, { side: true })); put(shrine, SH[0], SH[1], -.5);
+const niche = R.geo().quad([-.24, .78, .44], [.24, .78, .44], [.24, 1.42, .44], [-.24, 1.42, .44]).mesh(T.window({ lit: 1, glass: '#ffb050', curtain: false, bars: 'none', arch: 1, h: 48 }), { glow: true }); niche.castShadow = false; shrine.add(niche);
+const cands = D.candles({ n: 4, len: 1.1 }); cands.position.set(SH[0] - .5, .02, SH[1] + 1); cands.rotation.y = -.5; scene.add(cands);
+put(R.rock({ s: 1.1, c: '#62606c', seed: 5 }), SH[0] + 2.4, SH[1] + 1.4, .4); put(D.column({ h: 2, broken: true, c: '#70707e' }), SH[0] + 1.6, SH[1] - .5, 1);
+
+// ---- 荒野：遠くの枯れ木、岩、たおれた墓標 ----
+for (let i = 0; i < 34; i++) { const a = hash(i, 11) * TAU, r = 30 + hash(i, 12) * 40, x = Math.cos(a) * r, z = 12 + Math.sin(a) * r * .9; if (Math.abs(x - px(z)) < 5 && z > 0) continue; put(D.deadTree({ h: 5 + hash(i, 13) * 6, seed: i, c: bark2, twigs: i % 3 ? 1 : 2 }), x, z, i); }
+for (let i = 0; i < 38; i++) { const z = 60 - hash(i, 14) * 70, sx = i % 2 ? 1 : -1, x = px(z) + sx * (3.6 + hash(i, 15) ** 1.4 * 22), k = i % 5; if (Math.hypot(x, z) < 12) continue;
+  put(k === 0 ? D.grave({ kind: 'post', seed: i, lean: (hash(i, 16) - .5) * .7, s: 1.2 }) : k === 1 ? R.tuft({ kind: 'reed', s: 1.1, c: '#6a665e' }) : R.rock({ s: .6 + hash(i, 17) * 1.5, c: '#5e5c66', seed: i }), x, z, i * 1.3, H(x, z) - .08); }
+scene.add(R.merge(fixed));
+
+// ---- 空と空気：ふる灰、遠くのいなずま（大樹のむこう）、からす ----
+scene.add(D.flakes({ kind: 'ash', n: 260, box: [22, 11, 22], c: '#b4aea8', size: 1.4 }), D.lightning(mood, { first: 2.35, every: 8, az: 8, spread: 70, dist: 230, power: .7 }));
+scene.add(D.groundFog({ n: 30, box: [70, 70], H, c: '#a8a29c', a: .2, h: 1.6, w: 11, wind: [.7, .2] }));
+scene.add(D.perched([...[[0, 3], [1, 4], [0, 5], [1, 2]].map(([a, i]) => [FL[a][i][0], FL[a][i][1] + FL[a][i][3] - .05, FL[a][i][2], a * 2 + i]), ...[2, 3, 0].map((k, i) => [rootTop[k][0], rootTop[k][1] - .15, rootTop[k][2], i * 2])], { watch: hero, near: 6 }), D.flock({ n: 11, r: 15, h: 4, center: [0, 22, 0], s: 1.3, c: '#1c1c24' }), D.flock({ n: 6, r: 7, h: 2, center: [6, 9, 22], s: 1.1, speed: .6, c: '#1c1c24' }));
+
+const lamp = D.lantern(hero, { hand: 'L', power: 9, range: 8, r: 2.8, k: .6 });
+const crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const Z0 = 38, LEN = 24, SPEED = 1.55, T0 = +new URLSearchParams(location.search).get('t0') || 0;   // ?t0=秒 で、とちゅうから見る
+K.loop((dt, t) => { t += T0;
+  const z = Z0 - (t * SPEED) % LEN, x = px(z), y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(px(z - .6) - x, -.6); R.walk(hero, t * SPEED * 3.6); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 4.5; cam.position.set(x + (tall ? .15 : .7), y + (tall ? 1.7 : 1.05), z + Dc); cam.lookAt(x * .75, y + (tall ? 4 : 3.3), z - 7);   // 低い所から見上げて、主役と 空をおおう枝を 1 枚に入れる
+  emL.intensity = 60 * (.85 + .15 * Math.sin(t * 7) * Math.sin(t * 2.3)); coal.material.color.setScalar(.85 + .15 * Math.sin(t * 1.7)); sparks.userData.tick(t, EM[0], EM[1]);
+  land.follow(0, 10); D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

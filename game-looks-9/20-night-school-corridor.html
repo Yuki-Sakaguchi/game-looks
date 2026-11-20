@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-20 夜の校舎のろうか 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe8f4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-20 ─ 夜の校舎のろうか / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の校舎。だれもいない長いろうかを、懐中電灯を持った子が歩く。左は窓（月の光が床に四角く落ちる）と ならんだ くつ箱、右は教室の戸と はり紙。おくに緑の非常灯。
+// 色の組は「かべと床の青黒・月の青白・懐中電灯の黄」＋非常灯の緑 1 点。こわさは「だれもいない静けさ」まで。
+// ろうかは R.geo で自作（床・かべ・天井を 2 m ごとに割る）。月の四角と懐中電灯の円すい・輪は、加算の面で重ねる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', s: .92, hairStyle: 'bob', hair: '#3a3048', cloth: 'jacket', top: '#d8a838', top2: '#f0e8d0', lower: 'shorts', bottom: '#3c4a78', shoe: '#e8e4dc', neck: 'scarf', acc: '#c8483c', back: 'bag' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'moon', { follow: hero, shadow: false, hills: false, stars: false, level: .62, dir: [-.8, .5, -.35], fog: ['#101c34', 9, 50] });
+
+// ---- 加算の面（月の四角・懐中電灯の円すい）と、懐中電灯 ----
+const lin = (c, k = 1) => { const q = new THREE.Color(c); return [q.r * k, q.g * k, q.b * k]; };
+const addM = () => new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, c = o.c || '#ffe08a', hold = new THREE.Group(), g = new THREE.Group(), P = R.parts(), wp = new THREE.Vector3();
+  hold.rotation.z = J.foreR.children[0] ? J.foreR.children[0].rotation.z : 0; J.foreR.add(hold); g.position.y = -B.farm - B.hand[2] * .6; hold.add(g);
+  P.g(T.metal({ c: '#70748e' })).loft(6, [[-.2, .055, .055, 0, 1], [-.13, .05, .05, .3, 1], [-.1, .03, .03, .4, .85], [.08, .03, .03, 1, .8]], { cap: 'both' }); g.add(P.group());
+  const lens = D.halo({ c, r: .28, k: .9 }); lens.position.y = -.22; g.add(lens);
+  const G = R.geo(), col = lin(c), z0 = [0, 0, 0]; for (const [k, br] of [[1, .3], [.5, .34]]) { const n = 10, r1 = Math.tan(o.half || .2) * k, p = (a, r, z) => [Math.cos(a) * r, Math.sin(a) * r, z], c0 = col.map(v => v * br); for (let i = 0; i < n; i++) { const a0 = i / n * TAU, a1 = (i + 1) / n * TAU; G.quad(p(a0, .03, 0), p(a1, .03, 0), p(a1, r1, 1), p(a0, r1, 1), [0, 0, 1, 1], [c0, c0, z0, z0]); } }
+  const cone = new THREE.Mesh(G.build(), addM()); cone.frustumCulled = false; cone.castShadow = false; cone.rotation.order = 'YXZ'; cone.renderOrder = 3;
+  const ring = D.spot({ c, r: 1, k: o.k ?? .6 }); ring.rotation.order = 'YXZ'; const sl = new THREE.SpotLight(c, o.power || 30, o.range || 16, o.angle || .46, .7, 1.2); scene.add(cone, ring, sl, sl.target);
+  return (d = 4, gy = 0, yaw = 0) => { J.armR.rotation.set(-1.12, 0, -.12); J.foreR.rotation.x = -.3; actor.updateMatrixWorld(true); g.getWorldPosition(wp); const ry = actor.rotation.y + yaw, h = wp.y - gy;
+    cone.position.copy(wp); cone.rotation.set(Math.atan2(h, d), ry, 0); cone.scale.setScalar(Math.hypot(d, h)); ring.position.set(wp.x + Math.sin(ry) * d, gy + .06, wp.z + Math.cos(ry) * d); ring.rotation.y = ry; ring.scale.set(o.rx || 1.05, o.rz || 1.9, 1); sl.position.copy(wp); sl.target.position.copy(ring.position); }; }
+
+// ---- 自分で打つテクスチャ：くつ箱、はり紙 3 種、教室の札 ----
+const shoeT = (() => { const P = R.Px(32), C = R.ramp('#6c6480'), S = ['#d4dcec', '#c0504c', '#d8c070', '#7088c0']; P.fill(C[2]);
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const x = i * 8, y = j * 8; P.rect(x + 1, y + 1, 6, 6, C[0]); P.rect(x + 1, y + 1, 6, 1, '#1c1e30'); P.rect(x, y, 8, 1, C[4]); P.rect(x + 7, y, 1, 8, C[1]); if (hash(i, j, 3) > .4) { const c = S[Math.floor(hash(i, j, 5) * 4)]; P.rect(x + 2, y + 5, 2, 2, c); P.rect(x + 4, y + 5, 2, 2, c); P.set(x + 2, y + 5, '#f4f4f4'); } } return T.from(P, { m: 1 }); })();
+const paperT = k => { const P = R.Px(16, 24), pc = ['#c8ccc0', '#c4c0a8', '#b8c4cc'][k], ink = '#56607c'; P.fill(pc); P.rect(0, 0, 16, 1, '#e8e8dc'); P.rect(15, 0, 1, 24, '#8a8e94');
+  if (k === 0) { P.rect(2, 3, 12, 7, '#6a8cb4'); P.disc(6, 6, 2, '#e8d890'); for (let y = 12; y < 22; y += 2) P.rect(2, y, 8 + Math.floor(hash(y, 1) * 5), 1, ink); }
+  else if (k === 1) { P.rect(2, 2, 12, 2, '#b85a50'); for (let y = 6; y < 22; y += 3) { P.rect(2, y, 2, 2, ink); P.rect(5, y, 6 + Math.floor(hash(y, 2) * 4), 1, ink); } }
+  else { for (let j = 0; j < 5; j++) for (let i = 0; i < 4; i++) P.rect(2 + i * 3, 3 + j * 4, 2, 3, hash(i, j, 9) > .5 ? '#7a8cae' : '#98a4b8'); }
+  P.set(1, 22, '#8a8e94'); P.set(2, 23, '#8a8e94'); return T.from(P, { m: 1 }); };
+const plateT = (() => { const P = R.Px(16, 8); P.fill('#c8ccc8'); P.rect(0, 0, 16, 1, '#f0f0e8'); P.rect(0, 7, 16, 1, '#7a7e88'); P.rect(3, 3, 4, 2, '#4a5470'); P.rect(9, 2, 4, 4, '#4a5470'); P.rect(10, 3, 2, 2, '#c8ccc8'); return T.from(P, { m: 1 }); })();
+
+// ---- ろうか：はば 3.6 m、高さ 3 m。左（-x）が窓、右（+x）が教室。z = 16 から -40 まで ----
+const W = 1.8, Hc = 3, Z1 = 16, Z0 = -40, B = R.parts(), Dc = R.parts();
+const floorT = D.tex.plank({ c: '#5a6078' }), wallT = T.plaster({ frame: 'none', c: '#6a7896' }), lowT = T.boards({ c: '#4a5270' }), ceilT = T.plaster({ frame: 'none', c: '#56627e' }), Fl = B.g(floorT), Wl = B.g(wallT), Lo = B.g(lowT), Ce = B.g(ceilT, { glow: true }).tint([.34, .42, .6]);
+const side = (G, sx, z0, z1, y0, y1, uv, off = 0, cs = 1) => { const x = sx * (W - off); return sx < 0 ? G.quad([x, y0, z1], [x, y0, z0], [x, y1, z0], [x, y1, z1], uv, cs) : G.quad([x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0], uv, cs); };
+for (let z = Z0; z < Z1; z += 2) { for (let i = 0; i < 3; i++) { const x0 = -W + i * 1.2, x1 = x0 + 1.2; Fl.quad([x0, 0, z + 2], [x1, 0, z + 2], [x1, 0, z], [x0, 0, z], [x0 / 3, (z + 2) / 3, x1 / 3, z / 3], .95); Ce.quad([x0, Hc, z], [x1, Hc, z], [x1, Hc, z + 2], [x0, Hc, z + 2], [x0 / 3, z / 3, x1 / 3, (z + 2) / 3], .7); }
+  for (const sx of [-1, 1]) { side(Lo, sx, z, z + 2, 0, 1, [z / 3, 0, (z + 2) / 3, 1 / 3], 0, [.75, .75, .95, .95]); side(Wl, sx, z, z + 2, 1, Hc, [z / 3, 1 / 3, (z + 2) / 3, Hc / 3], 0, [1, 1, .75, .75]); } }
+Wl.quad([-W, 1, Z0], [W, 1, Z0], [W, Hc, Z0], [-W, Hc, Z0], [0, 0, 1.2, .67], .9); Lo.quad([-W, 0, Z0], [W, 0, Z0], [W, 1, Z0], [-W, 1, Z0], [0, 0, 1.2, .33], .85);
+Lo.box(.06, .1, Z1 - Z0, -W + .03, 1, (Z0 + Z1) / 2, { m: 3 }); Lo.box(.06, .1, Z1 - Z0, W - .03, 1, (Z0 + Z1) / 2, { m: 3 });   // 腰板の上のふち
+// 左：4 m ごとに窓（はば 2.4 m。月あかりで青白い）。窓の下に くつ箱。床に月の四角
+const winT = T.window({ h: 48, bars: 'grid', lit: 0, curtain: false, glass: '#7ea8d4', frame: '#3a4460' }), Wn = Dc.g(winT, { offset: true, glow: true }), Sh = B.g(shoeT), MoonG = R.geo(), mc = lin('#8cb8e8', .3), mc2 = lin('#8cb8e8', .06);
+for (let zc = Z0 + 2; zc < Z1; zc += 4) { for (const dz of [-1.2, 0]) side(Wn, -1, zc + dz, zc + dz + 1.2, 1.05, 2.5, [0, 0, 1, 1], .02);
+  for (const [a, b] of [[-1.14, -.06], [.06, 1.14]]) { MoonG.quad([-.85, .04, zc + b - .5], [-.85, .04, zc + a - .5], [.4, .04, zc + a - 1.25], [.4, .04, zc + b - 1.25], [0, 0, 1, 1], [mc, mc, mc, mc]);   // 床の四角（まどの さんで 2 つに分かれる）
+    MoonG.quad([-W + .05, 1.05, zc + b], [-W + .05, 2.5, zc + b], [.4, .04, zc + b - 1.25], [-.85, .04, zc + b - .5], [0, 0, 1, 1], [mc2, mc2, [0, 0, 0], [0, 0, 0]]); }                               // 窓から床への うすい光の板
+  if (Math.round(zc / 4) % 3 !== 0) Sh.box(.36, .92, 3, -W + .19, 0, zc, { uv: [0, 0, 3, 1], topUV: [0, 0, .1, .1], c0: .8 }); }
+// 右：8 m ごとに教室。引き戸 2 組と、あいだの高い窓、札、はり紙
+const doorT = T.door({ style: 'glass', c: '#5a5470', frame: '#3c4058' }), Dr = Dc.g(doorT, { offset: true }), dkWin = T.window({ h: 32, bars: 'grid', lit: 0, curtain: false, glass: '#2c3c60', frame: '#3a4460' }), Dw = Dc.g(dkWin, { offset: true }), Pl = Dc.g(plateT, { side: true }), Pp = [0, 1, 2].map(k => Dc.g(paperT(k), { offset: true }));
+for (let zc = Z0 + 4; zc < Z1; zc += 8) { for (const dz of [-3, 2]) { for (const k of [0, 1]) side(Dr, 1, zc + dz + k, zc + dz + k + 1, 0, 2, k ? [1, 0, 0, 1] : [0, 0, 1, 1], .02); Pl.quad([W - .45, 2.3, zc + dz + 1], [W, 2.3, zc + dz + 1], [W, 2.55, zc + dz + 1], [W - .45, 2.55, zc + dz + 1]); }
+  for (let k = 0; k < 3; k++) side(Dw, 1, zc - .9 + k, zc + .1 + k, 1.6, 2.5, [0, 0, 1, 1], .02);
+  for (let k = 0; k < 4; k++) { const z = zc - .95 + k * .75 + (hash(k, zc) - .5) * .1, y = 1.02 + hash(k, zc, 2) * .1; side(Pp[Math.floor(hash(k, zc, 4) * 3)], 1, z, z + .5, y, y + .75, [0, 0, 1, 1], .03); } }
+for (let k = 0; k < 4; k++) side(Pp[k % 3], -1, 4.6 - k * 8 + (k % 2) * .4, 5.1 - k * 8 + (k % 2) * .4, 1.3, 2.05, [0, 0, 1, 1], .03);
+// 天井：消えた けい光灯の箱。おくの かべ：出口の戸と非常灯
+const lampT = T.metal({ c: '#8a92a8' }), Lg = B.g(lampT); for (let z = Z0 + 3; z < Z1; z += 6) Lg.box(.22, .08, 1.3, 0, Hc - .08, z, { bottom: true, c0: .9 });
+for (const k of [0, 1]) Dr.quad([-1 + k, 0, Z0 + .03], [k, 0, Z0 + .03], [k, 2, Z0 + .03], [-1 + k, 2, Z0 + .03], k ? [1, 0, 0, 1] : [0, 0, 1, 1]);
+const fixed = [B.group(), Dc.group()], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// たおれた いすと つくえ（少ない面。板のテクスチャと鉄のあし）
+const chair = () => { const P = R.parts(), Wd = P.g(T.planks({ c: '#8a7460' })), Me = P.g(T.metal({ c: '#7a8098' })); Wd.box(.38, .03, .36, 0, .42, 0, { bottom: true }); Wd.box(.38, .24, .03, 0, .62, -.18, { bottom: true });
+  for (const sx of [-1, 1]) { Me.box(.03, .42, .03, sx * .17, 0, .15, {}); Me.box(.03, .88, .03, sx * .17, 0, -.17, {}); } return P.group(); };
+const desk = () => { const P = R.parts(), Wd = P.g(T.planks({ c: '#8a7460' })), Me = P.g(T.metal({ c: '#7a8098' })); Wd.box(.62, .04, .42, 0, .68, 0, { bottom: true }); Me.box(.56, .12, .36, 0, .54, 0, { bottom: true, top: false }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) Me.box(.03, .68, .03, sx * .28, 0, sz * .18, {}); return P.group(); };
+const lay = (o, x, z, ry, rz = Math.PI / 2, y = .19) => { const g = new THREE.Group(); o.rotation.z = rz; o.position.y = y; g.add(o); return put(g, x, z, ry); };
+lay(chair(), .95, 1.6, .5); lay(chair(), -.65, -4.6, 2.2, -Math.PI / 2); put(chair(), 1.3, -6.4, -1.9); lay(desk(), 1.1, -10.2, 1.1, Math.PI / 2, .31); lay(chair(), .2, -15.5, -.7); put(chair(), 1.35, -19, -2.4); lay(chair(), -.7, -23, 1.4); put(desk(), 1.25, -27, -1.57);
+const ex = D.exitLamp({ w: .8 }); ex.position.set(0, 2.3, Z0 + .05); scene.add(ex);
+scene.add(R.merge(fixed), new THREE.Mesh(MoonG.build(), addM()));
+scene.add(D.pools([{ p: [0, .02, Z0 + 2.6], r: 2.2, r2: 3.4, c: '#58e8a0', k: .55 }, { p: [0, 1.6, Z0 + .04], n: [0, 0, 1], r: 2.4, r2: 1.7, c: '#58e8a0', k: .45 }, { p: [-W + .03, 1.4, Z0 + 2], n: [1, 0, 0], r: 2.4, r2: 1.5, c: '#58e8a0', k: .3 }, { p: [W - .03, 1.4, Z0 + 2], n: [-1, 0, 0], r: 2.4, r2: 1.5, c: '#58e8a0', k: .3 }]));
+const exHalo = D.halo({ c: '#58e8a0', r: 2.2, k: .55, flicker: 'bulb', seed: 3 }); exHalo.position.set(0, 2.4, Z0 + .6); scene.add(exHalo);
+
+// ---- 動く物：月あかりの中の ほこり、先を歩く黒いねこ（目が光る）、ちらつく非常灯、外を横ぎる こうもり ----
+scene.add(D.flakes({ kind: 'dust', n: 150, c: '#b8d4f0', box: [5, 3, 26], size: 1.4 }));
+const cat = D.cat({ s: 1.1 }); cat.position.set(-.5, 0, -9); cat.rotation.y = .5; scene.add(cat);
+
+const aim = torch(hero, { c: '#ffe08a', power: 44, k: .5 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const ZS = 7, LEN = 24, SPEED = 1.25;
+K.loop((dt, t) => {
+  const u = (t * SPEED) % LEN, z = ZS - u, x = .35 + Math.sin(z * .22) * .25;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI + Math.sin(t * .5) * .16; R.walk(hero, t * SPEED * 3.9, .8); aim(4.2, 0, .14 + Math.sin(t * .7) * .2);
+  cat.position.set(-.75 + Math.sin(t * .4) * .15, 0, z - 5.2); cat.rotation.y = Math.PI; R.catPose(cat, 'walk', t * 1.6);
+  const tall = innerWidth < innerHeight; cam.position.set(.12, tall ? 1.95 : 1.8, z + (tall ? 4.1 : 5.3)); cam.lookAt(-.05, 1.25, z - 6);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

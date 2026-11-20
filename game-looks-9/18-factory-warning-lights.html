@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-18 夜の廃工場と赤い警告灯 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6e2f2;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-18 ─ 夜の廃工場と赤い警告灯 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の廃工場の中。のこぎり屋根（PK.factory）の割れた天窓から 月の青い光のすじが落ち、回る赤い警告灯が さびた機械・タンク・くさりを赤くなめる。
+// 色の組は「黒に近い紺・警告灯の赤・月の青」＋ヘルメットの黄。警告灯は D.warnLamp に、同じ速さで回る SpotLight と 床をはう赤い輪を足した。月の当たる床と 警告灯のまわりは 床の明るさに焼きこむ。
+// 機械（旋盤・ボイラー・計器の箱）は第 8 集の 27 と同じ作りを このページに置き、色をしずめた。黄色いヘルメットの点検員（R.actor の toon）が懐中電灯で歩く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, X = C.tex, { hash } = K, TR = R.TR, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 800, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#2a2630', eyes: 'sharp', brow: 'thick', beard: 'stubble', cloth: 'overall', sleeve: 'long', top: '#8c9cc4', top2: '#e0e4ec', bottom: '#7484ac', shoes: 'boot', shoe: '#3a3644', hat: 'helm', gear: '#f0c838', gloves: 'glove', glove: '#c8a040', belt: '#3a3644' }); scene.add(hero);
+const moon = D.moon({ az: 96, el: 56, r: 22, c: '#cfe0ff' }); scene.add(moon);
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, dir: moon.userData.dir.toArray(), level: 1.5, range: 30, hemi: ['#94a4d8', '#3c3848', 1.1], key: ['#a8c4ff', .9, [0, 1, 0]] });
+
+// ---- 懐中電灯：うでの先の筒、前へのびる光の円すい（加算）、地面の明るい輪、SpotLight ----
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, hand = o.hand || 'R', sx = hand === 'L' ? 1 : -1, pv = J['fore' + hand], c = o.c || '#e8f0ff', len = o.len || 7, rad = o.w || .9, reach = o.reach || 5.2, y0 = -B.farm - B.hand[2] * .5;
+  const tip = new THREE.Object3D(); tip.position.y = y0 - .2; pv.add(R.geo().loft(6, [[y0 - .2, .06, .06, 0, 1.1], [y0 - .12, .036, .036, .4, 1], [y0 + .09, .036, .036, 1, .8]], { cap: 'both' }).mesh(T.metal({ c: '#6a6e88' })), tip); tip.add(D.halo({ c, r: .26, k: .9 }));
+  const cg = new THREE.ConeGeometry(rad, len, 10, 4, true); cg.translate(0, -len / 2, 0); cg.rotateX(-PI / 2); const ps = cg.attributes.position, col = new Float32Array(ps.count * 3); for (let i = 0; i < ps.count; i++) col.fill((1 - ps.getZ(i) / len) ** .8, i * 3, i * 3 + 3); cg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: c, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: o.a ?? .3, depthWrite: false, side: THREE.DoubleSide, fog: false })); cone.frustumCulled = false; cone.renderOrder = 3;
+  const spot = D.spot({ c, r: 1, k: o.k ?? .5 }), sl = new THREE.SpotLight(c, o.power || 60, o.range || 15, .44, .7, 1.3), wp = new THREE.Vector3(); actor.parent.add(cone, spot, sl, sl.target);
+  return { cone, spot, light: sl, tick(t) { const a = J['arm' + hand], f = J['fore' + hand]; a.rotation.set(-.85, 0, sx * .12); f.rotation.x = -.5; actor.updateMatrixWorld(); tip.getWorldPosition(wp);
+    const h = actor.rotation.y - (o.side ?? .42) * -sx + Math.sin(t * .6) * .1, gx = actor.position.x + Math.sin(h) * reach, gz = actor.position.z + Math.cos(h) * reach, gy = actor.position.y, fk = .94 + .06 * Math.sin(t * 17);
+    cone.position.copy(wp); cone.lookAt(gx, gy + .15, gz); cone.scale.z = (wp.distanceTo(spot.position) + .6) / len; cone.material.opacity = (o.a ?? .3) * fk;
+    spot.position.set(gx, gy + .07, gz); spot.rotation.z = h; spot.scale.set(rad * 1.7, rad * 2.8, 1); sl.position.copy(wp); sl.target.position.set(gx, gy, gz); } }; }
+
+// ---- 工場と、天窓から落ちる月の光。光の落ちる床（POOL）と 警告灯（WARN）を先に決める ----
+const FW = 54, FD = 24, FH = 8, RISE = 3, fac = PK.factory({ w: FW, d: FD, h: FH, teeth: 9, rise: RISE, open: 0, c: '#6a6474', holes: .7, peel: .7, seed: 1 }); fac.traverse(o => { if (o.isMesh) o.castShadow = false; }); scene.add(fac);
+const SY = FH + RISE / 2, MD = moon.userData.dir, DX = SY * MD.x / MD.y, DZ = SY * MD.z / MD.y, POOL = [[3, -4.5], [4, 4.5], [5, -1], [6, 6.5], [7, -5]].map(([k, z]) => [-FW / 2 + (k + 1) * 6 - DX, z - DZ, -FW / 2 + (k + 1) * 6, z]);
+const WARN = [[-7.6, 1.95, -1.9, 0], [5.2, 1.95, -.6, 2.2], [17.5, 3.3, 4.4, 4.1]], RED = '#ff4030', BLUE = '#a8c8ff';
+const LIT = [...POOL.map(([x, z]) => ({ x, z, r: 3.4, c: BLUE, k: 1.1 })), ...WARN.map(([x, y, z]) => ({ x, z, r: 6.5, c: RED, k: .8 }))];
+POOL.forEach(([x, z], i) => { const s = D.shaft({ w: 3.2, h: SY, c: BLUE, a: .3, lean: [DX, DZ] }); s.position.set(x, 0, z); scene.add(s); });
+scene.add(D.pools(POOL.map(([x, z]) => ({ p: [x, .05, z], r: 2.6, r2: 2, c: BLUE, k: .4 }))));
+const inside = (x, z) => Math.abs(x) < FW / 2 && Math.abs(z) < FD / 2, sh = mood.shade(LIT);
+const land = R.ground({ w: 110, d: 80, cell: 2, layers: [D.tex.deadGrass({ c: '#3c4258' }), X.asphalt({ c: '#50526a', wet: .45, wetC: '#6a78b0' }), X.conc({ c: '#5c5a70' })], mix: (x, z) => inside(x, z) ? [1, hash(Math.floor(x / 4), Math.floor(z / 4), 2) > .7 ? 1 : 0] : [0, 0], shade: (x, z) => inside(x, z) ? sh(x, z) : [.8, .86, 1.05] }); scene.add(land.mesh);
+
+// ---- さびた機械（第 8 集 27 と同じ作り）・タンク・天井クレーン・くさり・管 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const BARE = PT.rust({ c: '#8e5c40', panel: 0, m: 1.5 }), GAUGE = PT.clock({}), SPOKE = PT.spoke({});
+function machine(kind, c, sd = 0) { const B = R.parts(), Gp = B.g(PT.rust({ paint: c, peel: .45, seed: sd % 2, m: 1.5 })), Gb = B.g(BARE).smooth(1), Gg = B.g(GAUGE, { offset: true }), Gs = B.g(SPOKE, { side: true });
+  const dial = (x, y, z, s = .36) => Gg.quad([x - s / 2, y - s / 2, z], [x + s / 2, y - s / 2, z], [x + s / 2, y + s / 2, z], [x - s / 2, y + s / 2, z]);
+  if (kind === 'A') { Gp.box(2.8, .8, 1, 0, 0, 0, { m: 1.5, c0: .78 }).box(.95, 1.05, .9, -.85, .8, 0, { m: 1.5, taper: .84 }).box(.55, .5, .6, .95, .8, 0, { m: 1.5, taper: .9 });
+    Gb.at(TR(-.3, 1.22, 0, 0, 0, PI / 2)).loft(8, [[-.75, .11, .11, 0, .8], [.9, .11, .11, 1, 1]], { cap: 'both' }).at(TR(-.85, 0, -.2)).loft(6, [[1.8, .09, .09, 0, .9], [3.6, .09, .09, 1.2, 1], [3.9, .2, .2, 1.3, 1.05]], { cap: 'top' }).at(null);
+    Gs.quad([-1.44, .55, -.65], [-1.44, .55, .65], [-1.44, 1.85, .65], [-1.44, 1.85, -.65]); dial(-.85, 1.35, .42); dial(.95, 1.05, .31, .26); }
+  else if (kind === 'B') { Gp.smooth(2).at(TR(0, 1.2, 0, 0, 0, PI / 2)).loft(10, [[-1.6, .45, .45, 0, .78], [-1.35, .85, .85, .2, .9], [1.35, .85, .85, 1.8, 1], [1.6, .45, .45, 2, .9]], { cap: 'both', ur: 3 }).at(null).smooth(0);
+    for (const x of [-1, 1]) Gb.at(null).smooth(0).box(.3, .5, 1.3, x, 0, 0, { m: 1.5, c0: .75, taper: [1, .7] }); Gb.smooth(1).loft(7, [[1.95, .17, .17, 0, .9], [5.2, .15, .15, 2, 1], [5.5, .26, .26, 2.2, 1.05]], { cap: 'top' });
+    Gs.quad([.45, 1.75, .56], [1.15, 1.75, .56], [1.15, 2.45, .56], [.45, 2.45, .56]); dial(-.5, 1.3, .86, .42); }
+  else { Gp.box(1.2, 1.75, .55, 0, 0, 0, { m: 1.5, c0: .78, taper: [1, .9] }); dial(-.28, 1.3, .27, .34); dial(.24, 1.3, .27, .34); dial(-.28, .86, .28, .22);
+    B.g(PT.panel({ kind: 'dots', c: '#d8d0b8', c2: '#c8584a', peel: .5 }), { offset: true }).quad([-.04, .62, .285], [.5, .62, .285], [.5, 1, .285], [-.04, 1, .285]); Gb.loft(6, [[1.7, .07, .07, 0, .9], [2.6, .07, .07, .6, 1]], { cap: 'top' }); }
+  return B.group(); }
+[['A', '#7a5a5c', -19, -9.4, 0], ['C', '#5c6680', -15.6, -10.4, 0], ['B', '#6c7084', -9.5, -9.8, 0], ['A', '#5c6680', -2.5, -9.4, PI], ['C', '#8a7448', 1.2, -10.4, 0], ['B', '#7a5a5c', 6.8, -9.8, 0], ['A', '#6c7084', 13, -9.2, .1],
+  ['C', '#8a7448', -7.6, -1.9, .3], ['A', '#6c7084', -5, -1.2, PI + .2], ['B', '#5c6680', 2.2, -1.4, .1], ['C', '#7a5a5c', 5.2, -.6, -.3], ['A', '#8a7448', 11, -1.6, .15], ['B', '#6c7084', -14, -2, PI], ['C', '#5c6680', -17.5, 9.8, PI], ['A', '#7a5a5c', -9, 10, PI], ['B', '#8a7448', 2, 10, PI], ['C', '#6c7084', 9.5, 10.4, PI]].forEach(([k, c, x, z, ry], i) => put(machine(k, c, i), x, z, ry));
+put(PK.tank({ r: 2.1, h: 5, c: '#6c7084', seed: 1 }), 20.5, -7.5, -PI / 2); put(PK.tank({ r: 1.6, h: 3.3, legs: 1.2, c: '#7a5a5c', seed: 2 }), 21.5, -1.5, -PI / 2); put(PK.tank({ r: 1.5, h: 3.3, c: '#8a7448', seed: 3 }), 17.5, 4.4, -PI / 2); put(PK.tank({ r: 1.8, h: 4.2, c: '#5c6680' }), 21, 9, PI / 2);
+{ const tr = C.truss({ len: FD - 1, h: 1, w: 1.1, c: '#5a5e7c' }); put(tr, 8.5, 0, PI / 2, 5.6); const B = R.parts(), Gy = B.g(PT.rust({ paint: '#8a7448', peel: .6, panel: 0, m: 1.5 })); Gy.box(1.5, .6, 1.3, 8.5, 5.1, 2.6, { m: 1.5, c0: .8 }).box(.5, .5, .32, 8.5, 2.2, 2.6, { m: 1.5, taper: .6 }); fixed.push(B.group()); }
+fixed.push(C.pipe([[-FW / 2 + .4, 3.3, -FD / 2 + .45], [FW / 2 - .4, 3.3, -FD / 2 + .45]], .18, { c: '#6a5a66', joint: 6 }), C.pipe([[-FW / 2 + .4, 4.3, FD / 2 - .45], [-4, 4.3, FD / 2 - .45], [-4, 1.4, FD / 2 - .45]], .14, { c: '#5c6680', joint: 6 }), C.pipe([[20.5, 5, -7.5], [20.5, 6.4, -7.5], [20.5, 6.4, -1.5], [21.5, 6.4, -1.5], [21.5, 4.5, -1.5]], .15, { c: '#6a5a66' }));
+[[-21, 7.5, .9], [-21.2, 8.6, .7], [14.5, 3.6, .8], [3.6, 10.6, .7], [-12.6, 5.6, .7]].forEach(([x, z, s], i) => put(R.crate({ s, kind: ['slash', 'x', 'plain'][i % 3], c: '#6a6058' }), x, z, i * .5));
+[[-5.6, 10.4, '#7a4a4a'], [16, 8.6, '#5c6680'], [-22, -3.5, '#8a7448'], [14, -10.6, '#7a4a4a'], [-1.4, 4.6, '#5c6680']].forEach(([x, z, c]) => put(C.drum({ c }), x, z));
+put(PK.rubble({ r: 1.8, h: .7, seed: 1, grass: 0, tufts: 0, c: '#6a6a80' }), -21, -9.5); put(PK.rubble({ r: 1.3, h: .5, seed: 2, grass: 0, tufts: 0, c: '#6a6a80' }), 6.5, 6.6); put(C.scrap({ s: 2, seed: 1 }), -11.5, 6.8); put(C.tires({ n: 3 }), 12.5, 7);
+for (const [x, z] of [[-10, 1.6], [-1, 3.2], [8, 1.2], [14.5, 2.2]]) put(PK.decal(PT.puddle({ seed: x, c: '#7a8cc8' }), 3, 2, { ur: 1, vr: 1 }), x, z, x);
+put(PK.chimney({ h: 26, r: 1.7, c: '#5a4a58', c2: '#6a6a80' }), 34, -22); for (let i = 0; i < 9; i++) put(D.deadTree({ h: 8 + hash(i, 3) * 4, seed: i, c: '#343a52' }), (i % 2 ? 1 : -1) * (32 + hash(i, 1) * 12), (hash(i, 2) - .5) * 60, i);
+scene.add(R.merge(fixed));
+// ゆれる くさり（はり・クレーンから）
+[[8.5, 5.1, 2.6, 2.9], [-3, 8, 2.2, 3.6], [2.5, 8, -4.4, 4.4], [-12, 8, 4.5, 3.2], [14, 8, 1.2, 4], [-9, 8, -5.5, 3], [19, 8, 2, 3.4]].forEach(([x, y, z, len], i) => { const c = D.chain({ len, sway: i ? .07 : .03, seed: i * 1.7, c: '#7a7e98' }); c.position.set(x, y, z); c.scale.x = 1.8; scene.add(c); });
+
+// ---- 回る赤い警告灯：D.warnLamp ＋ 同じ向きに回る SpotLight ＋ 床をはう赤い輪 ----
+const spin = WARN.map(([x, y, z, sd], i) => { const w = D.warnLamp({ kind: 'spin', c: RED, r: .2, seed: sd, light: false }); w.position.set(x, y, z); w.scale.setScalar(1.15); scene.add(w);
+  const sl = new THREE.SpotLight(RED, i < 2 ? 130 : 0, 16, .5, .8, 1.2), sp = D.spot({ c: RED, r: 2.6, k: .5 }); sl.position.set(x, y + .3, z); scene.add(sl, sl.target, sp); sl.visible = i < 2; return { x, y, z, sd, sl, sp }; });
+scene.add(D.streaks(WARN.map(([x, y, z]) => ({ x, z, h: y, c: RED, w: .9, len: 5, k: .55 })), { y: .05 }));
+// ---- 空気と生きもの：月の光の中の ほこり、もれる蒸気、こうもり、とまる からす ----
+scene.add(D.flakes({ kind: 'dust', n: 150, c: '#c8dcff', box: [22, 8, 16], size: 1.4 }), D.flock({ kind: 'bat', n: 7, r: 5, h: 1, center: [2, 6.6, 2], s: 1.3 }), D.perched([[8.5, 6.62, -3, 1], [8.5, 6.62, 5, 2.4], [2.2, 2.08, -1.4, 0]], { watch: hero, near: 2.5 }));
+const st = C.steam({ n: 8, r: .5, rise: 2.6, c: '#d8c8d8', a: .32 }); st.position.set(-4, 1.5, FD / 2 - .6); scene.add(st); const st2 = C.steam({ n: 7, r: .45, rise: 2.2, c: '#d8c8d8', a: .28, phase: .5 }); st2.position.set(20.5, 6.5, -4.5); scene.add(st2);
+
+const hl = new THREE.PointLight('#b0c4ff', 7, 5.5, 1.4); scene.add(hl);
+const lamp = torch(hero, { c: '#f4f6ff', side: .35, a: .24, power: 70, range: 16 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const XS = -15, LEN = 26, SPEED = 1.45;
+K.loop((dt, t) => {
+  const x = XS + (t * SPEED) % LEN, z = 1.9 + Math.sin(x * .2) * .4, dz = Math.cos(x * .2) * .1;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2 - dz; R.walk(hero, t * SPEED * 3.7, .85); hero.userData.J.head.rotation.y = .2 + Math.sin(t * .45) * .3; lamp.tick(t); hl.position.set(x - 1.2, 2.3, z + 1);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.3; cam.position.set(x - Dc, tall ? 2.3 : 1.9, z + (tall ? .6 : 1.5)); cam.lookAt(x + 6, tall ? 2.1 : 2.2, z - (tall ? 1.4 : 2.4));   // 低い所から、機械の列と のこぎり屋根を見上げる
+  for (const w of spin) { const a = t * 3.2 + w.sd, cx = Math.cos(a), cz = -Math.sin(a); w.sl.target.position.set(w.x + cx * 6, w.y - 1.6, w.z + cz * 6); w.sp.position.set(w.x + cx * 3.6, .07, w.z + cz * 3.6); }
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

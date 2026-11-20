@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-23 焼けあとの町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e0d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-23 ─ 焼けあとの町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の、焼けあとの町。灰と火の粉がふる通りを、布で口をおおった旅人が ひとりで歩く。黒くこげた家の骨組みと かべ、のこった れんがの えんとつ、たおれた電柱、こげた木。
+// 色の組は「こげた木と夜の黒（青むらさき寄り）・残り火の赤だいだい・灰の白」。人は主役だけ。こわれた物だけを見せる。
+// 光は D.mood の 'ember' を暗めに上書き。残り火は「光る おき火のテクスチャの山＋ゆれる にじみ＋地面に焼きこんだ輪」で、こげた骨組みは地平線の赤の前のシルエットにする。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bun', hair: '#2e2a3a', cloth: 'coat', top: '#8e9ab4', top2: '#e8e0d0', bottom: '#4a4a66', shoe: '#5a4640', gloves: 'wrap', glove: '#e8e0d0', neck: 'scarf', acc: '#e8e0d0', back: 'pack' }); scene.add(hero);
+{ const G = R.geo().smooth(1).loft(8, [[.005, .128, .14, 0, .8], [.07, .15, .158, .5, 1], [.125, .146, .152, 1, .95]], { ur: 2 }); hero.userData.J.head.add(G.mesh(T.fabric({ c: '#e8e0d0', pattern: 'plain' }), { side: true })); }   // 口と鼻をおおう布
+const mood = D.mood(scene, renderer, 'ember', { follow: hero, range: 32, level: .9, sky: ['#08060c', '#190c14', '#421a16', '#a84c1c'], fog: ['#3c1e1e', 15, 115], hemi: ['#c09488', '#3c2e34', 1.22], key: ['#ff9c58', 1.45, [-.4, .3, -.85]], fill: ['#5a5a80', .5], hills: '#180c10', base: [.92, .8, .78], dir: [-.4, .3, -.86] });
+
+// ---- 残り火の場所と、地面（灰・こげた道・白い灰のふきだまり） ----
+const pathX = z => Math.sin(z * .12) * 1.2;
+const LOTS = [[-7.4, 5, 0], [7.6, 1, 1], [-7.8, -8.5, 1], [7.4, -12, 0], [-7.4, -22, 0], [7.8, -25, 1], [-8, -35, 1], [7.2, -38, 0]];
+const COALS = [[-4.6, 4.2, 1.4], [5, 1.6, 1.2], [-4.8, -7, 1.5], [4.4, -11.5, 1.3], [-4.4, -20.5, 1.5], [4.8, -24, 1.2], [-5, -33, 1.3], [2.9, -4.5, .8], [-2.9, -15, .8], [3.1, -29, .9]];
+const land = R.ground({ w: 130, d: 130, cell: 2, cz: -14, layers: [D.tex.ash({ c: '#4e4850' }), PK.tex.asphalt({ c: '#4a4650', line: 'none', grass: 0, crack: .9 }), D.tex.ash({ c: '#9a9494' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.25 - Math.abs(x - pathX(z)) / 2.6)), Math.max(0, Math.min(1, (Math.sin(x * .6 + z * .3) * Math.sin(z * .45 + 2) - .25) * 3))],
+  shade: mood.shade(COALS.map(([x, z, s]) => ({ x, z, r: 4.5 + s * 2.5, c: '#ff7a30', k: 1 + s * .5 }))) }); scene.add(land.mesh);
+
+// ---- テクスチャ：こげた木、こげた しっくいのかべ、おき火（光る） ----
+const charT = D.tex.plank({ c: '#3e3844' }), wallT = T.plaster({ frame: 'beam', c: '#4e4852', wood: '#2c2832' }), brickT = T.brick({ c: '#6a4a4c' });
+const coalT = (() => { const P = R.Px(32); P.each((x, y) => { const v = Math.abs(R.tn(x, y, 5, 5, 32, 32, 3) - .5), w = Math.abs(R.tn(x, y, 9, 9, 32, 32, 7) - .5); const d = Math.min(v, w * 1.4); return d < .025 ? '#ffd060' : d < .055 ? '#ff7a20' : d < .1 ? '#b0301c' : hash(x, y, 2) > .7 ? '#3e2c30' : '#2c2228'; }); return T.from(P, { m: 1.4 }); })();
+const coalM = R.mat(coalT, { glow: true, vc: true, fog: false }), CG = R.geo();
+COALS.forEach(([x, z, s], i) => { CG.at(R.TR(x, 0, z, i)).loft(7, [[0, 1.1 * s, .9 * s, 0, .8], [.28 * s, .8 * s, .62 * s, .3, 1], [.5 * s, .3 * s, .22 * s, .6, 1]], { cap: 'top', ur: 3 }); for (let k = 0; k < 3; k++) CG.at(R.TR(x + (hash(i, k) - .5) * 2.6 * s, .05, z + (hash(i, k, 2) - .5) * 2.2 * s, k + i, 0, .12)).box(1.3 * s, .14, .16, 0, 0, 0, { m: 1.4 }); }); CG.at(null);
+const coals = CG.mesh(coalM); coals.castShadow = false; scene.add(coals);
+COALS.forEach(([x, z, s], i) => { const h = D.halo({ c: '#ff6a28', r: 1.9 * s, k: .75, flicker: 'fire', seed: i }); h.position.set(x, .5 * s, z); scene.add(h); if (i % 3 === 0) { const f = D.flame({ s: .55 * s, seed: i }); f.position.set(x + .2, .4 * s, z); scene.add(f); } });
+
+// ---- 家のあと：こげた骨組み（PK.frame）と、くずれたかべ（PK.wall）。れんがの えんとつだけが立っている ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const chimney = h => { const G = R.geo(); G.box(1, h, 1, 0, 0, 0, { m: 3, taper: [.86, .86], c0: .75 }).box(1.06, .22, 1.06, 0, h, 0, { m: 3 }); return G.mesh(brickT); };
+const beams = n => { const G = R.geo(); for (let k = 0; k < n; k++) G.at(R.TR((hash(k, n) - .5) * 4, 0, (hash(k, n, 2) - .5) * 3.4, k * 1.3, .5 + hash(k, 3) * .7, 0)).box(.2, 3 + hash(k, 4) * 1.6, .2, 0, 0, 0, { m: 3 }); G.at(null); return G.mesh(charT); };
+LOTS.forEach(([x, z, kind], i) => { const g = new THREE.Group(), sx = x < 0 ? -1 : 1, add = (o, ox, oz, ry = 0) => { o.position.set(ox, 0, oz); o.rotation.y = ry; g.add(o); };
+  if (kind === 0) { add(PK.frame({ nx: 2, nz: 2, floors: 2, bay: 3, fh: 2.7, miss: .42, slab: .12, tex: charT, seed: i + 2 }), 0, 0); add(PK.wall({ len: 6, h: 2.2, fall: .7, tex: wallT, seed: i, rebar: false, thick: .25 }), 0, 3.05); add(chimney(5.2), 1.6, -1.8); }
+  else { add(PK.wall({ len: 7, h: 3.4, fall: .75, tex: wallT, seed: i, rebar: false, thick: .25 }), 0, 2.6); add(PK.wall({ len: 5.2, h: 3, fall: .5, tex: wallT, seed: i + 5, rebar: false, thick: .25 }), -3.5, 0, Math.PI / 2); add(PK.wall({ len: 7, h: 2.4, fall: .4, tex: wallT, seed: i + 9, rebar: false, thick: .25 }), 0, -2.6, Math.PI); add(chimney(4.4 + (i % 2)), -2, -1.2); add(PK.frame({ nx: 1, nz: 1, floors: 2, bay: 3.2, fh: 2.6, miss: .5, slab: 0, tex: charT, seed: i }), 1.4, 0); }
+  add(beams(4 + i % 2), 0, .4); put(g, x, z, sx < 0 ? Math.PI / 2 : -Math.PI / 2); });
+// たおれた電柱と かたむいた電柱、切れた電線、こげた木、がれき
+const poles = [[5.6, 2.5, .26, 0], [-4.4, -3, -1.42, .3], [4.5, -14, 1.38, -.5], [-4.6, -26, -.35, 0], [4.6, -34, .22, 0]].map(([x, z, lean, ry], i) => put(PK.pole({ h: 8, lean, seed: i, arms: 2, ivy: 0 }), x, z, ry, Math.abs(lean) > 1 ? .25 : 0));
+fixed.push(PK.wire([5.2, 7.5, 2.5], [3.6, .2, -2], { sag: .5 }), PK.wire([-4.2, 7.3, -26], [-2.6, .2, -21], { sag: .6 }), PK.wire([4.4, 7.6, -34], [-4.2, 7.3, -26], { sag: 2.6 }));
+[[-4.2, 9, 7], [4.8, -6.5, 8], [-4.6, -12, 6.5], [-12.5, -2, 9], [13, -18, 9.5], [4.4, -21, 7], [-4.4, -30, 8], [14, 6, 9], [-14, -28, 10], [0, -46, 11], [-13, 12, 9], [11, -44, 10]].forEach(([x, z, h], i) => put(D.deadTree({ h, seed: i + 30, c: '#3c343c', twigs: 1 }), x, z, i * 1.7));
+for (let i = 0; i < 12; i++) { const x = (hash(i, 61) - .5) * 26, z = 10 - hash(i, 62) * 50; if (Math.abs(x - pathX(z)) < 2.6) continue; put(PK.rubble({ r: 1 + hash(i, 3), h: .5 + hash(i, 4) * .5, grass: 0, c: '#5a5258', seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(D.pools(COALS.filter((c, i) => i < 7).map(([x, z, s]) => ({ p: [x + (x < 0 ? -1.6 : 1.6), 1.2, z], n: [x < 0 ? 1 : -1, 0, 0], r: 2.6, r2: 1.6, c: '#ff6a28', k: .3 }))));
+
+// ---- 空と空気：ふる灰、のぼる火の粉、地をはう けむり、遠くを回る からす ----
+scene.add(D.flakes({ kind: 'ash', n: 320, c: '#d8d0cc', box: [24, 10, 24], size: 1.7 }), D.flakes({ kind: 'ember', n: 130, box: [22, 7, 24], c: '#ff8a30', size: 2 }));
+scene.add(D.groundFog({ n: 44, box: [56, 56], c: '#a08a88', a: .2, h: 1.8, w: 9, wind: [.6, .15] }), D.flock({ kind: 'crow', n: 6, r: 16, h: 13, center: [3, 0, -24] }));
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffe0a0', power: 8, range: 7, r: 2.6, k: .5 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 12, LEN = 27, SPEED = 1.35;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .8); D.lanternPose(hero);
+  coalM.color.setScalar(.78 + .16 * Math.sin(t * 1.7) + .06 * Math.sin(t * 7.3));
+  const tall = innerWidth < innerHeight, Dc = tall ? 4 : 5; cam.position.set(x * .6 - .5, tall ? 2.2 : 1.7, z + Dc); cam.lookAt(x * .5 + .4, tall ? 2.4 : 2.5, z - 6);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

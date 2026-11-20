@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-16 霧の団地 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e4ece6;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-16 ─ 霧の団地 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 霧の団地。こい霧の夜、同じ形の 5 階だてが何棟もならび、奥の棟は霧にとけて うすい影になる。窓はどれも暗く、1 つだけ黄色くともる。
+// 色の組は「霧の灰緑・コンクリートの灰・窓の黄」＋主役の赤いリュック。あかりは、ともった窓と、点めつする街灯 1 本と、懐中電灯（霧の中なので光の円すいが こく見える）。
+// だれもいない公園で ぶらんこが ひとりでにゆれ（このページで作る）、たおれた自転車、さびた すべり台。遠くの道に うすい人かげ。主役（R.actor の toon）をうしろの低い所から追う。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K, TR = R.TR, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 600, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bob', bangs: 'straight', hair: '#2c2a34', eyes: 'round', mouth: 'small', cloth: 'coat', top: '#d8d4c0', top2: '#f0ecdc', bottom: '#5a6660', lower: 'pants', shoes: 'boot', shoe: '#5a4a44', neck: 'collar', back: 'pack', acc: '#c04a3a' }); scene.add(hero);
+const FOGC = '#66786e', mood = D.mood(scene, renderer, 'fog', { follow: hero, range: 30, level: 1, r: 300, hills: false, sky: ['#26342e', '#3c4e46', '#56695f', '#708278'], fog: [FOGC, 7, 82], hemi: ['#bccec2', '#48564e', 1.2], key: ['#dce8e0', .7, [-.45, .8, -.4]], fill: ['#84968c', .4], base: [.9, .98, .93] });
+
+// ---- 懐中電灯：うでの先の筒、前へのびる光の円すい（加算）、地面の明るい輪、SpotLight ----
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, hand = o.hand || 'R', sx = hand === 'L' ? 1 : -1, pv = J['fore' + hand], c = o.c || '#e8f0ff', len = o.len || 7, rad = o.w || .9, reach = o.reach || 5.2, y0 = -B.farm - B.hand[2] * .5;
+  const tip = new THREE.Object3D(); tip.position.y = y0 - .2; pv.add(R.geo().loft(6, [[y0 - .2, .06, .06, 0, 1.1], [y0 - .12, .036, .036, .4, 1], [y0 + .09, .036, .036, 1, .8]], { cap: 'both' }).mesh(T.metal({ c: '#6a6e88' })), tip); tip.add(D.halo({ c, r: .26, k: .9 }));
+  const cg = new THREE.ConeGeometry(rad, len, 10, 4, true); cg.translate(0, -len / 2, 0); cg.rotateX(-PI / 2); const ps = cg.attributes.position, col = new Float32Array(ps.count * 3); for (let i = 0; i < ps.count; i++) col.fill((1 - ps.getZ(i) / len) ** .8, i * 3, i * 3 + 3); cg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const cone = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: c, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: o.a ?? .3, depthWrite: false, side: THREE.DoubleSide, fog: false })); cone.frustumCulled = false; cone.renderOrder = 3;
+  const spot = D.spot({ c, r: 1, k: o.k ?? .5 }), sl = new THREE.SpotLight(c, o.power || 60, o.range || 15, .44, .7, 1.3), wp = new THREE.Vector3(); actor.parent.add(cone, spot, sl, sl.target);
+  return { cone, spot, light: sl, tick(t) { const a = J['arm' + hand], f = J['fore' + hand]; a.rotation.set(-.85, 0, sx * .12); f.rotation.x = -.5; actor.updateMatrixWorld(); tip.getWorldPosition(wp);
+    const h = actor.rotation.y - (o.side ?? .42) * -sx + Math.sin(t * .6) * .1, gx = actor.position.x + Math.sin(h) * reach, gz = actor.position.z + Math.cos(h) * reach, gy = actor.position.y, fk = .94 + .06 * Math.sin(t * 17);
+    cone.position.copy(wp); cone.lookAt(gx, gy + .15, gz); cone.scale.z = (wp.distanceTo(spot.position) + .6) / len; cone.material.opacity = (o.a ?? .3) * fk;
+    spot.position.set(gx, gy + .07, gz); spot.rotation.z = h; spot.scale.set(rad * 1.7, rad * 2.8, 1); sl.position.copy(wp); sl.target.position.set(gx, gy, gz); } }; }
+
+// ---- 並び：道は -z へのびる。左と右に 同じ形の棟が たがいちがいに ならぶ。公園は右手前、ともる窓は左の 2 棟め ----
+const pathX = z => Math.sin(z * .09) * 1.2, BW = 21, BD = 9, FL = 5, YEL = '#ffd468';
+const BLD = [[-13, -3, 1], [13.5, -16, -1], [-13, -30, 1], [13.5, -43, -1], [-13, -57, 1], [13.5, -70, -1], [-13, -84, 1], [-34, -16, 1], [35, -30, -1], [-34, -44, 1], [35, -57, -1]];
+const LAMP = [3.4, -9.5], WIN = [BLD[2][0] + BD / 2 + .06, 6.75, BLD[2][1] + 7.5], PARK = [6.4, 2.5];
+const LIT = [{ x: LAMP[0] - .9, z: LAMP[1], r: 7, c: '#ffe2a0', k: .9 }, { x: WIN[0] + 2.5, z: WIN[2], r: 6, c: YEL, k: .55 }];
+const land = R.ground({ w: 130, d: 150, cell: 2, cz: -30, layers: [D.tex.deadGrass({ c: '#55665a' }), PT.asphalt({ c: '#7a857e', grass: .35, line: 'none', crack: .8, m: 3.5 }), T.dirt({ c: '#6e7468' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - Math.abs(x - pathX(z)) / 1.7)), Math.hypot(x - PARK[0], (z - PARK[1]) * 1.2) < 5.2 ? 1 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+BLD.forEach(([x, z, s], i) => put(PK.building({ w: BW, d: BD, floors: FL, c: '#7c8a82', broken: 0, ivy: 0, plants: 0, flowers: 0, holes: .25, moss: .5, roofGreen: 0, tree: false, seed: 0 }), x, z, s * PI / 2));
+// ---- 公園：ひとりでにゆれる ぶらんこ（このページで作る）、すべり台、ベンチ、たおれた自転車 ----
+const RUST = PT.rust({ paint: '#6c8a86', peel: .65, panel: 0, m: 1.5 }), seats = [];
+{ const G = R.geo().smooth(1), bar = (m, len, r = .05) => G.at(m).loft(6, [[0, r, r, 0, .8], [len, r, r, len / 1.5, 1]], { cap: 'both' }).at(null);
+  for (const sx of [-1.75, 1.75]) for (const sz of [-1, 1]) bar(TR(sx, 0, sz * .9, 0, -sz * .37, 0), 2.5); bar(TR(-1.85, 2.32, 0, 0, 0, -PI / 2), 3.7, .06);
+  const fr = G.mesh(RUST), sw = new THREE.Group(); sw.add(fr); sw.position.set(PARK[0] - .5, 0, PARK[1] - 1.2); sw.rotation.y = .5; scene.add(sw);
+  [-.75, .75].forEach((x, i) => { const pv = new THREE.Group(); pv.position.set(x, 2.3, 0); for (const cx of [-.24, .24]) { if (i && cx > 0) continue; const ch = D.chain({ len: 1.72, c: '#8a948e' }); ch.position.x = cx; ch.scale.x = 1.3; pv.add(ch); }
+    const st = R.geo().box(.6, .05, .2, 0, -1.76, 0, { m: 1 }).mesh(T.planks({ c: '#7a6a58' })); if (i) { st.rotation.z = -1.2; st.position.set(-.5, -.75, 0); } pv.add(st); sw.add(pv); seats.push(pv); }); }
+put(PK.slide({ c: '#7c6a62', c2: '#6c8a86' }), PARK[0] + .6, PARK[1] - 5.2, -.6); put(PK.bench({ c: '#7a7468', broken: true }), PARK[0] + 1.6, PARK[1] + 2.6, -PI / 2 - .2); put(PK.bench({ c: '#7a7468' }), -3.2, -17, PI / 2);
+put(PK.bike({ c: '#7a5a56', basket: true }), 2.2, 4.4, .8).rotation.z = 1.38; put(PK.bike({ c: '#5c7a82' }), -2.9, -4.6, 2.3).rotation.z = -1.38; put(PK.bike({ c: '#6a6a70' }), -3.5, -22.5, .2).rotation.z = 1.38;
+// ---- 道のわき：街灯（1 本だけ点めつ。ほかは消えたまま）、電柱とたれた電線、さく、止まった車、枯れ木 ----
+const sLamp = C.streetLamp({ h: 4.9, c: '#56645e', light: false, halo: false }); sLamp.position.set(LAMP[0], 0, LAMP[1]); sLamp.rotation.y = PI; scene.add(sLamp); let bulb = null; sLamp.traverse(o => { if (o.isMesh && o.material.isMeshBasicMaterial) bulb = o; });
+const poles = [[-4.6, 5, .06], [-4.8, -13, -.1], [-4.6, -32, .12], [-4.9, -50, -.06]].map(([x, z, ln], i) => put(PK.pole({ lean: ln, seed: i, ivy: 0, h: 8 }), x, z, PI / 2));
+for (let i = 0; i < poles.length - 1; i++) { const a = poles[i].position, b = poles[i + 1].position; for (const k of [0, 1]) fixed.push(PK.wire([a.x + k * .5 - .25, 7.2 - k * .5, a.z], [b.x + k * .5 - .25, 7.2 - k * .5, b.z], { sag: 1.3 + (i + k) * .5 })); }
+for (const [x, z, ry, len, i] of [[5.6, -24, PI / 2, 14, 1], [-5.8, -40, PI / 2, 12, 2], [8, 9.5, 0, 12, 3], [8.6, -8, PI / 2, 12, 4]]) put(PK.fence({ len, seed: i, ivy: 0, gap: i % 2 ? .25 : 0, lean: (i % 3 - 1) * .07 }), x, z, ry);
+put(PK.wreck({ kind: 'sedan', c: '#7c8c8a', moss: .2, grass: 0, seed: 2 }), 4.4, -19, .15); put(PK.vending({ c: '#6c8a86', ivy: 0, lean: -.1 }), -4.2, -8.2, PI / 2); put(PK.sign({ kind: 0, lean: .12 }), 3.2, 2.2, -.3);
+[[-7, 8, 8], [7.6, -11, 9], [-8, -15, 9], [8, -29, 10], [-7.5, -44, 9], [7.5, 8, 8], [-9, -68, 10], [9, -54, 9]].forEach(([x, z, h], i) => put(D.deadTree({ h, seed: i + 9, c: '#4a5850' }), x, z, i));
+for (let i = 0; i < 50; i++) { const x = (hash(i, 6) - .5) * 22, z = 12 - hash(i, 7) * 70; if (Math.abs(x - pathX(z)) < 2.2 || Math.hypot(x - PARK[0], z - PARK[1]) < 5) continue; put(R.tuft({ kind: ['reed', 'grass', 'bush'][i % 3], s: .7 + hash(i, 8) * .6, seed: i % 3, c: '#5a6c5e' }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- あかり：1 つだけ ともる窓（左の 2 棟めの 4 階）と、点めつする街灯 ----
+const win = D.windowLight({ kind: 'rect', w: 1.9, h: 1.7, c: YEL, k: 1.3, pool: 0 }); win.position.set(...WIN); win.rotation.y = PI / 2; scene.add(win); const wh = D.halo({ c: YEL, r: 3.2, k: .55 }); wh.position.set(WIN[0] + .3, WIN[1] + .75, WIN[2]); scene.add(wh);
+const lh = D.halo({ c: '#ffe8b0', r: 1.5, k: .9 }), lp = new THREE.PointLight('#ffe0a0', 16, 11, 1.4), ls = D.spot({ c: '#ffe0a0', r: 3.6, k: .45 }); lh.position.set(LAMP[0] - .9, 4.75, LAMP[1]); lp.position.copy(lh.position); ls.position.set(LAMP[0] - .9, .06, LAMP[1]); scene.add(lh, lp, ls);
+// ---- 空気と生きもの：地をはう霧、ただよう霧の粒、からす、遠くの うすい人かげ ----
+scene.add(D.groundFog({ n: 70, box: [60, 70], c: '#c4d2c8', a: .3, h: 1.8, w: 10, wind: [.4, .1] }), D.flakes({ kind: 'dust', n: 90, c: '#d8e4dc', box: [20, 6, 20], size: 1.2 }));
+scene.add(D.perched([[LAMP[0] - .5, 4.98, LAMP[1], 1], [PARK[0] + .6, 2.3, PARK[1] - 5.2, 2], [-4.8, 8.05, -13, 0], [4.4, 1.45, -19, 2.6]], { watch: hero, near: 3 }), D.flock({ kind: 'crow', n: 6, r: 10, h: 3, center: [-6, 17, -26] }));
+const ghost = D.ghost({ h: 1.9, a: .26, c: '#dfe8e2' }); scene.add(ghost);
+
+const lamp = torch(hero, { c: '#f2f6ee', side: .3, a: .34, len: 8, reach: 5.8, power: 60, range: 16 }), crt = R.crt(renderer, { noise: 0, bright: 1.04 }); onResize(crt.resize);
+const Z0 = 11, LEN = 27, SPEED = 1.4;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.7, .8); lamp.tick(t);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(x * .6 + .9, tall ? 2.2 : 1.65, z + Dc); cam.lookAt(x * .5 - .5, tall ? 2.6 : 2.9, z - 6);
+  seats[0].rotation.x = Math.sin(t * 1.5) * .3; seats[1].rotation.x = Math.sin(t * 1.1 + 1) * .06;                       // ぶらんこが ひとりでにゆれる
+  const on = hash(Math.floor(t * 9), 4) > .28 && Math.sin(t * 1.3) > -.55 ? 1 : .06; lh.material.opacity = .9 * on; lp.intensity = 16 * on; ls.material.opacity = .45 * on; if (bulb) bulb.visible = on > .5;   // 街灯の点めつ
+  ghost.position.set(pathX(z - 21) + 1.2, 0, z - 21);                                                                  // 人かげは いつも霧のきわにいて、近づけない
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-11 霧の夜の、いばらの森の道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-11 ─ 霧の夜の、いばらの森の道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 霧の夜の森。ねじれた枯れ木の枝と いばらが頭の上でからみ、トンネルのようになった道を、青いマントの子どもがランタンをさげて歩く。
+// 色の組は「霧の青灰・木の黒むらさき・ランタンのだいだい」＋木の間のやみに光る 黄緑の目。遠くの木は霧にとけるシルエットにして、
+// 手前はランタンの輪と 光るきのこの あかりで読ませる（D.mood の 'fog' を夜の青灰に寄せた）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', s: .86, hairStyle: 'bob', hair: '#ecdcae', eye: '#3a5a8a', eyes: 'round', mouth: 'small', cloth: 'tunic', sleeve: 'long', top: '#3a66d8', top2: '#e8e0c8', lower: 'shorts', bottom: '#4a4a6a', shoe: '#6a4a36', neck: 'cape', acc: '#e8d27a' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'fog', { follow: hero, range: 26, sky: ['#18202e', '#2c3a4a', '#4a5c6c', '#6c8090'], fog: ['#566a7a', 4, 44], hemi: ['#a8bcd4', '#3c4452', 1.15], key: ['#cfe0f4', .95, [-.4, .8, -.45]], hills: '#34424e', base: [.8, .88, 1] });
+
+// ---- 道：-z へ進む、ゆるく曲がる土の道。両がわは 根と こけの でこぼこ ----
+const px = z => Math.sin(z * .11) * 2 + Math.sin(z * .23 + 1) * .6, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => sm(1.8, 6, Math.abs(x - px(z))) * (.25 + W.vn(x * .35, z * .35, 3) * 1.1);
+const SHROOM = [[-2.6, 6], [2.9, -1.5], [-3.1, -9], [2.7, -17], [-2.8, -25], [3.2, 12]].map(([e, z]) => [px(z) + e, z]);
+const LIT = SHROOM.map(([x, z]) => ({ x, z, r: 4.2, c: '#6ae8d0', k: .55 }));
+const land = R.ground({ w: 90, d: 124, cell: 2, cz: -14, H, layers: [D.tex.deadGrass({ c: '#46524e' }), T.dirt({ c: '#5e5a64' }), W.tex.moss({ kind: 'tile', c: '#3e6a5a', m: 2 })],
+  mix: (x, z) => { const d = Math.abs(x - px(z)); return [Math.max(0, Math.min(1, 1.5 - d / 1.3)), d > 2.6 && W.vn(x * .4, z * .4, 7) > .55 ? .7 : 0]; }, shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 木：道のすぐわきは道の上へ かたむく太い枯れ木。おくは霧にとける細い木 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const bark = T.bark({ c: '#56505f' }), NEAR = [];
+for (let i = 0; i < 30; i++) { const z = 30 - i * 3.3 + hash(i, 1) * 1.4, sx = i % 2 ? 1 : -1, e = 3 + hash(i, 2) * .9, x = px(z) + sx * e, t = D.deadTree({ h: 8.5 + hash(i, 3) * 3, r: .42 + hash(i, 4) * .14, seed: i + 3, c: bark }), g = new THREE.Group(); t.rotation.y = i * 1.7; g.add(t); g.rotation.z = sx * (.2 + hash(i, 5) * .14); put(g, x, z, 0, H(x, z) - .2); NEAR.push([x, z, sx]); }
+for (let i = 0; i < 64; i++) { const z = 34 - hash(i, 6) * 100, sx = i % 2 ? 1 : -1, x = px(z) + sx * (6 + hash(i, 7) ** 1.3 * 26); put(D.deadTree({ h: 7 + hash(i, 8) * 6, seed: i + 40, c: bark, twigs: x * sx > 16 ? 1 : 2 }), x, z, i); }
+// 頭の上で からむ枝（ねじれた管）と、そこから下がる いばら。道をまたぐアーチになる
+const G = R.geo().smooth(1), TH = [];
+for (let i = 0; i < 17; i++) { const z = 26 - i * 4.1 + hash(i, 11) * 1.2, c = px(z), top = 3.5 + hash(i, 12) * .9, sk = (hash(i, 13) - .5) * 2.4, tw = (hash(i, 14) - .5) * 1.6;
+  W.tube(G, [[c - 3.3, -.3, z - sk, .3], [c - 3, 1.5, z - sk * .7 + tw * .3, .25], [c - 2, 3 * top / 3.6, z - sk * .3 - tw * .4, .2], [c - .5 + tw * .4, top, z + tw * .5, .16], [c + 1.2, top - .2, z + sk * .3 - tw * .3, .15], [c + 2.5, 2.3, z + sk * .7, .19], [c + 3.2, .9, z + sk + tw * .2, .24], [c + 3.5, -.3, z + sk, .3]], 5, { m: 1.5 });
+  for (const [dx, yy, rz, len] of [[-1.9, top - 1.25, .5, 2.4], [.3, top - 1.2, -.06, 2.6], [2.2, top - 1.9, -.75, 2.2]]) TH.push([c + dx, yy, z + (hash(i, dx) - .5) * .5, rz, len, i]); }
+fixed.push(G.mesh(bark));
+for (const [x, y, z, rz, len, i] of TH) { const th = D.thorns({ len, h: 1.25, seed: i, c: '#5c4a62' }); th.rotation.z = rz; put(th, x, z, 0, y); }
+// 道のわきの いばらの土手（道にそって のびる）、岩、きのこ、くもの巣
+for (let i = 0; i < 44; i++) { const z = 28 - i * 1.55, sx = i % 2 ? 1 : -1, e = 2.2 + hash(i, 15) * 1.1, hd = Math.atan2(px(z - .5) - px(z + .5), -1); put(D.thorns({ len: 3.4, h: 1 + hash(i, 16) * .7, seed: i + 9, c: i % 3 ? '#5a4a5e' : '#4c4a5c' }), px(z) + sx * e, z, hd + PI / 2 + (hash(i, 17) - .5) * .4, H(px(z) + sx * e, z) - .05); }
+for (let i = 0; i < 16; i++) { const z = 26 - hash(i, 18) * 70, sx = i % 2 ? 1 : -1, x = px(z) + sx * (3.6 + hash(i, 19) * 6); put(R.rock({ s: .7 + hash(i, 20), c: '#555a66', seed: i }), x, z, i, H(x, z) - .1); }
+SHROOM.forEach(([x, z], i) => { for (let k = 0; k < 4; k++) { const a = k * 1.7 + i, r = .15 + k * .2, m = W.mushroom({ h: .28 + hash(i, k, 21) * .3, r: .13 + hash(i, k, 22) * .1, shape: k % 2 ? 'bell' : 'dome', kind: 'plain', c: '#7af0d8', stemC: '#c8f0e8', glow: true, lean: .3, seed: i * 4 + k }); put(m, x + Math.cos(a) * r, z + Math.sin(a) * r, a); } });
+[2, 5, 8, 11, 14, 17, 20].forEach((n, k) => { const [x, z, sx] = NEAR[n], w = D.web({ s: 1.3 + (k % 3) * .3 }); put(w, x - sx * .5, z + .1, sx > 0 ? PI : 0, 2.3 + (k % 2) * .5); });
+scene.add(R.merge(fixed));
+scene.add(D.pools(SHROOM.map(([x, z]) => ({ p: [x, H(x, z) + .08, z], r: 2.2, c: '#58e0c8', k: .5 }))));
+for (const [x, z] of SHROOM) { const h = D.halo({ c: '#6af0d8', r: .7, k: .5, flicker: true }); h.position.set(x, H(x, z) + .3, z); scene.add(h); }
+
+// ---- 木の間のやみに光る目（黄緑の小さな点の対）。ときどき まばたきをして、ゆっくり動く ----
+const eyes = [];
+for (let i = 0; i < 36; i++) { const big = i === 13, z = 9 - i * 1.45 - hash(i, 31) * 1.2, sx = i % 2 ? 1 : -1, e = big ? 6.5 : i % 3 === 0 ? 2.5 + hash(i, 32) * .8 : 3.4 + hash(i, 32) * 3.4, x = px(z) + sx * e, r = big ? .17 : .08 + hash(i, 34) * .05, g = new THREE.Group();
+  for (const s of [-1, 1]) { const a = D.halo({ c: '#b8f030', r: r * 2.6, k: .9 }), b = D.halo({ c: '#f2ffa8', r: r * 1.15, k: 1 }); a.position.x = b.position.x = s * r * 2.1; g.add(a, b); }
+  g.position.set(x, H(x, z) + (big ? 3.4 : 1.25 + hash(i, 33) * 1.9), z); g.userData = { x, ph: hash(i, 35) * 20, ev: 2.6 + hash(i, 36) * 3 }; scene.add(g); eyes.push(g); }
+const owl = D.owl({ s: 1.5 }); owl.position.set(px(-6) + .4, 3.55, -6.1); owl.rotation.y = .3; scene.add(owl);
+
+// ---- 空気：地をはう霧、ただよう ちり、遠くを回る こうもり ----
+scene.add(D.groundFog({ n: 56, box: [50, 60], H, c: '#a8bccc', a: .3, h: 1.7, w: 8, wind: [.35, .2] }), D.flakes({ kind: 'dust', n: 50, box: [16, 5, 16], c: '#c8d8e8' }), D.flock({ kind: 'bat', n: 7, r: 5, h: 1, center: [0, 5.2, -12], s: 1.2 }));
+
+const lamp = D.lantern(hero, { hand: 'L', power: 11, range: 9, r: 3.2, k: .7, s: .9 }), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 14, LEN = 44, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = px(z), y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(px(z - .6) - x, -.6); R.walk(hero, t * SPEED * 4.2); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.5 : 4.5; cam.position.set(px(z + Dc) * .75 + x * .25 + .5, y + (tall ? 1.9 : 1.55), z + Dc); cam.lookAt(x * .6 + px(z - 6) * .4, y + (tall ? 1.5 : 1.75), z - 6);
+  for (const g of eyes) { const u = g.userData, q = (t + u.ph) % u.ev, blink = q < .16 ? .08 : q > u.ev - .9 && q < u.ev - .74 ? .08 : 1; g.scale.set(1, blink, 1); g.position.x = u.x + Math.sin(t * .3 + u.ph) * .25; g.rotation.y = Math.atan2(cam.position.x - g.position.x, cam.position.z - g.position.z); }
+  land.follow(0, -14); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

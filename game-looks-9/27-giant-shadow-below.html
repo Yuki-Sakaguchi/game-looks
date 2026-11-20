@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-27 巨大な影 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8e0f4;opacity:.85;text-shadow:0 1px 0 #012}
+</style>
+<div id="cap">9-27 ─ 巨大な影 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（くじら・小魚・ヘルメットのダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 底の見えない深い青の中。色は 青黒の水と、上からのうすい光の 2 つ（差し色は主役の黄）。海底は無く、下は やみ。
+// 主役のダイバーの頭上を、長さ 60 m をこえる くじらが ゆっくり横ぎっていく。体は暗いシルエットで、わき腹と ひれのふちだけ 上からの光を受ける。小魚の群れが左右へ逃げる。
+// カメラは主役のうしろ下から見上げる（主役が小さな前景、くじらが空をおおう）。こわがらせるのではなく、大きさを見せる。水の中の光は S.underwater（deep を暗く上書き）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 58, far: 900, aa: false, fitAspect: .9, maxFov: 82 });
+// 見上げた所だけ明るい青、水平は青黒、足もとは ほぼ やみ。霧は遠く（くじらの全身が、うすれながら見える）
+const env = S.underwater(scene, renderer, { depth: 'deep', top: 70, floor: -40, surface: false, rays: 12, range: 40, hi: '#3270c0', mid: '#0c2464', low: '#02040f', fog: '#081a4c', near: 8, far: 100, amb: .95, sky: 0x9cc0ff, ground: 0x283070, sun: 0xb8d8ff, power: 1.1, rayA: .2, motes: 170 }), sun = env.sun;
+
+// ---- 巨大な くじら（S.whale を 7 倍＝63 m）。主役の行く手の頭上を、ななめに横ぎる。200 秒で ひとめぐり。半周おくれて、遠くの横を もう 1 頭 ----
+const big = S.whale({ kind: 'whale', s: 7, c: '#151f46', c2: '#2e3e72' }), far = S.whale({ kind: 'whale', s: 4.2, c: '#22305c', c2: '#3a4c84' }); scene.add(big, far);
+const wrap = (a, n) => ((a % n) + n) % n;
+// ---- 逃げる小魚の群れ：くじらの通り道（まん中）から、左右と下へ はなれていく。はなれきったら、まん中へもどして くり返す ----
+const SCH = [0, 1, 2, 3, 4, 5].map(i => { const o = S.school({ n: 34, s: 1.5, rx: 2.2, rz: 3.2, h: 1.6, speed: (i % 2 ? 1 : -1) * 2.4, spread: 1.4, seed: i * 3, c: '#a8c8f0', c2: '#f0f8ff', tints: ['#ffffff', '#c8e0ff'] }); scene.add(o); return { o, sx: i % 2 ? 1 : -1, ph: i * 3.1, z: 5 + (i % 3) * 7, y: 1 + (i % 3) * 2.2 }; });
+
+// ---- 主役：ヘルメットのダイバー（黄の服に こん色のボンベ）。体を起こして見上げ、ランプの光が くじらの腹へとどく ----
+const hero = S.diver({ head: 'helmet', pitch: .45, tank: '#3a5ac8', fin: '#f4e8a0', metal: '#d0a860', actor: { hairStyle: 'short', hair: '#5a4030', top: '#f4d23a', top2: '#3a5ac8', bottom: '#e8c22e', glove: '#3a5ac8', shoe: '#8a6a2a', belt: '#3a5ac8' } }); scene.add(hero);
+// pack のヘルメットは、よこのくり返し（ur: 3）がテクスチャの金物の区画からはみ出すので、ここで UV を区画の中へ折り返す（第 8 集の 35 と同じ）
+{ const hm = hero.userData.J.head.children.at(-1), uv = hm.geometry.attributes.uv, u0 = 17 / 64, w = 14 / 64; for (let i = 0; i < uv.count; i += 3) { if (uv.getY(i) > .25) continue; const k = Math.floor((Math.min(uv.getX(i), uv.getX(i + 1), uv.getX(i + 2)) - u0) / w + .001); for (let j = 0; j < 3; j++) uv.setX(i + j, uv.getX(i + j) - k * w); } uv.needsUpdate = true; }
+{ const J = hero.userData.J, G = R.geo(), y = .46, L = 9;   // ランプの光：頭の前へのびる 光の円すい（うすい板 2 枚を十字に。加算）と、ヘルメットの上の小さな あかり
+  for (const [ax, ay] of [[1, 0], [0, 1]]) G.quad([-.1 * ax, y - .1 * ay, .36], [.1 * ax, y + .1 * ay, .36], [2.2 * ax, y + 2.2 * ay, L], [-2.2 * ax, y - 2.2 * ay, L], [0, 1, 1, .08]);
+  const beam = G.mesh(S.mat(S.tex.shaft({ seed: 1 }), { glow: true, add: true, alpha: .6, side: true, color: '#e8f0ff' })); beam.castShadow = false; beam.renderOrder = 6; J.head.add(beam);
+  const bulb = new THREE.Sprite(new THREE.SpriteMaterial({ map: S.tex.bubble(), color: '#f4f8ff', blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); bulb.material.map = bulb.material.map.clone(); bulb.material.map.repeat.set(.5, 1); bulb.material.map.needsUpdate = true; bulb.scale.setScalar(.26); bulb.position.set(0, y + .12, .34); J.head.add(bulb); }
+const headLamp = new THREE.SpotLight('#e8f0ff', 60, 60, .3, .7, 1.2); scene.add(headLamp, headLamp.target);
+const selfLight = new THREE.PointLight('#c8d8ff', 5, 5, 1.3); scene.add(selfLight);   // 主役の体が暗くつぶれないための弱い光
+const crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const rim = new THREE.DirectionalLight('#a8d0ff', .25); scene.add(rim, rim.target);   // 手前上からの うすい光：くじらの わき腹の上がわと ひれのふちだけを明るくする
+const SPEED = .9, CYC = 260, YAW = 1.32, DX = Math.sin(YAW), DZ = Math.cos(YAW), V = new THREE.Vector3();
+K.loop((dt, t) => {
+  const z = t * SPEED, x = Math.sin(t * .11) * 1.2, y = Math.sin(t * .4) * .3;
+  hero.position.set(x, y, z); hero.rotation.y = Math.sin(t * .11) * .12; S.swim(hero, t, { rate: 3, kick: .7, arms: 'glide', look: .95 }); S.breathe(hero, env.bubbles, dt, 2);
+  // くじら：主役の前の頭上（19 m 上、30 m 先）を、画面の右から左へ ななめに横ぎる。体の横と腹が見える。尾は ゆっくり
+  const sr = wrap(t * 1.5 + CYC / 2 - 9.75, CYC) - CYC / 2; big.position.set(x + DX * sr, y + 19 + Math.sin(t * .13) * .8, z + 30 + DZ * sr); big.rotation.y = YAW; big.userData.tick(t, .4);
+  const sr2 = wrap(t * 1.2 + 70, CYC) - CYC / 2; far.position.set(x + 12 + DX * sr2, y + 31, z + 58 + DZ * sr2); far.rotation.y = YAW; far.userData.tick(t + 2, .5);
+  hero.userData.J.head.getWorldPosition(V); headLamp.position.copy(V); headLamp.target.position.set(V.x, V.y + 6, V.z + 10); selfLight.position.set(x + 1, y + 1.2, z - 1.6);
+  for (const s of SCH) { const a = wrap(t * .09 + s.ph * .32, 1), e = a * a * (3 - 2 * a); s.o.position.set(x + s.sx * (2 + e * 26), y + 9 - s.y - e * (7 + s.y), z + s.z + e * 5); s.o.userData.tick(t); }
+  const tall = innerWidth < innerHeight;
+  cam.position.set(x * .5 + (tall ? .6 : 1.9), y - (tall ? 1.2 : .7), z - (tall ? 3.8 : 4.6)); cam.lookAt(x * .7 - (tall ? .2 : .6), y + (tall ? 3.8 : 3.3), z + 5);
+  sun.position.set(x + 16, 60, z + 4); sun.target.position.set(x - 3, 10, z);
+  rim.position.set(x - 10, y + 40, z - 30); rim.target.position.set(x, y + 19, z + 30);
+  env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

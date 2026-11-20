@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-40 どしゃぶりのスラムを、シートをかぶって走る 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0f0e4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-40 ─ どしゃぶりのスラムを、シートをかぶって走る / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で走る）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 鉄板のすき間から、にごった雨がたたきつけるスラム。トタン屋根と雨どいから水が流れ落ち、路地は川になって ごみが流れていく。
+// 主役は、つぎの当たったシートを頭の上にかぶって走る配達人。あかりは窓に 3 つだけ。
+// 色の組は「灰緑の雨と鉄・にごった水・窓の黄」。D.mood の 'blackout' を灰緑に上書きし、窓のあかりを水面に焼きこんで、暗い所との差で見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ hairStyle: 'short', hair: '#3a3a34', mouth: 'line', cloth: 'jacket', top: '#d8842c', top2: '#f0e4c0', bottom: '#4a5a52', shoes: 'boot', shoe: '#e8c040', gloves: 'glove', glove: '#c8c0a0', back: 'pack', acc: '#c8b070' }); scene.add(hero);
+const HAZE = '#2b3d35', YEL = '#ffd060';
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, hills: false, range: 26, level: .76, sky: ['#0e1614', '#1e2c28', '#2b3d35', '#4a6056'], fog: [HAZE, 7, 62], hemi: ['#a4c8b4', '#303e38', 1.1], key: ['#c4e4d0', 1.15, [-.35, .8, -.5]], fill: ['#5a7a6a', .45], base: [.8, .96, .88], flash: '#e4fff0' });
+const SW = 2.9;   // 通りのはばの半分
+
+// ---- 家の区画。あかりのついた窓は 3 軒だけ ----
+const WD = [4.6, 5.6, 4.2, 6, 5], LOTS = [], LITS = new Set([3, 6, 17, 21]);
+for (const s of [-1, 1]) for (let x = -50, i = 0; x < 62; i++) { const w = WD[(i + (s > 0 ? 2 : 0)) % 5]; LOTS.push({ x: x + w / 2, s, w, i: LOTS.length }); x += w + .25; }
+const lights = LOTS.filter(l => LITS.has(l.i)).map(l => ({ x: l.x, z: l.s * 1.8, r: 5.2, c: YEL, k: .85 }));
+// 地面：家の前は 1 段高い鉄板とコンクリート。通りは低く、その上を水がおおう
+const land = R.ground({ w: 150, d: 40, cell: 1, cx: 6, H: (x, z) => Math.abs(z) > 2.5 ? .16 : -.12, layers: [X.asphalt({ wet: 1, c: '#46524c', wetC: '#5c8070' }), X.conc({ c: '#7c8880' }), X.plate({ c: '#5c6c64', n: 2, rust: .6 })], mix: (x, z) => [Math.abs(z) > 2.2 ? 1 : 0, Math.abs(z) > 2.2 && hash(Math.round(x / 5), z > 0 ? 1 : 2) > .5 ? 1 : 0], shade: mood.shade(lights) });
+scene.add(land.mesh);
+// 川になった通り：水のテクスチャを x の向きへ流す。あかりの近くは黄色くそめる
+const WF = T.water({ c: '#5a7c6c' }), wmat = R.mat(WF[0], { vc: true, smooth: true }), shade = mood.shade(lights);
+{ const G = R.geo(); for (let x = -56; x < 70; x += 2) for (let z = -2.8; z < 2.7; z += 1.4) { const c = (px, pz) => shade(px, pz).map(v => v * .8); G.quad([x, .03, z + 1.4], [x + 2, .03, z + 1.4], [x + 2, .03, z], [x, .03, z], [x / 3, (z + 1.4) / 3, (x + 2) / 3, z / 3], [c(x, z + 1.4), c(x + 2, z + 1.4), c(x + 2, z), c(x, z)]); } const m = G.mesh(wmat); m.castShadow = false; scene.add(m); }
+
+// ---- つぎはぎの家（窓は暗い）。トタンのひさし ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, CS = ['#5a7468', '#4f6a70', '#7a7a64', '#6a7a80', '#75685a', '#8a9488'], KIND = ['shutter', 'door', 'shutter', 'window', 'door', 'noren', 'shutter'];
+for (const { x, s, w, i } of LOTS) put(C.shack({ w, d: 4.6, floors: 2 + (hash(i, 3) > .5 ? 1 : 0), seed: i + 40, cs: CS, shop: KIND[(i * 3 + (s > 0 ? 1 : 0)) % 7], shopC: '#4a6a60', lit: LITS.has(i) ? 1 : 0, awning: i % 3 ? 'tin' : false, laundry: false, tank: i % 4 === 1, antenna: i % 3 === 0, vent: i % 2 === 0 }), x, s * 5.2, s > 0 ? PI : 0, .14);
+
+// ---- 通りの物：雨どいの管、ドラムかん、ごみ箱、土のう代わりのタイヤ、電柱、頭の上の配管と鉄骨 ----
+const GUT = [[-6.5, -1], [3.8, 1], [14.5, -1], [24, 1], [33, -1], [-17, 1]];   // 雨どい（たての管）。下の口から水があふれる
+for (const [x, s] of GUT) fixed.push(C.pipe([[x, 9, s * 2.82], [x, 2.5, s * 2.82], [x, 2.2, s * 2.55]], .11, { c: '#6a7a72', joint: 2.2, bend: .3 }));
+put(C.drum({ c: '#5a7468' }), 1.6, -2.55, 0, .14); put(C.drum({ c: '#7a6a54', mark: 'band' }), 9.3, 2.6, 0, .14); put(C.trash({ kind: 'bin', c: '#4f6a70' }), -4.2, 2.6, 0, .14); put(C.tires({ n: 3 }), 6.5, -2.6, 0, .14); put(C.tires({ n: 2 }), 19.5, 2.6, 0, .14); put(R.crate({ s: .6, c: '#8a8068' }), 12.2, -2.55, .3, .14); put(C.trike({ c: '#5a6a64', load: false }), 22, -2.4, .12, .1); put(C.scrap({ s: 1.2, seed: 1 }), 28, 2.5, 0, .14); put(C.bench({ c: '#6a6456' }), -11, -2.65, 0, .14); put(C.drum({ c: '#4f6a70' }), 30.5, -2.6, 0, .14);
+const POLES = [[-30, -2.75], [-8, 2.75], [14, -2.75], [36, 2.75], [58, -2.75]].map(([x, z]) => put(C.pole({ h: 7.4, lamp: false }), x, z, PI / 2, .14)), tip = (p, k) => { const a = p.userData.tips[k]; return [p.position.x - a[2], a[1] + .14, p.position.z + a[0]]; };
+scene.add(C.wires(POLES.slice(0, -1).flatMap((p, i) => [0, 1, 2, 3].map(k => [tip(p, k), tip(POLES[i + 1], k ^ 1), 1.1 + k * .15])), { c: '#101a16' }));
+fixed.push(C.pipe([[-58, 8.4, -2.7], [70, 8.4, -2.7]], .34, { c: '#5a7068', joint: 6 }), C.pipe([[-58, 7.5, 2.75], [70, 7.5, 2.75]], .2, { c: '#6a6a58', joint: 5 }));
+for (let x = -40; x <= 64; x += 16) { const t = C.truss({ len: 16, h: 1.5, w: 1, c: '#46584e' }); t.rotation.y = PI / 2; t.position.set(x, 12.6, 0); fixed.push(t); }
+scene.add(R.merge(fixed));
+scene.add(D.pools(lights.map(l => ({ p: [l.x, .05, l.z * .5], r: 3.4, c: YEL, k: .3 }))), D.streaks(lights.map(l => ({ x: l.x, z: l.z * 1.6, h: 3.6, c: YEL, k: .9, w: 1.3 })), { far: 46 }));
+
+// ---- 天井（通りの上が長いすき間）と遠くの支柱。すき間から雨 ----
+for (const sz of [-1, 1]) scene.add(C.ceiling({ w: 256, d: 48, y: 15, cz: sz * 28.5, c: '#2c3e36', leak: 0 }));   // 2 枚に分けて、通りの上を空ける
+scene.add(R.merge([[82, -4, 5.5], [-74, 2, 5.5], [50, -60, 5], [20, 66, 5.5]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 30, seed: i, c: '#4a5e54', lights: false, emissive: '#18241f', lm: 60 }); p.position.set(x, 0, z); return p; })));
+scene.add(D.rain({ n: 950, box: [24, 13, 20], speed: 31, slant: [.42, .1], c: '#a8c8b8', a: .42, len: 1.15 }), D.rain({ n: 320, box: [12, 9, 9], speed: 26, slant: [.42, .1], c: '#d4ece0', a: .4, len: .8 }), D.lightning(mood, { first: 4.3, every: 9, bolt: false, power: .55 }));
+scene.add(D.groundFog({ n: 34, box: [50, 8], y: .1, h: 1.1, w: 5, c: '#b8d4c4', a: .2, wind: [1.6, 0] }));   // 水面のしぶきのもや
+
+// ---- 屋根から落ちる水（流れるテクスチャのたての帯）と、落ちた所のしぶき ----
+const ft = T.fall({ c: '#a8d0bc' }).clone(); ft.needsUpdate = true; const fm = new THREE.MeshBasicMaterial({ map: ft, alphaTest: .5, side: THREE.DoubleSide, color: '#7a9c8c', fog: true });
+const FALLS = [...GUT.map(([x, s]) => [x, s * 2.5, 2.2, .34]), ...LOTS.filter(l => l.i % 3 && l.x > -22 && l.x < 44).flatMap(l => [[l.x - l.w * .3, l.s * 3.02 - l.s * 1.05, 2.72, .14], [l.x + l.w * .32, l.s * 3.02 - l.s * 1.05, 2.72, .18]])];
+{ const F = R.geo(); for (const [x, z, y, w] of FALLS) for (const a of [0, PI / 2]) { const cx = Math.cos(a) * w / 2, cz = Math.sin(a) * w / 2; F.quad([x - cx, 0, z - cz], [x + cx, 0, z + cz], [x + cx, y, z + cz], [x - cx, y, z - cz], [0, 0, 1, y / .5]); } const m = new THREE.Mesh(F.build(), fm); scene.add(m); }
+GUT.forEach(([x, s], i) => { const sp = C.steam({ n: 6, r: .34, rise: .7, spread: .5, speed: .9, c: '#d8ece0', a: .4, phase: i * .3 }); sp.position.set(x, .1, s * 2.4); scene.add(sp); });
+
+// ---- 流れるごみ：木箱・ドラムかん・タイヤ・板 ----
+const junk = [R.crate({ s: .38, c: '#8a8068' }), C.drum({ c: '#7a6a54', h: .7, r: .22 }), C.tires({ n: 1 }), R.crate({ s: .3, kind: 'x', c: '#7a7a64' }), C.drum({ c: '#5a7468', h: .6, r: .2, mark: 'none' })].map((o, i) => { const g = new THREE.Group(); if (i === 1 || i === 4) { o.rotation.z = PI / 2; o.position.y = .2; } g.add(o); scene.add(g); return g; });
+const cat = D.cat({ s: 1.1 }); cat.position.set(12.2, .74, -2.55); cat.rotation.y = 1.2; scene.add(cat);   // 木箱の上で雨やどりする ねこ
+
+// ---- シート：頭の上にかざして、両手で前のはしを持つ（つぎの当たった ほろ の布） ----
+const sheet = new THREE.Group(); { const G = R.geo(), xs = [-.52, -.18, .18, .52], row = [[.5, 1.5], [.26, 1.6], [.04, 1.63], [-.14, 1.6], [-.28, 1.52], [-.36, 1.4]], P = (i, j) => [xs[i], row[j][1] - Math.abs(xs[i]) ** 2 * .5 - (j > 2 ? Math.abs(xs[i]) * .12 : 0), row[j][0]];
+  for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) G.quad(P(i, j + 1), P(i + 1, j + 1), P(i + 1, j), P(i, j), [i / 3, (j + 1) / 5, (i + 1) / 3, j / 5]); sheet.add(G.mesh(X.hood({ c: '#a8c4b0', c2: '#d8c890' }), { side: true })); hero.add(sheet); }
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const SPEED = 2.7, SPAN = 46, X0 = -16, J = hero.userData.J;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = Math.sin(x * .16) * .7, tall = innerWidth < innerHeight, Dc = tall ? 3.6 : 4.6, ph = t * SPEED * 3.3;
+  hero.position.set(x, -.02 + Math.abs(Math.sin(ph)) * .05, z); hero.rotation.y = PI / 2 - Math.cos(x * .16) * .11; R.walk(hero, ph, 1.35); J.torso.rotation.x = .22;
+  for (const k of ['L', 'R']) { J['arm' + k].rotation.set(-2.5, 0, k === 'L' ? .3 : -.3); J['fore' + k].rotation.x = -.35; }   // 両うでを上げてシートを持つ
+  sheet.rotation.x = Math.sin(ph * 2) * .05 - .08; sheet.position.y = Math.sin(ph * 2 + 1) * .02;
+  cam.position.set(x - Dc, tall ? 1.7 : 1.4, z * .4 - .5); cam.lookAt(x + 5, tall ? 1.9 : 1.75, z * .3 + .2);
+  crt.u.bright.value = 1.08 * Math.min(1, d / .5, (SPAN - d) / .5);
+  R.flip(wmat, WF, t, 6); for (const f of WF) f.offset.x = -t * .55; ft.offset.y = t * 2.6;
+  junk.forEach((g, i) => { g.position.set(-14 + ((i * 13 + 60 - t * (1.1 + i * .13)) % 60 + 60) % 60, .02 + Math.sin(t * 2 + i) * .03, [-1.3, .9, -.4, 1.6, -1.9][i]); g.rotation.y = t * .3 + i; g.rotation.z = Math.sin(t * 1.7 + i) * .08; });
+  R.catPose(cat, 'sit', t); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

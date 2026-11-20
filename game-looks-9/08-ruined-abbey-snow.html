@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-08 雪の廃修道院 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e6ecff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-08 ─ 雪の廃修道院 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雪のふる夕やみ。屋根の落ちた石の聖堂の中を、毛皮のマントの巡礼が、ランタンと つえで奥の祭だんへ歩く。奥のかべには、ばら窓の色ガラスが まだ残る。
+// 色の組は「雪の青白・石の灰むらさき・ランタンと ろうそくの黄」＋ばら窓の にぶい赤と青。
+// 夕やみの明るい地平線の前に、とがりアーチと かべを黒い影にし、雪の地面に焼きこんだ あかりの輪で、主役と祭だんを読ませる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'bob', hair: '#b8b4c0', beard: 'beard', cloth: 'robe', top: '#7a4e3c', top2: '#d8ccb0', skirt: .9, skirtC: '#6a4234', shoe: '#4a3a30', gloves: 'wrap', glove: '#c8b890', neck: 'cape', acc: '#8a5a44' }); scene.add(hero);
+F.wear(hero, 'staff', { hand: 'R', c: '#8a6a48', len: 1.35 });
+{ const P = R.Px(32), B = hero.userData.build; P.each((x, y) => { const n = R.tn(x, y, 4, 7, 32, 32, 3); return (x + y * 3) % 7 === 0 && n > .4 ? '#9c8e84' : n > .62 ? '#f4f0e6' : n < .3 ? '#b8ac9e' : '#dcd4c6'; });   // 肩にかける毛皮（白っぽい毛並みを打つ）
+  const fur = R.geo().smooth(1).loft(8, [[B.torso * .42, B.sh * 1.5, .21, 0, .8], [B.torso * .78, B.sh * 1.42, .2, .5, 1], [B.torso * 1.03, B.sh * .75, .13, 1, 1.05]], {}).mesh(T.from(P, { m: 1 }), { side: true }); hero.userData.J.torso.add(fur); }
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 34, sky: ['#141a34', '#343e64', '#66749a', '#aab4cc'], fog: ['#6a7798', 16, 120], hemi: ['#b4c4f0', '#565a78', 1.2], key: ['#d4e0ff', 1.3, [-.5, .5, -.7]], fill: ['#7a88b8', .5], hills: '#39425e', base: [.8, .86, 1.04] });
+
+// ---- 地面：雪。聖堂の中は、雪のあいだから石の床がのぞく。外は少し でこぼこ ----
+const NX = 5.6, ZW = -27, ZA = -20, cl = v => Math.max(0, Math.min(1, v));
+const H = (x, z) => { const o = cl((Math.abs(x) - 8) / 6); return o * (Math.sin(x * .3 + z * .21) * .5 + Math.sin(z * .37) * .3 + .2); };
+const LIT = [{ x: 0, z: ZA + 1.2, r: 7.5, c: '#ffc860', k: 1.3 }, { x: -3.6, z: -6.5, r: 3.6, c: '#ffc860', k: .9 }];
+const land = R.ground({ w: 120, d: 130, cell: 2, cz: -12, H, layers: [T.snow({ c: '#b6c2e0' }), T.cobble({ kind: 'slab', c: '#6c7496' }), D.tex.deadGrass({ c: '#6a7488' })],
+  mix: (x, z) => [Math.abs(x) < NX - .6 && z > ZW ? cl((Math.sin(x * 1.1 + z * .23) * Math.sin(z * .61 - x * .4) + .25 - Math.abs(x) * .05) * 3) : 0, Math.abs(x) > 9 ? cl((Math.sin(x * .5) * Math.sin(z * .43) - .45) * 4) : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 聖堂：両がわに とがりアーチの列（ところどころ欠ける）、上に のこった かべ、奥に ばら窓のある かべ ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const stone = D.tex.stone({ c: '#787e9e', moss: .12 }), stone2 = D.tex.stone({ c: '#6c7292', moss: .1, seed: 3 }), G = R.geo(), Gs = R.geo(), AW = 4.6, AH = 5.56 + .18;
+const snowCap = (w, d, x, y, z) => Gs.box(w + .16, .16, d + .16, x, y, z, { m: 3 });   // かべや石の上に つもった雪
+const BAY = [[1, 3.4, 1, 0], [1, 1.2, 0, 0], [1, 4.6, 1, 2.2], [0, 0, 1, 3.6], [1, 2.4, 1, 0], [1, 5, 1, 4.4], [1, 0, 0, 0], [1, 3, 1, 1.6]];   // [左のアーチ, 左の上のかべの高さ, 右のアーチ, 右の上のかべ]
+BAY.forEach(([aL, hL, aR, hR], i) => { const z = 11 - i * AW; for (const [sx, a, h] of [[-1, aL, hL], [1, aR, hR]]) { const x = sx * NX;
+  if (a) { put(F.arch({ w: 3.2, h: 5, d: 1.1, th: .7, kind: 'point', stone: i % 2 ? stone : stone2 }), x, z, Math.PI / 2, 0); if (h) { G.box(1, h, AW, x, AH, z, { m: 3, c0: .8 }); if (h > 2) G.box(1, 1 + hash(i, sx) * 1.6, AW * .45, x, AH + h, z + AW * .27, { m: 3 }); snowCap(1, h > 2 ? AW * .5 : AW, x, AH + h, z - (h > 2 ? AW * .25 : 0)); } else snowCap(1.1, AW, x, AH, z); }
+  else { put(D.column({ h: 2 + hash(i, 7) * 2, r: .5, c: '#7c82a0', seed: i }), x, z + AW / 2 - .4, i); put(D.column({ h: 3.4, r: .5, c: '#7c82a0', fallen: true, seed: i + 4 }), x + sx * 1.2, z - .6, sx * .5); } } });
+// 奥のかべ（西の正面）：まん中に とがりアーチの戸口、その上に ばら窓、三角の切りづま。右の かたは くずれている
+put(F.arch({ w: 3, h: 4.6, d: 1.5, th: 1.2, kind: 'point', stone }), 0, ZW, 0, 0);
+G.box(5.4, 6.4, 1.3, 0, 5.3, ZW, { m: 3, c0: .85 }); G.box(4.2, 12, 1.5, -4.8, 0, ZW, { m: 3, c0: .75 }); G.box(1.5, 14.4, 1.9, -7.2, 0, ZW, { m: 3, c0: .75 }); G.box(4.2, 7.6, 1.5, 4.8, 0, ZW, { m: 3, c0: .75 }); G.box(2, 9.4, 1.5, 3.7, 0, ZW, { m: 3, c0: .75 }); G.box(1.5, 5.2, 1.9, 7.2, 0, ZW, { m: 3, c0: .75 });
+for (const dz of [.65, -.65]) G.tri([-2.7, 11.7, ZW + dz], [2.7, 11.7, ZW + dz], [0, 15.6, ZW + dz], [-.9, 3.9], [.9, 3.9], [0, 5.2]); G.tri([-6.9, 12, ZW + .7], [-2.7, 11.7, ZW + .7], [-2.7, 14, ZW + .7], [-2.3, 4], [-.9, 3.9], [-.9, 4.7]);
+snowCap(4.2, 1.5, 4.8, 7.6, ZW); snowCap(1.5, 1.9, 7.2, 5.2, ZW); snowCap(1.5, 1.9, -7.2, 14.4, ZW); snowCap(2, 1.5, 3.7, 9.4, ZW);
+fixed.push(G.mesh(stone), Gs.mesh(T.snow({ c: '#c4d0ea' })));
+const RY = 8.7, RR = 2.5, rose = R.geo().quad([-RR, RY - RR, ZW + .68], [RR, RY - RR, ZW + .68], [RR, RY + RR, ZW + .68], [-RR, RY + RR, ZW + .68]).mesh(D.tex.glass({ kind: 'rose', lit: .55, cs: ['#8a2f42', '#2f4290', '#6a2f7a', '#96762e', '#1f6272'] }), { glow: true, offset: true, color: '#a8a0b8' }); rose.castShadow = false; scene.add(rose);
+const lanc = R.geo(); for (const x of [-5.6, -4]) lanc.quad([x - .55, 5.6, ZW + .78], [x + .55, 5.6, ZW + .78], [x + .55, 8.4, ZW + .78], [x - .55, 8.4, ZW + .78]); const lm = lanc.mesh(D.tex.glass({ kind: 'lancet', lit: .3 }), { glow: true, offset: true, color: '#8a88a8' }); lm.castShadow = false; scene.add(lm);
+const roseHalo = D.halo({ c: '#b06a90', r: 4.6, k: .3 }); roseHalo.position.set(0, RY, ZW + 1.2); scene.add(roseHalo);
+
+// ---- 祭だん：石の台と ろうそく。床に落ちた柱、雪をかぶった墓石、枯れ木 ----
+put(D.bier({ s: 1.25, c: '#8a90ac' }), 0, ZA, 0); put(D.candles({ n: 6, len: 1.5, light: true, seed: 2 }), 0, ZA + .1, 0, 1.02); put(D.candles({ n: 3, len: .5, seed: 5 }), -3.6, -6.3, .4);
+put(D.column({ h: 3, r: .45, c: '#7c82a0', fallen: true, seed: 2 }), 2.6, 1.5, .9); put(D.statue({ kind: 'angel', s: 1.35, c: '#8088a6' }), -3.8, -15.5, .5); put(D.column({ h: 1.6, r: .42, c: '#7c82a0', seed: 9 }), 3.9, -11.5, 0);
+const Gc = R.geo(), GR = [[-3.6, -7.2, 1.3, 'round', .5], [-3.9, 2.4, 1.2, 'point', .3], [3.7, -4.4, 1.25, 'round', -.4], [4, 5.6, 1.1, 'disc', -.6], [-9.5, 6, 1.3, 'round', .3], [-11, 1.5, 1.2, 'point', .2], [-9, -4, 1.4, 'obelisk', .1], [-12.5, -8.5, 1.2, 'round', .4], [9.4, 3.5, 1.3, 'point', -.3], [11.5, -2, 1.25, 'round', -.2], [9.2, -8, 1.2, 'disc', -.4], [12.8, 8, 1.3, 'round', -.5], [-10.5, 12, 1.2, 'round', .5], [10, 13, 1.2, 'point', -.3]];
+GR.forEach(([x, z, s, kind, ry], i) => { const y = H(x, z); put(D.grave({ kind, s, seed: i + 3, c: '#8088a4', moss: .15, lean: (hash(i, 5) - .5) * .25 }), x, z, ry); if (kind !== 'obelisk') Gc.at(R.TR(x, y + 1.05 * s * (kind === 'disc' ? .98 : .97), z, ry)).loft(6, [[-.05, .3 * s, .1, 0, .8], [.05, .27 * s, .1, .5, 1], [.11, .12 * s, .05, 1, 1.05]], { cap: 'top' }).at(null); Gc.at(R.TR(x, y, z + .25, ry)).loft(6, [[0, .62 * s, .4, 0, .85], [.1, .45 * s, .28, .5, 1], [.16, .15, .1, 1, 1.05]], { cap: 'top' }).at(null); });
+fixed.push(Gc.mesh(T.snow({ c: '#c4d0ea' })));
+const trees = [[-9.6, 9, 8.5], [9.8, -5, 9.5], [-11.5, -12, 10], [12.5, 10.5, 8], [-15, 2, 11], [16, -15, 12], [-8.6, -22, 9], [14, -30, 11], [-17, -32, 12], [-13, 18, 9], [11, 20, 8.5]].map(([x, z, h], i) => put(D.deadTree({ h, seed: i + 40, c: '#565c72' }), x, z, i * 1.7));
+for (let i = 0; i < 12; i++) { const x = (hash(i, 31) - .5) * 44, z = 16 - hash(i, 32) * 50; if (Math.abs(x) > 8) put(i % 3 ? R.rock({ s: .8 + hash(i, 6), c: '#a4b0cc', seed: i }) : D.thorns({ len: 2.6, h: .9, seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- 空と空気：流れる雲、ふる雪、低い霧。からす、ふくろう ----
+scene.add(D.clouds({ n: 10, r: 250, y: 84, s: 110, c: '#5a6690', shade: '#2e3658', speed: .012 }), D.flakes({ kind: 'snow', n: 620, box: [26, 13, 26], size: 2, vy: -1.3, wind: [.5, .15] }), D.flakes({ kind: 'snow', n: 300, box: [44, 20, 44], size: 1.2, vy: -.9, wind: [.4, .1], a: .6 }));
+scene.add(D.groundFog({ n: 40, box: [58, 58], H, c: '#dce6ff', a: .13, h: 1.2, w: 7, wind: [.6, .15] }));
+const perchOf = (i, k) => { const t = trees[i]; t.updateMatrixWorld(); return t.userData.perch[k].clone().applyMatrix4(t.matrixWorld); };
+const owl = D.owl({ s: 1.8 }); owl.position.set(NX, AH + .16, 11 - 4 * AW - 1); owl.rotation.y = -1.9; scene.add(owl);
+scene.add(D.perched([[-NX, AH + 3.56, 11 - AW * 0 + .5, 1.2], [NX, AH + 2.36, 11 - 2 * AW, -1.4], [-NX, AH + 2.56, 11 - 4 * AW - .6, 1.6], [2.6, .95, 1.5, 2.2], [-3.8, 3.1, -15.5, .5], [...perchOf(1, 0).toArray(), 1]], { watch: hero, near: 3.6 }), D.flock({ n: 8, r: 9, h: 3, center: [3, 15, ZW - 4], s: 1.5 }));
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffd060', power: 10, range: 8, r: 3.2, k: .75 }), crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const Z0 = 11, LEN = 28, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = Math.sin(z * .2) * 1.1 - .2, tx = Math.sin((z - 1) * .2) * 1.1 - .2 - x;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.5, .8); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(x * .5 + .8, tall ? 2.2 : 1.6, z + Dc); cam.lookAt(x * .3, tall ? 2.8 : 3.2, z - 6);   // 低い所から少し見上げて、アーチの列と ばら窓を入れる
+  D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

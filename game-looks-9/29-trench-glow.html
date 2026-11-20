@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-29 海溝の光る生きもの 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8e4f0;opacity:.85;text-shadow:0 1px 0 #012}
+</style>
+<div id="cap">9-29 ─ 海溝の光る生きもの / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で下りていく）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（がけ・くらげ・魚・ヘルメットのダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 底の見えない海溝。色は 水の黒青と、生きものの光（青・緑・もも）。両がわに黒いがけがそびえ、頭の上にだけ うすい青が残る。
+// やみの中に、光るくらげ、光る小魚の群れ、ちょうちんをさげた魚の影、がけにならぶ光の点。赤い服のダイバーが、ヘッドランプで がけをなめながら ななめ下へ下りていく。
+// 水の中の光は S.underwater（'deep' を暗く上書き）。がけは同じ並びをくり返して置き、主役に合わせて 1 区切りずつ送る（どこまでも下りられる）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), D = PACK_DARK(THREE, K, R), { hash, Px } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const env = S.underwater(scene, renderer, { depth: 'deep', top: 1e6, surface: false, rays: 0, range: 24, hi: '#2c5cb0', mid: '#12285e', low: '#03060f', fog: '#0a1638', near: 2, far: 38, amb: 1.0, sky: 0x5078d8, ground: 0x1c2458, sun: 0x6090e0, power: .5, motes: 90 }), sun = env.sun;
+const wrap = (a, n) => ((a % n) + n) % n, GC = ['#48a8ff', '#58f0a0', '#ff70c4'];
+
+// ---- がけ：1 枚 24 m × 12 m を、たて 10 段・おく 8 列。段ごとに少し たなになる。たて 5 段・おく 4 列で同じ並びにもどるので、その区切りで主役へ送る ----
+const SLOPE = .28, PZ = 96, PY = 60, WX = 8.6, wallT = S.tex.grown({ base: 'rock', o: { c: '#565a88' }, grow: .35, algae: '#2e8088', seed: 1 }), fixed = [];
+for (let r = 0; r < 10; r++) for (let c = 0; c < 8; c++) for (const sx of [-1, 1]) { const sd = (c % 4) * 7 + (r % 5) * 13 + (sx > 0 ? 100 : 0), w = S.cliff({ len: 24.6, h: 12, back: 3, slope: .16, tex: wallT, seed: sd });
+  w.position.set(sx * (WX + (hash(sd, 1) - .5) * 1.2), r * 12 - PY, c * 24 - PZ + 12); w.rotation.y = -sx * Math.PI / 2; fixed.push(w);
+  if (hash(sd, 2) > .45) { const k = S.rock({ s: 2 + hash(sd, 3) * 2.2, seed: sd, tex: wallT, flat: .8 }); k.position.set(sx * (WX - 1.6), r * 12 - PY + hash(sd, 4) * 9, c * 24 - PZ + hash(sd, 5) * 22); fixed.push(k); } }
+const walls = R.merge(fixed); scene.add(walls);
+// がけにならぶ光の点と線（青・緑・もも）。1 区切りぶんを作って、たて・おくに 2 回ずつならべる
+{ const pos = [], col = [], cc = new THREE.Color();
+  for (let i = 0; i < 64; i++) { const sx = i % 2 ? 1 : -1, y0 = hash(i, 1) * PY, z0 = hash(i, 2) * PZ, line = i % 3 === 0, n = line ? 9 : 6; cc.set(GC[(i * 7 >> 1) % 3]);
+    for (let k = 0; k < n; k++) { const y = y0 + (line ? k * .32 : (hash(i, k, 3) - .5) * 1.3), z = z0 + (line ? Math.sin(k * .7 + i) * .25 : (hash(i, k, 4) - .5) * 1.5), face = WX - (1 - wrap(y, 12) / 12) * 1.9 - .5;
+      for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { pos.push(sx * face, y - a * PY, z - b * PZ); col.push(cc.r, cc.g, cc.b); } } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ size: .1, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); p.frustumCulled = false; walls.add(p); }
+
+// ---- 光るくらげ：主役のまわりの箱の中を、ゆっくりのぼる（箱のはしで、遠くから入りなおす） ----
+const jl = []; for (let i = 0; i < 40; i++) { const big = i % 8 === 3, s = big ? 2.2 + hash(i, 11) : i % 3 === 0 ? 1.2 + hash(i, 11) * .5 : .5 + hash(i, 11) * .45, c = GC[[0, 1, 2, 0, 2, 1, 0, 0][(i + (i / 3 | 0)) % 8]], j = S.jelly({ c, s, seed: i, alpha: .9 });
+  scene.add(j); jl.push({ j, c, big, s, bx: (big ? -1 : i % 2 ? 1 : -1) * (big ? 3.4 + hash(i, 12) * 2 : 1.8 + hash(i, 12) * 4.2), by: hash(i, 13) * 40, bz: (i + hash(i, 14)) * 1.6 }); }
+const lamps = [0, 1].map(() => { const l = new THREE.PointLight('#ffffff', 10, 13, 1.4); scene.add(l); return l; });
+// 光る粒
+const NG = 300, GB = 15, gpos = new Float32Array(NG * 3), gbase = new Float32Array(NG * 3), gcol = new Float32Array(NG * 3), cc = new THREE.Color();
+for (let i = 0; i < NG; i++) { gbase[i * 3] = (hash(i, 20) - .5) * 15; gbase[i * 3 + 1] = hash(i, 21) * 2 * GB; gbase[i * 3 + 2] = hash(i, 22) * 2 * GB; cc.set([...GC, '#c0f8ff'][i % 4]); gcol.set([cc.r, cc.g, cc.b], i * 3); }
+const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(gpos, 3)); gg.setAttribute('color', new THREE.BufferAttribute(gcol, 3));
+const glow = new THREE.Points(gg, new THREE.PointsMaterial({ size: .065, vertexColors: true, transparent: true, opacity: .95, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); glow.frustumCulled = false; scene.add(glow);
+
+// ---- 光る小魚の群れ（自分で光る材質に替える）と、ちょうちんをさげた魚の影 ----
+const schools = [['#70ffd0', 0], ['#60c0ff', 24], ['#ff90d0', 60]].map(([c, off], i) => { const f = S.school({ n: 46, rx: 3.6, rz: 9, h: 2.4, wide: 1, speed: i % 2 ? -1.5 : 1.5, spread: 2.6, seed: i * 3, s: .9 });
+  f.material = new THREE.MeshBasicMaterial({ map: f.material.map, alphaTest: .5, side: THREE.DoubleSide, color: c }); scene.add(f); return { f, off }; });
+const angT = (() => { const P = Px(64, 32), B = '#24426a', L = '#3a6c90', H = '#68c0a8', E = (x, y, cx, cy, rx, ry) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) { const b = E(x, y, 28, 18, 19, 11.5), tail = x < 12 && Math.abs(y - 18) < (12 - x) * .9 + 1.5, mouth = x > 37 && Math.abs(y - 21 - (x - 37) * .1) < (x - 37) * .42;
+    if ((b < 1 || tail) && !mouth) P.set(x, y, b > .78 && y < 18 ? L : x > 30 && y < 16 && E(x, y, 50, 6, 20, 12) < 1 ? H : hash(x >> 1, y >> 1, 3) > .8 ? L : B); }
+  for (let x = 38; x < 48; x += 2) { const dy = (x - 37) * .42; P.rect(x, Math.round(21 + (x - 37) * .1 - dy), 1, 3, '#d8f4e0'); P.rect(x + 1, Math.round(21 + (x - 37) * .1 + dy) - 2, 1, 3, '#d8f4e0'); }
+  for (let k = 0; k <= 8; k++) P.set(18 + k * 1.2, 6 - Math.sin(k / 8 * 3.14) * 3, L);   // せびれ
+  P.line(34, 8, 40, 2, L); P.line(40, 2, 50, 3, L); P.line(50, 3, 53, 7, L); P.disc(53.5, 8.5, 2.2, '#e8fff0'); P.disc(39, 13, 1.6, '#c0ffe0'); P.set(39, 13, '#10202c');
+  return R.tex.from(P, { m: 3, cut: true }); })();
+const anglers = [0, 1, 2].map(i => { const g = new THREE.Group(), G = R.geo(), s = 1.3 + i * .5; G.quad([0, -.8 * s, -1.6 * s], [0, -.8 * s, 1.6 * s], [0, .8 * s, 1.6 * s], [0, .8 * s, -1.6 * s], [0, 0, 1, 1]);
+  const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: angT, alphaTest: .5, side: THREE.DoubleSide })), h = D.halo({ c: '#90ffd0', r: .55 * s, k: .9 }), h2 = D.halo({ c: '#f0fff8', r: .16 * s, k: 1 }); h.position.set(0, .29 * s, 1.08 * s); h2.position.copy(h.position); g.add(m, h, h2); scene.add(g);
+  return { g, bx: [-4.6, 5, -3][i], by: 6 + i * 13, bz: 14 + i * 21, i }; });
+
+// ---- 主役：ヘルメットのダイバー（赤い服に白い帯。しんちゅうのヘルメット）と、ヘッドランプの光の円すい ----
+const hero = S.diver({ head: 'helmet', tank: '#e8e0c8', fin: '#f04a30', metal: '#d8b060', actor: { hairStyle: 'short', hair: '#3a2a20', top: '#f04a30', top2: '#f4f0e0', bottom: '#d83a2c', glove: '#f4f0e0', shoe: '#8a2a20', belt: '#f4f0e0' } }); scene.add(hero);
+// pack のヘルメットは、よこのくり返しがテクスチャの金物の区画からはみ出して黒くなるので、UV を区画の中へ折り返す（第 8 集の 35 と同じ直し）
+{ const hm = hero.userData.J.head.children.at(-1), uv = hm.geometry.attributes.uv, u0 = 17 / 64, w = 14 / 64; for (let i = 0; i < uv.count; i += 3) { if (uv.getY(i) > .25) continue; const k = Math.floor((Math.min(uv.getX(i), uv.getX(i + 1), uv.getX(i + 2)) - u0) / w + .001); for (let j = 0; j < 3; j++) uv.setX(i + j, uv.getX(i + j) - k * w); } uv.needsUpdate = true; }
+const LAMP = (() => { const L = 7.5, G = R.geo().at(R.TR(0, 0, 0, 0, Math.PI / 2, 0)); G.loft(8, [[.1, .07, .07, 1, 1], [L * .35, .62, .62, .7, 1], [L * .7, 1.2, 1.2, .38, 1], [L, 1.7, 1.7, .04, 1]], { ur: 4 }); G.at(null);
+  const cone = new THREE.Mesh(G.build(), S.mat(S.tex.shaft({ seed: 1 }), { glow: true, add: true, alpha: .34, side: true, color: '#fff0c0' })); cone.renderOrder = 6; cone.frustumCulled = false; cone.userData.dyn = true;
+  const bulb = D.halo({ c: '#fff0c0', r: .3, k: 1 }), spot = new THREE.SpotLight('#ffe8b8', 150, 22, .42, .6, 1.1), p = new THREE.Vector3(); scene.add(cone, bulb, spot, spot.target);
+  return { spot, tick(dir) { hero.updateMatrixWorld(true); hero.userData.J.head.getWorldPosition(p); p.y += .22; cone.position.copy(p).addScaledVector(dir, .3); bulb.position.copy(cone.position); cone.lookAt(p.x + dir.x * 9, p.y + dir.y * 9, p.z + dir.z * 9); spot.position.copy(p); spot.target.position.copy(p).addScaledVector(dir, 9); } }; })();
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const dir = new THREE.Vector3(), ld = new THREE.Vector3(), SPEED = 1.25; let z = 0;
+K.loop((dt, t) => {
+  z += SPEED * dt; const x = Math.sin(z * .11) * 1.3, y = -SLOPE * z, yaw = Math.atan(Math.cos(z * .11) * .143); dir.set(Math.sin(yaw), -SLOPE, Math.cos(yaw)).normalize();
+  hero.position.set(x, y + Math.sin(t * .5) * .15, z); hero.rotation.set(.42, yaw, 0, 'YXZ'); S.swim(hero, t, { rate: 4.4 }); S.breathe(hero, env.bubbles, dt, 2.2);
+  const sw = Math.sin(t * .45) * .62; ld.set(Math.sin(yaw + sw), -SLOPE - .12, Math.cos(yaw + sw)).normalize(); LAMP.tick(ld);   // ランプは左右のがけを ゆっくりなめる
+  const tall = innerWidth < innerHeight, Dd = tall ? 3.4 : 4.1, Sd = tall ? .6 : 1.5;
+  cam.position.set(x - dir.x * Dd + Sd, hero.position.y - dir.y * Dd + (tall ? .5 : .1), z - dir.z * Dd); cam.lookAt(x + dir.x * 6 - (tall ? 0 : .6), hero.position.y + dir.y * 6 + (tall ? 2.3 : 1.8), z + dir.z * 6);
+  walls.position.set(0, Math.round(y / PY) * PY, Math.round(z / PZ) * PZ);
+  for (const a of jl) { a.j.position.set(a.bx + Math.sin(t * .14 + a.s * 9) * .7, y + wrap(a.by + t * .16 - y + 20, 40) - 20, z + wrap(a.bz - z + 22, 64) - 22); a.j.visible = a.j.position.distanceToSquared(cam.position) > 9 + a.s * 8; a.j.userData.tick(t); }
+  const near = jl.filter(a => a.s > 1.1 && a.j.position.z > z - 2).sort((a, b) => a.j.position.distanceToSquared(hero.position) - b.j.position.distanceToSquared(hero.position));
+  lamps.forEach((l, i) => { const a = near[i]; l.position.copy(a.j.position); l.color.set(a.c); l.intensity = (a.big ? 34 : 18) * (1 + Math.sin(t * 2.3 + i) * .12); });
+  for (let i = 0; i < NG; i++) { gpos[i * 3] = gbase[i * 3] + Math.sin(t * .3 + i) * .4; gpos[i * 3 + 1] = y + wrap(gbase[i * 3 + 1] + t * .1 - y + GB, 2 * GB) - GB; gpos[i * 3 + 2] = z + wrap(gbase[i * 3 + 2] - z + 8, 2 * GB) - 8; if (Math.abs(gpos[i * 3] - cam.position.x) + Math.abs(gpos[i * 3 + 1] - cam.position.y) + Math.abs(gpos[i * 3 + 2] - cam.position.z) < 4) gpos[i * 3 + 1] -= GB; } gg.attributes.position.needsUpdate = true;
+  for (const s of schools) { const zc = Math.ceil((z - 12 - s.off) / 72) * 72 + s.off; s.f.position.set(Math.sin(zc) * 1.2, -SLOPE * zc - 1 + Math.sin(zc * 2) * 2, zc); s.f.userData.tick(t); }
+  for (const a of anglers) { const az = z + wrap(a.bz - t * .5 - z + 20, 64) - 20; a.g.position.set(a.bx + Math.sin(t * .2 + a.i * 2) * .5, y + wrap(a.by - y + 16, 40) - 20, az); a.g.rotation.y = Math.PI + (a.bx > 0 ? .5 : -.5) + Math.sin(t * 1.6 + a.i) * .12; }
+  sun.position.set(x - 4, y + 44, z + 4); sun.target.position.set(x, y, z);
+  D.tick(t, cam); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
