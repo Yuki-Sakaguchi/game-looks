@@ -28,7 +28,7 @@ const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 26, hills: 
 
 // ---- 屋上（y=0。30 m 四方）：ぬれたコンクリート。たき火のあかりを 地面に焼きこむ。海は 13 m 下 ----
 const FIRE = [-.8, -2.4], RW = 15, SEAY = -13, LIT = [{ x: FIRE[0], z: FIRE[1], r: 9.5, c: '#ff9a40', k: 1.7 }, { x: -7.2, z: -9.4, r: 4, c: '#ffb860', k: .5 }];
-const land = R.ground({ w: 30, d: 30, cell: 1, layers: [D.tex.wetCobble({ c: '#5a6480', kind: 'slab', wet: .6 }), PT.concrete({ c: '#667090', crack: .7, moss: .1 })], mix: (x, z) => [Math.max(0, Math.min(1, .5 + Math.sin(x * .9 + 1) * Math.sin(z * .7) * 1.4)), 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+const land = R.ground({ w: 30, d: 30, cell: 1, layers: [D.tex.wetCobble({ c: '#465070', kind: 'slab', wet: .5, shine: '#8090c0' }), PT.concrete({ c: '#4e5878', crack: .7, moss: .1 })], mix: (x, z) => [Math.max(0, Math.min(1, .5 + Math.sin(x * .9 + 1) * Math.sin(z * .7) * 1.4)), 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
 const sea = S.sea({ w: 260, d: 260, cell: 10, c: '#1e2c50', wave: .6, alpha: 1, level: SEAY }); scene.add(sea.mesh);
 { const g = new THREE.PlaneGeometry(1400, 1400); g.rotateX(-Math.PI / 2); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(12).fill(1), 3)); const u = g.attributes.uv; for (let i = 0; i < 4; i++) u.setXY(i, u.getX(i) * 170, u.getY(i) * 170); const m = new THREE.Mesh(g, sea.mat); m.position.y = SEAY - .4; scene.add(m); }
 
@@ -66,11 +66,11 @@ farB.push(PK.pylon({ h: 30, w: 6, base: 4, lean: .12, c: '#4a5270' }).translateX
 for (const [x, y, z, c] of [[-46, 4, -64, '#ffb860'], [47.5, 9, -96, '#ffb860'], [84, -2, -40, '#ff6a50']]) { const h = D.halo({ c, r: 1.6, k: .8, flicker: 'fire', seed: x }); h.position.set(x, y, z); scene.add(h); }
 
 // ---- ドラムかんの たき火：火・にじみ・あかり・けむり、ぬれた床の映りこみ ----
-const drum = C.drum({ c: '#6a4a40', c2: '#3a3038', mark: 'band' }); drum.position.set(FIRE[0], 0, FIRE[1]); scene.add(drum);
-const fl1 = D.flame({ s: 1.5 }), fl2 = D.flame({ s: 1, seed: 3 }); fl1.position.set(FIRE[0], .8, FIRE[1]); fl2.position.set(FIRE[0] + .1, .85, FIRE[1] - .06); fl2.rotation.y = .8;
-const fH = D.halo({ c: '#ff9030', r: 1.9, k: .75, flicker: 'fire' }), fH2 = D.halo({ c: '#ff7020', r: 5, k: .22, flicker: 'fire', seed: 2 }), fL = new THREE.PointLight('#ff9a40', 34, 16, 1.3), fS = D.spot({ c: '#ff8a30', r: 5, k: .5, flicker: 'fire' }); fH.position.set(FIRE[0], 1.4, FIRE[1]); fH2.position.copy(fH.position); fL.position.set(FIRE[0], 1.7, FIRE[1]); fS.position.set(FIRE[0], .05, FIRE[1]);
+const drum = C.drum({ c: '#6a4a40', c2: '#3a3038', mark: 'band' }); drum.position.set(FIRE[0], 0, FIRE[1]); drum.scale.setScalar(1.25); scene.add(drum);
+const fl1 = D.flame({ s: 2.1 }), fl2 = D.flame({ s: 1.5, seed: 3 }); fl1.position.set(FIRE[0], 1, FIRE[1]); fl2.position.set(FIRE[0] + .12, 1.05, FIRE[1] - .06); fl2.rotation.y = .8;
+const fH = D.halo({ c: '#ff9030', r: 1.9, k: .75, flicker: 'fire' }), fH2 = D.halo({ c: '#ff7020', r: 5, k: .22, flicker: 'fire', seed: 2 }), fL = new THREE.PointLight('#ff9a40', 34, 16, 1.3), fS = D.spot({ c: '#ff8a30', r: 5, k: .5, flicker: 'fire' }); fH.position.set(FIRE[0], 1.7, FIRE[1]); fH2.position.copy(fH.position); fL.position.set(FIRE[0], 1.7, FIRE[1]); fS.position.set(FIRE[0], .05, FIRE[1]);
 const smoke = C.steam({ n: 10, r: .45, rise: 4.5, spread: .5, speed: .3, c: '#8a8aa8', a: .3, wind: [.5, .1] }); smoke.position.set(FIRE[0], 1.5, FIRE[1]);
-scene.add(fl1, fl2, fH, fH2, fL, fS, smoke, D.flakes({ kind: 'ember', n: 36, box: [1.6, 3.4, 1.6] }).translateX(FIRE[0]).translateY(1).translateZ(FIRE[1]), D.streaks([{ x: FIRE[0], z: FIRE[1], h: 1.3, c: '#ff9a40', k: .9, w: 1.3 }, { x: -7.2, z: -9.4, h: 1.5, c: '#ffb860', k: .4 }]));
+scene.add(fl1, fl2, fH, fH2, fL, fS, smoke, D.streaks([{ x: FIRE[0], z: FIRE[1], h: 1.3, c: '#ff9a40', k: .9, w: 1.3 }, { x: -7.2, z: -9.4, h: 1.5, c: '#ffb860', k: .4 }]));
 const bulb = D.bulb({ drop: .4, c: '#ffc878' }); bulb.position.set(-7.2, 2.05, -9.2); scene.add(bulb);
 
 // ---- 人：火のそばに すわる人（手をあぶる）、小屋の中で ねる ねこ ----
@@ -86,7 +86,7 @@ scene.add(D.rain({ n: 1000, box: [24, 13, 24], slant: [.22, .08], a: .46 }), D.c
 scene.add(D.perched([[RW - .18, .85, 4.5, -1.6], [RW - .18, .85, -3.5, -1.4], [9.6, 2.95, 11.4, 2]], { watch: hero, near: 4 }));
 
 const path = new THREE.CatmullRomCurve3([[3.4, 12.5], [1.9, 6], [1, 1], [1.8, -2.4], [4.6, -3], [8.5, .5], [9.8, 5], [7.4, 9.5], [5.4, 13]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
-const LEN = path.getLength(), SPEED = 1.25, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x - 3.2, q.z - 11.5); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), fc = new THREE.Vector3(FIRE[0], 1.2, FIRE[1]);
+const LEN = path.getLength(), SPEED = 1.25, S0 = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x - 2.2, q.z - 8); if (d < bd) { bd = d; b = i / 400; } } return b; })(), cd = new THREE.Vector3(), fc = new THREE.Vector3(FIRE[0], 1.2, FIRE[1]);
 const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
 let first = true;
 K.loop((dt, t) => {
@@ -94,7 +94,7 @@ K.loop((dt, t) => {
   hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, t * SPEED * 3.6); J.armL.rotation.set(-.9, 0, .1); J.foreL.rotation.x = -1.3;
   // カメラ：主役のうしろ。たき火のほうへ少し向けて、主役と火を 1 枚に入れる
   if (first) { cd.copy(tg); first = false; } const aim = fc.clone().sub(p).setY(0).normalize().multiplyScalar(.55).add(tg).normalize(); cd.lerp(aim, 1 - Math.exp(-dt * 1.4)).normalize();
-  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.2; cam.position.set(p.x - cd.x * Dc + cd.z * .9, tall ? 2.3 : 1.8, p.z - cd.z * Dc - cd.x * .9); cam.lookAt(p.x + cd.x * 5, tall ? 1.5 : 1.75, p.z + cd.z * 5);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 4.8; cam.position.set(p.x - cd.x * Dc + cd.z * .9, tall ? 2.3 : 1.8, p.z - cd.z * Dc - cd.x * .9); cam.lookAt(p.x + cd.x * 5, tall ? 1.5 : 1.75, p.z + cd.z * 5);
   S.tick(t); sea.tick(t, 0, 0);
   R.idle(sitter, t, Math.sin(t * .4) * .2); const Q = sitter.userData.J; Q.torso.rotation.x = .22; for (const [n, sx] of [['L', 1], ['R', -1]]) { Q['leg' + n].rotation.x = -1.4; Q['shin' + n].rotation.x = 1.3; Q['arm' + n].rotation.set(-1.15 + Math.sin(t * 1.3 + sx) * .06, 0, sx * .1); Q['fore' + n].rotation.x = -.35; }
   R.catPose(cat, 'sit', t); fL.intensity = 34 * (.85 + .1 * Math.sin(t * 9) + .07 * Math.sin(t * 23.7));
