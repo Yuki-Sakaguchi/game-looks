@@ -23,7 +23,7 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), F = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), { hash } = R;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
-const env = S.underwater(scene, renderer, { depth: 'deep', top: 30, surface: false, rays: 13, range: 34, hi: '#1e4492', mid: '#0e2152', low: '#060e2c', fog: '#0b1b46', near: 4, far: 62, amb: .8, sky: 0x7c9ee0, ground: 0x283468, sun: 0xd4e4ff, power: .85, ray: '#5a9cff', rayA: .42, motes: 130 }), sun = env.sun;
+const env = S.underwater(scene, renderer, { depth: 'deep', top: 30, surface: false, rays: 20, range: 34, hi: '#1a3a80', mid: '#0e2152', low: '#060e2c', fog: '#0b1b46', near: 4, far: 62, amb: .8, sky: 0x7c9ee0, ground: 0x283468, sun: 0xd4e4ff, power: .85, ray: '#78b6ff', rayA: .6, motes: 130 }), sun = env.sun;
 
 // ---- 泳ぐ道：ろっ骨の中（z -23〜23）をまっすぐぬけ、頭の骨のわきを回って、外がわをもどる ----
 const path = new THREE.CatmullRomCurve3([[0, -34], [0, -18], [0, 0], [.5, 17], [5, 30], [15, 38], [25, 30], [27, 8], [25, -16], [16, -36], [6, -42]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), LEN = path.getLength();

@@ -22,8 +22,8 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K, TR = R.TR, PI = Math.PI;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
-const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#d8e4e0', eyes: 'half', cloth: 'tunic', sleeve: 'long', top: '#3e6c78', top2: '#d8e8e0', bottom: '#2e4450', lower: 'baggy', shoes: 'boot', shoe: '#4a3c3a', neck: 'cape', acc: '#a8483c', belt: '#c8a050' }); scene.add(hero);
-const moon = D.moon({ az: 24, el: 30, r: 34 }), mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 34, dir: [-.5, .6, -.62], fog: ['#27545f', 30, 230] }); scene.add(moon);
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#d8e4e0', eyes: 'half', cloth: 'tunic', sleeve: 'long', top: '#5a8e9a', top2: '#d8e8e0', bottom: '#2e4450', lower: 'baggy', shoes: 'boot', shoe: '#4a3c3a', neck: 'cape', acc: '#a8483c', belt: '#c8a050' }); scene.add(hero);
+const moon = D.moon({ az: 24, el: 27, r: 34 }), mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 34, dir: [-.5, .6, -.62], fog: ['#27545f', 30, 230] }); scene.add(moon);
 
 // ---- 並び：道は -z へ。えんとつは正面の奥、冷却塔は左奥と右奥。鉄塔の列は道の左を奥へ ----
 const pathX = z => Math.sin(z * .07) * 1.4, CHIM = [-3, -92], TOWER = [[-62, -128, 1.15], [52, -150, 1], [-120, -190, 1.1]], PYL = [[-13, 2, 0], [-15, -36, .05], [-17, -74, -.04], [-19, -112, 0]];
@@ -33,7 +33,7 @@ const outer = R.ground({ w: 704, d: 704, cell: 32, cz: -100, layers: [D.tex.dead
 
 const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 // えんとつ（巨大な 1 本と、奥の細い 2 本）
-put(PK.chimney({ h: 84, r: 5.2, bands: 9, c: '#3c5a66', c2: '#56747c', ivy: 0 }), CHIM[0], CHIM[1], .3); put(PK.chimney({ h: 56, r: 3, bands: 7, c: '#3c5a66', c2: '#4c6a74', ivy: 0 }), 26, -118); put(PK.chimney({ h: 46, r: 2.6, bands: 6, c: '#3c5a66', c2: '#4c6a74', ivy: 0 }), -34, -160);
+put(PK.chimney({ h: 72, r: 5, bands: 9, c: '#3c5a66', c2: '#56747c', ivy: 0 }), CHIM[0], CHIM[1], .3); put(PK.chimney({ h: 56, r: 3, bands: 7, c: '#3c5a66', c2: '#4c6a74', ivy: 0 }), 26, -118); put(PK.chimney({ h: 46, r: 2.6, bands: 6, c: '#3c5a66', c2: '#4c6a74', ivy: 0 }), -34, -160);
 // 冷却塔：くびれた大きな筒。上のふちは欠けて見えるよう、明るさを落とす
 { const G = R.geo().smooth(2), CT = PT.concrete({ c: '#4a6a74', crack: .6, moss: .2, stain: 1, m: 6 }); for (const [x, z, s] of TOWER) G.at(TR(x, 0, z, 0, 0, 0).multiply(new THREE.Matrix4().makeScale(s, s, s))).loft(18, [[0, 26, 26, 0, .7], [12, 21, 21, 2, .82], [28, 16.5, 16.5, 4.6, .95], [40, 16, 16, 6.6, 1], [52, 18.5, 18.5, 8.6, .9], [53, 17.6, 17.6, 8.8, .5]], { ur: 16 }).at(null); fixed.push(G.mesh(CT)); }
 // 発電所の建物（遠い影）と、変電所のタンク・管
@@ -54,14 +54,14 @@ scene.add(R.merge(fixed));
 // ---- 空気と生きもの：月の前を流れる雲、地をはう霧、鉄塔にとまる からす、えんとつのまわりを飛ぶ からす ----
 scene.add(D.clouds({ n: 9, r: 260, y: 86, s: 100, c: '#3c6c78', shade: '#183c4c', speed: .02, phase: .3 }), D.groundFog({ n: 80, box: [70, 80], c: '#cfe8e6', a: .3, h: 1.8, w: 11, wind: [.45, .1] }), D.flakes({ kind: 'dust', n: 90, c: '#c8f0e8', box: [22, 7, 22], size: 1.2 }));
 const tip = (i, k) => { const q = pyl[i].userData.tips[k], p = pyl[i].position; return [p.x + q[0], q[1] + .5, p.z + q[2], k]; };
-scene.add(D.perched([tip(0, 0), tip(0, 3), tip(0, 4), [pathX(-11) + 4.6, 2.45, -11, 1], [pathX(-1) - 4.6, 2.45, -1.5, 2], [6.6, 2.05, 4.5, 0]], { watch: hero, near: 4.5 }), D.flock({ kind: 'crow', n: 9, r: 13, h: 5, center: [CHIM[0], 58, CHIM[1] + 20], s: 2.4 }), D.flock({ kind: 'crow', n: 5, r: 7, h: 2, center: [-10, 20, -24], s: 1.4, speed: .4 }));
+scene.add(D.perched([tip(0, 0), tip(0, 3), tip(0, 4), [pathX(-11) + 4.6, 2.45, -11, 1], [pathX(-1) - 4.6, 2.45, -1.5, 2], [6.6, 2.05, 4.5, 0]], { watch: hero, near: 4.5 }), D.flock({ kind: 'crow', n: 9, r: 13, h: 5, center: [CHIM[0], 50, CHIM[1] + 22], s: 2.4 }), D.flock({ kind: 'crow', n: 5, r: 7, h: 2, center: [-10, 20, -24], s: 1.4, speed: .4 }));
 
 const lamp = D.lantern(hero, { hand: 'L', c: '#ffd070', power: 9, range: 8, r: 3, k: .65 }), crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
 const Z0 = 12, LEN = 28, SPEED = 1.3;
 K.loop((dt, t) => {
   const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
   hero.position.set(x, 0, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.7, .75); D.lanternPose(hero); hero.userData.J.head.rotation.x = -.42 + Math.sin(t * .4) * .05;   // えんとつを見上げて歩く
-  const tall = innerWidth < innerHeight, Dc = tall ? 4.3 : 6; cam.position.set(x * .6 + 1.5, tall ? 1.5 : 1.15, z + Dc); cam.lookAt(x * .5 - .2, tall ? 5.4 : 5.2, z - 6);   // 地面に近い所から、大きく見上げる
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.3 : 6; cam.position.set(x * .6 + 1.5, tall ? 1.5 : 1.15, z + Dc); cam.lookAt(x * .5 - .2, tall ? 4.6 : 3.5, z - 6);   // 地面に近い所から、大きく見上げる
   D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
 });
 </script>

@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ダークな雰囲気 39 案 一覧</title>
+<title>ダークな雰囲気 43 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ダークな雰囲気 39 案</h1>
-  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 39 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
+  <h1>ダークな雰囲気 43 案</h1>
+  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 43 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -45,12 +45,12 @@ const LOOKS = [
   ['16-foggy-apartment-blocks', '霧の団地', '夜の廃墟：ならぶ棟とひとつの窓', 1],
   ['17-dead-subway-station', '地下鉄の廃駅', '夜の廃墟：非常灯と止まった電車', 1],
   ['18-factory-warning-lights', '夜の廃工場', '夜の廃墟：回る赤い警告灯', 1],
-  // （作成中）['19-silent-power-plant', 'しずかな発電所', '夜の廃墟：巨大なえんとつと月', 1],
+  ['19-silent-power-plant', 'しずかな発電所', '夜の廃墟：巨大なえんとつと月', 1],
   ['20-night-school-corridor', '夜の校舎', '夜の廃墟：ろうかと懐中電灯', 1],
   ['21-forest-swallowed-village', '森にのまれた村', '夜の廃墟：夕やみとつた', 1],
   ['22-abandoned-tunnel', '廃トンネル', '夜の廃墟：出口の光', 1],
   ['23-burnt-town-embers', '焼けあとの町', '夜の廃墟：灰と残り火', 1],
-  // （作成中）['24-ruined-hospital-yard', '雨の病院あと', '夜の廃墟：中庭と水たまり', 1],
+  ['24-ruined-hospital-yard', '雨の病院あと', '夜の廃墟：中庭と水たまり', 1],
   ['25-hydrothermal-vents', '深海の熱水孔', '深い海：黒い水と赤い光', 1],
   ['26-sunken-city-deep', '沈んだ都市', '深い海：窓の暗いビル街', 1],
   ['27-giant-shadow-below', '巨大な影', '深い海：頭上を行く大きな生きもの', 1],
@@ -58,7 +58,7 @@ const LOOKS = [
   ['29-trench-glow', '海溝の光る生きもの', '深い海：やみの中の光', 1],
   ['30-sunken-submarine', '沈んだ潜水艦', '深い海：さびた船体とサーチライト', 1],
   ['31-dark-under-ice', '氷の下のやみ', '深い海：氷のわれ目の光', 1],
-  // （作成中）['32-seabed-giant-bones', '海底の巨大な骨', '深い海：ろっ骨のアーチ', 1],
+  ['32-seabed-giant-bones', '海底の巨大な骨', '深い海：ろっ骨のアーチ', 1],
   ['33-storm-flooded-city', '嵐の夜の水没都市', '暗い海の廃墟：大波といなずま', 1],
   ['34-fog-platform-beacon', '霧の海の足場', '暗い海の廃墟：赤い警告灯', 1],
   ['35-moonlit-drowned-streetlights', '月夜の水没した街灯', '暗い海の廃墟：水から出る街灯の列', 1],
@@ -68,7 +68,7 @@ const LOOKS = [
   ['39-blackout-alley', '停電の路地', '鉄の都市の下町：非常灯だけ', 1],
   ['40-acid-rain-slum', '強い雨のスラム', '鉄の都市の下町：雨とトタン', 1],
   ['41-drainage-underground', '排水路の地下', '鉄の都市の下町：水路と格子の光', 1],
-  // （作成中）['42-closed-factory-district', '閉鎖された工場区', '鉄の都市の下町：警告灯とフェンス', 1],
+  ['42-closed-factory-district', '閉鎖された工場区', '鉄の都市の下町：警告灯とフェンス', 1],
   // （作成中）['43-reactor-green-glow', '立入禁止の区画', '鉄の都市の下町：緑の光', 1],
   // （作成中）['44-searchlight-square', '監視灯の広場', '鉄の都市の下町：動く光の輪', 1],
   ['45-midnight-empty-platform', '深夜のホーム', '鉄の都市の下町：だれもいない駅', 1],

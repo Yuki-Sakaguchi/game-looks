@@ -32,16 +32,23 @@ const CAND = []; for (let i = 0; i < 6; i++) for (const sx of [-1, 1]) CAND.push
 for (let k = 0; k < 8; k++) { const a = (k + .5) / 8 * TAU; CAND.push([Math.sin(a) * (CR + .9), CZ + Math.cos(a) * (CR + .9), a + PI / 2]); }
 const XT = [[-.8, -13.5, 5.6, 7], [2.6, -12.3, 3.4, 5], [-3.6, -11.6, 2.6, 5], [-8.6, -4, 3.2, 6], [8.8, -6.5, 3.8, 6], [7.4, 2.5, 2.2, 5], [-7.2, 4.5, 2.4, 5], [-11.5, -11, 4.2, 6], [11.5, -13, 3.4, 6], [5.5, 11, 1.6, 4], [-5.8, 13, 1.9, 4]];
 const lamps = [{ x: 0, y: 1.2, z: CZ, c: '#ff3828', r: 30, k: 1.5 }, { x: 0, y: 6, z: CZ, c: '#ff4030', r: 22, k: .8 }, ...CAND.map(([x, z]) => ({ x, y: .5, z, c: '#ffc050', r: 3.6, k: .5 }))];
-const bakeF = W.bake(lamps, [.5, .36, .44]), bakeC = W.bake(lamps.map(l => ({ ...l, r: l.r * 1.5, k: l.k * .85 })), [.46, .32, .4]);
+const bakeF = W.bake(lamps, [.5, .36, .44]), bakeC = W.bake(lamps.map(l => ({ ...l, r: l.r * 1.5, k: l.k * .62 })), [.42, .31, .4]);
 const land = R.ground({ w: 76, d: 80, cell: 2, H: HF, layers: [X.caveRock({ c: '#4a4258', seed: 1, glint: '#ff9a80' }), X.dungeon({ kind: 'floor', c: '#5e5464', moss: 0 }), X.caveRock({ c: '#3a3448', seed: 3, glint: false })],
   mix: (x, z) => { const r = Math.hypot(x, z - CZ); return [Math.max(Math.min(1, 1.5 - (r - 6.2)), z > CZ ? Math.min(1, 1.6 - Math.abs(x) / 1.4) : 0, 0), r > 9 && W.vn(x * .25, z * .25, 9) > .6 ? .7 : 0]; }, shade: (x, z) => bakeF(x, z, HF(x, z)) });
 scene.add(land.mesh, W.caveCeil({ w: 70, d: 76, cell: 2.5, H: HC, c: '#4e4460', shade: bakeC }));
 
-// ---- 魔法陣（赤。外の輪と、反対に回る内の輪）と、立ちのぼる赤い光 ----
-const ticks = [], circ = W.magicCircle({ r: CR, c: '#ff3a2c', star: 6, spin: .22 }), circ2 = W.magicCircle({ r: CR * .5, c: '#ff7a50', star: 5, spin: -.5, y: .1 }); circ.position.z = circ2.position.z = CZ; scene.add(circ, circ2); ticks.push(circ.userData.tick, circ2.userData.tick);
-const beam = W.beam({ h: 10, r: CR * .8, c: '#ff3a30', opacity: .2 }); beam.position.set(0, 0, CZ); scene.add(beam); ticks.push(beam.userData.tick);
+// ---- 魔法陣（赤。床の輪と、その上に うかぶ輪）と、立ちのぼる赤い光 ----
+// 線の細い魔法陣は 遠くから読めないので、太い線で打った絵（64 ドット。二重の輪・星・輪の上の点）を、W.magicCircle の上に重ねる
+const sigilT = (c, n) => { const P = R.Px(64), w = R.mix(c, '#ffffff', .55), pts = [...Array(n)].map((_, k) => [31.5 + Math.sin(k / n * TAU) * 21, 31.5 - Math.cos(k / n * TAU) * 21]), st = n === 5 ? 2 : 2; P.clip = true;
+  const seg = (x, y, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], u = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(x - a[0] - dx * u, y - a[1] - dy * u); };
+  P.each((x, y) => { const r = Math.hypot(x - 31.5, y - 31.5); if (Math.abs(r - 29.5) < 1.6) return w; if (Math.abs(r - 25) < .8 || Math.abs(r - 8) < 1) return c; let d = 9; for (let k = 0; k < n; k++) d = Math.min(d, seg(x, y, pts[k], pts[(k + st) % n])); if (d < 1.1) return w; if (d < 1.9) return c;
+    for (let k = 0; k < n * 2; k++) if (Math.hypot(x - 31.5 - Math.sin((k + .5) / n * PI) * 27.3, y - 31.5 + Math.cos((k + .5) / n * PI) * 27.3) < 1.3) return w; return null; }); return T.from(P, { m: 1, cut: true }); };
+const sigil = (r, c, n, spin) => { const m = new THREE.Mesh(R.geo().normal([0, 1, 0]).quad([-r, 0, r], [r, 0, r], [r, 0, -r], [-r, 0, -r]).build(), W.glowMat(sigilT(c, n), { add: true, own: true, opacity: .95 })); m.castShadow = false; m.renderOrder = 2; m.userData.tick = t => { m.rotation.y = t * spin; m.material.opacity = .8 + .15 * Math.sin(t * 1.8 + r); }; return m; };
+const ticks = [], circ = sigil(CR, '#ff3a2c', 6, .22), circ2 = sigil(2.9, '#ff5a3c', 5, -.4), fine = W.magicCircle({ r: CR * 1.25, c: '#ff3a2c', star: 6, spin: -.1 });   // 床の輪と、その上に立って うかぶ輪
+circ.position.set(0, .09, CZ); circ2.position.set(0, 3.9, CZ); circ2.rotation.x = PI / 2; fine.position.z = CZ; scene.add(circ, circ2, fine); ticks.push(circ.userData.tick, circ2.userData.tick, fine.userData.tick);
+const beam = W.beam({ h: 10, r: CR * .7, c: '#ff3a30', opacity: .08 }); beam.position.set(0, 0, CZ); scene.add(beam); ticks.push(beam.userData.tick);
 const redL = new THREE.PointLight('#ff4030', 70, 34, 1.3); redL.position.set(0, 2.2, CZ); scene.add(redL);
-const redH = D.halo({ c: '#ff3020', r: 5.5, k: .4 }); redH.position.set(0, 1.4, CZ); scene.add(redH);
+const redH = D.halo({ c: '#ff3020', r: 5.5, k: .22 }); redH.position.set(0, 1.4, CZ); scene.add(redH);
 const motes = W.motes({ n: 110, box: [15, 8, 15], c: '#ff6a48', size: .12, rise: .55, drift: .6, y: .15 }), dust = W.motes({ n: 40, box: [12, 4, 12], c: '#ffb070', size: .07, rise: .1, y: .4 }); scene.add(motes, dust);
 
 // ---- 動かない物：石の柱の輪、黒い水晶、岩の柱、つらら石 ----
@@ -59,8 +66,8 @@ scene.add(R.merge(fixed));
 // ろうそくの列（道の両わきと、魔法陣のまわり）と、その足もとの光の輪
 CAND.forEach(([x, z, ry], i) => { const c = D.candles({ n: 4 + (i % 2), len: 1.1, h: .42, seed: i }); c.position.set(x, HF(x, z), z); c.rotation.y = ry; scene.add(c); });
 scene.add(D.pools(CAND.map(([x, z]) => ({ p: [x, HF(x, z) + .07, z], r: 1.7, c: '#ffc050', k: .55 }))));
-// 魔法陣のむこうに うすく立つ影と、天井のこうもり
-for (const [x, z] of [[-2.6, CZ - 6.6], [2.9, CZ - 6.2], [.2, CZ - 7.6]]) { const g = D.ghost({ h: 2, c: '#ff8a78', a: .3 }); g.position.set(x, 0, z); scene.add(g); }
+// 柱の間に うすく立つ影と、天井のこうもり
+for (const [x, z] of [[-5.4, CZ - 2.6], [5.6, CZ - 1.8], [-3.2, CZ - 6.4]]) { const g = D.ghost({ h: 2.1, c: '#ff8a78', a: .42 }); g.position.set(x, 0, z); scene.add(g); }
 scene.add(D.flock({ kind: 'bat', n: 9, r: 6, h: 1.2, center: [0, 5.6, CZ + 5], s: 1 }));
 
 // ---- 主役：ろうそくを 1 本、左手で前に持つ。フードは頭の関節に付ける ----
