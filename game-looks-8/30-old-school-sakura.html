@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8-30 廃校の校庭と桜を歩く 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff6f0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">8-30 ─ 廃校の校庭と桜 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-ruins.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 人がいなくなった学校の校庭。春の昼。色は桜のもも・草の緑・校舎のうす茶に、旅の若者の上着の青緑をさし色にする。
+// 窓のぬけた校舎と時計塔・さびたすべり台は pack-ruins.js（PK.〜）、鉄ぼうと旗のポールはページの中で作る。満開の桜の大木から花びらが舞い、木の下は花びらのじゅうたん。
+// 旅のかばんの若者（R.actor の toon）が校庭を歩き、校舎の前で立ちどまって見上げ、桜をまわってもどる。ねこがついて歩き、もう 1 ぴきはベンチでねむる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), T = R.tex, PT = PK.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#4a9ae2'], [.58, '#84c0f0'], [.88, '#a8d4f4'], [1, '#f2deea']], { r: 380 })); scene.fog = new THREE.Fog('#f0dfe8', 70, 260);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0xb8c89a, amb: 1.6, sun: 0xfff4e0, power: 2.3, range: 36, map: 2048 }), SUN = new THREE.Vector3(.42, .82, .4).normalize();
+
+// ---- 道（校庭をひとまわり）と地面：草（花つき）＋うすく残る土のトラック＋桜の下の花びら ----
+const SAK = [-5.5, 3], PINK = '#f4b4cc', PF = ['#ffffff', '#ffd6e6'];
+const path = new THREE.CatmullRomCurve3([[3, 22], [2.4, 11], [1, 2], [-.4, -3.5], [-8, -6.5], [-16, -3], [-18.5, 5], [-15.5, 13.5], [-8, 19], [-1.5, 24.5]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), PTS = path.getSpacedPoints(100), dPath = (x, z) => { let d = 1e9; for (const p of PTS) d = Math.min(d, (p.x - x) ** 2 + (p.z - z) ** 2); return Math.sqrt(d); };
+const track = (x, z) => Math.abs(Math.hypot((x - 9) / 1.5, z - 8) - 11), GR = { c: '#78b656', flowers: .35, fc: ['#ffffff', '#ffe27a', '#f7b8d0'] };
+const land = R.ground({ w: 120, d: 120, cell: 2, layers: [T.grass(GR), T.dirt({ c: '#c8b088' }), T.grass({ c: PINK, flowers: .7, fc: PF, seed: 1 })],
+  mix: (x, z) => [Math.max(.5 - (track(x, z) - .9) * .5, x > -5 ? 0 : .5 - (dPath(x, z) - .5) * .5) * (.75 + Math.sin(x * .9) * Math.cos(z * .7) * .3), .5 + (7.5 - Math.hypot(x - SAK[0], z - SAK[1])) * .16 + Math.sin(x * 1.3 + z) * .12],
+  shade: (x, z) => { const k = Math.max(0, 1 - Math.hypot(x - SAK[0], z - SAK[1]) / 9); return [1 - .1 * k, 1 - .14 * k, 1 - .06 * k]; } });
+scene.add(land.mesh); const outer = R.ground({ w: 704, d: 704, cell: 32, layers: [T.grass(GR)] }); outer.mesh.position.y = -.1; scene.add(outer.mesh);   // 遠くまでつづく草地
+
+// ---- 校舎と遊具 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+put(PK.school({ w: 36, floors: 2, c: '#d6b88c', broken: .22, moss: .25, holes: .7, ivy: .35, treeFlowers: 1, treeC: PINK, treeFc: PF, seed: 2 }), 2, -17);
+put(PK.slide({ c: '#e8b84a', c2: '#5a9ac0' }), 9.5, 3, -.5);
+{ const G = R.geo().smooth(1), post = (x, z, h, r = .045) => G.at(R.TR(x, 0, z)).loft(5, [[-.2, r, r, 0, .8], [h, r * .9, r * .9, h / 1.5, 1]], { cap: 'top' }), bar = (x, z, y, L, ry = 0) => G.at(R.TR(x, y, z, ry, 0, Math.PI / 2)).loft(5, [[-L, .03, .03, 0, .9], [0, .03, .03, L / 1.5, 1]], { cap: 'both' });
+  [1, 1.35, 1.7].forEach((h, k) => { const x = 7.5 + k * 1.7; post(x, 9, h + .08); post(x + 1.7, 9, h + .08); bar(x + 1.7, 9, h, 1.7); });   // 高さのちがう鉄ぼう 3 つ
+  post(-5.6, -6.6, 7, .06); bar(-5.6, -6.6, 6.7, .9);                                                                                      // 旗のポール
+  for (const s of [-1, 1]) post(s * 3.2 + 2.6, 31, 2.2, .16); G.at(null); fixed.push(G.mesh(PT.rust({ paint: '#5a9ac0', peel: .5, panel: 0, m: 1.5 }))); }
+put(PK.bench({ c: '#c8a070' }), -2.6, 6.6, 1.2); put(PK.bench({ broken: 1 }), 7, -6.6, 0); put(PK.bike({ c: '#d86a54', basket: true }), -3.6, -7.2, .3);
+put(PK.fence({ len: 16, seed: 1, ivy: .8 }), -13, 31, .02); put(PK.fence({ len: 14, seed: 2, gap: .3, ivy: .6 }), 17, 31.2, -.03); put(PK.fence({ len: 18, seed: 3, ivy: .7 }), -27.5, 16, Math.PI / 2); put(PK.fence({ len: 16, seed: 4, gap: .25 }), -27.8, -4, Math.PI / 2 + .03); put(PK.fence({ len: 18, seed: 5, ivy: .5 }), 27.5, 12, Math.PI / 2);
+put(PK.pole({ lean: .1, seed: 1 }), 29.5, 26, .3); put(PK.rubble({ r: 2, h: .7, seed: 2 }), 17, -6.5); put(PK.sign({ kind: 'warn', lean: .2 }), 6.4, 30.5, .2);
+// 桜：大木が 1 本、まわりに若い木。遠くは桜と緑がまじる
+put(R.tree({ h: 12.5, c: PINK, flowers: 1, fc: PF, seed: 3 }), SAK[0], SAK[1], .6);
+[[12.5, -3.5, 9], [-23, -8, 8], [23, 17, 7], [-23, 23, 7.5], [10, 34, 6.5], [-30, 5, 7]].forEach(([x, z, h], i) => put(R.tree({ h, c: i % 2 ? '#f6c0d4' : PINK, flowers: 1, fc: PF, seed: 10 + i }), x, z, i));
+for (let i = 0; i < 34; i++) { const a = hash(i, 1) * 6.283, r = 40 + hash(i, 2) * 20, x = Math.cos(a) * r, z = Math.sin(a) * r * .95 - 2; if (z < -12 && Math.abs(x) < 26) continue; const pk = i % 3 === 0; put(R.tree({ kind: pk ? 'round' : ['round', 'tall'][i % 2], h: 6 + hash(i, 3) * 5, ...(pk ? { c: PINK, flowers: 1, fc: PF } : { c: ['#5aa850', '#4f9a4a'][i % 2] }), seed: i + 20 }), x, z, i); }
+for (let i = 0; i < 9; i++) put(R.tree({ kind: 'tall', h: 12 + hash(i, 5) * 4, c: '#4a9050', seed: i + 60 }), -22 + i * 6 + hash(i, 6) * 2, -30 - hash(i, 7) * 5, i);   // 校舎のうしろの林
+const FC = [['#ffffff', '#ffe27a'], ['#f7a8c4', '#ffffff'], ['#ffe27a', '#ffffff'], ['#c8b8f0', '#ffffff']];
+for (let i = 0; i < 24; i++) { const u = i / 24 + hash(i, 4) * .02, p = path.getPointAt(u % 1), tg = path.getTangentAt(u % 1), s = i % 2 ? 1 : -1, o = 2.4 + hash(i, 5) * 1.8; put(PK.flowers({ n: 9, r: 1.4, seed: i, fc: FC[i % 4], s: .75 }), p.x - tg.z * s * o, p.z + tg.x * s * o); }
+for (let i = 0; i < 80; i++) { const x = (hash(i, 6) - .5) * 62, z = (hash(i, 7) - .5) * 58 + 6; if (dPath(x, z) < 1.8 || Math.hypot(x - SAK[0], z - SAK[1]) < 2 || (z < -8 && Math.abs(x - 2) < 20)) continue; put(R.tuft({ kind: ['grass', 'flower', 'grass', 'bush', 'flower'][i % 5], s: .6 + hash(i, 8) * .6, seed: i % 3 }), x, z, i); }
+for (const [x, z] of [[4.5, 16], [-3, -3.5]]) put(PK.decal(PT.puddle({ seed: x }), 2.4, 1.6, { ur: 1, vr: 1 }), x, z, x);
+scene.add(R.merge(fixed));
+
+// ---- 空と遠景 ----
+scene.add(R.backdrop({ c: '#78ac74', haze: '#f0dfe8', r: 240, y: -5, h: 34 }));
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 38 + hash(i, 9) * 28, c: '#ffffff', shade: '#d6dcf2', seed: i }), a = i * .9 + 3.4; c.position.set(Math.cos(a) * 220, 52 + hash(i, 10) * 36, Math.sin(a) * 220); c.lookAt(0, 24, 0); scene.add(c); }
+
+// ---- 舞う花びら（主役のまわりの箱の中を、ゆれながら落ちる点） ----
+const NP = 170, PA = [34, 10, 34], ppos = new Float32Array(NP * 3), pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
+const petals = new THREE.Points(pg, new THREE.PointsMaterial({ color: '#ffd2e2', size: 2.4, sizeAttenuation: false, fog: false })); petals.frustumCulled = false; scene.add(petals);
+const wrap = (v, c, a) => ((v - c + a / 2) % a + a) % a - a / 2 + c;
+
+// ---- 若者・ねこ・鳥・ちょう ----
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', bangs: 'swept', hair: '#2c3446', eyes: 'round', brow: 'soft', cloth: 'jacket', top: '#3f8c8c', top2: '#f6eeda', bottom: '#6a5a4c', lower: 'pants', shoes: 'boot', shoe: '#7a4a32', back: 'bag', strap: true, acc: '#c89a4a', neck: 'scarf' }); scene.add(hero);
+const cat = R.cat({ c: '#f2ece0', belly: '#ffffff' }); scene.add(cat); const cat2 = R.cat({ c: '#d89a54' }); cat2.position.set(-2.6, .47, 6.6); cat2.rotation.y = 1.2; scene.add(cat2);
+const flock = PK.flock({ n: 6, r: 10, h: 3, speed: .28, squash: .5 }); flock.position.set(2, 13, -20); scene.add(flock);
+const bfs = [[4, 15, 0], [-1, 1, 0], [-11, -5, 0], [-17, 9, 0], [8, 5, 0]].map(([x, z], i) => { const b = PK.butterflies({ n: 5, area: [5, 1.3, 4], fc: FC[i % 4] }); b.position.set(x, 0, z); scene.add(b); return b; });
+// とまっている鳥（鉄ぼう・すべり台・地面）。若者が近づくと飛びたち、遠ざかるともどる
+const birds = [[8.3, 1.03, 9], [10.2, 1.38, 9], [11.6, 1.73, 9], [9.5, 2.5, 3], [3.5, 0, 6], [.2, 0, 4.6], [-2.4, 0, -2], [-12, 0, -5], [-16, 0, 11]].map(([x, y, z], i) => { const b = R.bird(i % 3 === 0 ? { c: '#f0ece4', neck: false } : i % 3 === 1 ? { c: '#7a9ac0', belly: '#f4ead8' } : {}); b.position.set(x, y, z); b.rotation.y = i * 2.1; b.userData.home = [x, y, z, i * 2.1]; b.userData.fly = -1; scene.add(b); return b; });
+
+// 歩く → 校舎の前で立ちどまって見上げる → 歩く、のくり返し
+const SPEED = 2.1, PAUSE = 5, DS = (() => { let b = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const q = path.getPointAt(i / 400), d = Math.hypot(q.x, q.z + 2.5); if (d < bd) { bd = d; b = i / 400; } } return b * LEN; })(), CYC = LEN / SPEED + PAUSE;
+const cd = new THREE.Vector3(), cp = new THREE.Vector3(), cq = new THREE.Vector3(), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, look = 0;
+K.loop((dt, t) => {
+  const tc = t % CYC, n = Math.floor(t / CYC), t0 = DS / SPEED, stop = tc > t0 && tc < t0 + PAUSE, dist = n * LEN + (tc < t0 ? tc * SPEED : stop ? DS : (tc - PAUSE) * SPEED), u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), J = hero.userData.J;
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); look += ((stop ? 1 : 0) - look) * (1 - Math.exp(-dt * 3));
+  if (stop) { R.idle(hero, t, 0); J.head.rotation.x = -.32 * look; } else R.walk(hero, dist * 3.5);
+  // 白いねこは、ななめ前を歩き、立ちどまると すわる
+  const uc = ((dist + 1.7) / LEN) % 1, pc = path.getPointAt(uc), tcg = path.getTangentAt(uc); cq.set(pc.x - tcg.z * 1.3, 0, pc.z + tcg.x * 1.3); if (first) cat.position.copy(cq);
+  const mv = cq.distanceTo(cat.position); if (mv > .002) cat.rotation.y = Math.atan2(cq.x - cat.position.x, cq.z - cat.position.z); cat.position.copy(cq); R.catPose(cat, stop && look > .6 ? 'sit' : 'walk', stop ? t : dist * 9); R.catPose(cat2, 'sit', t + 3);
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.7)).normalize(); const tall = innerWidth < innerHeight, D = (tall ? 4 : 5.2) + look * .6;
+  cp.set(p.x - cd.x * D, (tall ? 2.1 : 2.5) - look * .5, p.z - cd.z * D); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3.4, (tall ? 1.4 : 1.15) + look * 1.5, p.z + cd.z * 3.4);   // 立ちどまると、カメラも校舎を見上げる
+  sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
+  for (let i = 0; i < NP; i++) { const f = .5 + hash(i, 2) * .7, ph = hash(i, 1) * 50; ppos[i * 3] = wrap((hash(i, 3) - .5) * PA[0] + t * .7 + Math.sin(t * 1.3 * f + ph) * .7, p.x, PA[0]); ppos[i * 3 + 1] = PA[1] - ((hash(i, 4) * PA[1] + t * f * .9) % PA[1]); ppos[i * 3 + 2] = wrap((hash(i, 5) - .5) * PA[2] + t * .25 + Math.cos(t * 1.1 * f + ph) * .7, p.z, PA[2]); } pg.attributes.position.needsUpdate = true;
+  flock.userData.tick(t); for (const b of bfs) b.userData.tick(t);
+  for (const b of birds) { const [hx, hy, hz, hr] = b.userData.home, dh = Math.hypot(p.x - hx, p.z - hz);
+    if (b.userData.fly < 0) { R.birdPose(b, hy > 0 ? 'stand' : 'peck', t + hr * 3); if (dh < (hy > 0 ? 2.6 : 3.6)) b.userData.fly = 0; }
+    else { const f = (b.userData.fly += dt); b.visible = f < 5; b.position.set(hx + Math.cos(hr) * f * 3.2, hy + Math.min(8, f * 2.6 - f * f * .1), hz + Math.sin(hr) * f * 3.2); b.rotation.y = Math.atan2(Math.cos(hr), Math.sin(hr)); R.birdPose(b, 'fly', t + hr);
+      if (f > 5 && dh > 15) { b.userData.fly = -1; b.visible = true; b.position.set(hx, hy, hz); b.rotation.y = hr; } } }
+  crt.render(scene, cam, t);
+});
+</script>
+</html>
