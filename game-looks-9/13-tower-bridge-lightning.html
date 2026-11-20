@@ -73,7 +73,7 @@ const batC = [0, 3, 0], bats = D.flock({ kind: 'bat', n: 12, r: 7, h: 2.5, cente
 
 // ---- 主役：つえ（先に緑白い あかり）。マントは風で横へ なびく ----
 const staff = F.wear(hero, 'staff', { len: 1.5, c: '#4a3c50' }), B = hero.userData.build, tipY = -B.farm - B.hand[2] * .5 + 1.5 * (B.thigh + B.shin + B.torso) / 1.1 * .6;
-const orb = W.crystal({ h: .16, n: 3, c: '#8affc0', halo: false }), orbH = D.halo({ c: '#70ffb0', r: .34, k: .7 }), orbL = new THREE.PointLight('#8affc0', 2.5, 6, 1.5); orb.position.set(0, tipY - .05, .06); orbH.position.set(0, tipY + .05, .06); orbL.position.copy(orbH.position); staff.add(orb, orbH, orbL);
+const orb = W.crystal({ h: .16, n: 3, c: '#8affc0', halo: false }), orbH = D.halo({ c: '#70ffb0', r: .28, k: .5 }), orbL = new THREE.PointLight('#8affc0', 2.5, 6, 1.5); orb.position.set(0, tipY - .05, .06); orbH.position.set(0, tipY + .05, .06); orbL.position.copy(orbH.position); staff.add(orb, orbH, orbL);
 const spot = D.spot({ c: '#60f0a8', r: 2.4, k: .3 }); scene.add(spot);
 const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
 const Z0 = 18, LEN = 20, SPEED = 1.6, T0 = +new URLSearchParams(location.search).get('t0') || 0, J = hero.userData.J;   // ?t0=秒 で、とちゅうから見る

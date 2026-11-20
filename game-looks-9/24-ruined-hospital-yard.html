@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-24 雨の病院あと 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dce6f0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-24 ─ 雨の病院あと / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨の夜の、病院あとの中庭。コの字の白っぽい大きな建物は窓がぬけ、つたがはう。水たまり、さびたベンチ、たおれた荷車と台、かれた木。入口のあかりが 1 つだけ、ちらついている。
+// かさと懐中電灯を持った人が、そのあかりへ歩く。色の組は「建物と雨の青灰・入口のあかりの白緑・懐中電灯の黄」＋かさの赤 1 点。
+// 光は D.mood の 'blackout' を青灰に上書き。入口のあかりは、地面に焼きこんだ輪＋ちらつく輪＋ぬれた地面の映りこみ。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K, TAU = Math.PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#c8c0b0', cloth: 'jacket', top: '#4a7a8a', top2: '#d8e0e0', bottom: '#3c4258', shoe: '#6a5a50', gloves: 'glove', glove: '#3a4050', neck: 'collar', back: 'bag', acc: '#8a6a4a' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, range: 36, level: 1, sky: ['#0a0e18', '#1a2232', '#2e3b4e', '#50627a'], fog: ['#28323f', 16, 120], hemi: ['#98acc8', '#30353f', 1.2], key: ['#b8cce8', 1.15, [-.5, .6, -.6]], fill: ['#5a6a88', .45], hills: '#121824', base: [.84, .9, 1.04] });
+
+// ---- 加算の面と、懐中電灯（右手）、かさ（左手） ----
+const lin = (c, k = 1) => { const q = new THREE.Color(c); return [q.r * k, q.g * k, q.b * k]; };
+const addM = () => new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+function torch(actor, o = {}) { const J = actor.userData.J, B = actor.userData.build, c = o.c || '#ffe08a', hold = new THREE.Group(), g = new THREE.Group(), P = R.parts(), wp = new THREE.Vector3();
+  hold.rotation.z = J.foreR.children[0] ? J.foreR.children[0].rotation.z : 0; J.foreR.add(hold); g.position.y = -B.farm - B.hand[2] * .6; hold.add(g);
+  P.g(T.metal({ c: '#70748e' })).loft(6, [[-.2, .055, .055, 0, 1], [-.13, .05, .05, .3, 1], [-.1, .03, .03, .4, .85], [.08, .03, .03, 1, .8]], { cap: 'both' }); g.add(P.group());
+  const lens = D.halo({ c, r: .28, k: .9 }); lens.position.y = -.22; g.add(lens);
+  const G = R.geo(), col = lin(c), z0 = [0, 0, 0]; for (const [k, br] of [[1, .3], [.5, .34]]) { const n = 10, r1 = Math.tan(o.half || .2) * k, p = (a, r, z) => [Math.cos(a) * r, Math.sin(a) * r, z], c0 = col.map(v => v * br); for (let i = 0; i < n; i++) { const a0 = i / n * TAU, a1 = (i + 1) / n * TAU; G.quad(p(a0, .03, 0), p(a1, .03, 0), p(a1, r1, 1), p(a0, r1, 1), [0, 0, 1, 1], [c0, c0, z0, z0]); } }
+  const cone = new THREE.Mesh(G.build(), addM()); cone.frustumCulled = false; cone.castShadow = false; cone.rotation.order = 'YXZ'; cone.renderOrder = 3;
+  const ring = D.spot({ c, r: 1, k: o.k ?? .5 }); ring.rotation.order = 'YXZ'; const sl = new THREE.SpotLight(c, o.power || 30, o.range || 16, o.angle || .46, .7, 1.2); scene.add(cone, ring, sl, sl.target);
+  return (d = 4, gy = 0, yaw = 0) => { J.armR.rotation.set(-1.12, 0, -.12); J.foreR.rotation.x = -.3; actor.updateMatrixWorld(true); g.getWorldPosition(wp); const ry = actor.rotation.y + yaw, h = wp.y - gy;
+    cone.position.copy(wp); cone.rotation.set(Math.atan2(h, d), ry, 0); cone.scale.setScalar(Math.hypot(d, h)); ring.position.set(wp.x + Math.sin(ry) * d, gy + .06, wp.z + Math.cos(ry) * d); ring.rotation.y = ry; ring.scale.set(o.rx || 1.05, o.rz || 1.9, 1); sl.position.copy(wp); sl.target.position.copy(ring.position); }; }
+function umbrella(actor, c) { const J = actor.userData.J, B = actor.userData.build, hold = new THREE.Group(), g = new THREE.Group(), P = R.parts();
+  hold.rotation.z = J.foreL.children[0] ? J.foreL.children[0].rotation.z : 0; J.foreL.add(hold); g.position.y = -B.farm - B.hand[2] * .5; hold.add(g);
+  P.g(T.metal({ c: '#8a8ea0' })).box(.022, .98, .022, 0, -.12, 0, {}); P.g(T.fabric({ c, c2: R.mix(c, '#2a2030', .35), pattern: 'stripe', w: 8 }), { side: true }).loft(8, [[.62, .7, .7, 0, .8], [.76, .52, .52, .5, 1], [.85, .24, .24, .85, 1.05], [.89, .02, .02, 1, 1.05]], { ur: 2 }); g.add(P.group());
+  return () => { J.armL.rotation.set(-.35, 0, .12); J.foreL.rotation.x = -1.75; g.rotation.x = 2.1 + Math.sin(performance.now() * .003) * .03; }; }
+
+// ---- 地面：ぬれたアスファルト、枯れ草、入口へ続く石だたみ。入口のあかりの輪を焼きこむ ----
+const DOOR = [0, -21.4], pathX = z => Math.sin(z * .14 + .4) * 1.3 * Math.min(1, (z + 22) / 12);
+const land = R.ground({ w: 120, d: 120, cell: 2, cz: -14, layers: [C.tex.asphalt({ c: '#4c5466', wet: .8, wetC: '#7a9cbc' }), D.tex.deadGrass({ c: '#48585c' }), D.tex.wetCobble({ c: '#5e6c84', wet: .55, shine: '#b8d8e8' })],
+  mix: (x, z) => [Math.max(0, Math.min(1, (Math.sin(x * .45 + 1) * Math.sin(z * .35) + .1) * 2.4)) * (Math.abs(x - pathX(z)) > 2.2 ? 1 : 0), Math.max(0, Math.min(1, 1.3 - Math.abs(x - pathX(z)) / 1.5))],
+  shade: mood.shade([{ x: 0, z: -18.2, r: 10, c: '#c8ffe0', k: 1.15 }]) }); scene.add(land.mesh);
+
+// ---- コの字の建物：おくの棟（4 階）と、左右の棟（3 階）。白っぽいかべ、ぬけた窓、つた ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const bld = (w, d, floors, sd, corner) => PK.building({ w, d, floors, c: '#b4bcc8', broken: .22, corner, moss: .5, holes: .85, plants: .15, ivy: .6, flowers: 0, roofGreen: 0, tree: false, hut: false, seed: sd });
+put(bld(30, 9, 4, 3, 1), 0, -26); put(bld(9, 27, 3, 5, 2), -15.5, -8); put(bld(9, 27, 3, 8, 3), 15.5, -8);
+// 入口：ひさしと 2 本の柱、段、ガラスの戸
+{ const P = R.parts(), Cn = P.g(PK.tex.concrete({ c: '#a8b0bc', moss: .4 })), Dr = P.g(T.door({ style: 'glass', c: '#5a6478', frame: '#3c4456' }), { offset: true });
+  Cn.box(6, .32, 3.4, 0, 3, -19.8, { m: 3, bottom: true }); for (const sx of [-1, 1]) Cn.box(.4, 3, .4, sx * 2.6, 0, -18.5, { m: 3 }); Cn.box(6, .2, 3.4, 0, 0, -19.8, { m: 3 });
+  for (const k of [0, 1]) Dr.quad([-1.2 + k * 1.2, .2, DOOR[1]], [k * 1.2, .2, DOOR[1]], [k * 1.2, 2.6, DOOR[1]], [-1.2 + k * 1.2, 2.6, DOOR[1]], k ? [1, 0, 0, 1] : [0, 0, 1, 1]); fixed.push(P.group()); }
+// 中庭の物：かれた木の植えこみ、さびたベンチ、たおれた荷車と台、止まった白い車、フェンス
+const ringBed = () => { const G = R.geo(); G.loft(10, [[0, 1.7, 1.7, 0, .75], [.45, 1.6, 1.6, .15, 1]], { ur: 4 }).loft(10, [[.45, 1.6, 1.6, 0, 1.05], [.45, 1.3, 1.3, .1, 1.05]], { ur: 4 }).loft(10, [[.4, 1.3, 1.3, 0, .7]], { cap: 'top' }); return G.mesh(D.tex.stone({ c: '#6a7488' })); };
+put(ringBed(), -3.6, -5); const trees = [[-3.6, -5, 7.5, .4], [6.8, 7, 7, 0], [-7.2, 3, 8, 0], [7, -13, 8.5, 0], [-7.4, -15.5, 7, 0], [9, 16, 9, 0], [-9.5, 17, 9, 0]].map(([x, z, h, y], i) => put(D.deadTree({ h, seed: i + 40, c: '#4c5466' }), x, z, i * 1.9, y));
+put(PK.bench({ c: '#6c7684' }), 4.2, 3.5, -1.3); put(PK.bench({ c: '#6c7684' }), -5.6, 8.5, 1.2); put(PK.bench({ c: '#6c7684' }), 4.6, -9.5, -1.7); { const b = PK.bench({ c: '#6c7684' }), g = new THREE.Group(); b.rotation.x = -1.45; b.position.y = .3; g.add(b); put(g, -1.2, -11.5, .5); }
+const trolley = () => { const P = R.parts(), M = P.g(T.metal({ c: '#8a94a4' })), Rs = P.g(PK.tex.rust({ panel: 0, m: 1 })); M.box(.9, .04, .5, 0, .8, 0, { bottom: true }).box(.9, .04, .5, 0, .3, 0, { bottom: true }); for (const sx of [-1, 1]) for (const sz of [-1, 1]) Rs.box(.035, .84, .035, sx * .42, 0, sz * .22, {}); return P.group(); };
+const tip = (o, x, z, ry, rz, y) => { const g = new THREE.Group(); o.rotation.z = rz; o.position.y = y; g.add(o); return put(g, x, z, ry); };
+tip(trolley(), 2.9, -3, .6, Math.PI / 2, .26); tip(trolley(), -2.8, 5.2, 2, .0, 0); tip(R.cart({ load: 'crates' }), 3.6, -15.2, 1.9, 1.15, .5); put(R.crate({ s: .8, c: '#6a6470' }), 4.9, -14.2, .4); put(R.crate({ s: .6, c: '#6a6470' }), 2.4, -16, 1.2);
+put(PK.wreck({ c: '#b8c0c8', kind: 'van', moss: .4, grass: 0, seed: 1 }), -5, -17, .9);
+for (const sx of [-1, 1]) put(PK.fence({ len: 8, h: 1.8, lean: .3, ivy: .4, flowers: 0, seed: sx + 2 }), sx * 7, 14.5, sx * .15);
+for (let i = 0; i < 14; i++) { const z = 14 - i * 2.4 + hash(i, 1), x = (hash(i, 2) - .5) * 15; put(PK.decal(PK.tex.puddle({ c: '#8ab0d0', seed: i % 3 }), 1.8 + hash(i, 3) * 1.8, 1.3 + hash(i, 4), { ur: 1, vr: 1, y: .04 }), x, z, hash(i, 5) * 3); }
+for (let i = 0; i < 16; i++) { const x = (hash(i, 21) - .5) * 17, z = 15 - hash(i, 22) * 32; if (Math.abs(x - pathX(z)) > 2.4) put(R.tuft({ kind: i % 3 ? 'reed' : 'bush', s: 1 + hash(i, 5) * .4 }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- 入口の ちらつく あかり（白緑）：電球、にじみ、地面の輪、かべの輪、ぬれた地面の映りこみ ----
+const bulb = D.bulb({ drop: .35, c: '#d0ffe4', flicker: true, light: true, power: 14, range: 12, halo: 1.1, seed: 1 }); bulb.position.set(0, 3, -19.4); scene.add(bulb);
+const pool = D.spot({ c: '#c0ffdc', r: 5.5, k: .5, flicker: 'bulb', seed: 1 }); pool.position.set(0, .26, -18.4); scene.add(pool);
+scene.add(D.pools([{ p: [0, 2.2, DOOR[1] + .06], n: [0, 0, 1], r: 4.4, r2: 2.6, c: '#c0ffdc', k: .42 }]), D.streaks([{ x: 0, z: -18.6, h: 2.6, c: '#c0ffdc', k: .8, w: 1.5, flicker: true }, { x: -1.2, z: -18.6, h: 2.6, c: '#c0ffdc', k: .4, w: .8, flicker: true }], { far: 70 }));
+
+// ---- 空と天気：流れる雲、ななめの雨、低い霧。かれ木と ベンチの からす ----
+scene.add(D.clouds({ n: 10, r: 250, y: 82, s: 110, c: '#44546c', shade: '#1e2638', speed: .018 }), D.rain({ n: 900, slant: [.22, .1], c: '#b8cce8', a: .5 }), D.groundFog({ n: 40, box: [56, 56], c: '#9ab0c8', a: .2, h: 1.6, w: 9, wind: [.6, .2] }));
+const perchOf = (i, k) => { const t = trees[i]; t.updateMatrixWorld(); return t.userData.perch[k].clone().applyMatrix4(t.matrixWorld); };
+scene.add(D.perched([[...perchOf(0, 0).toArray(), 1], [...perchOf(0, 1).toArray(), 2.4], [4.2, .95, 3.5, -1.3], [...perchOf(3, 0).toArray(), .5], [-5, 1.75, -17, 2]], { watch: hero, near: 3.6 }), D.flock({ kind: 'crow', n: 5, r: 12, h: 12, center: [0, 2, -24] }));
+
+const aim = torch(hero, { c: '#ffe08a', power: 50, angle: .5, range: 18, k: .55 }), brolly = umbrella(hero, '#c8404c'), crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const ZS = 13, LEN = 27, SPEED = 1.35;
+K.loop((dt, t) => {
+  const z = ZS - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .8); brolly(); aim(4.4, 0, Math.sin(t * .55) * .28);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.1 : 5.4; cam.position.set(x * .6 + .6, tall ? 2.2 : 1.7, z + Dc); cam.lookAt(x * .5 - .3, tall ? 2.6 : 2.9, z - 6);
+  D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

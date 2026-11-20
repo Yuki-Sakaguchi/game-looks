@@ -24,10 +24,10 @@ const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: fals
 const CLOAK = '#a03c44', hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#4a4048', mouth: 'line', cloth: 'robe', top: '#8a3640', top2: '#d8c8a8', skirt: .7, skirtC: CLOAK, bottom: '#4a444c', shoe: '#5a4838', gloves: 'wrap', glove: '#c8b898', neck: 'cape', acc: CLOAK, back: 'bag', belt: '#d8c8a8' }); scene.add(hero);
 { const q = (y, a, b, v, sh, oz) => [y, a, b, v, sh, 0, oz], hood = R.geo().smooth(1).loft(7, [q(-.07, .175, .15, 0, .7, -.02), q(.03, .15, .15, .2, .85, -.035), q(.16, .168, .172, .5, 1, -.05), q(.26, .135, .15, .8, 1.06, -.06), q(.335, .03, .04, 1, 1.12, -.14)], { cap: 'top' }).mesh(T.fabric({ pattern: 'plain', c: CLOAK }), { side: true }); hero.userData.J.head.add(hood); }   // フード（頭のうしろと横をおおう。顔は前に出る）
 // D.MOODS の ash は空が明るめなので、空と霧を少し暗く・茶色によせる。ふちの光は、残り火のある門のほうから
-const mood = D.mood(scene, renderer, 'ash', { sky: ['#242022', '#3e3636', '#62554c', '#927c66'], fog: ['#62574e', 12, 105], hemi: ['#d0c6bc', '#4c4646', 1.12], key: ['#ffcfa4', 1.15, [-.35, .5, -.78]], fill: ['#8a8088', .42], hills: '#3a3434', base: [.92, .88, .86], follow: hero, range: 34 });
+const mood = D.mood(scene, renderer, 'ash', { sky: ['#201c1e', '#383030', '#574a42', '#86705c'], fog: ['#5a4f47', 14, 150], hemi: ['#d0c6bc', '#4c4646', 1.12], key: ['#ffcfa4', 1.15, [-.35, .5, -.78]], fill: ['#8a8088', .42], hills: '#3a3434', base: [.92, .88, .86], follow: hero, range: 34 });
 
 // ---- 地面：灰のつもった広場。ところどころ石だたみが出ている。小さな残り火のあかりを焼きこむ ----
-const pathX = z => Math.sin(z * .1) * 1.5, GZ = -31, FIRES = [[-3, 5.5], [3.4, -16.5], [-9, -9]], FT = [4.6, -7];
+const pathX = z => Math.sin(z * .1) * 1.5, GZ = -27, FIRES = [[-3, 5.5], [3.4, -16.5], [-9, -9]], FT = [4.6, -7];
 const LIT = [...FIRES.map(([x, z]) => ({ x, z, r: 5, c: '#ff8a40', k: 1.1 })), { x: 0, z: GZ - 3, r: 9, c: '#ff9a50', k: .5 }];
 const land = R.ground({ w: 130, d: 140, cell: 2, cz: -24, layers: [D.tex.ash({ c: '#6e6a6c' }), T.cobble({ c: '#77747c' }), D.tex.ash({ c: '#8a8684', seed: 3 })],
   mix: (x, z) => { const n = Math.sin(x * .45 + z * .2) * Math.sin(z * .38 - x * .1); return [Math.abs(x) < 18 && n > -.15 ? 1 : 0, n < -.55 ? 1 : 0]; }, shade: mood.shade(LIT) }); scene.add(land.mesh);
@@ -38,7 +38,7 @@ const ST = F.tex.ashlar({ c: '#6c6870', moss: .15 }), ST2 = F.tex.ashlar({ c: '#
 put(F.gate({ w: 9, h: 8.5, d: 3, aw: 4, ah: 5.2, stone: ST, door: 'none', crenel: false }), 0, GZ);
 put(F.wall({ len: 13, h: 5.4, stone: ST }), -12.5, GZ + .2, .03); put(F.wall({ len: 7, h: 3, stone: ST, crenel: false }), -23, GZ + .6, -.12); put(F.wall({ len: 9, h: 3.4, stone: ST, crenel: false }), 10.5, GZ, -.05); put(F.wall({ len: 8, h: 5.4, stone: ST }), 21.5, GZ - .6, .1);
 put(F.tower({ r: 2.7, h: 12, stone: ST, top: 'crenel' }), -6.6, GZ - .6); put(F.tower({ r: 2.7, h: 5.8, stone: ST, top: 'crenel', wins: false }), 6.8, GZ - .4);
-const FAR = [-11, GZ - 44], far = put(F.tower({ r: 4, h: 27, stone: ST2, roof: ROOF, top: 'cone', lit: 1, seed: 2 }), FAR[0], FAR[1]);
+const FAR = [-12, GZ - 27], far = put(F.tower({ r: 4.2, h: 30, stone: ST2, roof: ROOF, top: 'cone', lit: 1, seed: 2 }), FAR[0], FAR[1]);
 put(F.tower({ kind: 'square', r: 3, h: 15, stone: ST2, top: 'crenel', lit: .3 }), 13, GZ - 36); put(F.wall({ len: 30, h: 7, stone: ST2 }), 0, GZ - 40); put(F.tower({ r: 3, h: 10, stone: ST2, top: 'crenel', wins: false }), -30, GZ - 30); put(F.tower({ r: 2.6, h: 17, stone: ST2, roof: ROOF, top: 'cone' }), 30, GZ - 52);
 // 広場の両がわ：くずれたかべ、四角い塔、屋根のぬけた礼拝堂
 for (const [x, z, len, h, ry] of [[-20, 6, 11, 4.2, PI / 2 + .06], [-20.5, -9, 8, 2.6, PI / 2 - .1], [20, 9, 9, 3, PI / 2 + .1], [20.5, -4, 10, 4.6, PI / 2], [20, -19, 8, 2.4, PI / 2 - .08], [-19.5, -21, 7, 3.6, PI / 2]]) put(F.wall({ len, h, stone: ST, crenel: h > 4 }), x, z, ry);
@@ -58,17 +58,17 @@ const fountain = R.fountain({ r: 2.3, stone: D.tex.stone({ c: '#7c7882', moss: .
 
 // ---- 残り火：広場の小さな火 3 つ、遠い塔の上の大きなにじみ、門の向こうの赤い空気 ----
 FIRES.forEach(([x, z], i) => { const f = D.flame({ s: .55 + i * .12, c: '#ff9a50', seed: i }); f.position.set(x, .05, z); const h = D.halo({ c: '#ff6a28', r: 1.3, k: .7, flicker: true, seed: i + 2 }); h.position.set(x, .5, z); scene.add(f, h); for (let k = 0; k < 3; k++) { const r = R.rock({ s: .28, c: '#4a4448', seed: i * 3 + k }); r.position.set(x + Math.cos(k * 2.1) * .5, -.04, z + Math.sin(k * 2.1) * .5); scene.add(r); } });
-for (const [dy, r, k] of [[19, 9, .75], [27, 5, .6], [10, 7, .4]]) { const h = D.halo({ c: '#ff6a2c', r, k, flicker: true, seed: dy }); h.position.set(FAR[0], dy, FAR[1] + 4.5); scene.add(h); }
+for (const [dy, r, k] of [[21, 10, .8], [30, 6, .65], [12, 7, .45]]) { const h = D.halo({ c: '#ff6a2c', r, k, flicker: true, seed: dy }); h.position.set(FAR[0], dy, FAR[1] + 4.5); scene.add(h); }
 { const h = D.halo({ c: '#ff7a38', r: 16, k: .3 }); h.position.set(0, 3, GZ - 12); scene.add(h); }
-scene.add(D.pools([{ p: [0, .05, GZ + 3.5], r: 3.2, r2: 4.5, c: '#ff8a44', k: .35 }, { p: [FAR[0], 14, FAR[1] + 4.1], n: [0, 0, 1], r: 4, r2: 9, c: '#ff7a38', k: .5 }]));
+scene.add(D.pools([{ p: [0, .05, GZ + 3.5], r: 3.2, r2: 4.5, c: '#ff8a44', k: .35 }, { p: [FAR[0], 17, FAR[1] + 4.3], n: [0, 0, 1], r: 4.2, r2: 11, c: '#ff7a38', k: .6 }]));
 
 // ---- 空と空気：ふる灰、流れてくる火の粉、低い けむり、流れる雲、からす ----
-scene.add(D.clouds({ n: 10, r: 250, y: 76, s: 110, c: '#5a4e48', shade: '#2e2828', speed: .014 }), D.flakes({ kind: 'ash', n: 420, box: [26, 12, 26], c: '#cfcac6', size: 1.7 }), D.flakes({ kind: 'ember', n: 36, box: [26, 9, 26], c: '#ff9a48', size: 1.6, wind: [.5, .9] }), D.groundFog({ n: 46, box: [60, 60], c: '#b0a69c', a: .22, h: 1.8, w: 10, wind: [.4, .22] }));
+scene.add(D.clouds({ n: 8, r: 260, y: 150, s: 120, c: '#3c3432', shade: '#262022', speed: .014 }), D.flakes({ kind: 'ash', n: 420, box: [26, 12, 26], c: '#cfcac6', size: 1.7 }), D.flakes({ kind: 'ember', n: 36, box: [26, 9, 26], c: '#ff9a48', size: 1.6, wind: [.5, .9] }), D.groundFog({ n: 46, box: [60, 60], c: '#b0a69c', a: .22, h: 1.8, w: 10, wind: [.4, .22] }));
 const perchOf = (i, k) => { const t = trees[i]; t.updateMatrixWorld(); const p = t.userData.perch && t.userData.perch[k]; return p ? [...p.clone().applyMatrix4(t.matrixWorld).toArray(), i] : null; };
-scene.add(D.perched([[FT[0], 2.08, FT[1], 2.4], [-4.9, 1.75, -6.6, 1], [5.8, 3.4, 4.5, -1], [-2.2, 1.05, .4, 2], perchOf(0, 0), perchOf(3, 1)].filter(Boolean), { watch: hero, near: 4.6 }), D.flock({ n: 10, r: 9, h: 3, center: [-4, 15, GZ - 2], s: 1.5 }), D.flock({ n: 6, r: 7, h: 2, center: [FAR[0], 30, FAR[1]], s: 2 }));
+scene.add(D.perched([[FT[0], 2.08, FT[1], 2.4], [-4.9, 1.75, -6.6, 1], [5.8, 3.4, 4.5, -1], [-2.2, 1.05, .4, 2], perchOf(0, 0), perchOf(3, 1)].filter(Boolean), { watch: hero, near: 4.6 }), D.flock({ n: 10, r: 9, h: 3, center: [-4, 15, GZ - 2], s: 1.5 }), D.flock({ n: 6, r: 7, h: 2, center: [FAR[0], 33, FAR[1]], s: 2 }));
 
 const lamp = D.lantern(hero, { hand: 'L', c: '#ffb458', power: 8, range: 7, r: 2.6, k: .6 }), crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
-const Z0 = 16, LEN = 38, SPEED = 1.4;
+const Z0 = 13, LEN = 32, SPEED = 1.4;
 K.loop((dt, t) => {
   const z = Z0 - (t * SPEED) % LEN, x = pathX(z), tx = pathX(z - 1) - x;
   hero.position.set(x, 0, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .8); D.lanternPose(hero);

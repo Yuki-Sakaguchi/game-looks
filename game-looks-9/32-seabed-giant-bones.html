@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-32 海底の巨大な骨 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dce4f4;opacity:.85;text-shadow:0 1px 0 #012}
+</style>
+<div id="cap">9-32 ─ 海底の巨大な骨 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で泳ぐ）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。面の少ない形（ろっ骨のアーチ・頭の骨・さんご・かに・ヘルメットのダイバー）に、その場で打ったドット絵をはり、横 320 ドットほどの粗い絵に描いて、ブラウン管に映す。
+// 深い海の底の砂に、くじらよりずっと大きな生きものの骨が横たわる。色は 水の暗い青と、骨のクリーム。上から青い光のすじが落ちる。こわさより、しずかさ。
+// きみどりの服のダイバーが、ろっ骨のアーチの中を せぼねにそって ゆっくり泳ぎ、頭の骨のわきをぬけて ひと回りする。骨には海草とさんご、小魚の群れ、砂の上の かに、遠くの うみがめ。
+// 水の中の光は S.underwater（'deep' を暗く上書き）。骨は pack-fantasy-wild の F.ribs / F.skull
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), S = PACK_SEA(THREE, K, R), F = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), { hash } = R;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const env = S.underwater(scene, renderer, { depth: 'deep', top: 30, surface: false, rays: 13, range: 34, hi: '#1e4492', mid: '#0e2152', low: '#060e2c', fog: '#0b1b46', near: 4, far: 62, amb: .8, sky: 0x7c9ee0, ground: 0x283468, sun: 0xd4e4ff, power: .85, ray: '#5a9cff', rayA: .42, motes: 130 }), sun = env.sun;
+
+// ---- 泳ぐ道：ろっ骨の中（z -23〜23）をまっすぐぬけ、頭の骨のわきを回って、外がわをもどる ----
+const path = new THREE.CatmullRomCurve3([[0, -34], [0, -18], [0, 0], [.5, 17], [5, 30], [15, 38], [25, 30], [27, 8], [25, -16], [16, -36], [6, -42]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal'), LEN = path.getLength();
+const flat = (x, z) => Math.min(1, Math.max(0, (Math.hypot(x / 13, z / 40) - .8) * 2.5)), H = (x, z) => (.7 * Math.sin(x * .13 + 1) * Math.cos(z * .11) + .3 * Math.sin(x * .37 + z * .31)) * (.25 + .75 * flat(x, z));
+const bed = S.seabed({ env, w: 140, d: 140, cell: 2, H, caustic: .1, layers: [S.tex.sand({ c: '#8494c4' }), S.tex.grown({ base: 'rock', o: { c: '#5a64a0' }, grow: .6, algae: '#3a78a8', seed: 2 })], mix: (x, z) => [flat(x, z) > .6 && Math.sin(x * .2 + 2) * Math.cos(z * .17) > .35 ? 1 : 0, 0] }); scene.add(bed.mesh);
+const fixed = [], put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 巨大な骨：ろっ骨のアーチ 11 本（はば 18 m・高さ 12 m）と せぼね、先に頭の骨（高さ 10 m。少しかたむいて砂にうまる）、うしろに尾の骨。まわりに、うまった骨のかけら ----
+const BONE = '#f0e4c4', NR = 11, RW = 18, RH = 12, GAP = 4.4;
+put(F.ribs({ n: NR, w: RW, h: RH, gap: GAP, r: .6, broken: .14, lean: 1.1, c: BONE, seed: 4 }), 0, 0, 0, -.25);
+put(F.ribs({ n: 7, w: 5.5, h: 2.6, gap: 3.2, r: .42, broken: .45, lean: .5, c: BONE, seed: 9 }), 0, -36, .05, -.2);
+{ const sk = put(F.skull({ s: 10, horns: true, c: BONE, seed: 1 }), -4.5, 36, 2.5, -1.6); sk.rotation.z = .2; sk.rotation.x = -.12; }
+for (let i = 0; i < 6; i++) { const a = i * 1.05 + .4, r = 30 + hash(i, 1) * 14; put(F.ribs({ n: 2 + (i % 2), w: 6 + hash(i, 2) * 4, h: 3.5 + hash(i, 3) * 3, gap: 2.6, r: .34, broken: .55, spine: false, c: '#e4d8bc', seed: i + 20 }), Math.cos(a) * r, Math.sin(a) * r * 1.2, i * 1.7, -.3); }
+// ろっ骨の足もとに さんごと海草、せぼねに いそぎんちゃく。色は おさえた もも・水色
+const CC = ['#c47a98', '#6aa8c8', '#b89ad0'];
+for (let i = 0; i < NR; i++) { const z = (i - (NR - 1) / 2) * GAP - .15, k = 1 - Math.abs(i - (NR - 1) / 2) / NR * .7, ww = RW * k / 2 * .95; for (const s of [-1, 1]) { const q = i * 2 + (s > 0);
+    put(S.coral({ kind: ['finger', 'branch', 'tube', 'fan'][q % 4], s: .9 + hash(q, 5) * .8, c: CC[q % 3], tip: '#f0e8f4', seed: q }), s * (ww + .7), z + (hash(q, 6) - .5) * 1.4, q);
+    put(S.kelp({ h: 3 + hash(q, 7) * 5 * k, w: .9, c: q % 2 ? '#3a8a8c' : '#4a7ab0', kind: q % 3 ? 'kelp' : 'ribbon', seed: q }), s * (ww - .5), z + .9, q);
+    put(S.seagrass({ s: .8 + hash(q, 8) * .5, c: '#4a90a8', seed: q }), s * (ww + .2), z - .9, q); }
+  if (i % 2) put(S.anemone({ s: 1.5, c: CC[i % 3], tip: '#f4f0ff', body: '#5a5aa0', seed: i }), (i % 4 === 1 ? 1 : -1) * 1.5, z + 2.2, i, 0); }
+for (let i = 0; i < 70; i++) { const u = hash(i, 10), p = path.getPointAt(u), tg = path.getTangentAt(u), sd = i % 2 ? 1 : -1, off = 2.2 + hash(i, 11) * 7, x = p.x + tg.z * sd * off, z = p.z - tg.x * sd * off, k = i % 7;
+  put(k < 3 ? S.seagrass({ s: .6 + hash(i, 12) * .5, c: i % 2 ? '#4a90a8' : '#5a7ac0', seed: i }) : k < 4 ? S.rock({ s: .9 + hash(i, 13) * 1.5, seed: i, c: '#6068a8', grow: .6 }) : k < 5 ? S.shell({ c: '#d8dcf0', s: 1.3 }) : k < 6 ? S.starfish({ c: '#c47a98', s: 1.3 }) : S.coral({ kind: ['tube', 'finger'][i % 2], s: .6, c: CC[i % 3], tip: '#f0e8f4', seed: i }), x, z, i * 1.7, k === 3 ? -.2 : .01); }
+scene.add(R.merge(fixed));
+
+// ---- 生きもの：ろっ骨の間をめぐる小魚の群れ、砂の上の かに、遠くの うみがめ と えい ----
+const live = [], add = (o, f) => { scene.add(o); live.push(t => { f && f(o, t); o.userData.tick(t); }); return o; };
+const circ = (cx, cy, cz, rx, rz, sp, ph = 0, bob = .3) => (o, t) => { const a = t * sp + ph; o.position.set(cx + Math.cos(a) * rx, cy + Math.sin(t * .6 + ph) * bob, cz + Math.sin(a) * rz); o.rotation.y = Math.atan2(-Math.sin(a) * rx * sp, Math.cos(a) * rz * sp); };
+const TINT = ['#e8f0ff', '#b8d0f4', '#f4e8c8'];
+add(S.school({ n: 60, rx: 6, rz: 9, h: 2.4, wide: 1.3, speed: 1.1, spread: 2.2, tints: TINT })).position.set(0, 6.5, 2);
+add(S.school({ n: 40, rx: 4, rz: 6, h: 1.8, speed: -1, spread: 2, seed: 3, tints: TINT })).position.set(-1, 4, -17);
+add(S.school({ n: 40, rx: 5, rz: 5, h: 2, speed: 1, spread: 2, seed: 6, tints: TINT })).position.set(-3, 7, 33);
+add(S.school({ n: 26, kind: 'tang', c: '#e8d88a', c2: '#5a6ab0', rx: 3.4, rz: 4.4, h: 1.4, speed: -.9, s: .8, spread: 2, seed: 8 })).position.set(20, 3.4, 4);
+add(S.turtle({ s: 1.5, c: '#5a8a80', skin: '#8ab0a0' }), circ(4, 13, 6, 22, 30, .05, 4.4, .8));
+add(S.ray({ s: 1.6, c: '#4a5aa0' }), circ(-10, 8, -6, 16, 22, .07, 1.2, .5));
+const crabs = [[3.2, -9, 0], [-4, 3, 1], [5, 13, 2], [-2.6, -21, 3], [22, 12, 4], [9, 33, 5]].map(([x, z, i]) => { const c = S.crab({ s: 1.5 + (i % 2) * .4, c: ['#d86a4a', '#c8804a'][i % 2] }); scene.add(c); return { c, x, z, i }; });
+
+// ---- 主役：ヘルメットのダイバー（きみどりの服に白い帯。白いヘルメット）と、ヘッドランプの光の円すい ----
+const hero = S.diver({ head: 'helmet', tank: '#f0ecd8', fin: '#b4e03c', metal: '#d8dce0', actor: { hairStyle: 'short', hair: '#3a2a20', top: '#b4e03c', top2: '#f4f4ec', bottom: '#98c830', glove: '#f4f4ec', shoe: '#3a5a28', belt: '#f4f4ec' } }); scene.add(hero);
+// pack のヘルメットは、よこのくり返しがテクスチャの金物の区画からはみ出して黒くなるので、UV を区画の中へ折り返す（第 8 集の 35 と同じ直し）
+{ const hm = hero.userData.J.head.children.at(-1), uv = hm.geometry.attributes.uv, u0 = 17 / 64, w = 14 / 64; for (let i = 0; i < uv.count; i += 3) { if (uv.getY(i) > .25) continue; const k = Math.floor((Math.min(uv.getX(i), uv.getX(i + 1), uv.getX(i + 2)) - u0) / w + .001); for (let j = 0; j < 3; j++) uv.setX(i + j, uv.getX(i + j) - k * w); } uv.needsUpdate = true; }
+const LAMP = (() => { const L = 7.5, G = R.geo().at(R.TR(0, 0, 0, 0, Math.PI / 2, 0)); G.loft(8, [[.1, .07, .07, 1, 1], [L * .35, .62, .62, .7, 1], [L * .7, 1.2, 1.2, .38, 1], [L, 1.7, 1.7, .04, 1]], { ur: 4 }); G.at(null);
+  const cone = new THREE.Mesh(G.build(), S.mat(S.tex.shaft({ seed: 1 }), { glow: true, add: true, alpha: .26, side: true, color: '#fff0c8' })); cone.renderOrder = 6; cone.frustumCulled = false;
+  const bulb = D.halo({ c: '#fff4d0', r: .3, k: 1 }), spot = new THREE.SpotLight('#fff0d0', 44, 24, .46, .6, 1.1), p = new THREE.Vector3(); scene.add(cone, bulb, spot, spot.target);
+  return { tick(dir) { hero.updateMatrixWorld(true); hero.userData.J.head.getWorldPosition(p); p.y += .2; cone.position.copy(p).addScaledVector(dir, .3); bulb.position.copy(cone.position); cone.lookAt(p.x + dir.x * 9, p.y + dir.y * 9, p.z + dir.z * 9); spot.position.copy(p); spot.target.position.copy(p).addScaledVector(dir, 9); } }; })();
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const cd = new THREE.Vector3(), ld = new THREE.Vector3(), SPEED = 1.2; let dist = (+new URLSearchParams(location.search).get('u') || .055) * LEN   /* ?u=0〜1 で、道の好きな所から始められる（確かめ用） */, first = true, hy = 3;
+K.loop((dt, t) => {
+  dist += SPEED * dt; const u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u), gy = H(p.x, p.z) + 3 + Math.sin(t * .4) * .3; hy += (gy - hy) * Math.min(1, dt * 2);
+  hero.position.set(p.x, hy, p.z); hero.rotation.y = Math.atan2(tg.x, tg.z); S.swim(hero, t, { rate: 4.2 }); S.breathe(hero, env.bubbles, dt, 2.6);
+  const sw = Math.sin(t * .35) * .7; ld.set(tg.x * Math.cos(sw) + tg.z * Math.sin(sw), .12 + Math.sin(t * .27) * .16, tg.z * Math.cos(sw) - tg.x * Math.sin(sw)).normalize(); LAMP.tick(ld);   // ランプは左右のろっ骨を ゆっくりなめる
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize(); const tall = innerWidth < innerHeight, Dd = tall ? 3.4 : 4, Sd = tall ? .7 : 1.6;
+  cam.position.set(p.x - cd.x * Dd + cd.z * Sd, hy + (tall ? .1 : -.4), p.z - cd.z * Dd - cd.x * Sd); cam.lookAt(p.x + cd.x * 2.8, hy + (tall ? 1.5 : 1.3), p.z + cd.z * 2.8);
+  for (const k of crabs) { const w = Math.sin(t * .5 + k.i * 1.9), x = k.x + w * 1.6, z = k.z + Math.sin(t * .23 + k.i) * .6; k.c.position.set(x, H(x, z) + .02, z); k.c.rotation.y = k.i * 1.3; k.c.userData.tick(t, Math.abs(Math.cos(t * .5 + k.i * 1.9))); }
+  sun.position.set(p.x - 8, 44, p.z + 6); sun.target.position.set(p.x, 0, p.z);
+  for (const f of live) f(t); bed.follow(p.x, p.z); bed.tick(t); D.tick(t, cam); env.tick(t, cam, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

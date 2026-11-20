@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ダークな雰囲気 37 案 一覧</title>
+<title>ダークな雰囲気 39 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ダークな雰囲気 37 案</h1>
-  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 37 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
+  <h1>ダークな雰囲気 39 案</h1>
+  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 39 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -32,7 +32,7 @@ const LOOKS = [
   ['03-vampire-manor-hall', '古い館の大広間', 'ダークファンタジー：ろうそくと赤いじゅうたん', 1],
   ['04-catacombs', '地下墓所', 'ダークファンタジー：石のろうかとたいまつ', 1],
   ['05-black-swamp-wisps', '黒い沼と鬼火', 'ダークファンタジー：枯れ木と青い火', 1],
-  // （作成中）['06-fallen-capital-ash', '滅びた王都の広場', 'ダークファンタジー：ふる灰とこわれた像', 1],
+  ['06-fallen-capital-ash', '滅びた王都の広場', 'ダークファンタジー：ふる灰とこわれた像', 1],
   ['07-ghost-ship-deck', '幽霊船の甲板', 'ダークファンタジー：霧の海と青いあかり', 1],
   ['08-ruined-abbey-snow', '雪の廃修道院', 'ダークファンタジー：こわれたばら窓', 1],
   ['09-scarecrow-crow-field', 'からすの麦畑', 'ダークファンタジー：かかしと夕やみ', 1],
@@ -75,7 +75,7 @@ const LOOKS = [
   ['46-incinerator-yard', 'ごみ処理場の火', '鉄の都市の下町：炉の赤い光', 1],
   ['47-lowest-pipe-level', '配管の最下層', '鉄の都市の下町：蒸気と水たまり', 1],
   ['48-abandoned-lab-wing', 'すてられた研究棟', '鉄の都市の下町：割れたガラスと青い光', 1],
-  // （作成中）['49-lone-stall-under-viaduct', '高架下の一軒の屋台', '鉄の都市の下町：霧とひとつのあかり', 1],
+  ['49-lone-stall-under-viaduct', '高架下の一軒の屋台', '鉄の都市の下町：霧とひとつのあかり', 1],
   // （作成中）['50-giant-fan-shaft', '巨大なファンのたて穴', '鉄の都市の下町：回る羽根と落ちる光', 1],
 ];
 const grid = document.getElementById('grid');
