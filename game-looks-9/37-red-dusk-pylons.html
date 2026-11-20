@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>9-37 赤い夕やみの海の鉄塔 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4dcd8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">9-37 ─ 赤い夕やみの海の鉄塔 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 日がしずんだ直後の、赤黒い空と、同じ色を映す海。海から鉄塔が遠くまで ならんで立ち、たれた電線でつながる。からすの群れが うでにとまる。
+// 色の組は「空と海の赤黒・鉄塔と鳥の黒い影」＋いかだのランタンの黄。水平線の明るい赤から手前へ、海の上に 赤い光の道 がのびる。
+// いかだを さおで進める人が、鉄塔の列にそって水平線へ向かう。飛びたつ からす、ゆれる いかだ、流れる雲、またたく照り返し。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), S = PACK_SEA(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, { hash } = K;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const raft = new THREE.Group(); scene.add(raft);
+const mood = D.mood(scene, renderer, 'blood', { follow: raft, range: 30, hills: false, stars: false, dir: [-.12, .3, -.95], sky: ['#12070e', '#3a0f20', '#741c28', '#bc4030'], fog: ['#5a1c28', 26, 210] });
+
+// ---- 海：空の赤を映す、赤黒い海 ----
+const SEAC = '#4a1a2a', WAVE = .22, SINK = { level: 0, depth: 4, c: '#5a1c2c', k: .8, dark: .5 };
+const floor = R.ground({ w: 704, d: 704, cell: 32, layers: [S.tex.sand({ c: '#2a0e18' })] }); floor.mesh.position.y = -10; scene.add(floor.mesh);
+const sea = S.sea({ w: 120, d: 160, cell: 2, c: SEAC, wave: WAVE, alpha: .92 }); scene.add(sea.mesh);
+{ const mm = sea.mat.map.userData.m || 8; for (const [x0, x1, z0, z1] of [[-352, -60, -352, 352], [60, 352, -352, 352], [-60, 60, -352, -80], [-60, 60, 80, 352]]) { const nx = Math.ceil((x1 - x0) / 26), nz = Math.ceil((z1 - z0) / 26), g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz); g.rotateX(-Math.PI / 2); g.translate((x0 + x1) / 2, -.02, (z0 + z1) / 2);
+    const P = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < P.count; i++) uv.setXY(i, P.getX(i) / mm, -P.getZ(i) / mm); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(P.count * 3).fill(1), 3)); const m = new THREE.Mesh(g, sea.mat); m.renderOrder = 2; sea.mesh.add(m); } }
+const relight = (t, f) => { const g = sea.mesh.geometry, P = g.attributes.position.array, C = g.attributes.color.array, ox = sea.mesh.position.x, oz = sea.mesh.position.z, e = .7;
+  for (let i = 0, n = P.length / 3; i < n; i++) { const x = P[i * 3] + ox, z = P[i * 3 + 2] + oz, y = P[i * 3 + 1], c = f(x, z, y / WAVE, (sea.h(x + e, z, t) - y) / e, (sea.h(x, z + e, t) - y) / e); C[i * 3] = c[0]; C[i * 3 + 1] = c[1]; C[i * 3 + 2] = c[2]; } g.attributes.color.needsUpdate = true; };
+// 水平線までの 赤い光の道（細かい海面の先。加算の帯）と、しずんだ日の なごりの にじみ
+const far = new THREE.Group(); { const G = R.geo(); G.quad([-10, 0, -76], [10, 0, -76], [40, 0, -340], [-40, 0, -340], [0, 0, 1, 1], [.45, .45, 1, 1]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: '#ff6a40', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: .3, depthWrite: false, fog: false })); m.renderOrder = 3; far.add(m); scene.add(far); }
+const sunH = D.halo({ c: '#ff5a30', r: 90, k: .5 }), sunH2 = D.halo({ c: '#ffb060', r: 34, k: .5 }); scene.add(sunH, sunH2);
+
+// ---- 鉄塔の列：左の列は近く、右の列は遠く。たれた電線でつなぐ。色は黒に近い赤むらさき（影として見せる） ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const PC = '#3c2634', rowL = [], rowR = [];
+for (let k = 0; k < 11; k++) rowL.push(put(PK.pylon({ h: 23 + (k % 3), w: 5, base: 6, lean: (hash(k, 1) - .5) * .16, leanX: (hash(k, 2) - .5) * .12, c: PC, seed: k }), -9.5 + Math.sin(k * 1.3) * 1.2, 4 - k * 27, Math.PI / 2 + (hash(k, 3) - .5) * .2));
+for (let k = 0; k < 8; k++) rowR.push(put(PK.pylon({ h: 25, w: 5.5, base: 6, lean: (hash(k, 4) - .5) * .2, leanX: (hash(k, 5) - .5) * .14, c: PC, seed: k + 3 }), 22 + k * 5, -22 - k * 34, Math.PI / 2 + .25));
+[[-46, -60, 12, 12, 6, .4, 1], [-70, -150, 15, 12, 9, .3, 2], [70, -60, 12, 12, 5, .5, 0], [-40, -230, 12, 12, 8, .3, 3], [110, -200, 12, 12, 10, .2, 1]].forEach(([x, z, w, d, fl, br, cn], i) => put(PK.building({ w, d, floors: fl, c: '#4a2c3a', broken: br, corner: cn, seed: i + 2, moss: 0, holes: .85, plants: 0, roofGreen: 0, flowers: 0, ivy: 0, tree: false, base: 4 }), x, z, i * .4, -1.4));
+put(PK.pole({ h: 9, lean: .2, leanX: .1, seed: 1, trans: false, ivy: 0 }), 6.5, -14, 0, -3); put(PK.pole({ h: 9, lean: -.16, seed: 2, ivy: 0 }), 7.5, -52, 0, -3.2); put(PK.sign({ kind: 'warn', lean: .2, seed: 2, h: 5 }), 4.6, 2, 0, -3);
+scene.add(S.sink(R.merge(fixed), SINK)); scene.updateMatrixWorld();
+const tip = (o, i) => { o.updateMatrixWorld(); return o.localToWorld(new THREE.Vector3(...o.userData.tips[i])).toArray(); };
+for (let k = 0; k < rowL.length - 1; k++) for (const i of [0, 1, 2, 3, 5]) if (hash(k, i, 7) > .22) scene.add(PK.wire(tip(rowL[k], i), tip(rowL[k + 1], i), { sag: 3 + hash(k, i) * 3.5, w: .07 })); else { const a = tip(rowL[k], i); scene.add(PK.wire(a, [a[0] + 2, .2, a[2] - 7], { sag: 1.5, w: .07 })); }
+for (let k = 0; k < rowR.length - 1; k++) for (const i of [0, 1, 4]) scene.add(PK.wire(tip(rowR[k], i), tip(rowR[k + 1], i), { sag: 5, w: .09 }));
+for (const p of rowL.slice(0, 5)) scene.add(S.foamRing({ w: 5.2, d: 5.2, wd: .4 }).translateX(p.position.x).translateZ(p.position.z));
+
+// ---- からす：鉄塔の うでに ならんでとまり、ときどき群れが飛ぶ ----
+const crows = []; rowL.slice(0, 5).forEach((p, k) => { for (const i of [0, 1, 2, 3, 4, 5]) { const a = tip(p, i); for (let j = 0; j < 3; j++) if (hash(k, i, j) > .35) { const c = D.crow({ s: 1.6 }); c.position.set(a[0], a[1] + .5, a[2] + (i % 2 ? -1 : 1) * (.4 + j * .75)); c.rotation.y = hash(k, i, j + 5) * 6; scene.add(c); crows.push(c); } } });
+scene.add(D.flock({ n: 12, r: 12, h: 4, center: [-9, 20, -30], s: 1.7, speed: .45 }), D.flock({ n: 9, r: 16, h: 5, center: [8, 15, -70], s: 1.7, speed: .32 }), D.clouds({ n: 9, r: 260, y: 62, s: 95, c: '#5a1c2c', shade: '#240a16', speed: .014 }));
+const live = [], float = (o, x, z, ry = 0, off = 0, k = 1) => { o.position.set(x, 0, z); o.rotation.y = ry; scene.add(o); live.push(t => { o.position.y = sea.h(x, z, t) + off; o.rotation.z = Math.sin(t * 1.1 + x) * .06 * k; o.rotation.x = Math.sin(t * .9 + z) * .05 * k; }); return o; };
+float(S.buoy({ lamp: '#ffd060', c: '#5a2a30' }), 5.5, -24, 0, 0, 1.5); float(R.boat({ c: '#4a2c34' }), -4.6, -40, .8, .04); float(R.crate({ s: .6, c: '#5a3a38' }), 3.4, -8, .4, -.3);
+
+// ---- 主役：いかだに立ち、長い さおで進める人。白っぽい上着と黄色いえりまき。みじかい柱にランタン ----
+const rf = S.raft({ c: '#6a4a40', mast: false, barrel: '#4a3a48' }); raft.add(rf); const DKY = rf.userData.deck;
+const hero = R.actor({ build: 'toon', hairStyle: 'long', hair: '#e8e0d0', cloth: 'robe', top: '#a8a09a', top2: '#7a3038', lower: 'pants', bottom: '#4a3a44', shoes: 'boot', shoe: '#3a2a2c', neck: 'scarf', acc: '#f0c040', back: 'bag' }); hero.position.set(.5, DKY, -.45); raft.add(hero);
+const pole = R.geo().smooth(1).loft(5, [[-2.6, .022, .022, 0, .7], [1.5, .026, .026, 3, 1]], { cap: 'both' }).mesh(T.planks({ c: '#8a6a50' })); raft.add(pole);
+const lanH = D.halo({ c: '#ffc050', r: .7, k: .85, flicker: 'fire' }), lanL = new THREE.PointLight('#ffc050', 4.5, 6, 1.5), lanB = R.geo().loft(4, [[-.22, .06, .06, 0], [-.06, .075, .075, 1]], { ur: 4, cap: 'both' }).mesh(T.lamp(), { glow: true }); for (const o of [lanH, lanL, lanB]) { o.position.set(-.9, 1.5, .95); raft.add(o); } lanH.position.y = 1.36; lanL.position.set(-.7, 1.45, .6);
+raft.add(R.geo().loft(4, [[.2, .035, .035, 0, .8], [1.55, .028, .028, 1.3, 1]], { cap: 'top' }).box(.3, .035, .035, .12, 1.5, 0, { m: 1.5 }).mesh(T.planks({ c: '#6a4a40' })).translateX(-1.15).translateZ(.95));
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 16, LEN = 108, SPEED = 1.3, hv = new THREE.Vector3(), lv = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = Math.sin(t * .2) * 1.2 - 1, by = sea.h(x, z, t), ph = t * 1.5, s = Math.sin(ph), c = Math.cos(ph);
+  S.tick(t); sea.tick(t, 0, z - 40);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.3 : 5, cx = x * .6 + (tall ? .9 : 1.9), cz = z + Dc;
+  // 海の色：水平線の赤が、カメラの前へ のびる光の道。波の かたむきで明暗
+  relight(t, (vx, vz, k, sx, sz) => { const b = Math.max(.5, .85 + k * .25 + sz * 7), al = cz - vz, pe = vx - cx; let r = b, g = b, bl = b; if (al > 2) { const w = Math.exp(-((pe / (2.4 + al * .12)) ** 2)) * Math.min(1, al / 8) * (.5 + .5 * Math.sin(vx * 1.9 + t * 1.6) * Math.sin(vz * 1.2 - t * 1.2) + .35 * k) * 2.2; if (w > 0) { r += w * 1.5; g += w * .5; bl += w * .25; } } return [r, g, bl]; });
+  raft.position.set(x, by, z); raft.rotation.set(Math.sin(t * 1.1) * .035, Math.PI + Math.sin(t * .2 + 1.5) * .12, Math.sin(t * .9 + 1) * .045, 'YXZ');
+  // さおを つく人：両手で さおを持ち、体を前へたおして おす → もどす
+  const J = hero.userData.J; R.idle(hero, t, Math.sin(t * .3) * .25); J.torso.rotation.x = .16 + s * .14; J.legL.rotation.x = -.25; J.legR.rotation.x = .2; J.shinR.rotation.x = .2;
+  J.armR.rotation.set(-1.1 - s * .3, 0, -.25); J.foreR.rotation.x = -.5 + s * .2; J.armL.rotation.set(-.5 - s * .3, 0, .3); J.foreL.rotation.x = -.9;
+  raft.updateMatrixWorld(true); const h = raft.worldToLocal(J.foreR.localToWorld(hv.set(-.081, -.263, 0))); pole.position.copy(h); pole.quaternion.setFromUnitVectors(UP, lv.set(-.25, 1, .42 + s * .22).normalize());
+  cam.position.set(cx, tall ? 2.5 : 1.9, cz); cam.lookAt(x * .6 - 1.2, tall ? 2.8 : 2.5, z - 8);   // 低い所から少し見上げて、いかだと鉄塔の列と水平線を 1 枚に入れる
+  far.position.set(cx, .06, cz); sunH.position.set(cx, 4, cz - 330); sunH2.position.set(cx, 3, cz - 330);
+  crows.forEach((b, i) => R.birdPose(b, i % 3 ? 'stand' : 'peck', t + i * 1.3));
+  for (const f of live) f(t);
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

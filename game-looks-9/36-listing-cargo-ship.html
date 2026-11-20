@@ -24,7 +24,7 @@ import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), S = PACK_SEA(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, PT = PK.tex, CT = C.tex, { hash } = K;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
 const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#c8a070', cloth: 'jacket', top: '#3f8c96', top2: '#e8dcb8', lower: 'baggy', bottom: '#5a5448', shoes: 'boot', shoe: '#3a3430', gloves: 'glove', glove: '#c8a040', hat: 'cap', acc: '#e8c040', back: 'pack', strap: true }); scene.add(hero);
-const mood = D.mood(scene, renderer, 'blackout', { follow: hero, range: 34, hills: false, level: 1.22, dir: [.55, .5, -.68], sky: ['#080a16', '#131a30', '#25304e', '#3e4c70'], fog: ['#222a44', 18, 150] });
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, range: 34, hills: false, level: 1.36, dir: [.55, .5, -.68], sky: ['#080a16', '#131a30', '#25304e', '#3e4c70'], fog: ['#222a44', 18, 150] });
 
 // ---- 海：黒青。ゆっくり うねる ----
 const SEAC = '#1d2b50', WAVE = .34, SINK = { level: 0, depth: 4, c: '#22346a', k: .8, dark: .45 };
@@ -37,13 +37,13 @@ const relight = (t, f) => { const g = sea.mesh.geometry, P = g.attributes.positi
 
 // ---- 貨物船：船の中の座標は 甲板が y=0、船橋が -z、へさきが +z、はば 14 m。作ってから かたむける（左へ 10 度、へさきを下へ 6 度） ----
 const ship = new THREE.Group(), parts = [], add = (o, x, y, z, ry = 0, rx = 0, rz = 0) => { o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parts.push(o); return o; };
-const HULL = CT.plate({ c: '#4e4a60', rust: .75, n: 2 }), RED = PT.rust({ paint: '#7a3c38', peel: .6, panel: 32, seed: 1 }), DECK = CT.plate({ c: '#5c5a6a', rust: .7, n: 2, seed: 2 }), WHITE = PT.rust({ paint: '#a4acb8', peel: .5, panel: 32 }), YEL = PT.rust({ paint: '#a88838', peel: .55, panel: 0, m: 1.5 });
+const HULL = CT.plate({ c: '#4e4a60', rust: .75, n: 2 }), RED = PT.rust({ paint: '#7a3c38', peel: .6, panel: 32, seed: 1 }), DECK = CT.plate({ c: '#6c5456', rust: .9, n: 2, seed: 2 }), WHITE = PT.rust({ paint: '#a4acb8', peel: .5, panel: 32 }), YEL = PT.rust({ paint: '#a88838', peel: .55, panel: 0, m: 1.5 });
 { const P = R.parts(), H = P.g(HULL), Rd = P.g(RED), Dk = P.g(DECK), Sd = P.g(HULL, { side: true }), Rs = P.g(RED, { side: true }), Dd = P.g(DECK, { side: true });
   H.box(14, 4.4, 62, 0, -4.7, -9, { m: 3, top: false, bottom: false, c0: .8 }); Rd.box(13.96, 5, 62, 0, -9.7, -9, { m: 2, top: false, c0: .6 }); Dk.box(14, .3, 62, 0, -.3, -9, { m: 3, c0: .8 });
   // へさき（先がとがる）
   for (const s of [-1, 1]) { Sd.quad([s * 7, -4.7, 22], [0, -4.7, 31], [0, 1.3, 32.5], [s * 7, 0, 22], [0, 0, 4, 1.6], .9); Rs.quad([s * 7, -9.7, 22], [0, -9.7, 29.5], [0, -4.7, 31], [s * 7, -4.7, 22], [0, 0, 5.5, 2.5], .7); Sd.quad([s * 7, 0, 22], [0, 1.3, 32.5], [0, 2.4, 32.7], [s * 7, 1.1, 22], [0, 0, 4, .4], 1); } Dd.tri([-7, 0, 22], [7, 0, 22], [0, 1.3, 32.5], [0, 0], [4.6, 0], [2.3, 3.5], .9);
   // ふなべり（低いかべ。ところどころ ぬけている）
-  for (const s of [-1, 1]) for (let z = 22, k = 0; z > -40; z -= 6, k++) if (hash(k, s, 2) > .16) H.box(.22, 1.1, 6.02, s * 6.89, 0, z - 3, { m: 3 });
+  for (const s of [-1, 1]) for (let z = 22, k = 0; z > -40; z -= 6, k++) if (s < 0 ? hash(k, s, 2) > .16 : (z > 6 || z < -27 || k === 6)) H.box(.22, 1.1, 6.02, s * 6.89, 0, z - 3, { m: 3 });
   // 荷の口（ハッチ）のふた：左よりに 2 つ。右がわが通り道
   for (const z of [6, -14]) { Dk.box(6.4, .8, 12, -2.4, 0, z, { m: 3, c0: .8 }); H.box(6.8, .22, 12.4, -2.4, .8, z, { m: 3 }); }
   parts.push(P.group()); }
@@ -78,7 +78,7 @@ scene.add(PK.wire(W(-3.6, 11.4, -24).toArray(), tipB.toArray(), { sag: .5, w: .0
 
 // ---- 海の上：うかぶコンテナとたる（波でゆれる）、遠くに かたむいた鉄塔と ビルの影 ----
 const live = [], float = (o, x, z, ry = 0, off = 0, k = 1, rz0 = 0) => { o.position.set(x, 0, z); o.rotation.y = ry; scene.add(o); live.push(t => { o.position.y = sea.h(x, z, t) + off; o.rotation.z = rz0 + Math.sin(t * .8 + x) * .05 * k; o.rotation.x = Math.sin(t * .7 + z) * .04 * k; }); return o; };
-float(S.sink(cont(2), { ...SINK, level: 1.6 }), -15, 4, .5, -1.6, 1, .3); float(S.sink(cont(4), { ...SINK, level: 1.9 }), -19, -16, 1.4, -1.9, 1, -.2); float(S.sink(cont(0), { ...SINK, level: 1.5 }), 15, 14, 2, -1.5, 1, .15); float(C.drum({ c: '#6a4a40' }), -10.5, 13, 0, -.5, 2); float(S.buoy({ lamp: '#ffe070', c: '#8a4a44' }), 13, -2, 0, 0, 1.5);
+float(S.sink(cont(2), { ...SINK, level: 1.6 }), -15, 4, .5, -1.6, 1, .3); float(S.sink(cont(4), { ...SINK, level: 1.9 }), -19, -16, 1.4, -1.9, 1, -.2); float(S.sink(cont(0), { ...SINK, level: 1.5 }), 17, -13, 2, -1.5, 1, .15); float(C.drum({ c: '#6a4a40' }), -10.5, 13, 0, -.5, 2); float(S.buoy({ lamp: '#ffe070', c: '#8a4a44' }), 13, -2, 0, 0, 1.5);
 const farF = []; [[-60, -70, 24, .16, 1], [52, -96, 26, -.12, 2]].forEach(([x, z, h, ln, i]) => { const p = PK.pylon({ h, w: 5, base: 6, lean: ln, c: '#5c5a6c', seed: i }); p.position.set(x, 0, z); farF.push(p); });
 [[-50, -30, 12, 12, 7, .3, 1], [64, -40, 12, 12, 9, .25, 2], [30, -130, 15, 12, 8, .3, 0], [-90, -110, 12, 12, 10, .2, 3]].forEach(([x, z, w, d, fl, br, cn], i) => { const b = PK.building({ w, d, floors: fl, c: '#6a7088', broken: br, corner: cn, seed: i + 2, moss: .1, holes: .8, plants: 0, roofGreen: 0, flowers: 0, ivy: 0, tree: false, base: 4 }); b.position.set(x, -1.4, z); farF.push(b); }); scene.add(S.sink(R.merge(farF), SINK));
 
@@ -101,7 +101,7 @@ K.loop((dt, t) => {
   // 懐中電灯：手の位置から、6 m 先の甲板へ（左右にゆっくり ふる）
   hero.updateMatrixWorld(true); torch.getWorldPosition(hp); tp.copy(W(lx + Math.sin(t * .7) * 2.2 - .6, .2, lz - 6.5)); spot.position.copy(hp); spot.target.position.copy(tp); beam.position.copy(hp); beam.lookAt(tp);
   pool.position.copy(W(lx + Math.sin(t * .7) * 2.2 - .6, .08, lz - 6.5)); pool.quaternion.setFromUnitVectors(UPV, nrm.set(0, 1, 0).applyQuaternion(ship.quaternion)).multiply(q.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
-  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.1; cam.position.set(p.x + (tall ? .4 : .7), p.y + (tall ? 2.3 : 1.75) - Dc * .105, p.z + Dc); cam.lookAt(p.x - 1.5, p.y + (tall ? 2.5 : 2.7), p.z - 6);   // 低い所から少し見上げて、主役と船橋・クレーンを 1 枚に入れる
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.1; cam.position.set(p.x + (tall ? .5 : 1.3), p.y + (tall ? 2.3 : 1.75) - Dc * .105, p.z + Dc); cam.lookAt(p.x - 1.5, p.y + (tall ? 2.5 : 2.7), p.z - 6);   // 低い所から少し見上げて、主役と船橋・クレーンを 1 枚に入れる
   S.tick(t); sea.tick(t, 0, p.z - 16);
   relight(t, (x, z, k, sx, sz) => { const d = -(sx * Lx + sz * Lz), b = Math.max(.5, 1 + k * .28 + d * 3.2), hi = Math.max(0, d - .04) * 5; return [b + hi * .7, b + hi * .85, b + hi * 1.1]; });
   for (const f of live) f(t);

@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ダークな雰囲気 44 案 一覧</title>
+<title>ダークな雰囲気 47 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ダークな雰囲気 44 案</h1>
-  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 44 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
+  <h1>ダークな雰囲気 47 案</h1>
+  <p>第 9 集。第 8 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、雰囲気をダークにしたものです。50 案を作る予定で、いま 47 案あります（番号がとんでいる所は作成中）。夜、雨、霧、嵐、さびれた場所。ただし画面を黒くつぶさず、月の光やランタンのあかりで、主役と場面が読めるように描いています。血や残こくな物は入れていません。ダークファンタジー（01〜14）、夜の廃墟（15〜24）、深い海（25〜32）、暗い海の廃墟（33〜38）、鉄の都市の下町（39〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -62,21 +62,21 @@ const LOOKS = [
   ['33-storm-flooded-city', '嵐の夜の水没都市', '暗い海の廃墟：大波といなずま', 1],
   ['34-fog-platform-beacon', '霧の海の足場', '暗い海の廃墟：赤い警告灯', 1],
   ['35-moonlit-drowned-streetlights', '月夜の水没した街灯', '暗い海の廃墟：水から出る街灯の列', 1],
-  // （作成中）['36-listing-cargo-ship', 'かたむいた貨物船', '暗い海の廃墟：黒い海とさび', 1],
+  ['36-listing-cargo-ship', 'かたむいた貨物船', '暗い海の廃墟：黒い海とさび', 1],
   // （作成中）['37-red-dusk-pylons', '赤い夕やみの鉄塔', '暗い海の廃墟：海に立つ鉄塔', 1],
   // （作成中）['38-rain-rooftop-fire', '雨の屋上のたき火', '暗い海の廃墟：ひとつのあかり', 1],
   ['39-blackout-alley', '停電の路地', '鉄の都市の下町：非常灯だけ', 1],
   ['40-acid-rain-slum', '強い雨のスラム', '鉄の都市の下町：雨とトタン', 1],
   ['41-drainage-underground', '排水路の地下', '鉄の都市の下町：水路と格子の光', 1],
   ['42-closed-factory-district', '閉鎖された工場区', '鉄の都市の下町：警告灯とフェンス', 1],
-  // （作成中）['43-reactor-green-glow', '立入禁止の区画', '鉄の都市の下町：緑の光', 1],
+  ['43-reactor-green-glow', '立入禁止の区画', '鉄の都市の下町：緑の光', 1],
   // （作成中）['44-searchlight-square', '監視灯の広場', '鉄の都市の下町：動く光の輪', 1],
   ['45-midnight-empty-platform', '深夜のホーム', '鉄の都市の下町：だれもいない駅', 1],
   ['46-incinerator-yard', 'ごみ処理場の火', '鉄の都市の下町：炉の赤い光', 1],
   ['47-lowest-pipe-level', '配管の最下層', '鉄の都市の下町：蒸気と水たまり', 1],
   ['48-abandoned-lab-wing', 'すてられた研究棟', '鉄の都市の下町：割れたガラスと青い光', 1],
   ['49-lone-stall-under-viaduct', '高架下の一軒の屋台', '鉄の都市の下町：霧とひとつのあかり', 1],
-  // （作成中）['50-giant-fan-shaft', '巨大なファンのたて穴', '鉄の都市の下町：回る羽根と落ちる光', 1],
+  ['50-giant-fan-shaft', '巨大なファンのたて穴', '鉄の都市の下町：回る羽根と落ちる光', 1],
 ];
 const grid = document.getElementById('grid');
 for (const [file, genre, look, is3d] of LOOKS) {
