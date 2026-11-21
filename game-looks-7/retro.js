@@ -450,7 +450,7 @@ window.RETRO = (THREE, K) => {
     return P; });
 
   // ================= 3. テクスチャにする・材質 =================
-  const cfg = { filter: 'mip', aniso: 4 };   // 'mip'＝遠くはなめらかにまとめる（ちらつかない）/ 'nearest'＝遠くもドットのまま（ちらつく。より古い感じ）
+  const cfg = { filter: 'mip', aniso: 4, face: 'bowl' };   // face: 人（R.actor）の顔のつくり。'bowl'＝これまでの形（いまの既定）、'manga'＝あごのとがった新しい形（調整中。持ち主が決めたら既定にする）   // 'mip'＝遠くはなめらかにまとめる（ちらつかない）/ 'nearest'＝遠くもドットのまま（ちらつく。より古い感じ）
   function toTex(P, meta = {}) { const t = new THREE.CanvasTexture(P.canvas ? P.canvas() : P), mip = cfg.filter === 'mip' && !meta.cut; t.magFilter = THREE.NearestFilter; t.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.NearestFilter; t.generateMipmaps = mip; if (mip) t.anisotropy = cfg.aniso; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.userData = { m: meta.m || 2, cut: !!meta.cut, w: P.w, h: P.h, name: meta.name }; return t; }
   const water1 = tex.water; tex.water = (o = {}) => { const n = o.frames || 4; return [...Array(n)].map((_, i) => water1({ ...o, frames: n, frame: i })); };
   tex.from = (P, meta = {}) => toTex(P, meta);   // 自分で打った Px をテクスチャにする。meta = { m, cut }
@@ -798,19 +798,25 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
   //   見本の人物は R.CAST（{ id, name, role, o }）。R.actor('id') でも作れる。見くらべは retro-people.html
   const AB = {   // 体つき。長さは m。armR = [肩, ひじ, 前うで, 手くび] の太さ、legR = [ももの上, ひざ, ふくらはぎ, 足くび]、hand = [あつみ, はば, 長さ]、boot = [はばの半分, 長さ, 高さ]、soft = 光の明暗を弱める量
     heroic: { head: .256, hw: .385, hdep: 1.08, neck: .04, torso: .54, sh: .205, chest: .12, waist: .112, waistD: .088, hip: .145, hipD: .1, legX: .082, legSplay: .055, thigh: .43, shin: .35, foot: .1, uarm: .27, farm: .24, armR: [.066, .046, .056, .042], armSplay: .14, hand: [.05, .068, .125], legR: [.098, .066, .074, .05], boot: [.062, .3, .1], soft: .15, nose: 1,
-      rings: [[0, .3, .3, .16], [.16, .68, .64, .04], [.66, 1, 1, -.02], [.9, .7, .74, -.03], [.99, .2, .22, -.03]] },
+      rings: [[0, .3, .3, .16], [.16, .68, .64, .04], [.66, 1, 1, -.02], [.9, .7, .74, -.03], [.99, .2, .22, -.03]],
+      ringsM: [[0, .06, .1, .36], [.08, .28, .4, .23], [.21, .6, .7, .09], [.42, .92, .95, 0], [.66, 1, 1, -.02], [.9, .7, .74, -.03], [.99, .2, .22, -.03]] },
     toon: { head: .285, hw: .47, hdep: 1, neck: .012, torso: .37, sh: .135, chest: .105, waist: .092, waistD: .08, hip: .115, hipD: .09, legX: .075, legSplay: .1, thigh: .3, shin: .33, foot: .115, uarm: .19, farm: .21, armR: [.042, .034, .04, .088], armSplay: .3, hand: [.062, .078, .13], legR: [.058, .046, .05, .1], boot: [.098, .32, .115], soft: .5, nose: 0,
-      rings: [[0, .36, .36, .1], [.17, .8, .74, .03], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]] },
+      rings: [[0, .36, .36, .1], [.17, .8, .74, .03], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]],
+      ringsM: [[0, .07, .11, .33], [.08, .31, .42, .21], [.2, .63, .72, .08], [.41, .95, .95, 0], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]] },
     chibi: { head: .33, hw: .5, hdep: 1, neck: 0, torso: .25, sh: .1, chest: .09, waist: .085, waistD: .075, hip: .1, hipD: .085, legX: .06, legSplay: .1, thigh: .15, shin: .17, foot: .09, uarm: .11, farm: .13, armR: [.036, .03, .034, .062], armSplay: .35, hand: [.048, .06, .095], legR: [.05, .042, .045, .075], boot: [.075, .22, .09], soft: .55, nose: 0,
-      rings: [[0, .38, .38, .08], [.17, .84, .78, .03], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]] } };
+      rings: [[0, .38, .38, .08], [.17, .84, .78, .03], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]],
+      ringsM: [[0, .09, .13, .3], [.08, .37, .46, .19], [.2, .7, .76, .08], [.41, .97, .96, 0], [.66, 1, .98, -.02], [.9, .7, .72, -.03], [.99, .2, .22, -.03]] } };
   const HEADSEC = { pts: [[0, -1], [-.7, -.78], [-1, -.15], [-.9, .5], [-.5, .95], [.5, .95], [.9, .5], [1, -.15], [.7, -.78]], u: [0, .07, .16, .27, .36, .64, .73, .84, .93, 1] };   // 頭の断面（顔の面が広く平たい）
+  // 顔のつくり（cfg.face）。'manga'＝あごがとがり、顔の正面のまん中が少し前へ出る。目は大きい。 'bowl'＝これまでの形（あごが広く、正面が平ら）
+  const HEADSECM = { pts: [[0, -1], [-.7, -.78], [-1, -.15], [-.9, .42], [-.5, .92], [0, 1], [.5, .92], [.9, .42], [1, -.15], [.7, -.78]], u: [0, .07, .16, .27, .36, .5, .64, .73, .84, .93, 1] };
+  const EYESM = { big: ['kkkkkk', 'kwdhdw', '.wdpdw', '.wipiw', '.wiiiw', '..lll.'], sharp: ['kkkkkk', '.wdhdw', '.wdpiw', '.wiiiw', '..ll..'], round: ['.kkkk.', 'kwdhdk', 'kwdpdk', 'kwipik', 'kwiiik', '.kkkk.'], closed: ['.kkkk.', 'k....k', '......'], half: ['kkkkkk', 'kwdhdw', '.wdpiw', '.wiiiw', '..ll..'] };
   const TSEC7 = { pts: [[0, -1], [-.85, -.7], [-1, .2], [-.55, .95], [.55, .95], [1, .2], [.85, -.7]], u: [0, .1, .25, .36, .64, .75, .9, 1] };   // 胴の断面（正面が広い）
   const BOOT6 = { pts: [[-.6, -1], [-1, -.2], [-1, 1], [1, 1], [1, -.2], [.6, -1]], u: [0, .12, .36, .56, .8, .92, 1] };   // くつの断面（底が平ら）
   const EYES = { big: ['kkkkk', '.whdw', '.wpdw', '.wipw', '..ll.'], sharp: ['kkkkk', '.whpw', '.wipw'], round: ['.kk.', 'khpk', 'kppk', '.kk.'], closed: ['.kkk.', 'k...k'], half: ['kkkkk', '.wpw.', '..l..'] };   // 目（粗い絵で打つ。右はしが顔のまん中側）
   // 引数の既定をそろえる（絵を打つ側と形を作る側で同じ物を使う）
   const actorOpts = o => { const bn = o.build ?? cfg.actorBuild ?? 'heroic', name = typeof bn === 'string' ? bn : (bn.base || 'heroic'), D = { ...(AB[name] || AB.heroic), ...(typeof bn === 'object' ? bn : {}) }, cloth = o.cloth || 'tunic', lower = cloth === 'robe' ? 'skirt' : (o.lower || 'pants'), hairStyle = o.hairStyle || 'short';
     const A = { D, name, fem: o.sex === 'f', cloth, lower, hairStyle, hat: o.hat || 'none', gloves: o.gloves || 'none', shoes: o.shoes || 'boot', skirt: lower === 'skirt' ? (o.skirt ?? (cloth === 'robe' ? .85 : .32)) : 0, strap: !!(o.strap || o.back === 'bag' || o.back === 'sword') };
-    A.tex = { skin: o.skin || '#f0c49c', hair: o.hair || '#5c3c28', top: o.top || '#3f7ab8', top2: o.top2 || '#f0e6d0', bottom: o.bottom || '#5a4a3c', belt: o.belt === false ? '' : (o.belt || '#6a4428'), shoe: o.shoe || '#6a4630', glove: o.glove || '#7a5236', gear: o.gear || '#8a909c', acc: o.acc || '#c8553a', eye: o.eye || '#3a6aa8', skirtC: o.skirtC || o.top || '#3f7ab8', tights: o.tights || (cloth === 'robe' ? mix(o.top || '#3f7ab8', '#201828', .5) : ''),
+    A.tex = { face: cfg.face === 'manga' ? 'manga' : 'bowl', skin: o.skin || '#f0c49c', hair: o.hair || '#5c3c28', top: o.top || '#3f7ab8', top2: o.top2 || '#f0e6d0', bottom: o.bottom || '#5a4a3c', belt: o.belt === false ? '' : (o.belt || '#6a4428'), shoe: o.shoe || '#6a4630', glove: o.glove || '#7a5236', gear: o.gear || '#8a909c', acc: o.acc || '#c8553a', eye: o.eye || '#3a6aa8', skirtC: o.skirtC || o.top || '#3f7ab8', tights: o.tights || (cloth === 'robe' ? mix(o.top || '#3f7ab8', '#201828', .5) : ''),
       hairStyle, bangs: o.bangs || { spiky: 'jag', tufts: 'swept', long: 'part', short: 'jag', tail: 'swept', twin: 'straight', bob: 'straight', bun: 'part', bald: 'none' }[hairStyle] || 'jag', eyes: o.eyes || (name === 'heroic' ? 'sharp' : 'big'), brow: o.brow || 'flat', mouth: o.mouth || 'smile', beard: o.beard || '', blush: !!o.blush,
       cloth, sleeve: o.sleeve || { vest: 'none', tunic: 'short', overall: 'short' }[cloth] || 'long', lower, gloves: A.gloves, shoes: A.shoes, strap: A.strap, fem: A.fem, cut: A.hat === 'helm' || A.hat === 'cap' || A.hat === 'wizard' ? 1 : 0 }; return A; };
   def('actor', 1, o => { const P = Px(128, 160); P.clip = true; P.fill(o.skin);
@@ -824,12 +830,13 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     const hl = x => { const d = Math.abs(x - 31.5); if (hs === 'bald') return d > 17 ? 17 : d > 15 ? 13 : 0; if (d <= 11) return bang(x); if (d <= 15) return Math.max(bang(x < 32 ? 21 : 42), 7) + (d - 11) * (cover ? 3.6 : 1.4); if (d <= 20) return cover ? 24 : 12; if (d <= 25) return cover ? 24 : 12 + (d - 20) * 1.6; return cover ? 24 : 20; };
     for (let x = 0; x < 64; x++) { const e = Math.min(24, Math.round(hl(x))); for (let y = 0; y < e; y++) { const zz = 3 + ((x >> 1) % 2); let c = H[3]; if (y === zz && (x % 6) < 4) c = H[5]; else if (y > 6 && x % 5 === 0) c = H[2]; if (y > 17) c = H[2]; if (y >= e - 1 && e < 24) c = H[0]; q(x, y, c); } if (e < 22 && e > 0 && Math.abs(x - 31.5) < 12) q(x, e, S[2]); }
     if (!cover) for (const ex of [12, 50]) { Q.rect(ex, 12, 2, 4, S[3]); q(ex < 32 ? ex : ex + 1, 12, SO); q(ex < 32 ? ex : ex + 1, 15, SO); q(ex < 32 ? ex + 1 : ex, 13, S[2]); q(ex < 32 ? ex + 1 : ex, 14, S[2]); }
-    const EY = EYES[o.eyes] || EYES.big, ew = EY[0].length, ey = 14 - (EY.length >> 1), emap = { k: DK, w: '#ffffff', i: E[4], d: E[2], p: '#1c1828', h: '#ffffff', l: SO }, at = (dist, y, c, sg) => q(sg < 0 ? 31 - dist : 32 + dist, y, c);
-    for (const sg of [-1, 1]) { EY.forEach((row, j) => [...row].forEach((ch, i) => { if (emap[ch]) at(3 + (ew - 1 - i), ey + j, emap[ch], sg); }));
-      const by = ey - 2, bc = mix(H[1], DK, .35); if (o.brow !== 'none') for (let d = 2; d <= 7; d++) { const y = o.brow === 'angry' ? by + (d < 4 ? 1 : 0) : o.brow === 'soft' ? by - (d > 3 && d < 7 ? 1 : 0) : by; at(d, y, bc, sg); if (o.brow === 'thick') at(d, y - 1, bc, sg); }
+    const MG = o.face === 'manga', ES = MG ? EYESM : EYES, EY = ES[o.eyes] || ES.big, ew = EY[0].length, ey = 14 - (EY.length >> 1), emap = { k: DK, w: '#ffffff', i: E[4], d: E[2], p: '#1c1828', h: '#ffffff', l: SO }, at = (dist, y, c, sg) => q(sg < 0 ? 31 - dist : 32 + dist, y, c);
+    for (const sg of [-1, 1]) { EY.forEach((row, j) => [...row].forEach((ch, i) => { if (emap[ch]) at((MG ? 2 : 3) + (ew - 1 - i), ey + j, emap[ch], sg); }));
+      const by = ey - 2, bc = mix(H[1], DK, .35); if (o.brow !== 'none') for (let d = 2; d <= (MG ? 8 : 7); d++) { const y = o.brow === 'angry' ? by + (d < 4 ? 1 : 0) : o.brow === 'soft' ? by - (d > 3 && d < 7 ? 1 : 0) : by; at(d, y, bc, sg); if (o.brow === 'thick') at(d, y - 1, bc, sg); }
       if (o.blush) { at(6, ey + EY.length + 1, mix(S[3], '#f0707a', .6), sg); at(7, ey + EY.length + 1, mix(S[3], '#f0707a', .6), sg); } }
     q(32, 17, S[2]);
-    const MC = mix(SO, '#8a2a2a', .5), my = 20;
+    const MC = mix(SO, '#8a2a2a', .5), my = MG ? 19 : 20;
+    if (MG) qh(30, 33, 23, S[2]);   // あごの先の下だけ、うすい影
     if (o.beard === 'beard') { for (let y = 16; y < 24; y++) for (let x = 17; x < 47; x++) { const d = Math.abs(x - 31.5); if (y > 18 - (d > 6 ? (d - 6) * .5 : 0) && !(d < 3 && y < 20)) q(x, y, y > 22 ? H[1] : (x + y) % 4 === 0 ? H[5] : x % 3 === 0 ? H[2] : H[3]); } }
     if (o.beard === 'stubble') for (let y = 18; y < 23; y++) for (let x = 21; x < 43; x++) if ((x + y) % 2 === 0 && !(Math.abs(x - 31.5) < 3 && y < 22)) q(x, y, mix(S[2], H[1], .35));
     if (o.mouth === 'smile') { qh(30, 33, my, MC); q(29, my - 1, MC); q(34, my - 1, MC); }
@@ -928,9 +935,10 @@ vec4 sampledDiffuseColor=mix(cA*(1.-.28*eB),cB,step(t1,vMix.x));sampledDiffuseCo
     if (o.back === 'sword') { Gt.at(TR(0, T * .5, -ch - .035, 0, 0, .62)); WOOD(Gt).loft(4, [[-.3 * PS, .02 * PS, .012 * PS, 0, .78], [.32 * PS, .034 * PS, .016 * PS, 2, 1]], { cap: 'bot' }); GOLD(Gt).box(.15 * PS, .025 * PS, .035 * PS, 0, .32 * PS, 0, { top: false }); WOOD(Gt).loft(4, [[.33 * PS, .015 * PS, .015 * PS, 0, .9], [.5 * PS, .017 * PS, .017 * PS, .6, 1]], { cap: 'top' }); Gt.at(null); }
     J.torso = part(Gt, J.hips, 0, 0, 0);
     if (A.skirt) { const L = A.skirt * (D.thigh + D.shin), hx = Math.max(hp * (1.15 + .5 * A.skirt), D.legX + Math.sin(D.legSplay) * L + D.legR[1] * bk * 1.5 + .02), hz = Math.max(D.hipD * (1.35 + .9 * A.skirt), .16 + .06 * A.skirt); part(geo().smooth(0).px(0, 129, 64, 30, W, Hh).loft(6, [[-L, hx, hz * 1.08, 0, .82], [.06 * T, hp * 1.1, D.hipD * bk * 1.2, .85, 1], [.34 * T, wa * 1.04, D.waistD * bk * 1.06, 1, 1]], { ur: 1 }), J.torso, 0, 0, 0, m2); }
-    // ---- 頭（顔は平たい面）＋はな＋かみの束＋帽子 ----
-    const Gh = geo().smooth(0).px(0, 0, 128, 48, W, Hh), HR = D.rings, hr = ([f, rx, rz, oz]) => [f * Hd, rx * HW, rz * HW * D.hdep, f, 1, 0, (oz || 0) * HW], h2 = (f, k, v, c = 1, oz = -.02) => [f * Hd, HW * k, HW * k * D.hdep, v, c, 0, oz * HW];
-    Gh.loft(HEADSEC, HR.map(hr), { cap: 'top', capUV: [.5, .99] }).loft(HEADSEC, [hr(HR[0])], { cap: 'bot', capUV: [.5, .03] });
+    // ---- 頭＋はな＋かみの束＋帽子。cfg.face が 'manga' なら、あごのとがった輪（ringsM）と、正面のまん中が前へ出る断面を使う ----
+    const MGF = cfg.face === 'manga' && D.ringsM, HSEC = MGF ? HEADSECM : HEADSEC;
+    const Gh = geo().smooth(0).px(0, 0, 128, 48, W, Hh), HR = MGF ? D.ringsM : D.rings, hr = ([f, rx, rz, oz]) => [f * Hd, rx * HW, rz * HW * D.hdep, f, 1, 0, (oz || 0) * HW], h2 = (f, k, v, c = 1, oz = -.02) => [f * Hd, HW * k, HW * k * D.hdep, v, c, 0, oz * HW];
+    Gh.loft(HSEC, HR.map(hr), { cap: 'top', capUV: [.5, .99] }).loft(HSEC, [hr(HR[0])], { cap: 'bot', capUV: [.5, .03] });
     if (D.nose) { const zf = HW * .9 * D.hdep * .95, nA = [-.02 * Hd, .4 * Hd, zf], nB = [.02 * Hd, .4 * Hd, zf], nC = [0, .25 * Hd, zf], nT = [0, .29 * Hd, zf + .055 * Hd]; Gh.px(60, 33, 2, 2, W, Hh).tri(nA, nC, nT, [0, 0], [1, 0], [0, 1], 1.04).tri(nC, nB, nT, [0, 0], [1, 0], [0, 1], .88).tri(nB, nA, nT, [0, 0], [1, 0], [0, 1], 1.06); }
     const skull = (a, f) => { let i = 0; while (i < HR.length - 2 && HR[i + 1][0] < f) i++; const p = HR[i], q = HR[i + 1], k = cl((f - p[0]) / (q[0] - p[0])), L = j => (p[j] || 0) + ((q[j] || 0) - (p[j] || 0)) * k; return [Math.sin(a) * L(1) * HW, f * Hd, Math.cos(a) * L(2) * HW * D.hdep + L(3) * HW]; };
     const hatTop = A.hat === 'cap' || A.hat === 'wizard' || A.hat === 'helm', HL = (o.hairLen || 1) * Hd * (A.name === 'heroic' ? 1.3 : 1.12);
