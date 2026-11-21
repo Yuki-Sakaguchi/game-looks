@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7 キャラクターの調整室（描きこんだテクスチャとブラウン管）</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden;font:12px/1.4 "Hiragino Sans","Yu Gothic",system-ui,sans-serif;color:#f0ead8;-webkit-user-select:none;user-select:none}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;left:0;right:0;top:0;padding:6px 8px;background:linear-gradient(#0c0c10e6,#0c0c1000);display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+button{flex:none}
+.row b{flex:none;font-weight:700;color:#ffd27a;margin-right:2px;min-width:3.2em}
+button{font:inherit;color:#f0ead8;background:#2a2c36;border:1px solid #4a4e5e;border-radius:4px;padding:3px 8px;cursor:pointer}
+button.on{background:#e8b44a;border-color:#e8b44a;color:#1e2026;font-weight:700}
+#who{position:fixed;left:8px;bottom:34px;max-width:min(60em,96vw);pointer-events:none;text-shadow:0 1px 3px #000,0 0 6px #000}
+#who .n{font-weight:700;font-size:15px}
+#who .a{font:10px/1.4 ui-monospace,Menlo,monospace;color:#cfe0ff;white-space:normal}
+#cap{position:fixed;left:8px;bottom:8px;font:11px/1.4 ui-monospace,Menlo,monospace;color:#d8d0c0;opacity:.8;pointer-events:none}
+.tag{position:fixed;transform:translate(-50%,0);font-weight:700;color:#fff6dc;text-align:center;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
+.tag small{display:block;font-weight:400;font-size:10px;color:#ffd9a0}
+#atlas{position:fixed;right:8px;bottom:8px;width:min(384px,46vw);image-rendering:pixelated;border:1px solid #fff;background:#3a3040;display:none}
+</style>
+<div id="ui">
+  <div class="row" id="rView"><b>見かた</b></div>
+  <div class="row" id="rMo"><b>動き</b></div>
+  <div class="row" id="rOpt"><b>表示</b></div>
+  <div class="row" id="rWho"><b>人</b></div>
+</div>
+<div id="who"></div>
+<div id="cap">7 ─ キャラクターの調整室 / 描きこんだテクスチャと、ブラウン管　｜　ドラッグで回す・横へ送る、ホイールやピンチで寄る</div>
+<script src="kit.js"></script>
+<script src="retro.js"></script>
+<script src="retro-motions.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B の人（R.actor）を、いろいろな向き・近さ・動きで見くらべる確認用のページ（一覧には入れない）。
+// 見かた：4 つの向き（正面・ななめ前・横・うしろ）／顔のアップ／1 人を回す／全員を正面でならべる／場面の中の大きさ。動きは retro-motions.js の物を切りかえる。
+// 引数でも決められる（撮影用）: ?who=番号 ?view=four|face|turn|all|game ?motion=walk など ?raw=1 ?build=toon|heroic|chibi ?rot=角度 ?tex=1 ?bg=dark ?speed=0〜2 ?page=番号（all の送り）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, MO = RETRO_MOTIONS(THREE, R), q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
+
+// ---- 見くらべる人たち：見本の 10 人（R.CAST）と、形のちがう人を足した物。かみ型・前がみ・目・まゆ・口・ひげ・帽子・服・体の太さがひととおり出るようにしてある
+const X = (name, role, o) => ({ name, role, o: { build: 'toon', ...o } });
+const EXTRA = [
+  X('ハル', '村の少年', { hairStyle: 'short', bangs: 'straight', hair: '#5a3a24', eye: '#4a6a9a', eyes: 'round', mouth: 'smile', cloth: 'tunic', top: '#4a8a5a', top2: '#f0e4c0', lower: 'shorts', bottom: '#6a5440', shoes: 'shoe', shoe: '#7a4a2a', s: .82 }),
+  X('ニナ', '花売りの子', { sex: 'f', hairStyle: 'twin', bangs: 'straight', hair: '#3a2a22', eye: '#6a4a2a', eyes: 'round', mouth: 'open', blush: true, cloth: 'tunic', top: '#f0c84a', top2: '#f8f0e0', lower: 'skirt', skirt: .5, skirtC: '#c8553a', shoes: 'shoe', shoe: '#8a4a3a', s: .8 }),
+  X('カイ', '漁師', { bulk: 1.14, hairStyle: 'short', bangs: 'none', hair: '#2a2a2a', skin: '#c8885a', eyes: 'sharp', brow: 'thick', mouth: 'line', beard: 'stubble', cloth: 'vest', sleeve: 'none', top: '#3a5a8a', top2: '#e8e0c8', lower: 'baggy', bottom: '#5a5a4a', gloves: 'wrap', glove: '#e8dcc0', shoe: '#4a3a2a', hat: 'band', acc: '#e8e0d0' }),
+  X('エマ', '宿屋のおかみ', { sex: 'f', bulk: 1.12, hairStyle: 'bun', bangs: 'part', hair: '#8a4a2a', eye: '#4a7a4a', eyes: 'half', brow: 'soft', mouth: 'smile', blush: true, cloth: 'tunic', top: '#a84a4a', top2: '#f4ecd8', lower: 'skirt', skirt: .78, skirtC: '#5a4a6a', shoes: 'shoe', shoe: '#4a3a2a', neck: 'collar' }),
+  X('ジン', '流れの剣客', { hairStyle: 'tail', bangs: 'swept', hair: '#1e1e28', eye: '#8a3a3a', eyes: 'sharp', brow: 'angry', mouth: 'frown', cloth: 'coat', top: '#3a3a4a', top2: '#a83a34', lower: 'baggy', bottom: '#2a2a34', gloves: 'wrap', glove: '#d8d0c0', shoe: '#2a2428', back: 'sword', neck: 'scarf', acc: '#a83a34' }),
+  X('ミラ', '踊り子', { sex: 'f', hairStyle: 'long', bangs: 'swept', hair: '#c83a5a', skin: '#d8a078', eye: '#e8b44a', eyes: 'sharp', brow: 'soft', mouth: 'smile', cloth: 'vest', sleeve: 'none', top: '#e8b44a', top2: '#f8f0d8', lower: 'baggy', bottom: '#5a3a8a', shoes: 'shoe', shoe: '#e8b44a', hat: 'band', acc: '#e8b44a' }),
+  X('ドン', 'かじ屋', { bulk: 1.22, hairStyle: 'bald', hair: '#5a3a2a', skin: '#c88a60', eyes: 'half', brow: 'thick', mouth: 'line', beard: 'beard', cloth: 'overall', sleeve: 'short', top: '#6a4a34', top2: '#e0d0b0', gloves: 'gauntlet', glove: '#4a4a4a', shoe: '#3a2a22', hold: 'wrench', pouch: true }),
+  X('ユキ', '雪国の狩人', { sex: 'f', hairStyle: 'bob', bangs: 'straight', hair: '#f0f0f4', skin: '#f4dcc8', eye: '#5a9ac8', eyes: 'big', brow: 'flat', mouth: 'small', cloth: 'coat', top: '#e8e4dc', top2: '#7a9ab8', bottom: '#5a6a8a', gloves: 'glove', glove: '#7a5a3a', shoe: '#6a4a34', neck: 'scarf', acc: '#c8453a', hat: 'cap' }),
+  X('レオ', '吟遊詩人', { hairStyle: 'tufts', bangs: 'part', hair: '#e8c85a', eye: '#3a8ab8', eyes: 'big', brow: 'soft', mouth: 'open', cloth: 'jacket', top: '#8a3a6a', top2: '#f0d88a', lower: 'pants', bottom: '#3a4a3a', shoe: '#5a3a2a', neck: 'cape', skirtC: '#3a6a8a', hat: 'cap', acc: '#3a8a5a' }),
+  X('サラ', '学者', { sex: 'f', hairStyle: 'tail', bangs: 'part', hair: '#6a4a34', eye: '#4a4a8a', eyes: 'half', brow: 'flat', mouth: 'line', cloth: 'robe', top: '#3a5a6a', top2: '#e8dcb8', skirt: .9, shoe: '#4a3a34', neck: 'collar', hold: 'case', back: 'bag', acc: '#8a6a3a' }),
+  X('ガン', '山の木こり', { bulk: 1.18, hairStyle: 'spiky', bangs: 'jag', hair: '#a8582a', skin: '#d89a6a', eye: '#4a6a3a', eyes: 'round', brow: 'thick', mouth: 'smile', beard: 'mustache', cloth: 'jacket', sleeve: 'short', top: '#a83a2a', top2: '#2a2a2a', bottom: '#4a5a7a', gloves: 'glove', glove: '#7a5a34', shoe: '#5a3a24', back: 'pack' }),
+  X('ロゼ', '王女', { sex: 'f', hairStyle: 'long', bangs: 'straight', hair: '#f0d070', skin: '#f8e0cc', eye: '#3a7ac8', eyes: 'big', brow: 'soft', mouth: 'small', blush: true, cloth: 'robe', top: '#e88aa8', top2: '#f8f0e0', skirt: 1, shoes: 'shoe', shoe: '#e8d8c0', hat: 'band', acc: '#f0c83a', neck: 'collar' }),
+  X('ゼン', '老いた魔法使い', { hairStyle: 'long', bangs: 'none', hair: '#e0e0e8', skin: '#e0b898', eye: '#6a5a9a', eyes: 'closed', brow: 'thick', mouth: 'line', beard: 'beard', cloth: 'robe', top: '#3a3a6a', top2: '#c8a84a', skirt: .95, shoe: '#3a3040', hat: 'wizard', acc: '#3a3a6a', hold: 'staff' }),
+  X('ノア', '見習いの水夫', { hairStyle: 'spiky', bangs: 'swept', hair: '#e8e0c8', skin: '#e8b890', eye: '#3a9a9a', eyes: 'big', brow: 'angry', mouth: 'smile', cloth: 'vest', sleeve: 'short', top: '#f4f0e4', top2: '#3a5a9a', lower: 'shorts', bottom: '#3a5a9a', shoes: 'shoe', shoe: '#8a5a3a', neck: 'scarf', acc: '#c8453a', strap: true }),
+  X('イオ', '衛兵の見習い', { sex: 'f', hairStyle: 'short', bangs: 'jag', hair: '#4a2a5a', eye: '#8a5ac8', eyes: 'sharp', brow: 'angry', mouth: 'line', cloth: 'armor', top: '#8a9ab8', top2: '#c8a84a', bottom: '#3a3a5a', gloves: 'gauntlet', glove: '#8a9ab8', shoe: '#4a4a5a', shoulder: 'left', gear: '#8a9ab8', hat: 'helm', hold: 'spear' }),
+  X('ポポ', 'いたずらっ子', { hairStyle: 'tufts', bangs: 'jag', hair: '#e87a3a', eye: '#3a8a4a', eyes: 'round', brow: 'angry', mouth: 'open', blush: true, cloth: 'overall', sleeve: 'short', top: '#4a7ac8', top2: '#f0c84a', shoes: 'shoe', shoe: '#c8453a', hat: 'cap', acc: '#c8453a', s: .76 }),
+];
+const ALL = [...R.CAST.map(c => ({ name: c.name, role: c.role, o: c.o })), ...EXTRA];
+
+// ---- いまの選び方（引数で最初の形を決められる）
+const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
+const st = { who: Math.max(0, Math.min(ALL.length - 1, +q.get('who') || 0)), view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'four', motion: MO.list.some(m => m.id === q.get('motion')) ? q.get('motion') : 'stand',
+  raw: !!q.get('raw'), build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
+
+// ---- 舞台
+const { scene, cam, renderer, onResize } = K.stage({ fov: 30, far: 400, aa: false, fitAspect: .2, maxFov: 30 });
+const skyL = R.skyDome([[0, '#3a5a9a'], [.6, '#8ab4d8'], [1, '#f4e6c8']], { r: 200 }), skyD = R.skyDome([[0, '#0e1226'], [.6, '#2a2c4e'], [1, '#4a4466']], { r: 200 }); scene.add(skyL, skyD);
+const { sun, hemi } = K.lights(scene, renderer, { sun: 0xfff0d8, power: 2.3, amb: 1.5, pos: [-8, 14, 12], range: 14 });
+scene.add(R.ground({ w: 80, d: 50, cell: 2, layers: [T.cobble({ kind: 'slab' }), T.grass()], mix: (x, z) => [z < -6 ? 1 : 0, 0] }).mesh);
+const crtOn = R.crt(renderer, { noise: 0, width: 360 }), crtRaw = R.crt(renderer, { blur: 0, bleed: 0, scan: 0, bloom: 0, curve: 0, vignette: 0, mask: 0, noise: 0, width: 720, levels: 255, dither: 0 }); onResize((w, h) => { crtOn.resize(w, h); crtRaw.resize(w, h); });
+function setBg() { skyL.visible = !st.dark; skyD.visible = st.dark; scene.fog = new THREE.Fog(st.dark ? '#34304e' : '#dcd6c8', 30, 120); sun.intensity = st.dark ? 1.1 : 2.3; hemi.intensity = st.dark ? .75 : 1.5; sun.color.set(st.dark ? '#a8b8ff' : '#fff0d8'); }
+
+// ---- 人を置く。見かたごとに「だれを・どの向きで・どこに」の並びを作りなおす
+let rows = [], tags = [];
+const opts = c => ({ ...c.o, ...(st.build ? { build: st.build } : {}) });
+const argText = o => 'R.actor({ ' + Object.entries(o).map(([k, v]) => `${k}: ${typeof v === 'string' ? "'" + v + "'" : v}`).join(', ') + ' })';
+function clear() { for (const r of rows) { scene.remove(r.a, r.sh); r.a.traverse(m => { if (m.isMesh) m.geometry.dispose(); }); } for (const e of tags) e.remove(); rows = []; tags = []; }
+function put(c, rotY, label) { const a = R.actor(opts(c)), sh = R.blob(.42 * a.userData.height / 1.5); sh.position.y = .02; scene.add(a, sh); const r = { a, sh, c, rotY, label, x: 0 }; rows.push(r); return r; }
+function tag(html) { const e = document.createElement('div'); e.className = 'tag'; e.innerHTML = html; document.body.appendChild(e); tags.push(e); return e; }
+function build() {
+  clear(); const c = ALL[st.who];
+  if (st.view === 'four') [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
+  if (st.view === 'face') [['正面', 0], ['ななめ前', .6], ['横', Math.PI / 2], ['ななめ上から', .35]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
+  if (st.view === 'turn' || st.view === 'game') put(c, 0, '');
+  if (st.view === 'all') ALL.forEach((p, i) => { const r = put(p, 0, p.name); r.i = i; r.el = tag(`${p.name}<small>${i} ・ ${p.role}</small>`); });
+  const H = rows[0].a.userData.height, gap = st.view === 'face' ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
+  rows.forEach((r, k) => { r.x = (k - (rows.length - 1) / 2) * gap; }); st.gap = gap; st.pan = 0; st.zoom = 1;
+  if (st.view === 'all') st.pan = rows[Math.min(rows.length - 1, st.page * 6)].x + gap * 2.5;
+  const u = rows[0].a.userData; $('who').innerHTML = st.view === 'all' ? `<span class="n">全員（${ALL.length} 人）</span>　ドラッグで横へ送る。名前の下の番号は「人」のボタンの順` : `<span class="n">${st.who} ・ ${c.name}</span>　${c.role} ・ ${u.heads.toFixed(1)} 頭身 ・ ${u.height.toFixed(2)} m ・ 三角形 ${u.tris}<div class="a">${argText(opts(c))}</div>`;
+  const old = $('atlas'); if (old) old.remove(); if (st.tex && st.view !== 'all') { const cv = rows[0].a.userData.J.torso.children[0].material.map.image, im = document.createElement('img'); im.id = 'atlas'; im.src = cv.toDataURL ? cv.toDataURL() : ''; im.style.display = 'block'; document.body.appendChild(im); }
+}
+
+// ---- ボタン
+function bar(el, items, get, set) { const bs = items.map(([id, name]) => { const b = document.createElement('button'); b.textContent = name; b.onclick = () => { set(id); refresh(); }; el.appendChild(b); return [id, b]; }); return () => bs.forEach(([id, b]) => b.classList.toggle('on', get(id))); }
+const upd = [
+  bar($('rView'), VIEWS, id => st.view === id, id => { st.view = id; build(); }),
+  bar($('rMo'), MO.list.map(m => [m.id, m.name]), id => st.motion === id, id => { st.motion = id; }),
+  bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['dark', '暗い背景'], ['spin', '自動で回す'], ['slow', 'ゆっくり'], ['stop', '止める']], id => id === 'crt' ? !st.raw : id === 'tex' ? st.tex : id === 'dark' ? st.dark : id === 'spin' ? st.spin : id === 'slow' ? st.speed === .35 : st.speed === 0,
+    id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'dark') { st.dark = !st.dark; setBg(); } if (id === 'spin') st.spin = !st.spin; if (id === 'slow') st.speed = st.speed === .35 ? 1 : .35; if (id === 'stop') st.speed = st.speed === 0 ? 1 : 0; }),
+  bar($('rOpt'), [['', '体つき：そのまま'], ['toon', '5 頭身'], ['heroic', '7 頭身'], ['chibi', '3 頭身']], id => st.build === id, id => { st.build = id; build(); }),
+  bar($('rWho'), [['<', '◀ 前の人'], ['>', '次の人 ▶'], ...ALL.map((c, i) => [i, c.name])], id => id === st.who, id => { st.who = id === '<' ? (st.who + ALL.length - 1) % ALL.length : id === '>' ? (st.who + 1) % ALL.length : id; if (st.view === 'all') st.view = 'four'; build(); }),
+];
+const refresh = () => upd.forEach(f => f());
+addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { st.who = (st.who + (e.key === 'ArrowRight' ? 1 : ALL.length - 1)) % ALL.length; if (st.view === 'all') st.view = 'four'; build(); refresh(); } });
+
+// ---- ドラッグ（回す／横へ送る）、ホイールとピンチ（寄る）
+{ const cv = renderer.domElement, P = new Map(); let pinch = 0;
+  cv.addEventListener('pointerdown', e => { P.set(e.pointerId, [e.clientX, e.clientY]); cv.setPointerCapture(e.pointerId); if (P.size === 2) { const [a, b] = [...P.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); } });
+  cv.addEventListener('pointermove', e => { const p = P.get(e.pointerId); if (!p) return; const dx = e.clientX - p[0]; P.set(e.pointerId, [e.clientX, e.clientY]);
+    if (P.size === 2) { const [a, b] = [...P.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) st.zoom = Math.max(.6, Math.min(5, st.zoom * d / pinch)); pinch = d; return; }
+    if (st.view === 'all') st.pan -= dx / innerWidth * st.span; else { st.yaw += dx * .012; st.spin = false; refresh(); } });
+  const up = e => { P.delete(e.pointerId); pinch = 0; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); st.zoom = Math.max(.6, Math.min(5, st.zoom * Math.exp(-e.deltaY * .0015))); }, { passive: false }); }
+
+setBg(); build(); refresh();
+const v = new THREE.Vector3(); let mt = 0;
+K.loop((dt, t) => {
+  mt += dt * st.speed; if (st.spin && (st.view === 'turn' || st.view === 'game')) st.yaw += dt * .6;
+  const u0 = rows[0].a.userData, Hh = u0.height, D = u0.build, n = rows.length, wideSpan = n * st.gap + .1, tanF = Math.tan(cam.fov * Math.PI / 360);
+  // 見かたごとの「見る高さのはんい」。横に入りきらないときは、入る分だけ見せて横へ送る
+  let y0 = -.06 * Hh, y1 = Hh * 1.1; if (st.view === 'face') { y1 = Hh * 1.05; y0 = y1 - D.head * 1.75; } if (st.view === 'all') { y1 = 1.95; }
+  const top = $('ui').offsetHeight / innerHeight, bot = 74 / innerHeight, free = Math.max(.4, 1 - top - bot); let Hv = (y1 - y0) / free / st.zoom, dist, cy = (y0 + y1) / 2, cx = 0;
+  if (st.view === 'game') { const k = cam.aspect < 1 ? .78 : 1; cam.position.set(S(st.yaw) * 5.1 * k / st.zoom, 2.4 * k, C(st.yaw) * 5.1 * k / st.zoom); cam.lookAt(0, 1.05, 0); rows[0].a.rotation.y = 0; }
+  else { const fitH = Math.max(Hv, st.view === 'all' ? 0 : Math.min(wideSpan / cam.aspect, Hv * 1.9)); dist = fitH / 2 / tanF; st.span = fitH * cam.aspect; const over = Math.max(0, wideSpan - st.span);
+    if (st.view === 'all') { st.pan = Math.max(rows[0].x - st.gap * .5 + st.span / 2, Math.min(rows[n - 1].x + st.gap * .5 - st.span / 2, st.pan)); cx = over ? st.pan : 0; } else cx = over ? Math.sin(t * .25) * over / 2 : 0;
+    cy += fitH * (top - bot) / 2;                                   // ボタンにかくれないよう、見るまん中を上へずらす（絵は下へ寄る）
+    cam.position.set(cx, cy + (st.view === 'face' ? 0 : Hh * .1), dist); cam.lookAt(cx, cy, 0); }
+  for (const r of rows) { r.a.position.x = r.sh.position.x = r.x; MO.play(r.a, st.motion, mt + (st.view === 'all' ? r.i * .37 : 0));
+    if (st.view === 'turn') r.a.rotation.y = st.yaw; else if (st.view !== 'game') r.a.rotation.y = r.rotY + (st.view === 'all' ? 0 : st.yaw);
+    if (r.label === 'ななめ上から') r.a.rotation.x = .5;
+    if (r.el) { v.set(r.x, st.view === 'all' ? -.03 * Hh : st.view === 'face' ? y1 + D.head * .16 : Hh * 1.2, 0).project(cam); const on = Math.abs(v.x) < 1.02; r.el.style.display = on ? '' : 'none'; r.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; r.el.style.top = Math.max($('ui').offsetHeight + 2, Math.min(innerHeight - 60, (-v.y * .5 + .5) * innerHeight - (st.view === 'all' ? 0 : 16))) + 'px'; } }
+  (st.raw ? crtRaw : crtOn).render(scene, cam, t);
+});
+function S(a) { return Math.sin(a); } function C(a) { return Math.cos(a); }
+</script>
+</html>
