@@ -65,7 +65,7 @@ const ALL = [...R.CAST.map(c => ({ name: c.name, role: c.role, o: c.o })), ...EX
 // ---- いまの選び方（引数で最初の形を決められる）
 const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
 const st = { who: Math.max(0, Math.min(ALL.length - 1, +q.get('who') || 0)), view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'four', motion: MO.list.some(m => m.id === q.get('motion')) ? q.get('motion') : 'stand',
-  raw: !!q.get('raw'), face: q.get('face') === 'bowl' ? 'bowl' : 'manga', build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
+  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut'].includes(q.get('face')) ? q.get('face') : 'cut', build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
 
 // ---- 舞台
 const { scene, cam, renderer, onResize } = K.stage({ fov: 30, far: 400, aa: false, fitAspect: .2, maxFov: 30 });
@@ -102,7 +102,7 @@ const upd = [
   bar($('rMo'), MO.list.map(m => [m.id, m.name]), id => st.motion === id, id => { st.motion = id; }),
   bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['dark', '暗い背景'], ['spin', '自動で回す'], ['slow', 'ゆっくり'], ['stop', '止める']], id => id === 'crt' ? !st.raw : id === 'tex' ? st.tex : id === 'dark' ? st.dark : id === 'spin' ? st.spin : id === 'slow' ? st.speed === .35 : st.speed === 0,
     id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'dark') { st.dark = !st.dark; setBg(); } if (id === 'spin') st.spin = !st.spin; if (id === 'slow') st.speed = st.speed === .35 ? 1 : .35; if (id === 'stop') st.speed = st.speed === 0 ? 1 : 0; }),
-  bar($('rOpt'), [['manga', '顔：新しい'], ['bowl', '顔：前の']], id => st.face === id, id => { st.face = id; build(); }),
+  bar($('rOpt'), [['cut', '顔：カット'], ['manga', '顔：曲面'], ['bowl', '顔：前の']], id => st.face === id, id => { st.face = id; build(); }),
   bar($('rOpt'), [['', '体つき：そのまま'], ['toon', '5 頭身'], ['heroic', '7 頭身'], ['chibi', '3 頭身']], id => st.build === id, id => { st.build = id; build(); }),
   bar($('rWho'), [['<', '◀ 前の人'], ['>', '次の人 ▶'], ...ALL.map((c, i) => [i, c.name])], id => id === st.who, id => { st.who = id === '<' ? (st.who + ALL.length - 1) % ALL.length : id === '>' ? (st.who + 1) % ALL.length : id; if (st.view === 'all') st.view = 'four'; build(); }),
 ];
