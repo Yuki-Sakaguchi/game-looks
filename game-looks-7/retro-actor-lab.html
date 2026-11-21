@@ -63,9 +63,9 @@ const EXTRA = [
 const ALL = [...R.CAST.map(c => ({ name: c.name, role: c.role, o: c.o })), ...EXTRA];
 
 // ---- いまの選び方（引数で最初の形を決められる）
-const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
+const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['cmp', '前とくらべる'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
 const st = { who: Math.max(0, Math.min(ALL.length - 1, +q.get('who') || 0)), view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'four', motion: MO.list.some(m => m.id === q.get('motion')) ? q.get('motion') : 'stand',
-  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut'].includes(q.get('face')) ? q.get('face') : 'cut', build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
+  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut', 'anime'].includes(q.get('face')) ? q.get('face') : 'anime', flat: !!q.get('flat'), build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
 
 // ---- 舞台
 const { scene, cam, renderer, onResize } = K.stage({ fov: 30, far: 400, aa: false, fitAspect: .2, maxFov: 30 });
@@ -77,19 +77,21 @@ function setBg() { skyL.visible = !st.dark; skyD.visible = st.dark; scene.fog = 
 
 // ---- 人を置く。見かたごとに「だれを・どの向きで・どこに」の並びを作りなおす
 let rows = [], tags = [];
-const opts = c => ({ ...c.o, ...(st.build ? { build: st.build } : {}) });
+const opts = c => ({ ...c.o, ...(st.build ? { build: st.build } : {}), ...(q.get('bare') ? { hairStyle: 'bald', hat: 'none' } : {}) });   // ?bare=1 ＝ かみと帽子をはずして 頭の形だけ見る
 const argText = o => 'R.actor({ ' + Object.entries(o).map(([k, v]) => `${k}: ${typeof v === 'string' ? "'" + v + "'" : v}`).join(', ') + ' })';
 function clear() { for (const r of rows) { scene.remove(r.a, r.sh); r.a.traverse(m => { if (m.isMesh) m.geometry.dispose(); }); } for (const e of tags) e.remove(); rows = []; tags = []; }
-function put(c, rotY, label) { R.cfg.face = st.face; const a = R.actor(opts(c)), sh = R.blob(.42 * a.userData.height / 1.5); sh.position.y = .02; scene.add(a, sh); const r = { a, sh, c, rotY, label, x: 0 }; rows.push(r); return r; }
+const FLAT = new THREE.MeshLambertMaterial({ color: '#c9c4bc', flatShading: true });   // 形だけを見る単色
+function put(c, rotY, label, face) { R.cfg.face = face || st.face; const a = R.actor(opts(c)); if (st.flat) a.traverse(m => { if (m.isMesh) m.material = FLAT; }); const sh = R.blob(.42 * a.userData.height / 1.5); sh.position.y = .02; scene.add(a, sh); const r = { a, sh, c, rotY, label, x: 0 }; rows.push(r); return r; }
 function tag(html) { const e = document.createElement('div'); e.className = 'tag'; e.innerHTML = html; document.body.appendChild(e); tags.push(e); return e; }
 function build() {
   clear(); const c = ALL[st.who];
   if (st.view === 'four') [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
-  if (st.view === 'face') [['正面', 0], ['ななめ前', .6], ['横', Math.PI / 2], ['ななめ上から', .35]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
+  if (FV()) [['正面', 0], ['ななめ 45 度', Math.PI / 4], ['真横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
+  if (st.view === 'cmp') [['前：正面', 0, 'cut'], ['今：正面', 0, 'anime'], ['前：ななめ', Math.PI / 4, 'cut'], ['今：ななめ', Math.PI / 4, 'anime']].forEach(([l, a, f]) => { put(c, a, l, f).el = tag(l); });
   if (st.view === 'turn' || st.view === 'game') put(c, 0, '');
   if (st.view === 'all') ALL.forEach((p, i) => { const r = put(p, 0, p.name); r.i = i; r.el = tag(`${p.name}<small>${i} ・ ${p.role}</small>`); });
-  const H = rows[0].a.userData.height, gap = st.view === 'face' ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
-  rows.forEach((r, k) => { r.x = (k - (rows.length - 1) / 2) * gap; }); st.gap = gap; st.pan = 0; st.zoom = 1;
+  const H = rows[0].a.userData.height, gap = FV() ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
+  rows.forEach((r, k) => { r.x = (k - (rows.length - 1) / 2) * gap; }); st.gap = gap; st.pan = 0; st.zoom = +q.get('zoom') || 1;
   if (st.view === 'all') st.pan = rows[Math.min(rows.length - 1, st.page * 6)].x + gap * 2.5;
   const u = rows[0].a.userData; $('who').innerHTML = st.view === 'all' ? `<span class="n">全員（${ALL.length} 人）</span>　ドラッグで横へ送る。名前の下の番号は「人」のボタンの順` : `<span class="n">${st.who} ・ ${c.name}</span>　${c.role} ・ ${u.heads.toFixed(1)} 頭身 ・ ${u.height.toFixed(2)} m ・ 三角形 ${u.tris}<div class="a">${argText(opts(c))}</div>`;
   const old = $('atlas'); if (old) old.remove(); if (st.tex && st.view !== 'all') { const cv = rows[0].a.userData.J.torso.children[0].material.map.image, im = document.createElement('img'); im.id = 'atlas'; im.src = cv.toDataURL ? cv.toDataURL() : ''; im.style.display = 'block'; document.body.appendChild(im); }
@@ -100,9 +102,9 @@ function bar(el, items, get, set) { const bs = items.map(([id, name]) => { const
 const upd = [
   bar($('rView'), VIEWS, id => st.view === id, id => { st.view = id; build(); }),
   bar($('rMo'), MO.list.map(m => [m.id, m.name]), id => st.motion === id, id => { st.motion = id; }),
-  bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['dark', '暗い背景'], ['spin', '自動で回す'], ['slow', 'ゆっくり'], ['stop', '止める']], id => id === 'crt' ? !st.raw : id === 'tex' ? st.tex : id === 'dark' ? st.dark : id === 'spin' ? st.spin : id === 'slow' ? st.speed === .35 : st.speed === 0,
-    id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'dark') { st.dark = !st.dark; setBg(); } if (id === 'spin') st.spin = !st.spin; if (id === 'slow') st.speed = st.speed === .35 ? 1 : .35; if (id === 'stop') st.speed = st.speed === 0 ? 1 : 0; }),
-  bar($('rOpt'), [['cut', '顔：カット'], ['manga', '顔：曲面'], ['bowl', '顔：前の']], id => st.face === id, id => { st.face = id; build(); }),
+  bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['dark', '暗い背景'], ['spin', '自動で回す'], ['slow', 'ゆっくり'], ['stop', '止める'], ['flat', '単色']], id => id === 'flat' ? st.flat : id === 'crt' ? !st.raw : id === 'tex' ? st.tex : id === 'dark' ? st.dark : id === 'spin' ? st.spin : id === 'slow' ? st.speed === .35 : st.speed === 0,
+    id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'dark') { st.dark = !st.dark; setBg(); } if (id === 'spin') st.spin = !st.spin; if (id === 'slow') st.speed = st.speed === .35 ? 1 : .35; if (id === 'flat') { st.flat = !st.flat; build(); } if (id === 'stop') st.speed = st.speed === 0 ? 1 : 0; }),
+  bar($('rOpt'), [['anime', '顔：アニメ'], ['cut', '顔：カット'], ['manga', '顔：曲面'], ['bowl', '顔：前の']], id => st.face === id, id => { st.face = id; build(); }),
   bar($('rOpt'), [['', '体つき：そのまま'], ['toon', '5 頭身'], ['heroic', '7 頭身'], ['chibi', '3 頭身']], id => st.build === id, id => { st.build = id; build(); }),
   bar($('rWho'), [['<', '◀ 前の人'], ['>', '次の人 ▶'], ...ALL.map((c, i) => [i, c.name])], id => id === st.who, id => { st.who = id === '<' ? (st.who + ALL.length - 1) % ALL.length : id === '>' ? (st.who + 1) % ALL.length : id; if (st.view === 'all') st.view = 'four'; build(); }),
 ];
@@ -124,19 +126,20 @@ K.loop((dt, t) => {
   mt += dt * st.speed; if (st.spin && (st.view === 'turn' || st.view === 'game')) st.yaw += dt * .6;
   const u0 = rows[0].a.userData, Hh = u0.height, D = u0.build, n = rows.length, wideSpan = n * st.gap + .1, tanF = Math.tan(cam.fov * Math.PI / 360);
   // 見かたごとの「見る高さのはんい」。横に入りきらないときは、入る分だけ見せて横へ送る
-  let y0 = -.06 * Hh, y1 = Hh * 1.1; if (st.view === 'face') { y1 = Hh * 1.05; y0 = y1 - D.head * 1.75; } if (st.view === 'all') { y1 = 1.95; }
+  let y0 = -.06 * Hh, y1 = Hh * 1.1; if (FV()) { y1 = Hh * 1.05; y0 = y1 - D.head * 1.75; } if (st.view === 'all') { y1 = 1.95; }
   const top = $('ui').offsetHeight / innerHeight, bot = 74 / innerHeight, free = Math.max(.4, 1 - top - bot); let Hv = (y1 - y0) / free / st.zoom, dist, cy = (y0 + y1) / 2, cx = 0;
   if (st.view === 'game') { const k = cam.aspect < 1 ? .78 : 1; cam.position.set(S(st.yaw) * 5.1 * k / st.zoom, 2.4 * k, C(st.yaw) * 5.1 * k / st.zoom); cam.lookAt(0, 1.05, 0); rows[0].a.rotation.y = 0; }
   else { const fitH = Math.max(Hv, st.view === 'all' ? 0 : Math.min(wideSpan / cam.aspect, Hv * 1.9)); dist = fitH / 2 / tanF; st.span = fitH * cam.aspect; const over = Math.max(0, wideSpan - st.span);
     if (st.view === 'all') { st.pan = Math.max(rows[0].x - st.gap * .5 + st.span / 2, Math.min(rows[n - 1].x + st.gap * .5 - st.span / 2, st.pan)); cx = over ? st.pan : 0; } else cx = over ? Math.sin(t * .25) * over / 2 : 0;
     cy += fitH * (top - bot) / 2;                                   // ボタンにかくれないよう、見るまん中を上へずらす（絵は下へ寄る）
-    cam.position.set(cx, cy + (st.view === 'face' ? 0 : Hh * .1), dist); cam.lookAt(cx, cy, 0); }
+    cam.position.set(cx, cy + (FV() ? 0 : Hh * .1), dist); cam.lookAt(cx, cy, 0); }
   for (const r of rows) { r.a.position.x = r.sh.position.x = r.x; MO.play(r.a, st.motion, mt + (st.view === 'all' ? r.i * .37 : 0));
     if (st.view === 'turn') r.a.rotation.y = st.yaw; else if (st.view !== 'game') r.a.rotation.y = r.rotY + (st.view === 'all' ? 0 : st.yaw);
     if (r.label === 'ななめ上から') r.a.rotation.x = .5;
-    if (r.el) { v.set(r.x, st.view === 'all' ? -.03 * Hh : st.view === 'face' ? y1 + D.head * .16 : Hh * 1.2, 0).project(cam); const on = Math.abs(v.x) < 1.02; r.el.style.display = on ? '' : 'none'; r.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; r.el.style.top = Math.max($('ui').offsetHeight + 2, Math.min(innerHeight - 60, (-v.y * .5 + .5) * innerHeight - (st.view === 'all' ? 0 : 16))) + 'px'; } }
+    if (r.el) { v.set(r.x, st.view === 'all' ? -.03 * Hh : FV() ? y1 + D.head * .16 : Hh * 1.2, 0).project(cam); const on = Math.abs(v.x) < 1.02; r.el.style.display = on ? '' : 'none'; r.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; r.el.style.top = Math.max($('ui').offsetHeight + 2, Math.min(innerHeight - 60, (-v.y * .5 + .5) * innerHeight - (st.view === 'all' ? 0 : 16))) + 'px'; } }
   (st.raw ? crtRaw : crtOn).render(scene, cam, t);
 });
 function S(a) { return Math.sin(a); } function C(a) { return Math.cos(a); }
+function FV() { return st.view === 'face' || st.view === 'cmp'; }
 </script>
 </html>
