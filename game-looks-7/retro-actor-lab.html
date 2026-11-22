@@ -65,7 +65,7 @@ const ALL = [...R.CAST.map(c => ({ name: c.name, role: c.role, o: c.o })), ...EX
 // ---- いまの選び方（引数で最初の形を決められる）
 const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['cmp', '前とくらべる'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
 const st = { who: Math.max(0, Math.min(ALL.length - 1, +q.get('who') || 0)), view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'four', motion: MO.list.some(m => m.id === q.get('motion')) ? q.get('motion') : 'stand',
-  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut', 'anime'].includes(q.get('face')) ? q.get('face') : 'anime', flat: !!q.get('flat'), cmpRot: (+q.get('crot') || 0) * Math.PI / 180, build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
+  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut', 'anime', 'anime1', 'anime2'].includes(q.get('face')) ? q.get('face') : 'anime', flat: !!q.get('flat'), cmpRot: (+q.get('crot') || 0) * Math.PI / 180, build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
 
 // ---- 舞台
 const { scene, cam, renderer, onResize } = K.stage({ fov: 30, far: 400, aa: false, fitAspect: .2, maxFov: 30 });
@@ -81,13 +81,14 @@ const opts = c => ({ ...c.o, ...(st.build ? { build: st.build } : {}), ...(q.get
 const argText = o => 'R.actor({ ' + Object.entries(o).map(([k, v]) => `${k}: ${typeof v === 'string' ? "'" + v + "'" : v}`).join(', ') + ' })';
 function clear() { for (const r of rows) { scene.remove(r.a, r.sh); r.a.traverse(m => { if (m.isMesh) m.geometry.dispose(); }); } for (const e of tags) e.remove(); rows = []; tags = []; }
 const FLAT = new THREE.MeshLambertMaterial({ color: '#c9c4bc', flatShading: true });   // 形だけを見る単色
-function put(c, rotY, label, face) { R.cfg.face = face || st.face; const a = R.actor(opts(c)); if (st.flat) a.traverse(m => { if (m.isMesh) m.material = FLAT; }); const sh = R.blob(.42 * a.userData.height / 1.5); sh.position.y = .02; scene.add(a, sh); const r = { a, sh, c, rotY, label, x: 0 }; rows.push(r); return r; }
+function put(c, rotY, label, face) { R.cfg.face = face || st.face; R.cfg.animeTune = q.get('tune') ? q.get('tune').split(',').map(Number) : null;   // ?tune=はば,全体,かみのはば,かみの高さ（ためす用）
+  const a = R.actor(opts(c)); if (st.flat) a.traverse(m => { if (m.isMesh) m.material = FLAT; }); const sh = R.blob(.42 * a.userData.height / 1.5); sh.position.y = .02; scene.add(a, sh); const r = { a, sh, c, rotY, label, x: 0 }; rows.push(r); return r; }
 function tag(html) { const e = document.createElement('div'); e.className = 'tag'; e.innerHTML = html; document.body.appendChild(e); tags.push(e); return e; }
 function build() {
   clear(); const c = ALL[st.who];
   if (st.view === 'four') [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
-  if (st.view === 'face') [['正面', 0], ['ななめ 45 度', Math.PI / 4], ['真横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
-  if (st.view === 'cmp') [['直す前（回転体）', 'cut'], ['ひとつ前', 'anime0'], ['今回', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
+  if (st.view === 'face') [['正面', 0], ['ななめ 30 度', Math.PI / 6], ['ななめ 60 度', Math.PI / 3], ['真横', Math.PI / 2], ['ななめ上から', Math.PI / 5]].filter(([l, r]) => !q.get('ang') || q.get('ang').split(',').some(d => Math.abs(d * Math.PI / 180 - r) < .01 && l !== 'ななめ上から')).forEach(([l, a]) => { put(c, a, l).el = tag(l); });
+  if (st.view === 'cmp') [['今の版', 'anime1'], ['1 だけ', 'anime2'], ['2 まで', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
   if (st.view === 'turn' || st.view === 'game') put(c, 0, '');
   if (st.view === 'all') ALL.forEach((p, i) => { const r = put(p, 0, p.name); r.i = i; r.el = tag(`${p.name}<small>${i} ・ ${p.role}</small>`); });
   const H = rows[0].a.userData.height, gap = FV() ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
