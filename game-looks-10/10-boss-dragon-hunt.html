@@ -173,7 +173,7 @@ function moveDragon(tt, t, dt) { let i = 0; while (i < DK.length - 2 && tt >= DK
   DU.at('head', head); htop.copy(head).y += 1.5;
   // 怒りの光：背の結晶のあたりから、青白く（雷をためる間は強く）
   const ch = acts.find(q => q.name === 'charge'); DU.at('back', aura.position); aura.intensity = rg * (26 + Math.sin(t * 9) * 8 + (ch ? 50 * Math.sin(ch.k * PI) : 0));
-  glow.intensity = 0; if (flashT < .4) { flashT += dt; glow.intensity = (1 - flashT / .4) * 140; }
+  glow.intensity = 0; if (flashT < .4) { flashT += dt; glow.intensity = (1 - flashT / .4) * 60; }
   const roar = acts.find(q => q.name === 'roar'); if (roar && roar.k > .22 && roar.k < .84) shake = Math.max(shake, .5);
   if (moving && !back && tt > 18) shake = Math.max(shake, .35);
   fl = Math.max(0, fl - dt * 3.2); mood.fl = fl * (.35 + .2 * Math.sin(t * 60));
@@ -228,7 +228,7 @@ function shot(id, tt, tall) { const Z = tall ? 1.15 : 1; let who = kai;
   else if (id === 1) { cp.set(kai.p.x + .6, 1, kai.p.z + 5.6 * Z); ct.copy(kai.p).lerp(head, .5); ct.y = 2.6; }
   else if (id === 3) { who = don; cp.set(don.p.x + 2.6, 1.2, don.p.z + 4.6 * Z); ct.copy(don.p).lerp(dp, .5); ct.y = 2.5; }
   else if (id === 4) { cp.set(kai.p.x + 1, 1.2, kai.p.z + 5 * Z); ct.copy(kai.p).lerp(head, .55); ct.y = 1.9; }
-  else if (id === 5) { who = haya; cp.set(haya.p.x + 2.4, 1.4, haya.p.z + 4.4 * Z); ct.set((haya.p.x + TP.x) / 2, Math.max(1.3, TP.y * .7), (haya.p.z + TP.z) / 2); }
+  else if (id === 5) { who = haya; cp.set(haya.p.x + 2, 1.3, haya.p.z + 3.7 * Z); ct.set((haya.p.x + TP.x) / 2, Math.max(1.3, TP.y * .7), (haya.p.z + TP.z) / 2); }
   else { who = mio; dir.set(BA.x - head.x, 0, BA.z - head.z).normalize(); per.set(dir.z, 0, -dir.x); cp.copy(BA).addScaledVector(dir, 3.6 * Z).addScaledVector(per, -1.7); cp.y = 1.7; ct.copy(BA).lerp(head, .6); ct.y = 2.2; }
   feet.copy(who.p); return id === 5 || id === 6; }
 function fit(tall, loose) { const topY = tall ? .52 : .7; for (let i = 0; i < 8; i++) { cam.position.copy(cp); cam.lookAt(ct); cam.updateMatrixWorld(); cam.matrixWorldInverse.copy(cam.matrixWorld).invert(); q.copy(htop).project(cam); const hy = q.y, hz = q.z; q.copy(feet).project(cam); const fy = q.y; let ok = true;
