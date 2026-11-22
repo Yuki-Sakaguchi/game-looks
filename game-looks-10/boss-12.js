@@ -38,7 +38,7 @@ window.BOSS_12 = (THREE, K, R) => {
     const px = (G, x, y, w, h) => G.px(x, y, w, h, 128, 128), glowM = k => R.mat(t, { glow: true, side: true, color: '#fffff' + k }), glow = { eye: glowM('f'), mouth: glowM('e'), sac: glowM('d'), cry: glowM('c') }, mat = R.mat(t, { vc: true, smooth: true, color: '#fffffe' });
     g.add(J.root); J.root.scale.setScalar(s); J.body = grp(J.root, 0, 0, 0); const Z = TR(0, 2, 0, 0, PI / 2, 0);
     // 体：うしろが低く、頭が高い だえんの筒（+z が鼻先）。前足は体といっしょ
-    const G = R.geo().smooth(1).at(Z); px(G, 0, 0, 128, 64).loft(12, [[-3, .5, .4, 0, .7, 0, .5], [-2.3, 2.1, 1.3, .15, .85, 0, .3], [-1, 3, 1.9, .4, 1, 0, 0], [.5, 2.9, 1.85, .65, 1.05, 0, -.3], [1.7, 2.5, 1.5, .85, 1.1, 0, -.6], [2.5, 1.9, 1, .97, 1.12, 0, -.75], [2.75, 1.2, .55, 1, 1.1, 0, -.8]], { cap: 'both' });
+    const G = R.geo().smooth(1).at(Z); px(G, 0, 0, 128, 64).loft(12, [[-3, .5, .4, 0, .7, 0, .5], [-2.3, 2.1, 1.3, .15, .85, 0, .3], [-1, 3, 1.9, .4, 1, 0, 0], [.5, 2.9, 1.85, .65, 1.05, 0, -.3], [1.7, 2.5, 1.5, .85, 1.1, 0, -.6], [2.5, 1.9, 1, .94, 1.12, 0, -.75], [2.85, 1.3, .62, .98, 1.1, 0, -.82], [3.05, .6, .28, 1, 1.05, 0, -.86]], { cap: 'both', capUV: [.1, .3] });
     for (const sx of [-1, 1]) { G.smooth(2).at(TR(sx * 2.95, 0, 2.1, sx * .3, -.3, sx * .32)); px(G, 0, 96, 64, 32).loft(7, [[.15, .5, .55, 0, .8], [1, .52, .55, .45, .95], [2.3, .8, .75, 1, 1.05]], {}); G.at(TR(sx * 2.95, 0, 2.2, sx * .3)).loft(7, [[0, .85, .95, 0, .7, 0, .2], [.3, .6, .7, .2, 1, 0, .1], [.42, .3, .3, .3, 1.05]], { cap: 'both' });
       for (const a of [-.5, 0, .5]) G.smooth(0).at(TR(sx * 2.95, .12, 2.5, sx * .3 + a, PI / 2 + .08, 0)).loft(4, [[0, .22, .14, .3, .9], [.75, .2, .1, .1, 1.05], [1, .28, .12, 0, 1.15]], { cap: 'top' });
       // 目のふくらみ
@@ -47,10 +47,10 @@ window.BOSS_12 = (THREE, K, R) => {
     // うしろ足（たたんだ もも・すね・長い足さき）。こしの関節で うしろへのびる
     for (const [n, sx] of [['L', 1], ['R', -1]]) { const hip = J['hip' + n] = grp(J.body, sx * 2.5, 1.35, -1.5), Gl = R.geo().smooth(1); px(Gl, 0, 96, 64, 32);
       Gl.at(TR(0, 0, 0, sx * .5, PI / 2 - .25, 0)).loft(8, [[-.3, .7, .7, 1, .8], [.4, 1, .95, .8, 1], [1.4, .85, .75, .5, 1.05], [2.5, .5, .45, .3, 1]], { cap: 'both' });
-      Gl.smooth(2).at(TR(sx * 1.3, .7, 2.1, sx * .25 + PI, PI / 2 + .3, 0)).loft(7, [[-.2, .5, .46, .35, .9], [2.3, .34, .3, .3, .8]], { cap: 'both' });
-      Gl.smooth(0).at(TR(sx * .75, -1.2, .1, sx * .45, PI / 2, 0)).loft(6, [[-.2, .36, .2, .3, .8], [1.2, .5, .17, .15, 1], [2.3, .8, .13, .02, 1.1]], { cap: 'both' }); const m = new THREE.Mesh(Gl.build(), mat); m.castShadow = true; hip.add(m); }
+      Gl.smooth(2).at(TR(sx * .75, -1.3, 1.5, 0, -.25, 0)).loft(7, [[0, .42, .5, .35, .8], [1.9, .55, .6, .6, .95]], {});
+      Gl.smooth(0).at(TR(sx * .75, -1.2, 1.2, sx * .5, PI / 2, 0)).loft(6, [[-.5, .4, .22, .3, .8], [.9, .55, .18, .15, 1], [2, .85, .13, .02, 1.1]], { cap: 'both' }); const m = new THREE.Mesh(Gl.build(), mat); m.castShadow = true; hip.add(m); }
     // 下あご（うしろのはしを軸に下へ開く）と、口の中の光・舌
-    J.jaw = grp(J.body, 0, 2.6, .9); { const Gj = R.geo().smooth(1).at(TR(0, 0, 0, 0, PI / 2, 0)); px(Gj, 0, 64, 64, 32).loft(10, [[-.3, 2.5, .8, 0, .8, 0, .8], [.8, 2.62, .9, .4, 1, 0, .86], [1.6, 2.15, .72, .8, 1.05, 0, .7], [2.02, 1.35, .42, 1, 1.08, 0, .44]], { cap: 'both' }); const m = new THREE.Mesh(Gj.build(), mat); m.castShadow = true; J.jaw.add(m); }
+    J.jaw = grp(J.body, 0, 2.6, .9); { const Gj = R.geo().smooth(1).at(TR(0, 0, 0, 0, PI / 2, 0)); px(Gj, 0, 64, 64, 32).loft(10, [[-.3, 2.5, .8, 0, .8, 0, .8], [.8, 2.62, .9, .4, 1, 0, .86], [1.6, 2.15, .72, .8, 1.05, 0, .7], [2.02, 1.35, .42, 1, 1.08, 0, .44]], { cap: 'both', capUV: [.5, .5] }); const m = new THREE.Mesh(Gj.build(), mat); m.castShadow = true; J.jaw.add(m); }
     { const Gm = R.geo().at(TR(0, 2.05, 2.3, 0, PI / 2 + .45, 0)); px(Gm, 96, 64, 32, 32).loft(10, [[0, 1.9, .7, 0], [.34, 1.6, .58, 1]], { cap: 'top', capRect: true }); J.mouthM = Gm.mesh(glow.mouth); J.mouthM.castShadow = false; J.body.add(J.mouthM); J.mouthA = grp(J.body, 0, 2.2, 2.9);
       J.tongue = grp(J.body, 0, 2, 2.4); const Gt = R.geo().at(TR(0, 0, 0, 0, PI / 2, 0)); px(Gt, 96, 64, 32, 32).rect(.76, .3, .98, .45).loft(6, [[0, .22, .14, 0], [.88, .18, .12, .8], [.93, .36, .26, .9], [1, .2, .14, 1]], { cap: 'top' }); const tm = Gt.mesh(glow.mouth); tm.castShadow = false; J.tongue.add(tm); }
     // 目（光る）・のどのふくろ（光る）・背中の水晶（光る）

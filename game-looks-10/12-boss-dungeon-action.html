@@ -25,14 +25,14 @@ import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), B = PACK_BATTLE(THREE, K, R), B12 = BOSS_12(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, X = W.tex, { hash } = K, PI = Math.PI;
 R.cfg.actorBuild = 'toon';
 const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), bump = (t, a, b, e = .2) => Math.min(seg(t, a, a + e), 1 - seg(t, b - e, b)), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
-const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 220, aa: false, fitAspect: .9, maxFov: 68 });
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 220, aa: false, fitAspect: .9, maxFov: 68 });
 scene.background = new THREE.Color('#0e2238'); scene.fog = new THREE.Fog('#1e4466', 24, 74);
 K.lights(scene, renderer, { sky: 0xd4ecff, ground: 0x86aacc, amb: 1.2, sun: 0xeef8ff, power: 1.25, range: 20, map: 2048, pos: [5, 18, 12] });
 
 // ---- 白い石の島（22 m 四方）と、まわりの水。水晶のあかりを床に焼きこむ ----
 const PH = 11, HALL = 17, WHITE = '#d4dde8', inIsle = (x, z) => Math.abs(x) < PH && Math.abs(z) < PH;
 const LAMP = [[-9.6, -9.6], [9.6, -9.6], [-9.6, 9.6], [9.6, 9.6], [-9.6, 0], [9.6, 0]];
-const bake = W.bake([...LAMP.map(([x, z]) => ({ x, y: 1.6, z, c: '#8ae8ff', r: 9, k: .9 })), { x: 0, y: 3, z: -3, c: '#ffffff', r: 12, k: .35 }], [.6, .68, .84]);
+const bake = W.bake([...LAMP.map(([x, z]) => ({ x, y: 1.6, z, c: '#8ae8ff', r: 9, k: .9 })), { x: 0, y: 3, z: -3, c: '#ffffff', r: 12, k: .35 }], [.5, .58, .74]);
 const land = R.ground({ w: 40, d: 40, cell: 1.6, layers: [X.dungeon({ kind: 'floor', c: WHITE, moss: 0 }), T.cobble({ kind: 'slab', c: '#86b0dc', moss: 0 }), T.cobble({ c: '#eef2f6', n: 6, moss: 0 })],
   H: (x, z) => inIsle(x, z) ? 0 : -1.4, mix: (x, z) => { const q = Math.max(Math.abs(x), Math.abs(z)), r = Math.hypot(x, z + 2); return [Math.abs(q - 9.8) < .7 || Math.abs(r - 6.4) < .45 ? 1 : 0, r < 2.6 ? .9 : 0]; }, shade: (x, z) => inIsle(x, z) ? bake(x, z, 0) : [.3, .42, .6] });
 scene.add(land.mesh);
@@ -50,7 +50,7 @@ const motes = W.motes({ n: 90, box: [26, 7, 26], c: '#c8f4ff', rise: .25 }); sce
 const heroL = new THREE.PointLight('#fff4e0', 9, 7, 1.3), flash = new THREE.PointLight('#fff8d0', 0, 14, 1.2), sacL = new THREE.PointLight('#ffa040', 0, 12, 1.3); scene.add(heroL, flash, sacL);
 
 // ---- 少年レン（04 の主役が強くなった姿：金のよろいと肩当て、赤いマント、育って光る大きな剣、大きな たて）と、新しい仲間ミナ（こおりの やり）----
-const ren = R.actor({ hairStyle: 'spiky', hair: '#a8582a', eye: '#3a7a5a', brow: 'thick', cloth: 'armor', sleeve: 'short', top: '#f0e6cc', top2: '#d8483a', lower: 'pants', bottom: '#3a6a8a', belt: '#7a4a30', gloves: 'gauntlet', glove: '#e8c860', shoes: 'boot', shoe: '#7a4a30', shoulder: 'left', gear: '#ecc85a', neck: 'cape', acc: '#d8382e' });
+const ren = R.actor({ hairStyle: 'spiky', hair: '#a8582a', eye: '#3a7a5a', brow: 'thick', cloth: 'armor', sleeve: 'short', top: '#f0e6cc', top2: '#d8483a', lower: 'pants', bottom: '#3a6a8a', belt: '#7a4a30', gloves: 'gauntlet', glove: '#e8c860', shoes: 'boot', shoe: '#7a4a30', shoulder: 'left', gear: '#ecc85a', neck: 'cape', acc: '#d8382e', skirtC: '#d8382e' });
 const mina = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#2f6a62', eye: '#b0603a', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'long', top: '#f09a2a', top2: '#fff0c0', lower: 'skirt', skirt: .5, bottom: '#8a3a2a', belt: '#5a3a2a', gloves: 'glove', glove: '#fff0c0', shoes: 'boot', shoe: '#6a3a2a', hat: 'band', acc: '#fff0c0', hold: 'spear' });
 scene.add(ren, mina);
 const glowBar = (len, c, w = .09) => { const G = R.geo(), y0 = len * .2; G.quad([-w, y0, 0], [w, y0, 0], [w, len, 0], [-w, len, 0]); G.quad([0, y0, -w], [0, y0, w], [0, len, w], [0, len, -w]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide })); return m; };
@@ -59,7 +59,7 @@ B.arm(ren, B.weapon('shield', { c: '#eef0f6', c2: '#d8382e', s: 1.5 }));
 const spearGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.ball(), color: '#8ae8ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); spearGlow.scale.setScalar(.5); scene.add(spearGlow);
 
 // ---- ボス「イワガマ」と、足止めの氷・舌の予告 ----
-const boss = B12.make({ s: 1.08 }), BJn = boss.userData.J, GL = boss.userData.glow; scene.add(boss);
+const boss = B12.make({ s: 1 }), BJn = boss.userData.J, GL = boss.userData.glow; scene.add(boss);
 const blob = R.blob(4, .45); blob.position.y = .03; scene.add(blob);
 const iceG = new THREE.Group(); { const t = B.spriteTex.ice('#8adcff'), G = R.geo().smooth(0); for (let i = 0; i < 9; i++) { const a = i / 9 * PI * 2, r = 3.6 + hash(i, 3) * 1, h = 1.6 + hash(i, 4) * 1.8; G.at(R.TR(Math.cos(a) * r, 0, Math.sin(a) * r + .6, i, Math.sin(a) * .3, -Math.cos(a) * .3)).loft(4, [[0, .5, .5, 0, .8], [h * .55, .38, .38, .6, 1], [h, .02, .02, 1, 1.2]], {}); } const m = G.mesh(R.mat(t, { glow: true })); m.castShadow = false; iceG.add(m); iceG.visible = false; scene.add(iceG); }
 const warnM = new THREE.MeshBasicMaterial({ color: '#ff2a2a', transparent: true, opacity: .3, depthWrite: false, fog: false, side: THREE.DoubleSide }), edgeM = new THREE.MeshBasicMaterial({ color: '#ff5a4a', fog: false, side: THREE.DoubleSide });
@@ -71,9 +71,9 @@ const spit = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMa
 // ---- 時間割り ----
 // ?t=秒 で途中から始める。?view=front / side / top は、ボスを近くから見る確かめ用
 const LOOP = 40, QS = new URLSearchParams(location.search), T0 = +(QS.get('t') || 0), VIEW = QS.get('view');
-const BK = [[0, 0, -4.5], [9.3, 0, -4.5], [10.2, 0, -2.5], [23, 0, -2.5], [23.8, 0, -4.5], [40, 0, -4.5]], BHOP = [[8.6, 9.3, 10.2], [22.4, 23, 23.8]];
-const RK = [[0, -1.2, 9], [1.4, -1.2, 5.5], [2.3, -1.2, 5.5], [2.75, -.9, 1.3], [6.3, -.9, 1.3], [6.6, -1, 2.6], [8.7, -1, 2.6], [9.5, -2.8, 7.6], [10.4, -2.8, 7.6], [10.8, -1.2, 3.3], [12.4, -1.2, 3.3], [13, -3.8, 7.6], [18.2, -3.8, 7.6], [18.8, -.6, 4.8], [19.6, -.6, 4.8], [20, -.4, 3.6], [20.7, -.4, 3.6], [21.4, -1.6, 6.6], [24, -1.6, 6.6], [24.6, -1, 4.6], [27.6, -1, 4.6], [28.2, -3.4, 6.4], [29.3, -3.4, 6.4], [29.9, -.5, 2.6], [31.4, -.5, 2.6], [32, -1.4, 4.8], [40, -1.4, 4.8]];
-const MK = [[0, 1.4, 9.8], [1.6, 1.4, 6.6], [12.4, 2.6, 7.2], [13, 1.3, 3.3], [15, 1.3, 3.3], [15.6, 1.8, 4.6], [18.2, 1.8, 4.6], [18.8, 3.6, 7.4], [22, 3.6, 7.4], [24, 3.2, 6.2], [27.6, 3.2, 6.2], [28.1, 1.2, 1.6], [29.2, 1.2, 1.6], [29.8, 3.2, 5.4], [32, 1.2, 5.2], [40, 1.2, 5.2]];
+const BK = [[0, 0, -4.5], [9.3, 0, -4.5], [10.2, 0, -3.6], [23, 0, -3.6], [23.8, 0, -4.5], [40, 0, -4.5]], BHOP = [[8.6, 9.3, 10.2], [22.4, 23, 23.8]];
+const RK = [[0, -1.2, 9], [1.4, -1.2, 5.5], [2.3, -1.2, 5.5], [2.75, -.9, 1.3], [6.3, -.9, 1.3], [6.6, -1, 2.6], [8.7, -1, 2.6], [9.5, -2.8, 7.6], [10.4, -2.8, 7.6], [10.8, -1.2, 2.2], [12.4, -1.2, 2.2], [13, -3.8, 7.6], [18.2, -3.8, 7.6], [18.8, -.6, 3.8], [19.6, -.6, 3.8], [20, -.4, 2.6], [20.7, -.4, 2.6], [21.4, -1.6, 6.6], [24, -1.6, 6.6], [24.6, -1, 4.6], [27.6, -1, 4.6], [28.2, -3.4, 6.4], [29.3, -3.4, 6.4], [29.9, -.5, 2.6], [31.4, -.5, 2.6], [32, -1.4, 4.8], [40, -1.4, 4.8]];
+const MK = [[0, 1.4, 9.8], [1.6, 1.4, 6.6], [12.4, 2.6, 7.2], [13, 1.3, 2.2], [15, 1.3, 2.2], [15.6, 1.8, 3.6], [18.2, 1.8, 3.6], [18.8, 3.6, 7.4], [22, 3.6, 7.4], [24, 3.2, 6.2], [27.6, 3.2, 6.2], [28.1, 1.2, 1.6], [29.2, 1.2, 1.6], [29.8, 3.2, 5.4], [32, 1.2, 5.2], [40, 1.2, 5.2]];
 const ACT = [[0, 0], [12.4, 1], [18.2, 0], [27.6, 1], [29.2, 0]], COMBOS = [2.8, 4.6, 10.6], HITS = [.15, .6, 1.1], DMG = [62, 68, 124], THRUST = [13.2, 13.8, 14.4], GUARD = [[6, 6.9], [25.2, 26.1]];
 const LEAPS = [[19.4, 20.1, 486], [29.6, 30.3, 333]], SPIT = [[25.4, -1, 4.6], [25.8, 3.2, 6.2], [26.2, -4.6, 1.6]], FROZEN = [[15.4, 20.5], [28.4, 31]];
 const kf = (Kf, tt, out) => { let i = 0; while (i < Kf.length - 2 && tt >= Kf[i + 1][0]) i++; const a = Kf[i], b = Kf[i + 1], k = cl((tt - a[0]) / (b[0] - a[0])); return out.set(a[1] + (b[1] - a[1]) * k, 0, a[2] + (b[2] - a[2]) * k); };
@@ -114,7 +114,7 @@ function poseBoss(tt, t, dt) {
   kf(BK, tt, bp); const yt = Math.atan2(act.x - bp.x, act.z - bp.z), dy = ((yt - byaw + PI * 3) % (PI * 2)) - PI, fz = FROZEN.reduce((m, [a, b]) => Math.max(m, bump(tt, a, b, .25)), 0), rage = seg(tt, 20.6, 22), dead = seg(tt, 31, 32.6);
   byaw += dy * (snap ? 1 : 1 - Math.exp(-dt * 2)) * (1 - fz);
   let y = 0, squash = (1 - seg(tt, .2, 1.2)) * .8, leg = 0, lean = bump(tt, 1, 2.2, .3) * .22, mouth = bump(tt, 1, 2.3, .3) * .9, tongue = 0, shake = bump(tt, 1, 2.2) + bump(tt, 20.6, 22) + bump(tt, 31, 33) * 1.2 + fz * .15;
-  for (const [a, b, c] of BHOP) { if (tt >= a && tt < b) squash = seg(tt, a, b - .1); else if (tt >= b && tt < c) { const k = (tt - b) / (c - b); y = Math.sin(k * PI) * 3.4; leg = Math.sin(k * PI); lean += .25 * Math.cos(k * PI); } else if (tt >= c && tt < c + .5) squash = (1 - (tt - c) / .5) * .9; }
+  for (const [a, b, c] of BHOP) { if (tt >= a && tt < b) squash = seg(tt, a, b - .1); else if (tt >= b && tt < c) { const k = (tt - b) / (c - b); y = Math.sin(k * PI) * 2.6; leg = Math.sin(k * PI); lean += .25 * Math.cos(k * PI); } else if (tt >= c && tt < c + .5) squash = (1 - (tt - c) / .5) * .9; }
   // 舌：予告（5.5〜6.2）→ のびる（6.2〜6.45）→ もどる
   if (tt > 5.5 && tt < 7) { mouth = Math.max(mouth, bump(tt, 5.5, 7, .3)); tongue = tt < 6.2 ? 0 : tt < 6.4 ? (tt - 6.2) / .2 * 3.6 : Math.max(0, 3.6 * (1 - (tt - 6.4) / .45)); }
   for (const [tm] of SPIT) mouth = Math.max(mouth, bump(tt, tm - 1.25, tm - .75, .15)); mouth = Math.max(mouth, dead * .5);
@@ -144,7 +144,7 @@ function posePair(tt, t, dt) {
       if (th !== undefined) { const k = cl((tt - th + .15) / .55), w = k < .35 ? -ease(k / .35) * .5 : ease(cl((k - .35) / .2)); MO.squat(h, .25 + Math.max(0, w) * .12); J.legL.rotation.x -= .5; J.legR.rotation.x += .45; J.armR.rotation.set(-1.45 - w * .1, 0, -.1); J.foreR.rotation.x = -1.2 + Math.max(0, w) * 1.1 - Math.min(0, w) * .4; J.torso.rotation.set(.1 + Math.max(0, w) * .3, -.5 + Math.max(0, w) * .7, 0); h.position.x += Math.sin(yaws[1]) * Math.max(0, w) * .5; h.position.z += Math.cos(yaws[1]) * Math.max(0, w) * .5; } }
     S.hurtT[i] += dt; { const k = cl(S.hurtT[i] / .5); if (k < 1) { const q = Math.sin(k * PI); J.torso.rotation.x -= q * .45; J.head.rotation.x -= q * .3; h.position.y += q * .12; } } });
   const ap = a ? mp : rp; heroL.position.set(ap.x, 2.4, ap.z + 1); swordGlow.material.opacity = .55 + Math.sin(t * 9) * .2 + (LEAPS.some(l => tt > l[0] - .6 && tt < l[1] + .4) ? .4 : 0);
-  mina.updateMatrixWorld(true); mina.userData.J.foreR.getWorldPosition(tipW); spearGlow.position.set(tipW.x + Math.sin(yaws[1]) * .5, tipW.y + .75, tipW.z + Math.cos(yaws[1]) * .5); spearGlow.scale.setScalar(.45 + Math.sin(t * 8) * .08 + (a ? .2 : 0));
+  mina.updateMatrixWorld(true); mina.userData.J.foreR.getWorldPosition(tipW); spearGlow.position.set(tipW.x, tipW.y - .1, tipW.z); spearGlow.scale.setScalar(.3 + Math.sin(t * 8) * .05 + (a ? .1 : 0));
 }
 function moveExtras(tt, t) {
   warnM.opacity = Math.floor(t * 7) % 2 ? .36 : .18; warnBig.visible = warnLine.visible = false;
@@ -191,8 +191,8 @@ function drawHud(tt, t, dt) {
 const hc = V(), bc = V(), cp = V(), cpT = V(), ct = V(), dir = V();
 function moveCam(tt, t, dt) {
   const tall = innerWidth < innerHeight, k1 = snap ? 1 : 1 - Math.exp(-dt * 3.5); bc.lerp(bp, k1); hc.lerp(act, snap ? 1 : 1 - Math.exp(-dt * 4)); dir.set(hc.x - bc.x, 0, hc.z - bc.z).normalize();
-  const far = bump(tt, 8.4, 10.8, .6) * .6 + bump(tt, 19.2, 20.6, .4) * .5 + bump(tt, 29.4, 34, .6) * .6, D = (tall ? 4.6 : 5.2) + far * 2, sd = tall ? 0 : .5, h = 2.4 + far * .5; cpT.set(hc.x + dir.x * D + dir.z * sd, h, hc.z + dir.z * D - dir.x * sd); cpT.x = cl(cpT.x, -15.5, 15.5); cpT.z = cl(cpT.z, -15.5, 15.5); cp.lerp(cpT, snap ? 1 : 1 - Math.exp(-dt * 4));
-  ct.set(cp.x - dir.x * 16, h + 16 * ((tall ? -.17 : -.05) + far * .04), cp.z - dir.z * 16);
+  const far = bump(tt, 8.4, 10.8, .6) * .6 + bump(tt, 19.2, 20.6, .4) * .5 + bump(tt, 29.4, 34, .6) * .6, D = (tall ? 4.4 : 4.6) + far * 2.2, sd = tall ? 0 : .5, h = 2.3 + far * .5; cpT.set(hc.x + dir.x * D + dir.z * sd, h, hc.z + dir.z * D - dir.x * sd); cpT.x = cl(cpT.x, -15.5, 15.5); cpT.z = cl(cpT.z, -15.5, 15.5); cp.lerp(cpT, snap ? 1 : 1 - Math.exp(-dt * 4));
+  ct.set(cp.x - dir.x * 16, h + 16 * ((tall ? -.17 : -.08) + far * .05), cp.z - dir.z * 16);
   if (VIEW) { cp.set(bp.x + (VIEW === 'side' ? 11 : 5), VIEW === 'top' ? 12 : 3.4, bp.z + (VIEW === 'side' ? 2 : 9)); ct.set(bp.x, 2.2, bp.z + 1); }
   S.shake = Math.max(0, S.shake - dt * 1.8); cam.position.set(cp.x + Math.sin(t * 71) * S.shake * .08, cp.y + Math.sin(t * 93) * S.shake * .08, cp.z); cam.lookAt(ct);
 }

@@ -35,7 +35,7 @@ const pal = R.actor({ sex: 'm', hairStyle: 'short', hair: '#c8c0b0', beard: 'mus
 const mood = D.mood(scene, renderer, 'ember', { sky: ['#1a1216', '#1a1216', '#22181a', '#22181a'], fog: ['#3a2622', 14, 60], hemi: ['#f0c8a0', '#6a5058', 1.5], key: ['#ffd0a0', 1.0, [-.35, .85, .5]], fill: ['#7a90a8', .5], base: [.78, .7, .68], hills: false, stars: false, follow: hero, range: 12, r: 200 });
 
 // ---- 部屋：x -6〜6、z -5〜5、高さ 7。北（-z）のかべに沿って高さ 3 m の足場。東のかべに かまの口（相手が出てきた所） ----
-const RH = 7, CY = 3, HOIST = [-.2, -.8], LEVER = [-2, 3.9], VALVE = [-2.2, -4.9], NOZ = [2.6, 2.3, -4.5];
+const RH = 7, CY = 3, HOIST = [1.4, -.2], LEVER = [-.8, 2.4], VALVE = [-2.2, -4.9], NOZ = [2.6, 2.3, -4.5];
 const LIT = [{ x: 5.2, z: 1.6, r: 5, c: '#ff8a3a', k: 1 }, { x: -3, z: 2, r: 4.2, c: '#ffd890', k: .8 }, { x: 2, z: 3, r: 4.2, c: '#ffd890', k: .8 }, { x: -1, z: -2.4, r: 4.4, c: '#ffd890', k: .75 }, { x: 3.4, z: -2.6, r: 3.6, c: '#ffd890', k: .6 }];
 const shade = D.lightShade(LIT, mood.base), lightAt = (x, y, z) => { const c = shade(x, z), f = 1 - .34 * y / RH; return [c[0] * f, c[1] * f, c[2] * f]; };
 const land = R.ground({ w: 16, d: 14, cell: .5, layers: [T.brickFloor({ c: '#8a8478' }), T.concrete({ c: '#6c7478' })], mix: (x, z) => [Math.abs(x - HOIST[0]) < 1.6 && Math.abs(z - HOIST[1]) < 1.6 ? 1 : Math.sin(x * 1.3) * Math.cos(z * .9) > .55 ? 1 : 0, 0], shade }); scene.add(land.mesh);
@@ -58,7 +58,7 @@ const ironT = T.metal({ c: '#55666c' }), copT = T.metal({ c: '#b8703c' });
   put(FT.stairs({ w: 1.2, h: CY, d: 3.6, tex: T.planks({ c: '#5a4a44' }) }), -5.3, -1.72, 0);
   const hpipe = (x0, x1, y, z, r) => { Gp.at(R.TR(x0, y, z, 0, 0, -PI / 2)); Gp.loft(8, [[0, r, r, 0, .9], [x1 - x0, r, r, (x1 - x0) / 1.5, .9]], { ur: 1 }); for (let x = 1; x < x1 - x0; x += 2) Gp.loft(8, [[x, r * 1.25, r * 1.25, 0, 1], [x + .16, r * 1.25, r * 1.25, .2, 1]], { ur: 1, cap: 'both' }); Gp.at(null); };
   const vpipe = (x, z, y0, y1, r) => Gp.at(R.TR(x, y0, z)).loft(8, [[0, r, r, 0, .8], [y1 - y0, r, r, (y1 - y0) / 1.5, 1]], { ur: 1 }).at(null);
-  hpipe(-6, 6, 5.6, -4.6, .28); hpipe(-6, 6, 2.3, -4.72, .2); hpipe(-2, 6, 6.2, 1.6, .22); vpipe(5.6, 4.5, 0, RH, .3); vpipe(5.6, -1.2, 0, RH, .26); vpipe(NOZ[0], -4.72, 0, 2.3, .16);
+  hpipe(-6, 6, 5.6, -4.6, .28); hpipe(-6, 6, 2.3, -4.72, .2); hpipe(-2, 6, 6.2, 1.6, .22); vpipe(5.6, -1.2, 0, RH, .26); vpipe(NOZ[0], -4.72, 0, 2.3, .16);
   Gp.at(R.TR(NOZ[0], NOZ[1], -4.72, 0, PI / 2, 0)).loft(8, [[0, .2, .2, 0, 1], [.3, .16, .16, .3, 1], [.42, .24, .24, .5, 1.05]], { ur: 1 }).at(null);
   fixed.push(Gp.mesh(copT));
   const Gt = R.geo().smooth(1); for (const [x, z, r, h] of [[4.6, -3.9, .9, 2.6], [-4.4, 4.1, .8, 2.2]]) Gt.at(R.TR(x, 0, z)).loft(10, [[0, r, r, 0, .75], [.2, r * 1.04, r * 1.04, .1, .9], [h, r * 1.04, r * 1.04, h / 2.4, 1], [h + .35, r * .6, r * .6, h / 2.4 + .2, 1.05]], { ur: 2, cap: 'top' }).at(null); fixed.push(Gt.mesh(ironT));
@@ -77,10 +77,10 @@ scene.add(D.flakes({ kind: 'ember', n: 60, c: '#ffb060', box: [12, 6, 10], size:
 // ---- しかけ：弁（赤い輪）・レバー・つり下げた鉄のふた ----
 const wheelT = (() => { const P = R.Px(32), C = R.ramp('#c8402c'); P.clip = true; P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5), a = Math.atan2(y - 15.5, x - 15.5), sp = Math.abs(((a / PI * 2.5 + 10) % 1) - .5); if (d > 15.5) return null; if (d > 11.5) return C[d > 14.5 ? 1 : d > 13 ? 4 : 3]; if (d < 3.5) return C[d < 2 ? 5 : 2]; return sp < .1 * 12 / Math.max(4, d) ? C[3] : null; }); return T.from(P, { cut: true }); })();
 const wheel = (() => { const m = R.geo().normal([0, 0, 1]).quad([-.45, -.45, 0], [.45, -.45, 0], [.45, .45, 0], [-.45, .45, 0]).mesh(R.mat(wheelT, { vc: true, cut: true, side: true })); m.position.set(VALVE[0], CY + 1.15, VALVE[1] + .26); scene.add(m); return m; })();
-const lever = (() => { const g = new THREE.Group(), base = R.geo().smooth(1).loft(6, [[0, .3, .24, 0, .8], [.5, .22, .18, .5, 1], [.6, .1, .1, .6, 1]], { cap: 'top' }).mesh(ironT), arm = new THREE.Group(), st = R.geo().smooth(1).loft(5, [[0, .05, .05, 0, .9], [1, .05, .05, 1, 1], [1.02, .1, .1, 1.1, 1.1], [1.2, .1, .1, 1.3, 1.1]], { cap: 'top' }).mesh(T.metal({ c: '#c8402c' })); arm.add(st); arm.position.y = .5; g.add(base, arm); g.position.set(LEVER[0] - .6, 0, LEVER[1]); g.userData.arm = arm; scene.add(g); return g; })();
+const lever = (() => { const g = new THREE.Group(), base = R.geo().smooth(1).loft(6, [[0, .3, .24, 0, .8], [.5, .22, .18, .5, 1], [.6, .1, .1, .6, 1]], { cap: 'top' }).mesh(ironT), arm = new THREE.Group(), st = R.geo().smooth(1).loft(5, [[0, .05, .05, 0, .9], [1, .05, .05, 1, 1], [1.02, .1, .1, 1.1, 1.1], [1.2, .1, .1, 1.3, 1.1]], { cap: 'top' }).mesh(T.metal({ c: '#c8402c' })); arm.add(st); arm.position.y = .5; g.add(base, arm); g.position.set(LEVER[0] + .1, 0, LEVER[1] + .7); g.rotation.y = PI / 2; g.userData.arm = arm; scene.add(g); return g; })();
 const lid = (() => { const g = new THREE.Group(), G = R.geo().smooth(1); G.loft(10, [[0, 1.5, 1.5, 0, .7], [.25, 1.6, 1.6, .1, .9], [.9, 1.2, 1.2, .5, 1], [1.3, .4, .4, .8, 1.05], [1.5, .16, .16, 1, 1.1]], { ur: 3, cap: 'both', capUV: [.5, .5] }); g.add(G.mesh(ironT)); const ch = R.geo().smooth(1).loft(5, [[1.5, .06, .06, 0, 1], [3.2, .06, .06, 6, 1]], {}).mesh(copT); g.add(ch); g.userData.ch = ch; scene.add(g); return g; })();
 const boss = BM.make({}), BJ = boss.userData.J; scene.add(boss);
-const rifle = B.arm(hero, B.weapon('rifle', { s: 1.25 }));
+const rifle = B.arm(hero, B.weapon('rifle', { s: 1.25 }), { rx: PI });
 const heroL = new THREE.PointLight('#ffe8c0', 11, 7, 1.3), flash = new THREE.PointLight('#fff0c0', 0, 14, 1.2), coreL = new THREE.PointLight('#ff7030', 0, 10, 1.2); scene.add(heroL, flash, coreL);
 const warn = (() => { const g = new THREE.Group(), mk = (r0, r1, a) => { const m = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 24), new THREE.MeshBasicMaterial({ color: '#ff4030', transparent: true, opacity: a, depthWrite: false, fog: false })); m.rotation.x = -PI / 2; m.userData.a = a; g.add(m); return m; }; mk(1.5, 1.75, .95); mk(0, 1.5, .3); g.position.y = .05; g.visible = false; scene.add(g); return g; })();
 const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
@@ -92,11 +92,11 @@ const tickPuffs = dt => { for (const d of puffs) if (d.visible) { const u = d.us
 
 // ---- 時間の表 ----
 const LOOP = 38, T0 = +(new URLSearchParams(location.search).get('t') || 0), BOUNCE = [1.7, 3.1], SHOTS = [14.2, 15.6, 17], LAST = 30.6, ALL = [...BOUNCE, ...SHOTS, LAST], T_SLAM = 6, T_STEAM = 10.2, T_PULL = 26.7, T_DROP = 27.5; let prev = 1e9, flashT = 9, hitT = 9;
-const BPATH = [[0, 4.3, -1.8], [5, 1.9, -.5], [19.5, 1.9, -.5], [21, 1.9, -.5], [25.4, HOIST[0], HOIST[1]], [38, HOIST[0], HOIST[1]]];
-const HPATH = [[0, -1, 1.2], [3.6, -1.4, 1.5], [4.9, -1.4, 1.5], [5.9, -2.8, 2.5], [20.6, -2.8, 2.5], [23.4, LEVER[0], LEVER[1]], [38, LEVER[0], LEVER[1]]];
+const BPATH = [[0, 4.6, -2.2], [5, 3.2, -1.4], [19.5, 3.2, -1.4], [21, 3.2, -1.4], [25.4, HOIST[0], HOIST[1]], [38, HOIST[0], HOIST[1]]];
+const HPATH = [[0, .5, .1], [3.6, 0, .4], [4.9, 0, .4], [5.9, -1.2, 1.6], [20.6, -1.2, 1.6], [22.6, LEVER[0], LEVER[1]], [38, LEVER[0], LEVER[1]]];
 const PPATH = [[0, 2.6, -4.2], [7, 2.6, -4.2], [8.7, VALVE[0], -4.25], [38, VALVE[0], -4.25]];
-// カメラ 4 か所：[いつから, 位置, 見る先, たて長のときの 位置, 見る先]。A = 西南の高い所／B = 足場の西のはし／C = 床の低い所／D = 東南の中ほどの高さ
-const CA = [[-5.3, 3.9, 4.6], [1, 2.2, -.8], [-5.3, 4.4, 4.6], [-.4, 2.3, .2]], CB = [[-5.7, 4.7, -4.4], [1, 3.3, -3.4], [-5.7, 4.8, -4.4], [-.6, 3.6, -3.9]], CC = [[-4.6, 1, 3.9], [1, 2.7, -.6], [-4.4, 1, 4], [-.6, 2.6, .4]], CD = [[5.5, 3.3, 4.8], [-1, 2.1, .3], [5.5, 3.6, 4.8], [-1.6, 2.1, 1.6]];
+// カメラ 4 か所：[いつから, 位置, 見る先, たて長のときの 位置, 見る先]。A = 西南の高い所／B = 足場の西のはし／C = 床の低い所／D = 西のかべの中ほどの高さ
+const CA = [[-5.3, 4.2, 4.6], [1.6, 1.9, -.8], [-5.3, 4.6, 4.6], [.6, 2.1, -.2]], CB = [[-5.7, 4.7, -4.4], [1, 3.3, -3.4], [-5.7, 4.8, -4.4], [-.6, 3.6, -3.9]], CC = [[-3.2, 1, 4.7], [1.7, 2.7, -.8], [-3, 1, 4.7], [.6, 2.6, -.2]], CD = [[-5.7, 2.5, 1.5], [1, 2.3, 1.5], [-5.7, 2.4, 1.6], [-.2, 2.6, 1.7]];
 const CAMS = [[0, CA], [7, CB], [12, CC], [20, CA], [26, CD], [33, CA]];
 const muzzle = V(), aimAt = V(), tmp = V(), tmp2 = V(), corePos = V(), stack = V(), bpos = V();
 function reset() { F.clear(); for (const p of puffs) p.visible = false; flashT = hitT = 9; }
@@ -122,14 +122,14 @@ function moveAll(tt, t, dt) {
   if (steam && Math.floor(t * 24) !== Math.floor((t - dt) * 24)) puff(tmp.set(...NOZ), tmp2.set((hash(t, 3) - .5) * 1.4, .6 + hash(t, 4) * 1.4, 5.5 + hash(t, 5) * 2), { s: 1.5, life: 1.1 });
   wheel.rotation.z = -seg(tt, 8.9, 10.6) * 7;
   // 予告の輪（うでが落ちる所）
-  const w1 = tt > 4.3 && tt < T_SLAM, w2 = tt > 24.7 && tt < T_DROP; warn.visible = w1 || w2; if (warn.visible) { const [wx, wz] = w1 ? [-1.2, 1.3] : [LEVER[0] + .4, LEVER[1] - .9]; warn.position.set(wx, .05, wz); warn.children.forEach(m => m.material.opacity = m.userData.a * (Math.sin(tt * 24) > -.2 ? 1 : .4)); }
+  const w1 = tt > 4.3 && tt < T_SLAM, w2 = tt > 24.7 && tt < T_DROP; warn.visible = w1 || w2; if (warn.visible) { const [wx, wz] = w1 ? [.2, .3] : [LEVER[0] + .3, LEVER[1] - .5]; warn.position.set(wx, .05, wz); warn.children.forEach(m => m.material.opacity = m.userData.a * (Math.sin(tt * 24) > -.2 ? 1 : .4)); }
   // つり下げた ふた：レバーで落ちて、相手の頭に当たり、わきへ ころがる
   const fall = cl((tt - T_PULL - .3) / (T_DROP - T_PULL - .3)), off = seg(tt, T_DROP + .1, 28.8); lid.position.set(HOIST[0] + off * 2.6, 6 - fall * fall * .9 - off * 5.1 + Math.sin(off * PI) * .8, HOIST[1] - off * 1.6); lid.rotation.z = -off * 1.1; lid.userData.ch.visible = tt < T_PULL + .3;
   lever.userData.arm.rotation.z = -.5 + seg(tt, T_PULL - .1, T_PULL + .3) * 1;
   // 主役：かまえて うつ／よける／レバーへ走る／引く
   const moving = Math.hypot(hx2 - hx, hz2 - hz) > .004, aim = Math.max(cl((tt - .3) / .4) * cl((4.9 - tt) / .3), cl((tt - 12.8) / .5) * cl((19.6 - tt) / .4), cl((tt - 29.4) / .5) * cl((32 - tt) / .5)), dodge = tt > 4.9 && tt < 5.9, pull = seg(tt, 26.2, 26.7) - seg(tt, 27.3, 28);
   hero.position.set(hx, 0, hz); const toBoss = Math.atan2(corePos.x - hx, corePos.z - hz), runDir = Math.atan2(hx2 - hx, hz2 - hz);
-  hero.rotation.y = pull > 0 ? toBoss + (-PI / 2 - toBoss) * pull : moving && !dodge && tt > 20 ? runDir : toBoss;
+  hero.rotation.y = pull > 0 ? toBoss + (.1 - toBoss) * pull : moving && !dodge && tt > 20 ? runDir : toBoss;
   if (moving) MO.play(hero, tt > 20 ? 'run' : 'walk', dodge ? -t * 1.6 : t, { speed: tt > 20 ? 1.2 : .9 }); else MO.play(hero, 'stand', t);
   const kick = Math.max(0, 1 - flashT / .18);
   if (aim > 0) { HJ.armR.rotation.set(-1.5 * aim - kick * .45, 0, .1 * aim); HJ.foreR.rotation.x = -.14; HJ.armL.rotation.set(-1.25 * aim - kick * .3, 0, -.55 * aim); HJ.foreL.rotation.x = -.5 * aim; HJ.torso.rotation.y = -.3 * aim; HJ.torso.rotation.x = -.12 * aim - kick * .1; HJ.head.rotation.y = .25 * aim; HJ.head.rotation.x = -.2 * aim; if (!moving) { HJ.legL.rotation.x = -.2 * aim; HJ.legR.rotation.x = .22 * aim; } }
@@ -156,7 +156,7 @@ function drawHud(tt, t, dt) {
   if (aim > 0 && Math.sin(aim * 40) > -.5) { const a = H.place('左下', 66, 30, 2, -2); ecg(a.x, a.y + 10, 66, 20, st, t); H.text(ST_N[st], a.x + 1, a.y - 2, { size: 10, c: ST_C[st] });
     const b = H.place('右下', 70, 28, -2, -2); H.rect(b.x, b.y + 10, 70, 18, '#18100c', .85); H.rect(b.x, b.y + 10, 70, 1, '#806a50', 1); H.rect(b.x, b.y + 27, 70, 1, '#3a2c20', 1); H.text('ながじゅう', b.x + 1, b.y - 2, { size: 10, c: '#f0d8a0' }); for (let i = 0; i < 8; i++) H.icon('bullet', b.x + 4 + i * 6, b.y + 16, { c: i < ammo ? '#ffd870' : '#4a3c34' }); H.num(String(ammo), b.x + 66, b.y + 16, { align: 'r', c: ammo < 3 ? B.PAL.warn : '#ffffff' }); }
   const say = tt > 7.2 && tt < 9.6 ? 'ロク「べんを まわす！」' : tt > 10.4 && tt < 12.6 ? 'ロク「いまだ、しんを ねらえ！」' : tt > 20.4 && tt < 23.6 ? 'ロク「レバーへ！ ふたを おとせ！」' : tt > 1 && tt < 4 ? 'てつの からだに はじかれる…' : '';
-  if (say) { const w = Math.min(H.W - 12, H.textW(say, { size: 10 }) + 12), r = H.place('下', w, 15, 0, tall ? -40 : -34); H.rect(r.x, r.y, w, 15, '#18100c', .8); H.rect(r.x, r.y, w, 1, '#806a50', 1); H.text(say, r.x + 6, r.y + 2, { size: 10, c: '#f4ead8' }); }
+  if (say) { const w = Math.min(H.W - 12, H.textW(say, { size: 10 }) + 12), r = H.place('上', w, 15, 0, tall ? 46 : 22); H.rect(r.x, r.y, w, 15, '#18100c', .8); H.rect(r.x, r.y, w, 1, '#806a50', 1); H.text(say, r.x + 6, r.y + 2, { size: 10, c: '#f4ead8' }); }
   H.end(dt);
 }
 
