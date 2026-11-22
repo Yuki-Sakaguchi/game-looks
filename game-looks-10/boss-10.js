@@ -13,6 +13,7 @@
 //
 // ■ 2. バリスタ ── const b = BD.ballista() → Group（台が y=0、うつ向きが +z）。b.userData.top（左右に回る上の部分）, .arm（上下にかたむく）, .bolt（つがえた大矢。うったら visible=false）, .muzzle（矢の先の位置を取る Group）, .pull(0〜1)（弓をひく）
 // ■ 3. 落とし穴 ── const p = BD.pit({ r: 4 }) → Group。p.userData.open(0〜1)（0 は草とあみで かくした ふた、1 で黒い穴）
+// ■ 4. 予告の輪 ── const w = BD.warn({ r: 2.4 }) → Mesh（地面の赤い輪。加算）。w.userData.set(強さ 0〜1, t)
 window.BOSS_10 = (THREE, K, R) => {
   const { hash, mix, ramp, tone, Px, TR } = R, PI = Math.PI, BD = {};
   const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a)));
@@ -232,4 +233,13 @@ window.BOSS_10 = (THREE, K, R) => {
       pitT = R.tex.from(P, { cut: true }); }
     const mk = v0 => { const G = R.geo(), n = 6; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x0 = -1 + 2 * i / n, x1 = -1 + 2 * (i + 1) / n, z0 = -1 + 2 * j / n, z1 = -1 + 2 * (j + 1) / n; G.rect(i / n, v0 + (1 - (j + 1) / n) * .5, (i + 1) / n, v0 + (1 - j / n) * .5).quad([x0 * r, 0, z1 * r], [x1 * r, 0, z1 * r], [x1 * r, 0, z0 * r], [x0 * r, 0, z0 * r]); } return G.mesh(R.mat(pitT, { cut: true, offset: true })); };
     const g = new THREE.Group(), hole = mk(.5), lid = mk(0); hole.position.y = .06; lid.position.y = .09; hole.castShadow = lid.castShadow = false; g.add(hole, lid); g.userData = { dyn: true, open: k => { hole.visible = k > .02; lid.visible = k < .98; lid.scale.setScalar(1 - k * .6); lid.position.y = .09 - k * .5; } }; g.userData.open(0); return g; };
+  // ================= 攻撃の予告の輪（地面に置く。赤いしまの輪） =================
+  let warnT = null;
+  BD.warn = (o = {}) => { const r = o.r || 2.4;
+    if (!warnT) { const P = Px(64); P.each((x, y) => { const dx = x - 31.5, dy = y - 31.5, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx); if (d > 31) return '#000000'; if (d > 26) return Math.floor((a / PI + 1) * 10) % 2 ? '#ff5a3a' : '#7a1408'; if (d > 24.5) return '#ffe0b0';
+        if (d < 5) return '#ff8a5a'; return ((x + y) % 4 === 0) ? '#6a1c10' : '#2c0806'; }); warnT = R.tex.from(P, {}); }
+    const G = R.geo(), n = 4; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const x0 = -1 + 2 * i / n, x1 = -1 + 2 * (i + 1) / n, z0 = -1 + 2 * j / n, z1 = -1 + 2 * (j + 1) / n; G.quad([x0 * r, 0, z1 * r], [x1 * r, 0, z1 * r], [x1 * r, 0, z0 * r], [x0 * r, 0, z0 * r], [i / n, 1 - (j + 1) / n, (i + 1) / n, 1 - j / n]); }
+    const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: warnT, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); m.position.y = .08; m.visible = false; m.userData.dyn = true; m.renderOrder = 5;
+    m.userData.set = (k, t) => { m.visible = k > .01; m.material.opacity = cl(k) * (.6 + .4 * Math.sin(t * (7 + k * 12))); m.rotation.y = t * .7; };
+    return m; };
   return BD; };

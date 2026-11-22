@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-14 固定カメラのホラー（ボス戦） 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e6d8;opacity:.8;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-14 ─ 固定カメラのホラー（ボス戦） / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 38 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-battle.js"></script>
+<script src="boss-14.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。06 の屋敷の地下、ボイラー室。カメラは 4 か所に置きっぱなしで、ぱっと切りかわるだけ（動かさない・ゆらさない）。高い所から見下ろす構図が中心。
+// 相手は、古いボイラーの機械人形「カマモリ」（高さ 5.8 m）。鉄の体に弾は はじかれる。上の足場の仲間が弁を回して蒸気を当てると、たき口のとびらがひらき、赤く光るしん（弱点）が出る。最後は つり下げた鉄のふたを落とす。
+// 色の組は「赤茶のれんが」＋「青みどりの鉄」＋「銅の管」。あかりは かまの火（だいだい）と、つり電球（黄）、蒸気の白。差し色は主役のからし色の上着。
+// 画面の表示は かまえたときだけ（左下に心ぱくの線、右下に たまの数）。相手の体力は出さず、ひるみ方・とびら・目の色で見せる。血や残こくな絵は入れない。
+// 部品は retro.js（R.〜）・pack-fantasy-town.js（FT.〜）・pack-dark.js（D.〜）・pack-battle.js（B.〜）・boss-14.js（BM.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), B = PACK_BATTLE(THREE, K, R), BM = BOSS14(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const keys = (list, tt) => { if (tt <= list[0][0]) return list[0].slice(1); for (let i = 0; i < list.length - 1; i++) { const a = list[i], b = list[i + 1]; if (tt < b[0]) { const k = (tt - a[0]) / (b[0] - a[0]); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * k); } } return list[list.length - 1].slice(1); };
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 300, aa: false, fitAspect: .9, maxFov: 80 });
+// 主役：06 と同じ人。からし色の上着のまま、肩当て・手甲・背の荷物がふえ、武器は長い銃。仲間は つなぎの機械工
+const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#3a2c3e', eye: '#5a8a6a', brow: 'soft', mouth: 'small', cloth: 'coat', top: '#d8ae48', top2: '#f0e6cc', bottom: '#40445e', shoes: 'boot', gloves: 'gauntlet', glove: '#6a4a38', gear: '#9aa4b0', shoulder: 'left', strap: true, neck: 'scarf', acc: '#b8402c' }), HJ = hero.userData.J; scene.add(hero);
+const pal = R.actor({ sex: 'm', hairStyle: 'short', hair: '#c8c0b0', beard: 'mustache', eyes: 'round', cloth: 'overall', top: '#3f8f96', top2: '#e8dcc0', bottom: '#3f8f96', shoes: 'boot', gloves: 'glove', glove: '#8a5a34', hat: 'cap', acc: '#d86a3a', hold: 'wrench', bulk: 1.12 }), PJ = pal.userData.J; scene.add(pal);
+const mood = D.mood(scene, renderer, 'ember', { sky: ['#1a1216', '#1a1216', '#22181a', '#22181a'], fog: ['#3a2622', 14, 60], hemi: ['#f0c8a0', '#6a5058', 1.5], key: ['#ffd0a0', 1.0, [-.35, .85, .5]], fill: ['#7a90a8', .5], base: [.78, .7, .68], hills: false, stars: false, follow: hero, range: 12, r: 200 });
+
+// ---- 部屋：x -6〜6、z -5〜5、高さ 7。北（-z）のかべに沿って高さ 3 m の足場。東のかべに かまの口（相手が出てきた所） ----
+const RH = 7, CY = 3, HOIST = [-.2, -.8], LEVER = [-2, 3.9], VALVE = [-2.2, -4.9], NOZ = [2.6, 2.3, -4.5];
+const LIT = [{ x: 5.2, z: 1.6, r: 5, c: '#ff8a3a', k: 1 }, { x: -3, z: 2, r: 4.2, c: '#ffd890', k: .8 }, { x: 2, z: 3, r: 4.2, c: '#ffd890', k: .8 }, { x: -1, z: -2.4, r: 4.4, c: '#ffd890', k: .75 }, { x: 3.4, z: -2.6, r: 3.6, c: '#ffd890', k: .6 }];
+const shade = D.lightShade(LIT, mood.base), lightAt = (x, y, z) => { const c = shade(x, z), f = 1 - .34 * y / RH; return [c[0] * f, c[1] * f, c[2] * f]; };
+const land = R.ground({ w: 16, d: 14, cell: .5, layers: [T.brickFloor({ c: '#8a8478' }), T.concrete({ c: '#6c7478' })], mix: (x, z) => [Math.abs(x - HOIST[0]) < 1.6 && Math.abs(z - HOIST[1]) < 1.6 ? 1 : Math.sin(x * 1.3) * Math.cos(z * .9) > .55 ? 1 : 0, 0], shade }); scene.add(land.mesh);
+{ // れんがのかべ（1 m ごとに割り、あかりを頂点の色に焼きこむ）と、暗い天井
+  const WG = R.geo(), wall = (a, b, y0 = 0, y1 = RH) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.ceil(L), m = Math.ceil((y1 - y0) / 1.75), P = k => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k], c = (p, y) => lightAt(p[0], y, p[1]);
+    for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) { const p0 = P(i / n), p1 = P((i + 1) / n), ya = y0 + (y1 - y0) * j / m, yb = y0 + (y1 - y0) * (j + 1) / m; WG.quad([p0[0], ya, p0[1]], [p1[0], ya, p1[1]], [p1[0], yb, p1[1]], [p0[0], yb, p0[1]], [L * i / n / 3, ya / 3, L * (i + 1) / n / 3, yb / 3], [c(p0, ya), c(p1, ya), c(p1, yb), c(p0, yb)]); } };
+  wall([-6, -5], [6, -5]); wall([6, 5], [-6, 5]); wall([-6, 5], [-6, -5]); wall([6, -5], [6, .2]); wall([6, .2], [6, 3], 3.2, RH); wall([6, 3], [6, 5]);
+  const walls = WG.mesh(T.brick({ c: '#9a5644' })); walls.castShadow = false; scene.add(walls);
+  const G = R.geo(); for (let x = -6; x < 6; x += 2) for (let z = -5; z < 5; z += 2) G.quad([x, RH, z], [x + 2, RH, z], [x + 2, RH, z + 2], [x, RH, z + 2], [x / 3, z / 3, (x + 2) / 3, (z + 2) / 3], .4);
+  G.quad([7.6, 0, .2], [7.6, 0, 3], [7.6, 3.2, 3], [7.6, 3.2, .2], [0, 0, 1, 1], [1.5, 1.5, .7, .7]).quad([6, 0, .2], [7.6, 0, .2], [7.6, 3.2, .2], [6, 3.2, .2], [0, 0, .5, 1], .7).quad([7.6, 0, 3], [6, 0, 3], [6, 3.2, 3], [7.6, 3.2, 3], [0, 0, .5, 1], .7);
+  const m = G.mesh(T.brick({ c: '#6a3a30' }), { side: true }); m.castShadow = false; scene.add(m); }
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const ironT = T.metal({ c: '#55666c' }), copT = T.metal({ c: '#b8703c' });
+{ // 足場（鉄の板と支柱・手すり）、階段、太い管、タンク、石炭の山、木箱
+  const G = R.geo().smooth(0), Gp = R.geo().smooth(1);
+  for (let x = -6; x < 6; x += 2) G.box(2, .12, 1.5, x + 1, CY - .12, -4.25, { m: 1.5, c0: .7 });
+  for (const x of [-5.8, -2, 2, 5.8]) G.box(.14, CY - .12, .14, x, 0, -3.56, { m: 1.5, c0: .7 });
+  fixed.push(G.mesh(ironT));
+  for (let x = -5; x < 6; x += 2) { const f = R.fence({ len: 2, kind: 'iron', h: 1 }); f.position.set(x, CY, -3.52); fixed.push(f); }
+  put(FT.stairs({ w: 1.2, h: CY, d: 3.6, tex: T.planks({ c: '#5a4a44' }) }), -5.3, -1.72, 0);
+  const hpipe = (x0, x1, y, z, r) => { Gp.at(R.TR(x0, y, z, 0, 0, -PI / 2)); Gp.loft(8, [[0, r, r, 0, .9], [x1 - x0, r, r, (x1 - x0) / 1.5, .9]], { ur: 1 }); for (let x = 1; x < x1 - x0; x += 2) Gp.loft(8, [[x, r * 1.25, r * 1.25, 0, 1], [x + .16, r * 1.25, r * 1.25, .2, 1]], { ur: 1, cap: 'both' }); Gp.at(null); };
+  const vpipe = (x, z, y0, y1, r) => Gp.at(R.TR(x, y0, z)).loft(8, [[0, r, r, 0, .8], [y1 - y0, r, r, (y1 - y0) / 1.5, 1]], { ur: 1 }).at(null);
+  hpipe(-6, 6, 5.6, -4.6, .28); hpipe(-6, 6, 2.3, -4.72, .2); hpipe(-2, 6, 6.2, 1.6, .22); vpipe(5.6, 4.5, 0, RH, .3); vpipe(5.6, -1.2, 0, RH, .26); vpipe(NOZ[0], -4.72, 0, 2.3, .16);
+  Gp.at(R.TR(NOZ[0], NOZ[1], -4.72, 0, PI / 2, 0)).loft(8, [[0, .2, .2, 0, 1], [.3, .16, .16, .3, 1], [.42, .24, .24, .5, 1.05]], { ur: 1 }).at(null);
+  fixed.push(Gp.mesh(copT));
+  const Gt = R.geo().smooth(1); for (const [x, z, r, h] of [[4.6, -3.9, .9, 2.6], [-4.4, 4.1, .8, 2.2]]) Gt.at(R.TR(x, 0, z)).loft(10, [[0, r, r, 0, .75], [.2, r * 1.04, r * 1.04, .1, .9], [h, r * 1.04, r * 1.04, h / 2.4, 1], [h + .35, r * .6, r * .6, h / 2.4 + .2, 1.05]], { ur: 2, cap: 'top' }).at(null); fixed.push(Gt.mesh(ironT));
+  for (const [x, z, s] of [[5, 4.2, .8], [4.3, 4.5, .55], [5.3, 3.4, .5]]) put(R.rock({ s, c: '#3a3a48', moss: 0, seed: x }), x, z, x);
+  put(R.crate({ s: .8 }), -5.2, 2.6, .3); put(R.crate({ s: .6, kind: 'x' }), -5.3, 3.5, 1); put(R.barrel({}), 2.9, 4.4); put(R.barrel({}), 3.6, 4.5);
+  for (const [x, y, z, ry, s] of [[-5.95, RH - .05, -4.95, 0, 2], [5.95, RH - .05, 4.95, PI, 2]]) put(D.web({ s, c: '#d8c8c0' }), x, z, ry, y); }
+scene.add(R.merge(fixed));
+// つり電球・かまの火・回る警告灯・あかりの輪
+const bulbs = [[-3, 2], [2, 3], [-1, -2.4]].map(([x, z]) => { const b = D.bulb({ drop: 1.6, c: '#ffe0a0', flicker: true, light: false }); b.position.set(x, RH, z); scene.add(b); return b; });
+const fire = D.flame({ s: 2.2, c: '#ff9a3a' }); fire.position.set(7, .2, 1.6); scene.add(fire);
+const fireL = new THREE.PointLight('#ff9040', 22, 13, 1.3); fireL.position.set(5.2, 1.6, 1.6); scene.add(fireL);
+const warnL = D.warnLamp({ kind: 'spin', c: '#ff5030', r: .14, light: false }); warnL.position.set(VALVE[0] + 1.2, CY + 2.2, -4.9); scene.add(warnL);
+scene.add(D.pools([{ p: [-3, .03, 2], r: 2.6, c: '#ffd890', k: .3 }, { p: [2, .03, 3], r: 2.6, c: '#ffd890', k: .3 }, { p: [-1, .03, -2.4], r: 2.6, c: '#ffd890', k: .26 }, { p: [5, .03, 1.6], r: 3, c: '#ff8a3a', k: .4 }, { p: [5.97, 4.2, 1.6], n: [-1, 0, 0], r: 1.8, r2: 1.4, c: '#ff8a3a', k: .4 }]));
+scene.add(D.flakes({ kind: 'ember', n: 60, c: '#ffb060', box: [12, 6, 10], size: 1.2 }));
+
+// ---- しかけ：弁（赤い輪）・レバー・つり下げた鉄のふた ----
+const wheelT = (() => { const P = R.Px(32), C = R.ramp('#c8402c'); P.clip = true; P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5), a = Math.atan2(y - 15.5, x - 15.5), sp = Math.abs(((a / PI * 2.5 + 10) % 1) - .5); if (d > 15.5) return null; if (d > 11.5) return C[d > 14.5 ? 1 : d > 13 ? 4 : 3]; if (d < 3.5) return C[d < 2 ? 5 : 2]; return sp < .1 * 12 / Math.max(4, d) ? C[3] : null; }); return T.from(P, { cut: true }); })();
+const wheel = (() => { const m = R.geo().normal([0, 0, 1]).quad([-.45, -.45, 0], [.45, -.45, 0], [.45, .45, 0], [-.45, .45, 0]).mesh(R.mat(wheelT, { vc: true, cut: true, side: true })); m.position.set(VALVE[0], CY + 1.15, VALVE[1] + .26); scene.add(m); return m; })();
+const lever = (() => { const g = new THREE.Group(), base = R.geo().smooth(1).loft(6, [[0, .3, .24, 0, .8], [.5, .22, .18, .5, 1], [.6, .1, .1, .6, 1]], { cap: 'top' }).mesh(ironT), arm = new THREE.Group(), st = R.geo().smooth(1).loft(5, [[0, .05, .05, 0, .9], [1, .05, .05, 1, 1], [1.02, .1, .1, 1.1, 1.1], [1.2, .1, .1, 1.3, 1.1]], { cap: 'top' }).mesh(T.metal({ c: '#c8402c' })); arm.add(st); arm.position.y = .5; g.add(base, arm); g.position.set(LEVER[0] - .6, 0, LEVER[1]); g.userData.arm = arm; scene.add(g); return g; })();
+const lid = (() => { const g = new THREE.Group(), G = R.geo().smooth(1); G.loft(10, [[0, 1.5, 1.5, 0, .7], [.25, 1.6, 1.6, .1, .9], [.9, 1.2, 1.2, .5, 1], [1.3, .4, .4, .8, 1.05], [1.5, .16, .16, 1, 1.1]], { ur: 3, cap: 'both', capUV: [.5, .5] }); g.add(G.mesh(ironT)); const ch = R.geo().smooth(1).loft(5, [[1.5, .06, .06, 0, 1], [3.2, .06, .06, 6, 1]], {}).mesh(copT); g.add(ch); g.userData.ch = ch; scene.add(g); return g; })();
+const boss = BM.make({}), BJ = boss.userData.J; scene.add(boss);
+const rifle = B.arm(hero, B.weapon('rifle', { s: 1.25 }));
+const heroL = new THREE.PointLight('#ffe8c0', 11, 7, 1.3), flash = new THREE.PointLight('#fff0c0', 0, 14, 1.2), coreL = new THREE.PointLight('#ff7030', 0, 10, 1.2); scene.add(heroL, flash, coreL);
+const warn = (() => { const g = new THREE.Group(), mk = (r0, r1, a) => { const m = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 24), new THREE.MeshBasicMaterial({ color: '#ff4030', transparent: true, opacity: a, depthWrite: false, fog: false })); m.rotation.x = -PI / 2; m.userData.a = a; g.add(m); return m; }; mk(1.5, 1.75, .95); mk(0, 1.5, .3); g.position.y = .05; g.visible = false; scene.add(g); return g; })();
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
+// けむり・蒸気（のぼって ひろがる）
+const puffs = [...Array(60)].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.puff(), transparent: true, depthWrite: false })); s.visible = false; s.userData = { v: V(), life: 1, age: 0, s: 1 }; scene.add(s); return s; }); let puffI = 0;
+const puff = (p, v, o = {}) => { const d = puffs[puffI++ % puffs.length], u = d.userData; d.visible = true; d.position.copy(p); u.v.copy(v); u.life = o.life || 1.2; u.age = 0; u.s = o.s || 1; d.material.color.set(o.c || '#f0ece8'); };
+const tickPuffs = dt => { for (const d of puffs) if (d.visible) { const u = d.userData; u.age += dt; if (u.age > u.life) { d.visible = false; continue; } const k = u.age / u.life; d.position.addScaledVector(u.v, dt); u.v.multiplyScalar(1 - dt * 1.2); u.v.y += dt * .8; d.scale.setScalar(u.s * (.4 + k * 1.2)); d.material.opacity = (1 - k) * .75; } };
+
+// ---- 時間の表 ----
+const LOOP = 38, T0 = +(new URLSearchParams(location.search).get('t') || 0), BOUNCE = [1.7, 3.1], SHOTS = [14.2, 15.6, 17], LAST = 30.6, ALL = [...BOUNCE, ...SHOTS, LAST], T_SLAM = 6, T_STEAM = 10.2, T_PULL = 26.7, T_DROP = 27.5; let prev = 1e9, flashT = 9, hitT = 9;
+const BPATH = [[0, 4.3, -1.8], [5, 1.9, -.5], [19.5, 1.9, -.5], [21, 1.9, -.5], [25.4, HOIST[0], HOIST[1]], [38, HOIST[0], HOIST[1]]];
+const HPATH = [[0, -1, 1.2], [3.6, -1.4, 1.5], [4.9, -1.4, 1.5], [5.9, -2.8, 2.5], [20.6, -2.8, 2.5], [23.4, LEVER[0], LEVER[1]], [38, LEVER[0], LEVER[1]]];
+const PPATH = [[0, 2.6, -4.2], [7, 2.6, -4.2], [8.7, VALVE[0], -4.25], [38, VALVE[0], -4.25]];
+// カメラ 4 か所：[いつから, 位置, 見る先, たて長のときの 位置, 見る先]。A = 西南の高い所／B = 足場の西のはし／C = 床の低い所／D = 東南の中ほどの高さ
+const CA = [[-5.3, 3.9, 4.6], [1, 2.2, -.8], [-5.3, 4.4, 4.6], [-.4, 2.3, .2]], CB = [[-5.7, 4.7, -4.4], [1, 3.3, -3.4], [-5.7, 4.8, -4.4], [-.6, 3.6, -3.9]], CC = [[-4.6, 1, 3.9], [1, 2.7, -.6], [-4.4, 1, 4], [-.6, 2.6, .4]], CD = [[5.5, 3.3, 4.8], [-1, 2.1, .3], [5.5, 3.6, 4.8], [-1.6, 2.1, 1.6]];
+const CAMS = [[0, CA], [7, CB], [12, CC], [20, CA], [26, CD], [33, CA]];
+const muzzle = V(), aimAt = V(), tmp = V(), tmp2 = V(), corePos = V(), stack = V(), bpos = V();
+function reset() { F.clear(); for (const p of puffs) p.visible = false; flashT = hitT = 9; }
+const shoot = (hit, big) => { flashT = 0; flash.position.copy(muzzle); F.spark(muzzle, { c: '#ffe8a0', n: 6, s: .7 }); F.shot(muzzle, aimAt.clone(), { c: '#ffe8a0', speed: 46, s: .9, onHit: () => { F.spark(aimAt, { c: hit ? '#ffb060' : '#d8e4f0', n: hit ? 12 : 6, s: hit ? 1.5 : .9 }); if (hit) { hitT = 0; for (let i = 0; i < (big ? 8 : 4); i++) puff(aimAt, tmp2.set((hash(i, 1) - .5) * 3, 1 + hash(i, 2) * 2, 1 + hash(i, 3) * 2), { c: '#ffb070', s: .7, life: .7 }); } else H.pop(aimAt, 'カン!', { text: true, c: '#d8e4f0', life: .7 }); } }); };
+const EV = [
+  ...BOUNCE.map(tm => [tm, () => shoot(false)]), ...SHOTS.map((tm, i) => [tm, () => shoot(true, i === 2)]), [LAST, () => shoot(true, true)],
+  [T_SLAM, () => { F.ring(warn.position, { c: '#ffd0a0', s: 4, life: .5 }); F.dust(warn.position, { n: 8, s: 1.6, c: '#c8b8a8' }); F.spark(tmp.copy(warn.position).setY(.3), { c: '#ffe0a0', n: 8, s: 1.2 }); }],
+  [T_DROP, () => { F.dust(bpos, { n: 12, s: 2.6, c: '#c8b8a8' }); F.spark(tmp.copy(bpos).setY(5), { c: '#ffe8b0', n: 16, s: 2 }); F.ring(bpos, { c: '#ffe0b0', s: 7, life: .7 }); flashT = 0; flash.position.copy(bpos).setY(5); }]];
+
+// ---- 動かす ----
+function moveAll(tt, t, dt) {
+  const [bx, bz] = keys(BPATH, tt), [bx2, bz2] = keys(BPATH, tt + .05), [hx, hz] = keys(HPATH, tt), [hx2, hz2] = keys(HPATH, tt + .05), [px, pz] = keys(PPATH, tt), [px2] = keys(PPATH, tt + .05);
+  // 相手：歩く → うでを ふり下ろす → 蒸気でひるむ（とびらがひらく）→ おこる → ふたが落ちて ひざをつく → しんの光が消える
+  const bwalk = Math.hypot(bx2 - bx, bz2 - bz) > .003 ? 1 : 0, slam = seg(tt, 4.2, 5.4) - seg(tt, 6.6, 7.6) + seg(tt, 24.6, 25.8) * (tt < T_DROP ? 1 : 0), hit = seg(tt, T_SLAM - .25, T_SLAM) * (1 - seg(tt, 6.6, 7.6));
+  const steam = tt > T_STEAM && tt < 15.2, rec = Math.max(0, 1 - hitT / .7), stag = Math.max(seg(tt, T_STEAM + .3, 11.4) * (1 - seg(tt, 18, 19)) * .6 + rec * .6, seg(tt, T_DROP, T_DROP + .2) * (1 - seg(tt, 28.4, 29.4)));
+  const open = seg(tt, 12.6, 13.6) * (1 - seg(tt, 17.6, 18.2)) + seg(tt, T_DROP + .4, 28.6), kneel = seg(tt, T_DROP, 28.6), rage = seg(tt, 18.4, 19.2) * (1 - seg(tt, T_DROP, 28)), dead = seg(tt, LAST + .2, 32.2), wake = seg(tt, 36.4, 36.7);
+  bpos.set(bx, 0, bz); boss.position.copy(bpos); boss.rotation.y = Math.atan2(hx - bx, hz - bz) + Math.sin(t * 17) * stag * .04;
+  BM.pose(boss, { t, ph: t * (rage ? 5 : 3.2), walk: bwalk, slam, hit, stagger: stag, open, kneel, rage, core: open * (1 - dead * .9) * (.9 + Math.sin(t * 6) * .2) + rec * .6, eye: (1 - dead) * (.75 + Math.sin(t * 2.3) * .25) + wake * (Math.sin(t * 30) > 0 ? 1 : .2) });
+  boss.updateMatrixWorld(true); BJ.body.localToWorld(corePos.set(0, 1.5, 1.6)); BJ.head.localToWorld(stack.set(-.75, 1.9, -.4));
+  coreL.position.copy(corePos); coreL.intensity = open * (1 - dead) * 9 + rec * 14;
+  // えんとつの けむり、蒸気、弁
+  if (Math.floor(t * (rage ? 16 : 6)) !== Math.floor((t - dt) * (rage ? 16 : 6)) && dead < .9) puff(stack, tmp2.set((hash(t, 1) - .5) * .5, 1.6 + rage * 1.5, (hash(t, 2) - .5) * .5), { c: rage ? '#5a4a4a' : '#8a807c', s: .9 + rage * .5, life: 1.5 });
+  if (steam && Math.floor(t * 24) !== Math.floor((t - dt) * 24)) puff(tmp.set(...NOZ), tmp2.set((hash(t, 3) - .5) * 1.4, .6 + hash(t, 4) * 1.4, 5.5 + hash(t, 5) * 2), { s: 1.5, life: 1.1 });
+  wheel.rotation.z = -seg(tt, 8.9, 10.6) * 7;
+  // 予告の輪（うでが落ちる所）
+  const w1 = tt > 4.3 && tt < T_SLAM, w2 = tt > 24.7 && tt < T_DROP; warn.visible = w1 || w2; if (warn.visible) { const [wx, wz] = w1 ? [-1.2, 1.3] : [LEVER[0] + .4, LEVER[1] - .9]; warn.position.set(wx, .05, wz); warn.children.forEach(m => m.material.opacity = m.userData.a * (Math.sin(tt * 24) > -.2 ? 1 : .4)); }
+  // つり下げた ふた：レバーで落ちて、相手の頭に当たり、わきへ ころがる
+  const fall = cl((tt - T_PULL - .3) / (T_DROP - T_PULL - .3)), off = seg(tt, T_DROP + .1, 28.8); lid.position.set(HOIST[0] + off * 2.6, 6 - fall * fall * .9 - off * 5.1 + Math.sin(off * PI) * .8, HOIST[1] - off * 1.6); lid.rotation.z = -off * 1.1; lid.userData.ch.visible = tt < T_PULL + .3;
+  lever.userData.arm.rotation.z = -.5 + seg(tt, T_PULL - .1, T_PULL + .3) * 1;
+  // 主役：かまえて うつ／よける／レバーへ走る／引く
+  const moving = Math.hypot(hx2 - hx, hz2 - hz) > .004, aim = Math.max(cl((tt - .3) / .4) * cl((4.9 - tt) / .3), cl((tt - 12.8) / .5) * cl((19.6 - tt) / .4), cl((tt - 29.4) / .5) * cl((32 - tt) / .5)), dodge = tt > 4.9 && tt < 5.9, pull = seg(tt, 26.2, 26.7) - seg(tt, 27.3, 28);
+  hero.position.set(hx, 0, hz); const toBoss = Math.atan2(corePos.x - hx, corePos.z - hz), runDir = Math.atan2(hx2 - hx, hz2 - hz);
+  hero.rotation.y = pull > 0 ? toBoss + (-PI / 2 - toBoss) * pull : moving && !dodge && tt > 20 ? runDir : toBoss;
+  if (moving) MO.play(hero, tt > 20 ? 'run' : 'walk', dodge ? -t * 1.6 : t, { speed: tt > 20 ? 1.2 : .9 }); else MO.play(hero, 'stand', t);
+  const kick = Math.max(0, 1 - flashT / .18);
+  if (aim > 0) { HJ.armR.rotation.set(-1.5 * aim - kick * .45, 0, .1 * aim); HJ.foreR.rotation.x = -.14; HJ.armL.rotation.set(-1.25 * aim - kick * .3, 0, -.55 * aim); HJ.foreL.rotation.x = -.5 * aim; HJ.torso.rotation.y = -.3 * aim; HJ.torso.rotation.x = -.12 * aim - kick * .1; HJ.head.rotation.y = .25 * aim; HJ.head.rotation.x = -.2 * aim; if (!moving) { HJ.legL.rotation.x = -.2 * aim; HJ.legR.rotation.x = .22 * aim; } }
+  else { HJ.armR.rotation.set(-.5, 0, .1); HJ.foreR.rotation.x = -.9; HJ.armL.rotation.set(-.7, 0, -.4); HJ.foreL.rotation.x = -.8; }
+  if (pull > 0) { HJ.armL.rotation.set(-1.4 * pull, 0, .2); HJ.foreL.rotation.x = -.3; HJ.torso.rotation.x = .2 * pull; }
+  if (tt > 33) { HJ.head.rotation.y = -seg(tt, 34, 35) * .8; HJ.head.rotation.x = -seg(tt, 34, 35) * .4; }
+  hero.updateMatrixWorld(true); rifle.getWorldPosition(muzzle); tmp.set(0, rifle.userData.tip || .8, 0); rifle.localToWorld(tmp); muzzle.copy(tmp);
+  aimAt.copy(corePos); if (tt < 5) aimAt.y += .3;
+  heroL.position.set(hx, 1.7, hz + .6);
+  // 仲間：足場を走る → 弁を回す → 手をふって知らせる → よろこぶ
+  pal.position.set(px, CY, pz); const prun = Math.abs(px2 - px) > .003, turn = tt > 8.8 && tt < 10.8;
+  pal.rotation.y = prun ? -PI / 2 : turn ? PI : tt > 33 ? .4 : .5;
+  if (prun) MO.play(pal, 'run', t); else if (turn) { MO.play(pal, 'stand', t); const s = Math.sin(t * 7); PJ.armL.rotation.set(-1.5 + s * .4, 0, .2); PJ.armR.rotation.set(-1.5 - s * .4, 0, -.2); PJ.foreL.rotation.x = PJ.foreR.rotation.x = -.3; PJ.torso.rotation.z = s * .12; }
+  else if (tt > 32.4) MO.play(pal, 'cheer', t); else if (tt > 10.8 && tt < 13 || tt > 19.5 && tt < 24) MO.play(pal, 'wave', t); else { MO.play(pal, 'stand', t); PJ.head.rotation.x = .3; }
+  flashT += dt; hitT += dt; flash.intensity = Math.max(0, 1 - flashT / .14) * 30; fireL.intensity = 20 + Math.sin(t * 9) * 3 + Math.sin(t * 23) * 2;
+}
+
+// ---- 画面の表示：かまえたときだけ（心ぱくの線と、たまの数）。仲間の声は 小さな 1 行 ----
+const ST_C = ['#5ce070', '#ffd040', '#ff5a4a'], ST_N = ['よし', 'ちゅうい', 'きけん'];
+function ecg(x, y, w, h, st, t) { const c = ST_C[st], per = [30, 22, 15][st], n = w - 6, head = (t * [26, 34, 44][st]) % n; H.rect(x, y, w, h, '#140e0c', .9); H.rect(x, y, w, 1, '#6a5a48', 1); H.rect(x, y + h - 1, w, 1, '#2c221c', 1); H.rect(x, y, 1, h, '#6a5a48', 1); H.rect(x + w - 1, y, 1, h, '#2c221c', 1);
+  let py = null; for (let i = 0; i < n; i++) { const ph = i % per, v = ph === 3 ? 2 : ph === 4 ? -3 : ph === 5 ? 7 : ph === 6 ? 3 : ph === 7 ? -2 : ph === 11 ? 1 : ph === 12 ? 2 : ph === 13 ? 1 : 0, yy = y + Math.round(h * .62) - Math.round(v * (h - 8) / 10), a = 1 - ((head - i + n) % n) / n; if (a > .12) { const y0 = py === null ? yy : Math.min(py, yy), y1 = py === null ? yy : Math.max(py, yy); H.rect(x + 3 + i, y0, 1, y1 - y0 + 1, a > .9 ? '#ffffff' : c, cl(a * 1.2)); } py = yy; } }
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, st = tt > T_SLAM - .3 && tt < 20 ? 1 : 0, aim = Math.max(cl((tt - .4) / .3) * cl((4.9 - tt) / .3), cl((tt - 12.9) / .3) * cl((19.5 - tt) / .3), cl((tt - 29.5) / .3) * cl((31.9 - tt) / .3)), ammo = 8 - ALL.filter(s => tt >= s).length;
+  if (aim > 0 && Math.sin(aim * 40) > -.5) { const a = H.place('左下', 66, 30, 2, -2); ecg(a.x, a.y + 10, 66, 20, st, t); H.text(ST_N[st], a.x + 1, a.y - 2, { size: 10, c: ST_C[st] });
+    const b = H.place('右下', 70, 28, -2, -2); H.rect(b.x, b.y + 10, 70, 18, '#18100c', .85); H.rect(b.x, b.y + 10, 70, 1, '#806a50', 1); H.rect(b.x, b.y + 27, 70, 1, '#3a2c20', 1); H.text('ながじゅう', b.x + 1, b.y - 2, { size: 10, c: '#f0d8a0' }); for (let i = 0; i < 8; i++) H.icon('bullet', b.x + 4 + i * 6, b.y + 16, { c: i < ammo ? '#ffd870' : '#4a3c34' }); H.num(String(ammo), b.x + 66, b.y + 16, { align: 'r', c: ammo < 3 ? B.PAL.warn : '#ffffff' }); }
+  const say = tt > 7.2 && tt < 9.6 ? 'ロク「べんを まわす！」' : tt > 10.4 && tt < 12.6 ? 'ロク「いまだ、しんを ねらえ！」' : tt > 20.4 && tt < 23.6 ? 'ロク「レバーへ！ ふたを おとせ！」' : tt > 1 && tt < 4 ? 'てつの からだに はじかれる…' : '';
+  if (say) { const w = Math.min(H.W - 12, H.textW(say, { size: 10 }) + 12), r = H.place('下', w, 15, 0, tall ? -40 : -34); H.rect(r.x, r.y, w, 15, '#18100c', .8); H.rect(r.x, r.y, w, 1, '#806a50', 1); H.text(say, r.x + 6, r.y + 2, { size: 10, c: '#f4ead8' }); }
+  H.end(dt);
+}
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); prev = prev > 1e8 ? T0 - .001 : -1; }
+  moveAll(tt, t, dt);
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt;
+  // カメラは置きっぱなし。時刻で ぱっと切りかえるだけ
+  let c = CAMS[0][1]; for (const q of CAMS) if (tt >= q[0]) c = q[1]; const tall = innerWidth < innerHeight; cam.position.set(...c[tall ? 2 : 0]); cam.lookAt(...c[tall ? 3 : 1]);
+  crt.u.bright.value = 1.08 * Math.min(1, tt / .6, (LOOP - tt - .1) / .8);
+  tickPuffs(dt); D.tick(t, cam); F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
