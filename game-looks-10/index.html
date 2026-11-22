@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ゲームの画面の試作（バトル）8 案 一覧</title>
+<title>ゲームの画面の試作 22 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ゲームの画面の試作（バトル）8 案</h1>
-  <p>第 10 集。「描きこんだテクスチャとブラウン管」のテイストの場面と人を使って、実際にゲームにしたときの画面を見るための 8 案です。どれもバトルの場面で、味方と敵が動き、技が出て、数字が飛び、ゲージが減ります。窓や文字もドット絵で、ブラウン管ごしに見せています。操作はなく、30〜40 秒のひと回りを自動でくり返します。</p>
+  <h1>ゲームの画面の試作 22 案</h1>
+  <p>第 10 集。「描きこんだテクスチャとブラウン管」のテイストの場面と人を使って、実際にゲームにしたときの画面を見るための 22 案です。01〜08 はジャンルごとのバトル、09〜16 はそれぞれの「中盤まで進んだボス戦」、17〜22 はほかのジャンル（対戦格闘、マス目の戦術、空のシューティング、ステルス、町の会話と店、乗りものの追いかけっこ）。窓や文字もドット絵で、ブラウン管ごしに見せています。操作はなく、30〜45 秒のひと回りを自動でくり返します。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -35,6 +35,20 @@ const LOOKS = [
   ['06-fixed-camera-horror', '固定カメラのホラー', '古い屋敷：置きっぱなしのカメラと影', 1],
   ['07-free-turn-battle', '自由度の高いターン制 RPG のバトル', '昼の丘の遺跡：5 人、ひらめき、れんけい', 1],
   ['08-party-action', '仲間と戦うアクション RPG', '明るい町の広場：コマンドと顔の輪、決め技', 1],
+  ['09-boss-turn-battle', 'ボス戦：コマンド式のターン制バトル', '動力炉の広間：3 つの部位の機械の兵器と「きはく」の大技', 1],
+  ['10-boss-dragon-hunt', 'ボス戦：大きな竜を狩るアクション', '嵐の岩場：雷の古い竜、落とし穴と大きな弓', 1],
+  ['11-boss-lockon-action', 'ボス戦：ロックオンして撃つアクション RPG', 'むらさきと金の広間：遺跡の番人と武器の切りかえ', 1],
+  ['12-boss-dungeon-action', 'ボス戦：ダンジョンを進む剣のアクション', '水と白い石の島：岩の大ガエルと 2 人の交代', 1],
+  ['13-boss-colossus', 'ボス戦：巨大な像によじのぼって戦う', '夕やけの海：焼き物の海へびと泳ぐけもの', 1],
+  ['14-boss-horror', 'ボス戦：固定カメラのホラー', 'れんがのボイラー室：機械人形と部屋のしかけ', 1],
+  ['15-boss-free-turn-battle', 'ボス戦：自由度の高いターン制 RPG', '夕ぐれの塔のてっぺん：花と骨の大きな鳥、じん形と 5 人のれんけい', 1],
+  ['16-boss-party-action', 'ボス戦：仲間と戦うアクション RPG', '夜のサーカス：あやつり人形の団長と「へんしん」', 1],
+  ['17-versus-fighting', '1 対 1 の対戦格闘', '夕ぐれの寺の庭：左右の体力バーと必殺技', 1],
+  ['18-tactics-grid', 'マス目の戦術シミュレーション RPG', '丘と川と橋：光るマスと予想の窓、寄りの戦い', 1],
+  ['19-sky-shooter', '空を飛んで進む 3D シューティング', '雲の海と浮島：照準と追いかける弾、仲間のせりふ', 1],
+  ['20-stealth-sneak', '見つからないように進むステルス', '雨の夜の倉庫街：見はりの扇形とレーダー', 1],
+  ['21-town-talk-shop', 'RPG の町の中（会話・店・探索）', '夕方の町：会話の窓、店の窓、依頼と宝箱', 1],
+  ['22-chase-ride', '乗りものに乗って追いかける・逃げるアクション', '夕やけの高架：三輪の機械と追っ手', 1],
 ];
 const grid = document.getElementById('grid');
 for (const [file, genre, look, is3d] of LOOKS) {
