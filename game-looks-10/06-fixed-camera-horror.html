@@ -99,7 +99,7 @@ for (const [x, y, z, ry, s] of [[-10.95, CH - .05, -CW + .05, 0, 1.3], [2.9, CH 
 scene.add(R.merge(fixed));
 const cand = [[-10.5, .78, 0, 3, .5, true, PI / 2], [9.6, .8, 3, 4, .9, true, .3], [4.7, 1.55, -4.6, 3, .8, false, 0], ...SCONCE.map(([x, y, z, ry]) => [x, y, z, 2, .16, false, ry])].map(([x, y, z, n, len, light, ry]) => { const c = D.candles({ n, len, h: .22, light }); c.position.set(x, y, z); c.rotation.y = ry; scene.add(c); return c; });
 scene.add(D.pools([...SCONCE.map(([x, y, z, ry]) => ({ p: [x + Math.sin(ry) * .02, y + .3, z + Math.cos(ry) * .02 - (ry === 0 ? .1 : 0)], n: [Math.sin(ry), 0, Math.cos(ry)], r: 1.3, r2: 1.5, c: '#ffb050', k: .42 })), { p: [-10.94, 1.5, 0], n: [1, 0, 0], r: 1.4, r2: 1.4, c: '#ffb050', k: .4 }, { p: [4.7, 2.3, -4.93], n: [0, 0, 1], r: 1.6, r2: 1.4, c: '#ffb050', k: .36 }]));
-for (const [x, z, d, len] of WINS) { const hall = z > 2, w = D.windowLight({ kind: 'rect', w: hall ? 1.2 : 1, h: hall ? 2.6 : 1.8, c: '#a4bcf4', k: 1, pool: 0 }); w.position.set(x, hall ? 1.1 : .95, z - .03); w.rotation.y = PI; scene.add(w);
+for (const [x, z, d, len] of WINS) { const hall = z > 2, w = D.windowLight({ kind: 'rect', w: hall ? 1.2 : 1, h: hall ? 2.6 : 1.8, c: '#7fa2f4', k: .85, pool: 0 }); w.traverse(q => { if (q.material && q.material.isMeshBasicMaterial && q.material.map) q.material.color.set('#8fb0ff'); }); w.position.set(x, hall ? 1.1 : .95, z - .03); w.rotation.y = PI; scene.add(w);
   const s = D.shaft({ w: hall ? 1.3 : 1.1, h: hall ? 2.6 : 2, c: '#a8c0ff', a: .3, lean: [.25, len + .7] }); s.position.set(x - .25, 0, z - len - .7); scene.add(s); }
 scene.add(D.flakes({ kind: 'dust', n: 120, c: '#c8d8ff', box: [24, 3.4, 9], size: 1.2 }));
 const cat = D.cat({ s: 1 }); cat.position.set(8.25, 1.4, -4.2); cat.rotation.y = 1.2; scene.add(cat);
@@ -113,10 +113,10 @@ const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
 
 // ---- 時間の表 ----
 const LOOP = 31, T0 = +(new URLSearchParams(location.search).get('t') || 0), SHOTS = [13.9, 15.2, 16.4, 20], T_HIT = 17.95, T_CURE = 23.3; let prev = 1e9, flashT = 9, hurtT = 9;
-const HPATH = [[0, -8.8, 0], [4.7, -2, 0], [5.9, -2, 0], [10.9, 6.4, 0], [18.2, 6.4, 0], [19.6, 7.8, .45], [24.6, 7.8, .45], [28.6, 12.25, -1], [29.5, 12.25, -1], [30.7, 13.7, -1]];
+const HPATH = [[0, -8.8, 0], [4.7, -2, 0], [5.9, -2, 0], [10.9, 6.4, 0], [18.2, 6.4, 0], [19.6, 7.5, .3], [24.6, 7.5, .3], [28.6, 12.25, -1], [29.5, 12.25, -1], [30.7, 13.7, -1]];
 const SPATH = [[12.2, 2, -2.6], [13.6, 3.7, -2.5], [13.9, 3.8, -2.45], [14.5, 3.8, -2.45], [15.2, 4.4, -1.9], [15.8, 4.4, -1.9], [16.4, 4.95, -1.4], [17, 4.95, -1.4], [17.5, 5.4, -.95]];
 // カメラ 4 か所：[いつから, 位置, 見る先, たて長のときの見る先]
-const CAMS = [[0, [2.6, 2.9, -.25], [-4, .5, .1]], [8, [12.6, 4.05, 1.7], [4, .7, -1]], [13, [10.6, .6, .85], [3.2, 1.4, -1.75]], [21, [12.6, 4.05, 1.7], [4, .7, -1]], [24.6, [3.5, 4.05, .5], [12.4, .7, -.9]]];
+const CAMS = [[0, [2.6, 2.9, -.25], [-4, .5, .1], [-2.4, .1, .1]], [8, [12.6, 4.05, 1.7], [4, .7, -1]], [13, [11.5, .6, 1.25], [3.2, 1.45, -1.75], [3.2, 1.1, -1.75]], [21, [12.6, 4.05, 1.7], [4, .7, -1]], [24.6, [3.5, 4.05, .5], [12.4, .7, -.9]]];
 const rattle = (tt, list) => { let k = 0; for (const tm of list) { const u = tt - tm; if (u > 0 && u < .55) k = Math.max(k, Math.sin(u / .55 * PI)); } return k; };
 const muzzle = V(), aimAt = V(), tmp = V();
 function reset() { F.clear(); fd.name = 'idle'; fd.t = 0; flashT = hurtT = 9; }
@@ -174,7 +174,7 @@ K.loop((dt, t) => {
   for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
   prev = tt;
   // カメラは置きっぱなし。時刻で ぱっと切りかえるだけ（ゆれも なし）
-  let c = CAMS[0]; for (const q of CAMS) if (tt >= q[0]) c = q; cam.position.set(...c[1]); cam.lookAt(...c[2]);
+  let c = CAMS[0]; for (const q of CAMS) if (tt >= q[0]) c = q; cam.position.set(...c[1]); cam.lookAt(...(innerWidth < innerHeight && c[3] || c[2]));
   crt.u.bright.value = 1.08 * Math.min(1, tt / .6, (LOOP - tt - .1) / .8);
   D.tick(t, cam); F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
 });
