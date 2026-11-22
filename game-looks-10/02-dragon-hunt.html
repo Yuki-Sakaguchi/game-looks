@@ -22,6 +22,7 @@ canvas{display:block}
 // 竜は giant-dragon.js（少ない面の loft＋手で打った うろこ・腹・角・まくのテクスチャ。首・あご・つばさ・足・尾の関節で、歩く・尾をふる・ほえる・火をはく・かみつく・ひるむ）。
 // 画面の表示（体力・スタミナ・刃の状態・残り時間・道具の枠・飛ぶ数字）は pack-battle.js の HUD で描き、同じブラウン管を通す。竜の体力は出さない。
 // 部品は retro.js（R.〜）・pack-fantasy-wild.js（FW.〜）・pack-battle.js（B.〜）・giant-dragon.js（GD.〜）。?t=秒 で途中から始められる
+// 確かめ用：?v=角度,きょり,高さ,見る高さ[,人の番号] でカメラを竜（か人）のまわりに置く。?pose=roar,.6 で竜の動きを止めて見る。?dmg=1 で部位のきずを全部出す
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), FW = PACK_FWILD(THREE, K, R), B = PACK_BATTLE(THREE, K, R), GD = GIANT_DRAGON(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
 R.cfg.actorBuild = 'toon';
@@ -119,7 +120,7 @@ function moveParty(tt, t, dt) {
   { const s = hunter(kai, trK, tt, t, dt, 0), J = kai.J, a = kai.a;
     for (const [t0] of SWK) if (tt >= t0 && tt < t0 + 1.05) { MO.play(a, 'swing', tt - t0); twoHand(J); }
     if (tt > 17.2 && tt < 18.5) { const u = pulse(tt, 17.2, 18.5); J.armL.rotation.set(-2.5 * u, 0, .15); J.foreL.rotation.x = -1 * u; J.head.rotation.x = -.3 * u; }
-    if (tt > 20.6 && tt < 23.3) { const k = seg(tt, 20.6, 21.1), sh = Math.sin(t * 40) * .012 * seg(tt, 21, 23.3); MO.reset(a); MO.squat(a, .4 * k); J.legL.rotation.x -= .4 * k; J.legR.rotation.x += .32 * k; J.shinR.rotation.x += .2 * k; J.torso.rotation.set(.08 * k, .5 * k, 0); J.armR.rotation.set(-2.55 * k + sh, 0, -.2); J.foreR.rotation.x = -1.25 * k; twoHand(J); J.head.rotation.y = -.4 * k; }
+    if (tt > 20.6 && tt < 23.3) { const k = seg(tt, 20.6, 21.1), sh = Math.sin(t * 40) * .012 * seg(tt, 21, 23.3); MO.reset(a); MO.squat(a, .4 * k); J.legL.rotation.x -= .4 * k; J.legR.rotation.x += .32 * k; J.shinR.rotation.x += .2 * k; J.torso.rotation.set(.08 * k, .5 * k, 0); J.armR.rotation.set(-1.25 * k + sh, 0, -.2); J.foreR.rotation.x = -.14 - .6 * k; twoHand(J); J.head.rotation.y = -.4 * k; }
     if (tt >= 23.3 && tt < 24.1) { MO.play(a, 'swing', .44 + (tt - 23.3)); twoHand(J); a.position.x += Math.sin(kai.ry) * seg(tt, 23.3, 23.5) * .7; a.position.z += Math.cos(kai.ry) * seg(tt, 23.3, 23.5) * .7; }
     if (s.mode === 'stay') for (const [a0, b0] of COW) cower(kai, t, pulse(tt, a0, b0));
     const use = s.mode === 'run' ? -.1 : s.mode === 'roll' ? -.42 : tt > 20.6 && tt < 23.3 ? -.13 : tt > 23.3 && tt < 23.6 ? -.9 : .2; sta = cl(sta + use * dt, .04, 1); }
@@ -185,15 +186,15 @@ const SHOTS = [[0, 0, 0], [5.4, 1, 1], [9.4, 2, 1], [13.1, 3, 0], [17.15, 4, 0],
 function shot(id, tt, t, P, C) { const tall = innerWidth < innerHeight, Z = tall ? 1.3 : 1;
   if (id === 0) { const c = seg(tt, 3.4, 5); follow(P, C, (7.5 + c * .5) * Z, 1.4 + c * 1.2, -2.2 - c * 6.8, .5, (tall ? 5.4 : 5) - c * .4); }
   else if (id === 1) follow(P, C, 15 * Z, 3.6, -6, .45, tall ? 5.2 : 4.4);
-  else if (id === 2) { follow(P, C, 14 * Z, 1.3, -4, 0, 0); C.copy(kai.p).lerp(head, .5); C.y = head.y * (tall ? .5 : .45); }
+  else if (id === 2) { follow(P, C, 15 * Z, 1.3, -4, 0, 0); C.copy(kai.p).lerp(head, .5); C.y = head.y * (tall ? .46 : .4); }
   else if (id === 3) { P.set(21 * Z, 4.6, 21 * Z); C.set(5, tall ? 5.4 : 4.2, 5); }
   else if (id === 4) { dir.set(mio.p.x - dp.x, 0, mio.p.z - dp.z).normalize(); per.set(dir.z, 0, -dir.x); P.copy(mio.p).addScaledVector(dir, (tall ? 3.6 : 5.5)).addScaledVector(per, tall ? -1.5 : 2); P.y = tall ? 2.1 : 2.8; DU.at('wingL', C); C.lerp(mio.p, .3); C.y = tall ? 4.6 : 2.8; }
-  else if (id === 5) follow(P, C, 8 * Z, 3, 2.6, .5, (tall ? 4.2 : 3) - seg(tt, 22.7, 23.4) * .8);
+  else if (id === 5) follow(P, C, 6.5 * Z, 2.6, -3, .5, (tall ? 4.2 : 3.2) - seg(tt, 22.7, 23.4) * .8);
   else if (id === 6) follow(P, C, 1.5, 2.4, 10.5 * Z, tall ? .2 : .42, tall ? 4.2 : 3.2);
-  else follow(P, C, 8 * Z, 2.6, -9 * Z, .5, tall ? 5.4 : 4.6); }
+  else follow(P, C, 9 * Z, 2.4, -9.5 * Z, .5, tall ? 5.6 : 5.4); }
 function moveCam(tt, t, dt) { let i = 0; while (i < SHOTS.length - 1 && tt >= SHOTS[i + 1][0]) i++; const [t0, id, bl] = SHOTS[i]; shot(id, tt, t, cp, ct);
   if (bl > 0 && i > 0 && tt < t0 + bl) { shot(SHOTS[i - 1][1], tt, t, p2, t2); const w = seg(tt, t0, t0 + bl); cp.lerpVectors(p2, cp, w); ct.lerpVectors(t2, ct, w); }
-  if (VIEW.length >= 3) { const a = VIEW[0] * PI / 180; cp.set(dp.x + Math.sin(a) * VIEW[1], VIEW[2], dp.z + Math.cos(a) * VIEW[1]); ct.set(dp.x, VIEW[3] ?? 5, dp.z); }
+  if (VIEW.length >= 3) { const a = VIEW[0] * PI / 180; const o = VIEW[4] ? [mio, kai, don][VIEW[4] - 1].p : dp; cp.set(o.x + Math.sin(a) * VIEW[1], VIEW[2], o.z + Math.cos(a) * VIEW[1]); ct.set(o.x, VIEW[3] ?? 5, o.z); }
   shake = Math.max(0, shake - dt * 1.5); cp.x += Math.sin(t * 71) * shake * .14; cp.y += Math.sin(t * 93) * shake * .14;
   cam.position.copy(cp); cam.lookAt(ct); sun.target.position.copy(dp); }
 

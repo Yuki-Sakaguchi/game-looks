@@ -218,7 +218,7 @@ window.GIANT_DRAGON = (THREE, K, R) => {
     if (o.low) { const q = o.low * c.lookK; c.n[0] += q * .42; c.n[1] += q * .3; c.n[2] += q * .1; c.hx -= q * .5; }
     // 3. 関節へ
     J.move.rotation.y = c.spin; J.body.position.set(0, H0 + c.by, c.bz); J.body.rotation.set(c.bp, 0, c.br);
-    J.neck.forEach((n, i) => n.rotation.set(c.n[i], c.ny * [.2, .25, .25][i], 0)); J.head.rotation.set(c.hx, c.ny * .3, c.hz); J.jaw.rotation.x = c.jaw;
+    const ns = Math.sin(t * .55) * .24 * c.lookK; J.neck.forEach((n, i) => n.rotation.set(c.n[i], c.ny * [.2, .25, .25][i] + ns * [1, -.4, -.9][i], 0)); J.head.rotation.set(c.hx, c.ny * .3 + ns * .3, c.hz); J.jaw.rotation.x = c.jaw;
     J.tail.forEach((s, i) => s.rotation.set(c.tx[i], c.ty[i], 0));
     for (const s of ['L', 'R']) { const W = J.wings[s], w = c.w[s]; W.rt.rotation.set(w[5], w[1], w[0]); W.fo.rotation.z = w[2]; W.hn.rotation.set(0, w[4], w[3]); }
     // 4. 足：足の先を地面に置き、こしからの 2 本の骨の角度を決める
