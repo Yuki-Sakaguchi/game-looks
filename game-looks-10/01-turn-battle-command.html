@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-01 コマンド式のターン制バトル 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e4e8f8;opacity:.8;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-01 ─ コマンド式のターン制バトル / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 30 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-battle.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。鉄の都市の下町の夜の通りで、コマンド式のターン制バトル。味方 3 人が右、敵 3 体が左にならび、下の窓に「なまえ／HP／MP／待ち時間」が出る。
+// 色の組は「青むらさきの鉄と かすみ」＋ネオンのもも・水色＋電球のだいだい。夜だが、あかりを地面に焼きこみ、人と敵には明るい色を入れる。
+// 画面の表示（窓・文字・ゲージ・数字）も pack-battle.js の HUD で描き、同じブラウン管を通す。部品は retro.js（R.〜）・pack-city.js（C.〜）・pack-battle.js（B.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), B = PACK_BATTLE(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, X = C.tex, L = C.LIGHT, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x, y, z) => new THREE.Vector3(x, y, z);
+const { scene, cam, renderer, onResize } = K.stage({ fov: 40, far: 900, aa: false, fitAspect: .9, maxFov: 66 }), HAZE = '#2c3760';
+scene.background = new THREE.Color(HAZE); scene.add(C.dome({ r: 420, c: '#1e2644', haze: HAZE }), C.backdrop({ r: 200, h: 38, y: -3, haze: HAZE })); scene.fog = new THREE.Fog(HAZE, 22, 120);
+const { sun } = K.lights(scene, renderer, { sky: 0xa8b4ff, ground: 0x6a5a78, amb: 1.6, sun: 0xd8dcff, power: .9, range: 14, pos: [8, 30, 16] });
+
+// ---- 地面（ぬれたアスファルトと鉄板）と、焼きこむ あかり ----
+const SHOPS = [[-10.4, 5.2, 'window', L.cyan, 'fish', 2], [-4.9, 5.4, 'noren', L.pink, 'cup', 3], [.9, 5.6, 'shutter', L.amber, 'gear', 2], [6.6, 5, 'noren', L.cyan, 'moon', 3], [11.9, 5.2, 'window', L.pink, 'heart', 2]];
+const lights = [...SHOPS.map(([x, w, k, c]) => ({ x, z: -3.6, r: 4.6, c, k: .7 })), ...SHOPS.map(([x]) => ({ x: x + 1, z: -4.2, r: 4, c: L.bulb, k: .7 })), { x: -2.6, z: .2, r: 4.2, c: '#ffc890', k: .55 }, { x: 2.8, z: .2, r: 4.2, c: '#ffc890', k: .6 }, { x: 0, z: 3.5, r: 5, c: L.bulb, k: .35 }, { x: -9, z: 2, r: 4, c: L.pink, k: .4 }, { x: 9.5, z: 2, r: 4, c: L.cyan, k: .4 }];
+const land = R.ground({ w: 70, d: 44, cell: 1, layers: [X.asphalt({ wet: .7, c: '#4a5064', wetC: '#5a6a9a' }), X.plate({ c: '#666c84', n: 2 }), X.conc({ c: '#8e8a92' })], mix: (x, z) => [Math.abs(x) < 5.5 && Math.abs(z - .2) < 3 ? 1 : 0, z < -3.4 ? 1 : 0], shade: C.lightShade(lights, [.56, .56, .74]) });
+scene.add(land.mesh);
+
+// ---- うしろの店なみ・配管・ネオン・電球 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+SHOPS.forEach(([x, w, kind, nc, icon, fl], i) => put(C.shack({ w, d: 4.4, floors: fl, seed: i + 3, shop: kind, shopC: ['#2f4a8a', '#b8302a', '#2f7a5a'][i % 3], lit: .9, awning: kind === 'shutter' ? false : ['#c2453a', 'tin', '#2f7a8a'][i % 3], laundry: i === 1, tank: i === 3, sign: { kind: icon, c: nc, c2: i % 2 ? L.amber : L.pink, shape: ['tall', 'wide', 'sq'][i % 3], side: i % 2 ? 1 : -1, flicker: i === 2 } }), x, -6.6));
+fixed.push(C.pipe([[-20, 3.3, -4.25], [20, 3.3, -4.25]], .2, { c: C.PAL[1], joint: 4 }), C.pipe([[-20, 6.4, -4.1], [20, 6.4, -4.1]], .34, { c: '#6e7890', joint: 6 }), C.pipe([[-20, .3, -3.9], [-7.5, .3, -3.9], [-7.5, 3.3, -4.2]], .16, { c: C.PAL[0], band: '#e8e4d8', joint: 3 }), C.pipe([[20, .28, -3.9], [9.2, .28, -3.9], [9.2, 6.4, -4.1]], .14, { c: C.PAL[2], joint: 3 }));
+fixed.push(C.bulbs([-9, 4.3, -4], [-1, 4.4, -4], { n: 7, sag: .5, cs: [L.bulb, L.pink, L.bulb, L.cyan] }), C.bulbs([1, 4.4, -4], [9, 4.3, -4], { n: 7, sag: .5 }), C.lanterns([-3, 3.2, -4.1], [3, 3.2, -4.1], { n: 5, sag: .4, kinds: ['red', 'white'] }));
+put(C.drum({ c: C.PAL[1] }), -6.6, -3.5); put(C.drum({ c: '#c2453a', mark: 'band', h: .8 }), -7.3, -3.6); put(R.crate({ s: .7 }), 4.6, -3.6, .3); put(R.crate({ s: .5, kind: 'x' }), 4.5, -3.55, .7, .7); put(C.vending({ c: '#c2453a' }), 8.9, -3.9); put(C.tires({ n: 3 }), -9.2, -3.5); put(C.trash({}), 2.2, -3.7); put(C.bike({ c: '#e8892c' }), 1.2, -3.75, .08);
+put(C.yatai({ c: '#c8a04a', noren: '#b8302a' }), 9.6, 2.6, -PI / 2 - .3); put(C.containerHouse({ n: 2, seed: 2, lit: .8 }), -11.5, 3.4, PI / 2); put(C.scrap({ s: 1.2, seed: 2 }), -8.2, 4.4); put(C.streetLamp({ h: 4.2, halo: true }), 6.2, -3.3, PI / 2); put(C.streetLamp({ h: 4.2, halo: true, cold: true }), -5.6, -3.3, PI / 2);
+for (const [x, z, k] of [[0, .3, 'round'], [-4.2, 2.2, 'grate'], [4.4, -1.9, 'plate']]) put(C.manhole({ kind: k, r: .45 }), x, z);
+scene.add(R.merge(fixed));
+scene.add(C.pools(SHOPS.map(([x, w, k, c]) => ({ p: [x, 2.2, -4.35], n: [0, 0, 1], r: 2.6, c, k: .45 }))), C.streaks(SHOPS.map(([x, w, k, c], i) => ({ x, z: -4, h: 3, c, k: .7, w: 1.2, flicker: i === 2 })), { far: 30 }));
+const steam = [[-4.2, .06, 2.2], [7.4, 3.3, -4.2]].map(([x, y, z], i) => { const s = C.steam({ r: .5, rise: 2.4, n: 8, a: .32, c: i ? '#e4f0ff' : '#ffeedd', phase: i * .4 }); s.position.set(x, y, z); scene.add(s); return s; });
+const pk = new THREE.PointLight(L.pink, 14, 9, 1.5), cy = new THREE.PointLight(L.cyan, 14, 9, 1.5), warm = new THREE.PointLight('#ffd8a8', 16, 11, 1.3), flash = new THREE.PointLight('#fff4c0', 0, 14, 1.2); pk.position.set(-4.5, 2.6, -3); cy.position.set(5.5, 2.6, -3); warm.position.set(0, 3.2, 2.4); scene.add(pk, cy, warm, flash);
+// 見物の人と、ねこ
+const npc = R.actor({ hairStyle: 'short', hair: '#2a2a34', cloth: 'overall', top: '#c8a04a', top2: '#e8e0d0', bottom: '#5a6a8a', shoes: 'boot', hat: 'band', acc: '#f0e8d8' }); npc.position.set(8.6, 0, 1.4); npc.rotation.y = -1.9; scene.add(npc);
+const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); cat.position.set(4.6, .7, -3.6); cat.rotation.y = -.6; scene.add(cat);
+
+// ---- 味方 3 人：剣のハガネ・銃のピコ・つえのルリ ----
+const mkP = (name, o, home, hp, mp, fill, face) => { const a = R.actor(o); scene.add(a); return { a, name, home: V(...home), h0: V(...home), hpMax: hp, mpMax: mp, fill0: fill, face }; };
+const party = [
+  mkP('ハガネ', { hairStyle: 'tufts', hair: '#f0a030', eyes: 'sharp', brow: 'angry', cloth: 'jacket', top: '#d8483a', top2: '#f4ecd8', lower: 'baggy', bottom: '#3a4a7a', gloves: 'gauntlet', gear: '#c8ccd8', shoulder: 'left', shoes: 'boot', neck: 'scarf', acc: '#4ab8f0', hold: 'sword' }, [2.2, 0, .1], 320, 24, [-3.5, 1]),
+  mkP('ピコ', { sex: 'f', hairStyle: 'tail', hair: '#f4e08a', eye: '#3a9a6a', mouth: 'smile', blush: true, cloth: 'vest', top: '#3fae8e', top2: '#f4ecd8', lower: 'shorts', bottom: '#5a4a3a', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', hat: 'cap', acc: '#e8683a', strap: true }, [3.3, 0, -1.5], 240, 40, [-1, 8.2]),
+  mkP('ルリ', { sex: 'f', hairStyle: 'bob', hair: '#c8a8f0', eye: '#d85a8a', brow: 'soft', mouth: 'small', blush: true, cloth: 'robe', top: '#5a4ac0', top2: '#ffe08a', shoes: 'shoe', hat: 'wizard', acc: '#5a4ac0', hold: 'staff' }, [3.2, 0, 1.6], 190, 96, [-9, 15.6])];
+// ---- 敵 3 体：ぷるぷるのアブラプル・がらくたのガラクタン・空を飛ぶネジバチ ----
+const mkE = (name, e, home, hp) => { scene.add(e); return { e, name, d: B.drive(e), home: V(...home), h0: V(...home), hpMax: hp }; };
+const foes = [mkE('アブラプル', B.enemy.jelly({ s: 1.3 }), [-1.9, 0, 1.6], 60), mkE('ガラクタン', B.enemy.golem({ s: 1.1 }), [-3.3, 0, -.3], 180), mkE('ネジバチ', B.enemy.drone({ s: 1.35, fly: .95 }), [-1.3, 0, -1], 90)];
+B.arm(party[1].a, B.weapon('gun', { s: 1.25 }));
+const FACE_P = -PI / 2 + .3, FACE_E = PI / 2 - .3;
+
+// ---- 画面の表示・効果 ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
+const CMD = ['こうげき', 'とくぎ', 'まどう', 'どうぐ'];
+// コマンドの窓の出かた：who（だれ）, t0〜t1, sel（[時刻, 番号]）, sub（2 つめの窓）, tg（ねらう敵の番号と時刻）
+const WINS = [
+  { who: 0, t0: 1, t1: 4, sel: [[1, 0], [2.9, 1], [3.25, 0]], pick: 3.5, tg: [3.5, 0] },
+  { who: 1, t0: 8.2, t1: 10.4, sel: [[8.2, 0], [9, 1]], pick: 9.3, sub: { t0: 9.3, items: ['はやうち', 'ねらいうち'], cost: [6, 10], sel: [[9.3, 0]], pick: 9.9 }, tg: [9.9, 1] },
+  { who: 2, t0: 15.6, t1: 18, sel: [[15.6, 0], [16, 1], [16.35, 2]], pick: 16.7, sub: { t0: 16.7, items: ['ヒノコ', 'コオリバリ', 'イカヅチ'], cost: [8, 12, 22], sel: [[16.7, 0], [17, 1], [17.3, 2]], pick: 17.6 }, tg: [17.6, 2] },
+  { who: 0, t0: 25, t1: 26.7, sel: [[25, 0], [25.3, 1], [25.6, 2], [25.9, 3]], pick: 26.1, sub: { t0: 26.1, items: ['キズぐすり', 'けむりだま'], cost: ['x3', 'x1'], sel: [[26.1, 0]], pick: 26.6 } }];
+const LOOP = 30, T0 = +(new URLSearchParams(location.search).get('t') || 0); let prev = 1e9, msg = null, banner = null, shake = 0;
+const say = (text, t, len = 1.6) => { msg = { text, until: t + len }; };
+const pAt = (p, h = .9) => p.a.position.clone().setY(p.a.position.y + h), eAt = (f, k = 1) => f.e.position.clone().setY(f.e.position.y + f.e.userData.center * k + (f.e.userData.fly || 0));
+const hitP = (p, n, c = '#ffffff') => { p.hp = Math.max(0, p.hp - n); p.hurtT = 0; H.pop(pAt(p, 1.3), n, { c }); F.spark(pAt(p), { c: '#ffb060' }); shake = .25; };
+const hitE = (f, n, o = {}) => { f.hp = Math.max(0, f.hp - n); H.pop(eAt(f, 2), n, o); f.d.set(f.hp <= 0 ? 'down' : 'hurt'); shake = Math.max(shake, o.scale > 1 ? .5 : .2); };
+function reset() { F.clear(); msg = banner = null; for (const p of party) { p.hp = p.hpShow = p.hpMax; p.mp = p.mpMax; p.fill = [...p.fill0]; p.hurtT = 9; p.a.position.copy(p.home); p.a.rotation.set(0, FACE_P, 0); p.a.visible = true; }
+  party[0].hp = party[0].hpShow = 268; party[1].mp = 34; party[2].hp = party[2].hpShow = 171;
+  for (const f of foes) { f.hp = f.hpMax; f.d.name = 'idle'; f.d.t = 0; f.e.visible = true; f.e.position.copy(f.home); f.e.rotation.set(0, FACE_E, 0); f.gone = false; } }
+// 起きること（時刻, 中身）
+const EV = [
+  [4, t => { say('ハガネの こうげき', t, 2); party[0].fill = [6.2, 25]; }],
+  [5.28, () => { const f = foes[0]; F.slash(eAt(f, 1.2), { ry: -PI / 2, tilt: .9, s: 1.2 }); F.spark(eAt(f), {}); hitE(f, 38); }],
+  [6.6, t => { say('ネジバチの こうげき', t); foes[2].d.set('attack'); }],
+  [7.05, () => F.shot(eAt(foes[2]), pAt(party[1]), { c: '#ff7a5a', speed: 16, onHit: () => hitP(party[1], 21) })],
+  [10.4, t => { banner = { text: 'はやうち', t0: t, len: 1.7, sub: 'ピコの とくぎ', c: '#1e6a5a' }; party[1].mp -= 6; party[1].fill = [12, 40]; }],
+  ...[10.95, 11.2, 11.45].map((tm, i) => [tm, () => { const p = party[1], m = pAt(p, .95); m.x -= .5; F.shot(m, eAt(foes[1]).add(V(0, (i - 1) * .25, (i - 1) * .2)), { c: '#ffe060', speed: 30, onHit: () => hitE(foes[1], [14, 16, 15][i]) }); }]),
+  [12.6, t => say('ガラクタンの こうげき', t, 2.2)],
+  [13.6, () => foes[1].d.set('attack')],
+  [14.1, () => { const p = party[0]; F.ring(p.a.position, { c: '#ffd0a0', s: 1 }); F.dust(p.a.position, { n: 7, s: 1.3 }); hitP(p, 45); shake = .6; }],
+  [18, t => { say('ルリの まどう', t, 2); banner = { text: 'イカヅチ', t0: t + .3, len: 2.5, sub: 'そらを さく ひかり', c: '#4a2a9a' }; party[2].mp -= 22; party[2].fill = [22, 50]; F.charge(pAt(party[2], 1.2), { life: 2, r: 1.2 }); }],
+  [20.5, () => { const f = foes[2]; F.bolt(f.e.position.clone().setY(0), { s: 1.2, h: 10 }); hitE(f, 96, { scale: 2, c: '#fff4a0' }); flash.position.copy(f.e.position).setY(2); flash.userData.t = 0; }],
+  [21.9, () => { const f = foes[2]; F.dust(f.e.position, { n: 8, s: 1.2, c: '#c8c0e0' }); f.e.visible = false; f.gone = true; }],
+  [22.6, t => say('アブラプルの こうげき', t, 2)],
+  [23.4, () => foes[0].d.set('attack')],
+  [23.85, () => hitP(party[2], 9)],
+  [26.7, t => { say('ハガネは キズぐすりを つかった', t, 2); party[0].fill = [28, 60]; }],
+  [27.2, () => { const p = party[0]; F.heal(p.a.position, {}); p.hp = Math.min(p.hpMax, p.hp + 50); p.hpShow = p.hp; H.pop(pAt(p, 1.3), '+50', { c: '#8affb0' }); }]];
+
+// ---- 人の動き ----
+const flinch = (p, dt) => { p.hurtT += dt; const k = cl(p.hurtT / .55); if (k >= 1) return; const a = Math.sin(k * PI), J = p.a.userData.J; J.torso.rotation.x = -a * .45; J.head.rotation.x = -a * .3; J.armL.rotation.x = -a * .9; J.armR.rotation.x += -a * .5; p.a.position.x += a * .28; p.a.position.z += Math.sin(p.hurtT * 50) * .02; };
+const stance = (p, t, i) => { const J = p.a.userData.J; MO.play(p.a, 'stand', t + i); MO.squat(p.a, .22); J.torso.rotation.x = .1; J.legL.rotation.x -= .25; J.legR.rotation.x += .25; J.shinR.rotation.x += .15; J.hips.position.y += Math.sin(t * 5 + i * 2) * .012; };
+function moveParty(tt, t, dt) {
+  const [a, b, c] = party, J0 = a.a.userData.J, J1 = b.a.userData.J, J2 = c.a.userData.J, SP = innerWidth < innerHeight ? .72 : 1;
+  for (const [i, p] of party.entries()) { p.home.set(p.h0.x * SP, 0, p.h0.z); p.a.position.copy(p.home); p.a.rotation.y = FACE_P; stance(p, t, i); }
+  // ハガネ：走りよって切り、とんで もどる
+  J0.armR.rotation.set(-.7, 0, -.25); J0.foreR.rotation.x = -.9;
+  { const tgt = V(foes[0].home.x + 1.25, 0, foes[0].home.z + .1), go = seg(tt, 4, 4.75), back = seg(tt, 5.75, 6.3), k = go - back; a.a.position.lerpVectors(a.home, tgt, k);
+    if (tt > 4 && tt < 4.75) { MO.play(a.a, 'run', t); a.a.rotation.y = Math.atan2(tgt.x - a.home.x, tgt.z - a.home.z); }
+    else if (tt >= 4.75 && tt < 5.75) { MO.play(a.a, 'swing', Math.min(1.05, (tt - 4.75) * 1.25)); a.a.rotation.y = -PI / 2; }
+    else if (tt >= 5.75 && tt < 6.3) { a.a.position.y = Math.sin(back * PI) * .7; J0.legL.rotation.x = -.6; J0.legR.rotation.x = -.3; J0.shinL.rotation.x = J0.shinR.rotation.x = .9; }
+    if (tt > 26.7 && tt < 27.8) { const u = Math.sin(seg(tt, 26.7, 27.1) * PI / 2) * (1 - seg(tt, 27.4, 27.8)); J0.armL.rotation.set(-2.6 * u, 0, .2); J0.foreL.rotation.x = -.3; J0.head.rotation.x = -.25 * u; } }
+  // ピコ：かまえて うつ
+  J1.armR.rotation.set(-.5, 0, -.2); J1.foreR.rotation.x = -1.2;
+  if (tt > 10.4 && tt < 12) { const u = seg(tt, 10.4, 10.8) - seg(tt, 11.7, 12), kick = Math.max(0, ...[10.95, 11.2, 11.45].map(tm => tt >= tm ? 1 - (tt - tm) / .18 : 0)); J1.armR.rotation.set(-.5 - u * 1.05 - kick * .25, 0, -.2 + u * .25); J1.foreR.rotation.x = -1.2 + u * 1.1; J1.torso.rotation.y = u * .35; J1.armL.rotation.set(-u * 1.2, 0, -u * .5); J1.foreL.rotation.x = -u * .9; }
+  // ルリ：つえを かかげて となえる
+  J2.armR.rotation.set(-.6, 0, -.3); J2.foreR.rotation.x = -.7;
+  if (tt > 18 && tt < 21.4) { const u = seg(tt, 18, 18.6) - seg(tt, 20.9, 21.4), dn = seg(tt, 20.3, 20.5) * (1 - seg(tt, 20.9, 21.4)); J2.armR.rotation.set(-.6 - u * 2.1 + dn * 1.6, 0, -.3); J2.foreR.rotation.x = -.7 + u * .5; J2.armL.rotation.set(-u * .5 - dn * .7, 0, u * 1.1 - dn * .5); J2.foreL.rotation.x = -u * .5; J2.torso.rotation.x = .1 - u * .22 + dn * .4; J2.head.rotation.x = -u * .3 + dn * .3; c.a.position.y = Math.sin(t * 3) * .03 * u + u * .08; }
+  for (const p of party) { flinch(p, dt); p.hpShow += (p.hp - p.hpShow) * Math.min(1, dt * 2.2); if (p.hpShow - p.hp < .5) p.hpShow = p.hp; }
+}
+function moveFoes(tt, t, dt) {
+  const [je, go, dr] = foes, SP = innerWidth < innerHeight ? .72 : 1; for (const f of foes) { f.home.set(f.h0.x * SP, 0, f.h0.z); f.e.position.copy(f.home); f.e.rotation.y = FACE_E; }
+  // ガラクタン：歩いてきて なぐり、もどる
+  { const tgt = V(party[0].home.x - 1.7, 0, party[0].home.z - .1), k = seg(tt, 12.6, 13.6) - seg(tt, 14.9, 15.7); go.e.position.lerpVectors(go.home, tgt, k); go.e.rotation.y = FACE_E + PI * (seg(tt, 14.8, 15.05) - seg(tt, 15.55, 15.8)); if (go.d.name === 'idle' && ((tt > 12.6 && tt < 13.6) || (tt > 14.9 && tt < 15.7))) go.d.name = 'walk'; else if (go.d.name === 'walk' && !((tt > 12.6 && tt < 13.6) || (tt > 14.9 && tt < 15.7))) go.d.name = 'idle'; }
+  // アブラプル：はねてきて ぶつかり、もどる
+  { const tgt = V(party[2].home.x - 1.9, 0, party[2].home.z - .1), k = seg(tt, 22.6, 23.4) - seg(tt, 24.3, 25); je.e.position.lerpVectors(je.home, tgt, k); const w = (tt > 22.6 && tt < 23.4) || (tt > 24.3 && tt < 25); if (je.d.name === 'idle' && w) je.d.name = 'walk'; else if (je.d.name === 'walk' && !w) je.d.name = 'idle'; }
+  for (const f of foes) f.d.update(dt);
+}
+
+// ---- 画面の表示 ----
+const selAt = (list, tt) => { let s = list[0][1]; for (const [tm, v] of list) if (tt >= tm) s = v; return s; };
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, sw = tall ? H.W - 12 : 200, sr = H.place('右下', sw, 53), act = WINS.find(w => tt >= w.t0 && tt < w.t1);
+  H.win(sr.x, sr.y, sr.w, sr.h);
+  party.forEach((p, i) => { const [f0, f1] = p.fill; H.status(sr.x + 8, sr.y + 7 + i * 14, sr.w - 16, { name: p.name, hp: p.hp, hpMax: p.hpMax, hpShow: p.hpShow, mp: p.mp, mpMax: p.mpMax, wait: cl((tt - f0) / (f1 - f0)), sel: act && act.who === i }); });
+  if (!tall) { const er = H.place('左下', H.W - 12 - sw - 3, 53); H.win(er.x, er.y, er.w, er.h); let j = 0; for (const [i, f] of foes.entries()) { if (f.gone) continue; const tg = act && act.tg && tt >= act.tg[0] && act.tg[1] === i; H.text(f.name, er.x + 16, er.y + 7 + j * 14, { c: tg ? B.PAL.gold : f.hp <= 0 ? '#8088a0' : '#ffffff' }); if (tg) H.icon('hand', er.x + 4 + Math.round(Math.sin(t * 9)), er.y + 10 + j * 14); j++; } }
+  if (act) { const ms = H.menuSize(CMD), r = tall ? H.place('左下', ms.w, ms.h, 0, -56) : H.place('左下', ms.w, ms.h, 104, -56), dimmed = act.who === 2 ? [] : [2];
+    H.win(r.x, r.y, r.w, r.h, { title: party[act.who].name }); H.menu(r.x + 4, r.y + 6, CMD, selAt(act.sel, tt), { t, dim: dimmed, cursor: !(act.sub && tt >= act.sub.t0) && tt < act.pick + .25 });
+    if (act.sub && tt >= act.sub.t0) { const s = act.sub, m2 = H.menuSize(s.items), r2 = H.place('左下', m2.w + 22, m2.h, r.x - H.pad + r.w - 8, -56 - 8); H.win(r2.x, r2.y, r2.w, r2.h, { c: '#2a2a7a' }); H.menu(r2.x + 4, r2.y + 6, s.items, selAt(s.sel, tt), { t, cursor: tt < s.pick + .2 }); s.cost.forEach((c2, i) => H.num(c2, r2.x + r2.w - 6, r2.y + 8 + i * 12, { align: 'r', small: typeof c2 === 'string', c: '#9ad0ff' })); }
+    if (act.tg && tt >= act.tg[0]) { const f = foes[act.tg[1]], s = H.project(eAt(f, 1)); H.icon('hand', s.x - 22 + Math.round(Math.sin(t * 9) * 2), s.y - 4, { scale: 1 }); if (tall) H.tag(s.x, s.y - 20, f.name, f.hp / f.hpMax, {}); } }
+  if (msg && tt < msg.until) H.msg(msg.text, '上', { dy: tall ? 34 : 9 });
+  if (banner) H.banner(banner.text, (tt - banner.t0) / banner.len, { sub: banner.sub, c: banner.c, y: tall ? H.H * .2 : 30 });
+  H.end(dt);
+}
+
+// ---- カメラ：ななめ上からの引き。魔法のときだけ回りこむ ----
+const cp = V(0, 0, 0), ct = V(0, 0, 0), p2 = V(0, 0, 0), t2 = V(0, 0, 0);
+function moveCam(tt, t, dt) {
+  const tall = innerWidth < innerHeight;
+  if (tall) { cp.set(8.6 + Math.sin(t * .2) * .3, 3.9, 3.4); ct.set(-1.15, .1, -.5); } else { cp.set(.4 + Math.sin(t * .2) * .35, 4.3, 8); ct.set(.2, .05, .3); }
+  // ルリのまわりを回る → 敵のがわへ切りかえる
+  if (tt > 18 && tt < 22.4) { const c = party[2].a.position, a = -.5 + seg(tt, 18, 20.3) * 1.5, w1 = seg(tt, 18, 18.5), d = tall ? 4.2 : 3;
+    p2.set(c.x + Math.sin(a) * d, .7 + seg(tt, 18, 20.3) * .6, c.z + Math.cos(a) * d); t2.set(c.x, tall ? .7 : 1.05, c.z); cp.lerp(p2, w1); ct.lerp(t2, w1);
+    if (tt > 20.3) { const e = foes[2].home, w2 = 1 - seg(tt, 21.6, 22.4); p2.set(e.x + (tall ? 5 : 3.6), tall ? 3.4 : 2.2, e.z + (tall ? 7 : 5)); t2.set(e.x, tall ? 1 : 1.5, e.z); if (tall) { cp.set(8.6, 3.9, 3.4); ct.set(-1.15, .1, -.5); } else { cp.set(.4, 4.3, 8); ct.set(.2, .05, .3); } cp.lerp(p2, w2); ct.lerp(t2, w2); } }
+  shake = Math.max(0, shake - dt * 1.6); cp.x += Math.sin(t * 71) * shake * .08; cp.y += Math.sin(t * 93) * shake * .08;
+  cam.position.copy(cp); cam.lookAt(ct);
+}
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); prev = prev > 1e8 ? T0 - .001 : -1; }
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt;
+  moveParty(tt, t, dt); moveFoes(tt, t, dt); moveCam(tt, t, dt);
+  R.idle(npc, t, Math.sin(t * .5) * .3); R.catPose(cat, 'sit', t);
+  if (flash.userData.t !== undefined) { flash.userData.t += dt; flash.intensity = Math.max(0, 1 - flash.userData.t / .35) * 22; }
+  crt.u.bright.value = Math.min(1, tt / .4, (LOOP - tt) / .5);
+  F.update(dt); C.update(t, cam); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

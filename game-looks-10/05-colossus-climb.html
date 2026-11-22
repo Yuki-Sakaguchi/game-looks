@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-05 巨大な像によじのぼって戦う 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f0e0;opacity:.8;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-05 ─ 巨大な像によじのぼって戦う / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 36 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-battle.js"></script>
+<script src="giant-colossus.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。かすみのかかった古い遺跡の原を、高さ 32 m の石の巨人「コケオイ」がゆっくり歩く。小さな主役が足の毛をつかんでよじのぼり、頭のてっぺんの光るもように剣をつき立てる。
+// 色の組は「かわいた草のオリーブ」＋「あたたかい灰色の石」＋「白っぽい空とかすみ」。差し色は、弱点の青みどりの光と、主役の赤いマント。
+// 画面の表示は最小（右下の「にぎる力」の輪と体力の細いバー。つき立てたときだけ像の体力の帯）。部品は retro.js（R.〜）・pack-ruins.js（PK.〜）・pack-battle.js（B.〜）・giant-colossus.js（GC.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), B = PACK_BATTLE(THREE, K, R), GC = GIANT_COLOSSUS(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const keys = (list, tt, sm = true) => { if (tt <= list[0][0]) return list[0][1]; for (let i = 0; i < list.length - 1; i++) { const [t0, v0] = list[i], [t1, v1] = list[i + 1]; if (tt < t1) { const k = (tt - t0) / (t1 - t0); return v0 + (v1 - v0) * (sm ? ease(k) : k); } } return list[list.length - 1][1]; };
+const { scene, cam, renderer, onResize } = K.stage({ fov: 47, far: 900, aa: false, fitAspect: .9, maxFov: 74 }), HAZE = '#cdc8ae';
+scene.add(R.skyDome([[0, '#7c95ac'], [.5, '#afbcb8'], [.85, '#cfcdb6'], [1, '#d9d1b2']], { r: 400 })); scene.fog = new THREE.Fog(HAZE, 40, 250);
+scene.add(R.backdrop({ c: '#8a9078', haze: HAZE, r: 300, y: -6, h: 44 }), R.backdrop({ c: '#a4a890', haze: HAZE, r: 360, y: -4, h: 70, seed: 3, rep: 3 }));
+const { sun } = K.lights(scene, renderer, { sky: 0xf2eedc, ground: 0xa09a7c, amb: 1.55, sun: 0xffe8c0, power: 2.1, range: 46, map: 2048 });
+
+// ---- 地面：かわいた草、土、古い石だたみの帯（柱のならぶ道）。歩く所は平ら、遠くだけ ゆるい丘 ----
+const P0 = V(6, 0, 10), ZC = -40, XA = -22, STONE = '#a8a290';
+const lineD = (x, z) => { const k = cl(((x - 6) * -14.8 + (z - 10) * -42.7) / 2042); return Math.hypot(x - (6 - 14.8 * k), z - (10 - 42.7 * k)); };
+const land = R.ground({ w: 320, d: 300, cell: 4, layers: [T.grass({ c: '#8c8c58', flowers: 0 }), T.dirt({ c: '#a8946c' }), T.cobble({ kind: 'slab', c: STONE, moss: .5 })],
+  mix: (x, z) => [cl((Math.sin(x * .09 + z * .05) + Math.sin(z * .13 - x * .04) - .5) * 1.4) * (lineD(x, z) < 3 ? 0 : 1), lineD(x, z) < 2.6 ? 1 : 0],
+  H: (x, z) => { const m = cl((Math.max(Math.abs(x) - 70, z - 34, -z - 78)) / 40); return m * m * (5 + Math.sin(x * .05) * 3 + Math.cos(z * .06) * 3); }, shade: (x, z) => .93 + Math.sin(x * .07) * Math.cos(z * .05) * .08 });
+scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// 道の両がわの柱（主役が走る線をはさむ）と、くずれた門、たおれた柱、岩
+[[9, -12, .3, 7], [-16, -12, 0, 8], [-24, -22, .6, 6.4], [16, -4, 0, 6.6], [-30, -2, .5, 7], [34, -22, .2, 7]].forEach(([x, z, br, h], i) => put(PK.column({ h, r: .6, c: STONE, broken: br, seed: i + 1, ivy: .5 }), x, z, i));
+for (const [k, sd] of [[.22, 1], [.22, -1], [.5, 1], [.5, -1], [.76, 1], [.76, -1]]) put(PK.column({ h: 1.2 + hash(k, sd, 2) * 1.2, r: .55, c: STONE, broken: .6, seed: k * 9 + sd, ivy: .4 }), 6 - 14.8 * k + sd * 3.6, 10 - 42.7 * k + sd * 1.2, k * 7);
+put(PK.arch({ w: 6, h: 8, c: STONE, broken: .45, seed: 2 }), -14, -3, .5); put(PK.arch({ w: 7, h: 9, c: STONE, seed: 4 }), 31, -31, -.5);
+{ const f = put(PK.column({ h: 6, r: .6, c: STONE, seed: 7, ivy: 0 }), -4.5, -3, 1.1, .58); f.rotation.z = PI / 2; }
+// 遠くの大きな遺跡（像のむこう）
+for (const [x, z, s, br] of [[-46, -84, 2.2, .3], [-30, -92, 2.6, 0], [8, -88, 2, .6], [36, -80, 2.4, .2], [60, -66, 2, .5]]) { const c = put(PK.column({ h: 8, r: .7, c: STONE, broken: br, seed: x, ivy: .3 }), x, z + 20, x); c.scale.setScalar(s); }
+{ const a = put(PK.arch({ w: 7, h: 9, c: STONE, broken: .3, seed: 6 }), -8, -72, .1); a.scale.setScalar(2.4); }
+for (let i = 0; i < 16; i++) { const x = (hash(i, 1, 4) - .5) * 110, z = 24 - hash(i, 2, 4) * 90; if (lineD(x, z) < 4 || (Math.abs(z - ZC) < 11 && x > -34 && x < 22)) continue; put(R.rock({ s: .5 + hash(i, 3, 4) * 1.4, c: '#9a9684', moss: .5, seed: i }), x, z, i); }
+for (let i = 0; i < 90; i++) { const x = (hash(i, 5, 9) - .5) * 90, z = 22 - hash(i, 6, 9) * 80; if (lineD(x, z) < 2.8) continue; put(R.tuft({ kind: i % 4 === 0 ? 'bush' : i % 4 === 1 ? 'reed' : 'grass', s: .6 + hash(i, 7, 9) * .8, c: i % 3 ? '#8a8c4c' : '#a09a58' }), x, z, i); }
+scene.add(R.merge(fixed));
+const flock = PK.flock({ n: 8, r: 13, h: 4, speed: .26, squash: .6 }), flock2 = PK.flock({ n: 5, r: 9, h: 2, speed: .2 }); flock2.position.set(30, 12, -10); scene.add(flock, flock2);
+const motes = PK.motes({ n: 50, area: [30, 8, 30], c: '#fff8d8', size: .1, a: .5 }); scene.add(motes);
+
+// ---- 像と主役 ----
+const col = GC.make({ c: '#989080', moss: '#627e4a', fur: '#737440', eye: '#7af0e0' }), CJ = col.userData.J, STRIDE = col.userData.stride; col.rotation.y = PI / 2; scene.add(col);
+const hero = R.actor({ hairStyle: 'tufts', hair: '#4a3626', eyes: 'sharp', cloth: 'tunic', top: '#ece2c4', top2: '#8a5a3a', lower: 'baggy', bottom: '#5c5648', gloves: 'glove', glove: '#7a5234', shoes: 'boot', neck: 'cape', skirtC: '#e2523a', hold: 'sword' }), HJ = hero.userData.J, rig = new THREE.Group(); rig.add(hero); scene.add(rig);
+{ const bow = B.weapon('bow', { s: .9 }); bow.position.set(.06, .34, -.17); bow.rotation.set(0, PI / 2, .5); HJ.torso.add(bow); }
+// 主役の動きを足す：よじのぼる／片手でぶらさがる／剣をつき立てる／ふり落とされる
+MO.add('climb', 'よじのぼる', 0, (g, t, J, D, amp = 1) => { MO.reset(g); const s = Math.sin(t * 6) * amp; J.armL.rotation.set(-2.75 + s * .4, 0, .22); J.armR.rotation.set(-2.75 - s * .4, 0, -.22); J.foreL.rotation.x = -.5 - s * .35; J.foreR.rotation.x = -.5 + s * .35;
+  J.legL.rotation.x = -1 + s * .45; J.shinL.rotation.x = 1.5 - s * .5; J.legR.rotation.x = -1 - s * .45; J.shinR.rotation.x = 1.5 + s * .5; J.torso.rotation.set(.08, s * .12, 0); J.head.rotation.x = -.45; if (J.cape) J.cape.rotation.x = -.12; });
+MO.add('dangle', 'ぶらさがる', 0, (g, t, J) => { MO.reset(g); J.armL.rotation.set(-2.95, 0, .12); J.foreL.rotation.x = -.1; J.armR.rotation.set(-1.3 + Math.sin(t * 9) * .7, 0, -.9); J.foreR.rotation.x = -.6; J.legL.rotation.x = Math.sin(t * 8) * .7; J.legR.rotation.x = -Math.sin(t * 8) * .7; J.shinL.rotation.x = J.shinR.rotation.x = .7; J.torso.rotation.set(0, Math.sin(t * 5) * .3, 0); J.head.rotation.x = -.3; if (J.cape) J.cape.rotation.x = -.5 + Math.sin(t * 7) * .3; });
+MO.add('stab', 'つき立てる', 0, (g, t, J) => { MO.reset(g); const u = seg(t, 0, .45), d = seg(t, .5, .6); MO.squat(g, .35 + d * .6); J.torso.rotation.x = -.18 * u * (1 - d) + d * .8; J.head.rotation.x = .25 * d - .1;
+  J.armR.rotation.set(-2.7 * u * (1 - d) + d * .5, 0, .28 * u); J.armL.rotation.set(-2.7 * u * (1 - d) + d * .5, 0, -.28 * u); J.foreR.rotation.x = J.foreL.rotation.x = -.45 * (1 - d) - .1; if (J.cape) J.cape.rotation.x = -.2 - d * .5; });
+MO.add('fall', 'おちる', 0, (g, t, J) => { MO.reset(g); const s = Math.sin(t * 11); J.armL.rotation.set(-1.8 + s * .5, 0, .9); J.armR.rotation.set(-1.8 - s * .5, 0, -.9); J.legL.rotation.x = -.5 + s * .5; J.legR.rotation.x = -.5 - s * .5; J.shinL.rotation.x = J.shinR.rotation.x = .8; J.torso.rotation.x = -.2; if (J.cape) J.cape.rotation.x = -1; });
+
+// ---- 弱点をさす光のすじ・光のしぶき・あかり ----
+const beamT = (() => { const P = R.Px(8, 32); P.clip = true; P.each((x, y) => { const k = y / 31, a = Math.abs(x - 3.5); return a < .6 + k * 1.2 ? (k > .5 || ((x + y) & 1) || k > .25 ? '#ffffff' : '#9ff4e8') : a < 1.2 + k * 2.4 && ((x + y) & 1 || k > .7) ? '#58d8c8' : null; }); return T.from(P, { cut: true }); })();
+const beam = (() => { const G = R.geo(); for (const a of [.3, .3 + PI / 2]) { const cx = Math.cos(a) * .8, cz = Math.sin(a) * .8; G.quad([-cx, 0, -cz], [cx, 0, cz], [cx * .3, 30, cz * .3], [-cx * .3, 30, -cz * .3]); } const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: beamT, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false, opacity: .5 })); m.frustumCulled = false; scene.add(m); return m; })();
+const drops = [...Array(20)].map((_, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.dot(), color: i % 3 ? '#8af4e4' : '#ffffff', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false })); s.visible = false; scene.add(s); return s; });
+const glowL = new THREE.PointLight('#8af0e0', 0, 26, 1.2); scene.add(glowL);
+
+// ---- 時間の表 ----
+// 像の歩き：[時刻, 速さ（1 秒に何歩ぶん）]。止まるのは「両足が着いた形」（位相が .25 か .75）になる時刻
+const SP = [[0, .14], [6, .14], [9, 0], [12.5, 0], [14, .1175], [17, .1175], [18, 0], [22, 0], [23, .143], [25.5, .143], [26.5, 0], [36, 0]];
+const Wat = tt => { let w = .2; for (let i = 0; i < SP.length - 1; i++) { const [t0, s0] = SP[i], [t1, s1] = SP[i + 1]; if (tt <= t0) break; const u = Math.min(tt, t1) - t0; w += (s0 + s0 + (s1 - s0) * u / (t1 - t0)) / 2 * u; } return w; };
+// のぼる道：[関節, その中の位置, 外向き, 立つ度合い]。足の外がわの毛 → 腰 → 背中の毛 → 頭のうしろ → てっぺん
+const AN = [['shinR', [-2.75, -4.1, 0], [-1, 0, 0], 0], ['shinR', [-2.45, -.5, 0], [-1, 0, 0], 0], ['legR', [-2.85, -3.5, 0], [-1, 0, 0], 0], ['legR', [-3.15, -.1, 0], [-1, 0, 0], 0], ['hips', [-6, 2.3, -1.8], [-.85, 0, -.5], 0],
+  ['torso', [-1.4, 3.6, -4.6], [-.2, 0, -1], 0], ['torso', [-.4, 8.6, -5.6], [0, 0, -1], 0], ['torso', [0, 13, -5.3], [0, .25, -1], 0], ['head', [0, 2.4, -3.5], [0, .25, -1], .25], ['head', [0, 4.95, -1], [0, 1, 0], 1]];
+const QK = [[10.6, 0], [12.4, 1], [14.2, 2], [15.8, 3], [17, 4], [18.1, 5], [18.6, 5.3], [21.9, 5.3], [23.4, 6], [24.6, 7], [25.4, 8], [26.3, 9]];
+const GRIP = [[10.6, 1], [17.8, .8], [21.6, .2], [22, .2], [26.3, .74], [29.6, .6], [30.8, 0], [32.6, 0], [36, .5]], STABS = [27.2, 28.45], T_THROW = 30.8, T_LAND = 32.6, T_JUMP = 10;
+const LOOP = 36, T0 = +(new URLSearchParams(location.search).get('t') || 0); let prev = 1e9, shake = 0, stepI = null, hp = 1, hpShow = 1, chp = 1, chpShow = 1, flashT = 9, launch = null;
+const G1 = V(XA + 1.25 * STRIDE, 0, ZC + 7.3), RUN = G1.clone().sub(P0).normalize(), SIDE = V(-RUN.z, 0, RUN.x), X6 = XA + 2.25 * STRIDE, LAND = V(X6 + 19, 0, ZC + 26);
+
+// ---- 画面の表示・効果 ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
+const top = V(), tmp = V(), tmp2 = V(), pa = V(), pb = V(), na = V(), nb = V(), up = V(), hx = V(), hy = V(), hz = V(), m4 = new THREE.Matrix4(), FWD = V(1, 0, 0), UP = V(0, 1, 0), q0 = new THREE.Quaternion(), hw = V();
+const anchor = (i, p, n) => { const [jn, lp, ln] = AN[i], j = CJ[jn]; j.localToWorld(p.set(...lp)); n.set(...ln).transformDirection(j.matrixWorld); };
+function reset() { F.clear(); hp = hpShow = chp = chpShow = 1; shake = 0; stepI = null; launch = null; flashT = 9; }
+const EV = [
+  ...STABS.map((tm, i) => [tm + .56, () => { F.spark(top, { c: '#aaffee', n: 14, s: 1.6 }); F.ring(tmp.copy(top).setY(top.y + .1), { c: '#aaffee', s: 1.8 }); chp -= i ? .2 : .16; flashT = 0; shake = .5; }]),
+  [T_LAND, () => { F.dust(LAND, { n: 7, s: 2, c: '#d8ccaa' }); hp = .58; shake = .5; }]];
+
+// ---- 像を動かす ----
+function moveCol(tt, t, dt) {
+  const W = Wat(tt), ph = W * PI * 2, sk = seg(tt, 18, 18.7) - seg(tt, 21, 21.9) + (seg(tt, 29.5, 30.1) - seg(tt, 33.2, 35)) * 1.25;
+  let rear = 0; for (const s of STABS) rear = Math.max(rear, seg(tt, s + .6, s + .9) * (1 - seg(tt, s + 1.1, s + 2.2)));
+  const near = seg(tt, 21.5, 26), glow = .5 + Math.sin(t * 2.4) * .18 + near * .45 + Math.max(0, 1 - flashT / .5) * .9 - seg(tt, 31, 33) * .3;
+  col.position.set(XA + W * STRIDE, 0, ZC);
+  GC.pose(col, { ph, walk: 1, t, look: -(seg(tt, 6.5, 8.5) - seg(tt, 12, 13.5)) * .8 + Math.sin(t * .4) * .08, nod: (seg(tt, 6.5, 8.5) - seg(tt, 12, 13.5)) * .4, shake: sk, rear, glow });
+  col.updateMatrixWorld(true); CJ.head.localToWorld(top.set(...col.userData.top));
+  // 足が着いたら ほこりと ゆれ
+  const si = Math.floor((ph - PI / 2) / PI); if (stepI !== null && si !== stepI) { const n = si % 2 === 0 ? 'L' : 'R'; CJ['shin' + n].localToWorld(tmp.set(0, -5.8, .5)); tmp.y = 0; F.dust(tmp, { n: 9, s: 6, c: '#d8ccaa' }); F.ring(tmp, { c: '#f0e8c8', s: 7, life: .8 }); shake = Math.max(shake, cl(22 / cam.position.distanceTo(tmp)) * .9); } stepI = si;
+  beam.position.copy(top); beam.rotation.y = t * .3; beam.material.opacity = (.32 + Math.sin(t * 3) * .12 + near * .2) * (1 - seg(tt, 25.6, 26.4));
+  glowL.position.copy(top).setY(top.y + 2); glowL.intensity = 4 + glow * 10 + Math.max(0, 1 - flashT / .4) * 34; flashT += dt;
+  // 光のしぶき（つき立てた所から ふき上がり、落ちる）
+  for (const [i, d] of drops.entries()) { d.visible = false; for (const s of STABS) { const u = tt - s - .56 - (i % 4) * .05; if (u > 0 && u < 1.3) { const a = hash(i, s, 1) * PI * 2, sp = 1.5 + hash(i, s, 2) * 4, vy = 7 + hash(i, s, 3) * 7; d.visible = true; d.position.set(top.x + Math.cos(a) * sp * u, top.y + vy * u - 9 * u * u, top.z + Math.sin(a) * sp * u); d.scale.setScalar(.75 * (1 - u / 1.3) + .2); } } }
+  sun.target.position.set(col.position.x, 0, ZC + 8); sun.position.set(col.position.x - 22, 46, ZC + 46); flock.position.set(col.position.x + 4, 31, ZC);
+}
+
+// ---- 主役を動かす ----
+function climbAt(q) { const i = Math.min(AN.length - 2, Math.floor(q)), f = q - i, s = AN[i][3] + (AN[i + 1][3] - AN[i][3]) * f; anchor(i, pa, na); anchor(i + 1, pb, nb); pa.lerp(pb, f); na.lerp(nb, f).normalize();
+  up.copy(UP).addScaledVector(na, -na.y); if (up.lengthSq() < .01) up.set(1, 0, 0); up.normalize();
+  hy.copy(up).multiplyScalar(1 - s).addScaledVector(na, s).normalize(); hz.copy(na).multiplyScalar(s - 1).addScaledVector(FWD, s); hx.crossVectors(hy, hz).normalize(); hz.crossVectors(hx, hy);
+  const hang = 1.25 * (1 - s); rig.quaternion.setFromRotationMatrix(m4.makeBasis(hx, hy, hz)); rig.position.copy(pa).addScaledVector(na, .3 * (1 - s) + .03).addScaledVector(hy, hang); hero.position.set(0, -hang, 0); }
+function moveHero(tt, t, dt) {
+  hero.position.set(0, 0, 0); hero.rotation.set(0, 0, 0); rig.rotation.set(0, 0, 0);
+  const yawRun = Math.atan2(RUN.x, RUN.z);
+  if (tt < 3) { rig.position.copy(P0); rig.rotation.y = Math.atan2(col.position.x - P0.x, ZC - P0.z); MO.play(hero, 'stand', t); HJ.head.rotation.x = -.42; HJ.armR.rotation.set(-.3, 0, -.25); HJ.foreR.rotation.x = -.5; }
+  else if (tt < T_JUMP) { const k = cl((tt - 3) / (T_JUMP - 3)), kk = ease(k) * .35 + k * .65; rig.position.lerpVectors(P0, G1, kk); rig.rotation.y = yawRun; MO.play(hero, 'run', t, { speed: 1.15 }); HJ.head.rotation.x = -.3 - k * .3; }
+  else if (tt < 10.6) { const k = (tt - T_JUMP) / .6; climbAt(0); q0.setFromAxisAngle(UP, yawRun); tmp.copy(rig.position); rig.position.lerpVectors(G1, tmp, ease(k)); rig.position.y += Math.sin(k * PI) * .5; const qc = rig.quaternion.clone(); rig.quaternion.slerpQuaternions(q0, qc, ease(k)); hero.position.y *= ease(k); MO.play(hero, 'climb', t, { amp: 0 }); HJ.legL.rotation.x = -.6 * k; HJ.legR.rotation.x = .3 - k; }
+  else if (tt < T_THROW) { const q = keys(QK, tt), sk = seg(tt, 18, 18.7) - seg(tt, 21, 21.9), th = seg(tt, 29.5, 30.1); climbAt(q);
+    if (q < 9) { const moving = tt < 18.5 || tt > 21.9; if (sk > .3) { MO.play(hero, 'dangle', t); rig.rotateX(sk * (.55 + Math.sin(t * 4.6) * .4)); rig.rotateZ(Math.sin(t * 3.1) * .3 * sk); } else MO.play(hero, 'climb', t, { amp: moving ? 1 : .15 }); }
+    else { let st = -1; for (const s of STABS) if (tt >= s) st = tt - s; if (th > 0) { MO.play(hero, 'crouch', t); HJ.armL.rotation.set(-.3, 0, .5); HJ.armR.rotation.set(-.2, 0, -.5); hero.rotation.z = Math.sin(t * 9) * .2 * th; hero.rotation.x = Math.sin(t * 7) * .15 * th; }
+      else if (st >= 0 && st < 1.15) MO.play(hero, 'stab', st); else if (st >= 1.15) { MO.play(hero, 'stab', 1.15 - cl((st - 1.15) / .3) * .7); } else { MO.play(hero, 'stand', t); HJ.head.rotation.x = .3; } }
+    if (tt > 26.3) (launch = launch || V()).copy(rig.position); }
+  else if (tt < T_LAND) { if (!launch) launch = top.clone(); const k = (tt - T_THROW) / (T_LAND - T_THROW); rig.position.lerpVectors(launch, LAND, k); rig.position.y = launch.y + 7 * k - (launch.y + 7) * k * k + .5; rig.rotation.set(k * 10, 1, k * 3); hero.position.y = -.6; MO.play(hero, 'fall', t); }
+  else { const k = seg(tt, T_LAND, T_LAND + .8), up2 = seg(tt, 34, 35); rig.position.copy(LAND).addScaledVector(tmp.set(.6, 0, .8), k * 1.6); rig.rotation.y = Math.atan2(col.position.x - LAND.x, ZC - LAND.z); MO.play(hero, 'crouch', t); HJ.torso.rotation.x = .9 - k * .5 - up2 * .2; HJ.head.rotation.x = -.1 - up2 * .5; HJ.armL.rotation.set(-.9, 0, .2); HJ.foreL.rotation.x = -.3; }
+  hw.copy(rig.position);
+}
+
+// ---- 画面の表示 ----
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, grip = keys(GRIP, tt, false), r = H.place('右下', 64, 28, -2, -2), cx = r.x + r.w - 14, cy = r.y + 13, low = grip < .3, blink = low && Math.sin(t * 14) > 0;
+  hpShow += (hp - hpShow) * Math.min(1, dt * 1.6); chpShow += (chp - chpShow) * Math.min(1, dt * 1.4);
+  const gc = low ? (blink ? '#ffffff' : B.PAL.warn) : grip < .55 ? B.PAL.gold : '#f4f0dc', jx = low ? Math.round(Math.sin(t * 40)) : 0;
+  H.ring(cx + jx, cy, 11, 1, { c: '#1c2026', back: '#1c2026', th: 5 }); H.ring(cx + jx, cy, 11, grip, { c: gc, back: '#4a4e58', th: 3 }); H.icon('hand', cx - 4 + jx, cy - 3, { c: gc });
+  H.icon('heart', r.x, r.y + r.h - 8, { c: '#f06858' }); H.bar(r.x + 10, r.y + r.h - 6, 30, 3, hp, { c: B.PAL.hp, v2: hpShow, c2: '#ffffff', back: '#1c2026' });
+  const bk = seg(tt, STABS[0] + .5, STABS[0] + .8) * (1 - seg(tt, 31.6, 32.4));
+  if (bk > .02) { const w = Math.min(H.W - 30, 170), b = H.place('上', w, 14, 0, (tall ? 36 : 14) - Math.round((1 - bk) * 8)); H.text('コケオイ', b.x, b.y - 2, { size: 10, c: '#f4f0dc' }); H.bar(b.x, b.y + 11, Math.round(w * bk), 4, chp, { c: '#9af0e0', v2: chpShow, c2: '#ffffff', back: '#1c2026', ticks: 4 }); }
+  H.end(dt);
+}
+
+// ---- カメラ：見上げる引き → うしろから追う → のぼる所を引きで → 頭の上で寄る → 地面からの引き ----
+const cp = V(), ct = V();
+function moveCam(tt, t, dt) {
+  const tall = innerWidth < innerHeight, cx = col.position.x;
+  if (tt < 5.6) { cp.set(7.5 + tt * .08, 1, 16.5); ct.set(cx + 3, tall ? 13 : 9.5, ZC); }
+  else if (tt < 10.4) { const k = seg(tt, 5.6, 10.4); cp.copy(hw).addScaledVector(RUN, tall ? -5 : -5.6).addScaledVector(SIDE, 1.5); cp.y = 1.1 + k * .3; ct.copy(hw).addScaledVector(RUN, 12); ct.y = 5 + k * (tall ? 10 : 5); }
+  else if (tt < 17.6) { cp.set(hw.x + 4, Math.max(1, hw.y - (tall ? 4.5 : 2.4)), hw.z + (tall ? 8.5 : 9)); ct.set(hw.x - 1.5, hw.y + (tall ? 4.6 : 2), hw.z - 3); }
+  else if (tt < 22) { if (tall) { cp.set(hw.x - 5, hw.y - 1.5, hw.z + 3.6); ct.set(hw.x + 1.5, hw.y + 2.6, hw.z - 1); } else { cp.set(hw.x - 5, hw.y + .8, hw.z + 3.4); ct.set(hw.x + 1.5, hw.y + .4, hw.z - .6); } }
+  else if (tt < 26.2) { cp.set(hw.x - 6, hw.y + 2.8, hw.z + 1.6); ct.copy(hw).lerp(top, tall ? .3 : .1); ct.y += .2; }
+  else if (tt < 29.6) { const k = seg(tt, 26.2, 29.6); cp.set(top.x - 2.2 - k * .8, top.y + 1.7 + k * .4, top.z + 4.5); ct.set(top.x - .5, top.y + (tall ? 1.3 : .75), top.z); }
+  else { const k = seg(tt, 30.9, 32.6); cp.set(X6 + 26, 1.5, ZC + 34.5); ct.set(X6 + 5, tall ? 15 : 12.5, ZC + 4).lerp(tmp.copy(hw).setY(hw.y + 1.2), k * .8); }
+  shake = Math.max(0, shake - dt * 1.3); cp.x += Math.sin(t * 61) * shake * .12; cp.y += Math.sin(t * 83) * shake * .16;
+  cam.position.copy(cp); cam.lookAt(ct);
+}
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { const first = prev > 1e8; reset(); prev = first ? T0 - .001 : -1; if (first) { if (tt > STABS[0] + .56) chp = chpShow = tt > STABS[1] + .56 ? .64 : .84; if (tt > T_LAND) hp = hpShow = .58; } }
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt;
+  moveCol(tt, t, dt); moveHero(tt, t, dt); moveCam(tt, t, dt);
+  flock.userData.tick(t); flock2.userData.tick(t); motes.position.set(cam.position.x, 1, cam.position.z - 8); motes.userData.tick(t);
+  crt.u.bright.value = Math.min(1, tt / .5, (LOOP - tt) / .6);
+  F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

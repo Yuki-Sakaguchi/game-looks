@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-02 大きな竜を狩るアクション 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f4e8;opacity:.8;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-02 ─ 大きな竜を狩るアクション / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 36 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-battle.js"></script>
+<script src="giant-dragon.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。岩と草の野の昼すぎに、狩人 3 人（大きな剣のカイ・弓のミオ・つちのドン）が、人の 8 倍ある竜「アカガネリュウ」を狩る。
+// 色の組は「草のみどり・空の水色・岩の灰」＋竜の あかがね色と つばさの だいだい。差し色はカイの青いよろいと赤いえりまき。
+// 竜は giant-dragon.js（少ない面の loft＋手で打った うろこ・腹・角・まくのテクスチャ。首・あご・つばさ・足・尾の関節で、歩く・尾をふる・ほえる・火をはく・かみつく・ひるむ）。
+// 画面の表示（体力・スタミナ・刃の状態・残り時間・道具の枠・飛ぶ数字）は pack-battle.js の HUD で描き、同じブラウン管を通す。竜の体力は出さない。
+// 部品は retro.js（R.〜）・pack-fantasy-wild.js（FW.〜）・pack-battle.js（B.〜）・giant-dragon.js（GD.〜）。?t=秒 で途中から始められる
+// 確かめ用：?v=角度,きょり,高さ,見る高さ[,人の番号] でカメラを竜（か人）のまわりに置く。?pose=roar,.6 で竜の動きを止めて見る。?dmg=1 で部位のきずを全部出す
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FW = PACK_FWILD(THREE, K, R), B = PACK_BATTLE(THREE, K, R), GD = GIANT_DRAGON(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z), QS = new URLSearchParams(location.search);
+const wrap = a => ((a + PI) % TAU + TAU) % TAU - PI, turn = (a, b, k) => a + wrap(b - a) * k, pulse = (tt, a, b, i = .3, o = .4) => seg(tt, a, a + i) * (1 - seg(tt, b - o, b));
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 900, aa: false, fitAspect: .9, maxFov: 80 }), HAZE = '#e6eed2';
+scene.add(R.skyDome([[0, '#3a7ed6'], [.62, '#86c0ee'], [1, '#dcecd8']], { r: 430 })); scene.fog = new THREE.Fog(HAZE, 80, 320);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8f2ff, ground: 0xa0b478, amb: 1.5, sun: 0xffe4b4, power: 2.6, range: 34, pos: [-24, 38, 26] });
+
+// ---- 野：まん中は平らな草地（竜にふまれた土）、まわりは ゆるい丘と岩 ----
+const HF = (x, z) => seg(Math.hypot(x, z), 34, 72) * (FW.vn(x * .045, z * .045, 3) * 11 - 2.5);
+const land = R.ground({ w: 230, d: 230, cell: 2, H: HF, layers: [T.grass({ c: '#6cae4e', flowers: .2 }), T.dirt({ c: '#b4966a', pebbles: .5 }), T.grass({ c: '#a4b850', flowers: .45, fc: ['#ffffff', '#ffe27a'], seed: 2 })],
+  mix: (x, z) => [cl(cl(1.25 - Math.hypot(x, z - 2) / 9) + (FW.vn(x * .13, z * .13, 5) > .66 ? .8 : 0)), FW.vn(x * .09, z * .09, 9) > .58 ? .9 : 0],
+  shade: (x, z) => { const k = FW.vn(x * .06, z * .06, 7); return [.9 + .16 * k, .92 + .16 * k, .88 + .12 * k]; } });
+scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = HF(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let i = 0; i < 30; i++) { const a = hash(i, 1) * TAU, r = 17 + hash(i, 2) * 34, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 1 + hash(i, 3) ** 2 * 3.4; if (z > 3 && Math.abs(x) < 15 && r < 32) continue; put(R.rock({ s, c: '#a8a498', moss: .5, seed: i }), x, z, i, HF(x, z) - s * .12); }
+for (let i = 0; i < 18; i++) { const a = i / 18 * TAU + hash(i, 4) * .25, r = 54 + hash(i, 5) * 50, h = 9 + hash(i, 6) * 17; put(FW.pillar({ h, r: h * (.2 + hash(i, 7) * .12), spire: i % 3 === 0, seed: i, c: '#b0a68e' }), Math.cos(a) * r, Math.sin(a) * r, i, HF(Math.cos(a) * r, Math.sin(a) * r) - .6); }
+for (let i = 0; i < 34; i++) { const a = hash(i, 8) * TAU, r = 38 + hash(i, 9) * 62, x = Math.cos(a) * r, z = Math.sin(a) * r; put(R.tree({ kind: i % 3 ? 'round' : 'pine', h: 4.6 + hash(i, 10) * 3.4, seed: i, c: i % 3 ? '#4f9a48' : '#2f7a56' }), x, z, i); }
+for (let i = 0; i < 130; i++) { const a = hash(i, 11) * TAU, r = 5 + hash(i, 12) ** 1.2 * 42, x = Math.cos(a) * r, z = Math.sin(a) * r, q = i % 6; put(R.tuft({ kind: q < 3 ? 'grass' : q < 5 ? 'flower' : 'bush', s: .5 + hash(i, 13) * .5, c: q === 5 ? '#5aa650' : '#8cc85c', fc: ['#ffffff', '#ffe27a', '#ff9ab8'][i % 3], seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#6a9c62', haze: HAZE, r: 190, h: 36, y: -3, rep: 6 }), R.backdrop({ c: '#8aa6c8', haze: '#eef2e2', r: 262, h: 74, y: -4, rep: 4, seed: 3 }));
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 18 + hash(i, 30) * 16, c: '#ffffff', shade: '#c8d8ee' }), a = i / 7 * TAU + .4; c.position.set(Math.cos(a) * 210, 70 + hash(i, 31) * 34, Math.sin(a) * 210); c.lookAt(0, 40, 0); scene.add(c); }
+const birds = [...Array(4)].map((_, i) => { const b = R.bird({ c: ['#f4f0e8', '#5a4a5a', '#f4f0e8', '#c88a5a'][i], s: 1.6 }); b.userData.orb = [hash(i, 21) * TAU, 15 + hash(i, 22) * 9, 15 + hash(i, 23) * 6, .3 + hash(i, 24) * .2]; scene.add(b); return b; });
+const crits = [...Array(2)].map((_, i) => { const c = FW.critter({ s: 1.2, c: i ? '#e8d8a8' : '#d8b890' }); scene.add(c); return c; });
+const motes = FW.motes({ n: 50, box: [44, 8, 44], c: '#fff8d0', size: .12, rise: .1, drift: .8, y: .4 }); scene.add(motes);
+
+// ---- 竜と狩人 ----
+const drg = GD.make({}), DU = drg.userData; scene.add(drg);
+const glow = new THREE.PointLight('#ffb050', 0, 34, 1.1); scene.add(glow);
+const mk = (name, o, hpMax, hp0) => { const a = R.actor(o); a.rotation.order = 'YXZ'; scene.add(a); return { a, name, hpMax, hp0, hp: hp0, hpShow: hp0, J: a.userData.J, p: V(), ry: PI }; };
+const kai = mk('カイ', { hairStyle: 'spiky', hair: '#3a3450', eyes: 'sharp', brow: 'angry', cloth: 'armor', top: '#3f6ec4', top2: '#f0e8d0', lower: 'pants', bottom: '#4a4a66', gloves: 'gauntlet', gear: '#c8d0dc', shoulder: 'both', shoes: 'boot', shoe: '#5a4636', neck: 'scarf', acc: '#e8553a', back: 'bag', belt: '#7a5234' }, 150, 131);
+const mio = mk('ミオ', { sex: 'f', hairStyle: 'tail', hair: '#e89a3a', eye: '#3a8a6a', mouth: 'small', cloth: 'vest', top: '#f0e8d0', top2: '#3fae8e', lower: 'shorts', bottom: '#6a5a4a', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', hat: 'cap', acc: '#3fae8e', strap: true, back: 'pack' }, 120, 104);
+const don = mk('ドン', { bulk: 1.18, hairStyle: 'short', hair: '#6a4a34', beard: 'beard', brow: 'thick', cloth: 'armor', top: '#c8a03a', top2: '#7a5234', lower: 'baggy', bottom: '#6a4e7a', gloves: 'gauntlet', gear: '#a8a49a', shoulder: 'left', shoes: 'boot', hat: 'helm', acc: '#a8a49a', back: 'bag', s: 1.05 }, 180, 180);
+B.arm(kai.a, B.weapon('greatsword', { s: 1.4 })); B.arm(mio.a, B.weapon('bow', { s: 1.25 })); B.arm(don.a, GD.hammer({ s: 1.35 }));
+
+// ---- ひと回りの台本（秒）。竜と狩人の通り道は「時刻, x, z, …」の点の列 ----
+const LOOP = 36, T0 = +(QS.get('t') || 0), YC = .5, BR = 14.6, toW = (lx, lz, D) => [D[0] + lx * Math.cos(D[2]) + lz * Math.sin(D[2]), D[1] - lx * Math.sin(D[2]) + lz * Math.cos(D[2])];
+const D1 = [0, 0, YC], D2 = [Math.sin(YC) * 2.2, Math.cos(YC) * 2.2, YC], CS = [Math.sin(YC) * (BR + 1.3), Math.cos(YC) * (BR + 1.3)];
+const DK = [[0, 0, -4.6, 0], [3.2, 0, 0, 0], [19.8, 0, 0, 0], [22.2, 0, 0, YC], [27, 0, 0, YC], [29, D2[0], D2[1], YC], [LOOP + 1, D2[0], D2[1], YC]];
+{ let d = 0; DK[0][4] = 0; for (let i = 1; i < DK.length; i++) { d += Math.hypot(DK[i][1] - DK[i - 1][1], DK[i][2] - DK[i - 1][2]) + Math.abs(DK[i][3] - DK[i - 1][3]) * 9.2; DK[i][4] = d; } }
+const ACTS = [['tail', 5.5, 3.1], ['roar', 9.5, 3.4], ['fire', 13, 4.4], ['bite', 22.5, 2.2], ['flinch', 23.55, 2.6], ['roar', 32.9, 3.4]];
+const track = keys => tt => { let i = 0; while (i < keys.length - 2 && tt >= keys[i + 1][0]) i++; const a = keys[i], b = keys[i + 1], k = cl((tt - a[0]) / (b[0] - a[0])); return { x: a[1] + (b[1] - a[1]) * k, z: a[2] + (b[2] - a[2]) * k, k, mode: a[3], dx: b[1] - a[1], dz: b[2] - a[2], t0: a[0], t1: b[0] }; };
+const S2 = toW(3.6, 6.3, D2), HA = toW(-3.7, 6.3, D1), HB = toW(-3.7, 6.3, D2);
+const trK = track([[0, 1.5, 27, 'run'], [4.4, 3.5, 6.2, 'stay'], [6.9, 3.5, 6.2, 'roll'], [7.6, 6.6, 8.6, 'stay'], [13.8, 6.6, 8.6, 'run'], [15.3, 12.6, 10.4, 'roll'], [16, 15, 11.6, 'stay'], [18.6, 15, 11.6, 'run'], [20.5, ...CS, 'stay'], [24.6, ...CS, 'run'], [26.6, ...S2, 'stay'], [LOOP + 1, ...S2, 'stay']]);
+const trD = track([[0, -5, 24, 'run'], [4.5, -3.7, 6.3, 'stay'], [5.9, -3.7, 6.3, 'walk'], [7.05, -5.4, 8.4, 'fly'], [7.75, -9, 12, 'down'], [9.3, -9, 12, 'stay'], [13.4, -9, 12, 'run'], [15, -11.5, 9.5, 'stay'], [19.9, -11.5, 9.5, 'run'], [21.6, ...HA, 'stay'], [26.8, ...HA, 'run'], [28.5, ...HB, 'stay'], [LOOP + 1, ...HB, 'stay']]);
+const trM = track([[0, 8, 25, 'run'], [2.6, 10.5, 16.5, 'stay'], [LOOP + 1, 10.5, 16.5, 'stay']]);
+const SWK = [[4.45, 1.1], [5.55, .25], [29.2, 1.1], [30.5, .25]], SWD = [4.7, 28.76], ARW = [[3.9, 16], [8.4, 19], [17.5, 18], [18.1, 21], [18.7, 19], [19.5, 47], [28.2, 20], [30.2, 17], [31.9, 22]], COW = [[10.3, 12.6], [33.7, 37]];
+const HPCH = [[kai, 15.3, -46], [kai, 17.6, 60], [don, 7.05, -38]], DULL = [6.19, 23.52, 31.14];
+
+// ---- 画面の表示・効果 ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam), fire = GD.breath(scene, [0, 1, 2].map(i => B.spriteTex.flame(i)));
+const ITEMS = [['sword', 'といし', 9], ['potion', 'かいふくやく', 5], ['star', 'ひかりだま', 2], ['drop', 'げどくやく', 3]];
+const POSE = QS.get('pose') ? QS.get('pose').split(',') : null, dmg = {}, ALLD = QS.get('dmg') === '1', setD = (part, on) => { if (dmg[part] !== on) { dmg[part] = on; DU.damage(part, on); } };
+let prev = 1e9, msg = null, banner = null, shake = 0, sta = 1, lookY = 0, lastFire = 0, flashT = 9;
+const dp = V(), head = V(), mouth = V(), pt = V(), aim = V(), dir = V(), per = V();
+const say = (text, t, len = 2) => { msg = { text, until: t + len }; };
+const hitD = (part, n, o = {}) => { DU.at(part, pt); H.pop(pt.clone(), n, o); F.spark(pt, { c: '#ffd080', s: o.scale > 1 ? 4 : 2.2, n: 10 }); shake = Math.max(shake, o.scale > 1 ? 1.2 : .3); };
+const front = (h, d = 1.3, y = 1.1) => V(h.p.x + Math.sin(h.ry) * d, y, h.p.z + Math.cos(h.ry) * d);
+const hurt = (h, n) => { H.pop(V(h.p.x, 1.7, h.p.z), n, { c: '#ff8a6a' }); F.spark(V(h.p.x, .9, h.p.z), { c: '#ffb060', s: 1.4 }); shake = Math.max(shake, .5); };
+function reset() { F.clear(); fire.clear(); msg = banner = null; sta = 1; lastFire = 0; shake = 0; }
+// 起きること（時刻, 中身）
+const EV = [
+  ...SWK.map(([t0, tilt], i) => [t0 + .64, () => { hitD('legFL', [34, 41, 37, 43][i]); F.slash(front(kai), { ry: kai.ry, tilt, s: 2.2 }); }]),
+  ...SWD.map((t0, i) => [t0 + .64, () => { hitD('legFR', [52, 55][i], { c: '#ffe890' }); F.ring(front(don, 1.4, 0), { s: 1.6 }); F.dust(front(don, 1.4, 0), { n: 6, s: 2, c: '#c8b890' }); }]),
+  ...ARW.map(([t0, n], i) => [t0, () => { const big = i === 5, part = i < 2 ? 'chest' : i < 6 ? 'wingL' : 'head', to = DU.at(part, V()); to.y += (hash(i, 40) - .5) * 1.2; F.shot(front(mio, .7, 1.25), to, { c: big ? '#fff08a' : '#e8f4ff', speed: 46, s: big ? 3 : 1.8, onHit: () => { H.pop(to.clone(), n, big ? { c: '#fff08a' } : {}); if (big) say('つばさに きず!', 19.7); } }); }]),
+  [7.05, () => { hurt(don, 38); F.dust(V(don.p.x, 0, don.p.z), { n: 8, s: 2.4, c: '#c8b890' }); }],
+  ...[10.3, 10.8, 11.3, 11.8, 33.7, 34.2, 34.7].map(t0 => [t0, () => { DU.at('mouth', pt); F.ring(V(pt.x, 0, pt.z), { c: '#ffffff', s: 7, life: .7 }); for (const h of [kai, mio, don]) F.dust(V(h.p.x, 0, h.p.z), { n: 4, s: 1.5, c: '#c8c0a0' }); }]),
+  [15.3, () => { hurt(kai, 46); F.fire(V(kai.p.x, 0, kai.p.z), { s: 1.8 }); }],
+  [16.4, t => say('かいふくやく', t, 1.1)],
+  [17.6, () => { F.heal(V(kai.p.x, 0, kai.p.z), { h: 1.6 }); H.pop(V(kai.p.x, 1.8, kai.p.z), '+60', { c: '#8affb0' }); }],
+  ...[20.8, 21.5, 22.2, 22.9].map((t0, i) => [t0, () => F.charge(front(kai, -.2, 1.9), { life: .7, r: 1.2 + i * .3, c: ['#a8d8ff', '#fff08a', '#ffb050', '#ff7a4a'][i] })]),
+  [22.55, () => { hitD('legFL', 68, { c: '#ffe890' }); F.ring(front(don, 1.4, 0), { s: 2.4 }); F.dust(front(don, 1.4, 0), { n: 8, s: 2.6, c: '#c8b890' }); shake = .6; }],
+  [23.52, t => { hitD('head', 186, { scale: 2, c: '#ffb050' }); F.slash(front(kai, 1.6, 1.4), { ry: kai.ry, tilt: 1.25, s: 4.2, c: '#fff4c0' }); F.spark(DU.at('hornL', V()), { c: '#fff4d0', s: 3.6, n: 14 }); flashT = 0; banner = { text: 'つのを おった!', t0: t + .5, len: 2.6, sub: 'ぶい はかい', c: '#8a3a1e' }; }],
+  [24.1, () => { DU.at('hornL', pt); F.dust(V(pt.x + 1.5, 0, pt.z), { n: 7, s: 2.2, c: '#e8dcc0' }); }]];
+
+// ---- 人の動き ----
+const stance = (h, t, i) => { const J = h.J; MO.play(h.a, 'stand', t + i); MO.squat(h.a, .2); J.torso.rotation.x = .1; J.legL.rotation.x -= .25; J.legR.rotation.x += .25; J.shinR.rotation.x += .15; J.hips.position.y += Math.sin(t * 5 + i * 2) * .012; J.armR.rotation.set(-.9, 0, -.2); J.foreR.rotation.x = -1.5; };
+const tuck = h => { const J = h.J; MO.reset(h.a); MO.squat(h.a, 1.25); J.torso.rotation.x = 1; J.head.rotation.x = .5; J.armL.rotation.set(-1.2, 0, -.2); J.armR.rotation.set(-1.2, 0, .2); J.foreL.rotation.x = J.foreR.rotation.x = -1.6; };
+const twoHand = J => { J.armL.rotation.set(J.armR.rotation.x * .92, 0, -.42); J.foreL.rotation.x = J.foreR.rotation.x - .25; };
+const cower = (h, t, k) => { if (k <= 0) return; const J = h.J; MO.squat(h.a, .2 + .35 * k); J.torso.rotation.x = .1 + .4 * k; J.head.rotation.x = .35 * k; J.armL.rotation.set(-2.5 * k, 0, -.35 * k); J.armR.rotation.set(-.9 - 1.6 * k, 0, .35 * k - .2); J.foreL.rotation.x = -2.1 * k; J.foreR.rotation.x = -1.5 - .6 * k; h.a.position.x += Math.sin(t * 47) * .02 * k; };
+// 足もと (x, z)、向き ry、前まわりの角度 pitch、高さ y。体のまん中（地面から .5 m）を軸に回す
+const place = (h, x, z, ry, pitch = 0, y = 0) => { const c = .5; h.a.rotation.set(pitch, ry, 0); h.a.position.set(x - c * Math.sin(pitch) * Math.sin(ry), y + c * (1 - Math.cos(pitch)), z - c * Math.sin(pitch) * Math.cos(ry)); };
+function hunter(h, tr, tt, t, dt, i) { const s = tr(tt), J = h.J, mv = Math.hypot(s.dx, s.dz) > .01, face = Math.atan2(dp.x - s.x, dp.z - s.z); let ry = face, pitch = 0, y = 0; h.p.set(s.x, 0, s.z);
+  if (s.mode === 'run' && mv) { MO.play(h.a, 'run', t + i); ry = Math.atan2(s.dx, s.dz); }
+  else if (s.mode === 'walk') MO.play(h.a, 'walk', -t);
+  else if (s.mode === 'roll') { tuck(h); ry = Math.atan2(s.dx, s.dz); pitch = ease(s.k) * TAU; h.ry = ry; }
+  else if (s.mode === 'fly') { MO.reset(h.a); pitch = -1.35 * s.k; y = Math.sin(s.k * PI) * 1.5; J.armL.rotation.set(-2, 0, .8); J.armR.rotation.set(-1.6, 0, -.8); J.legL.rotation.x = -.7; J.legR.rotation.x = -.3; J.torso.rotation.x = -.3; }
+  else if (s.mode === 'down') { const up = seg(s.k, .55, 1); MO.reset(h.a); MO.squat(h.a, .9 * Math.sin(up * PI)); pitch = -1.35 - .2 * (1 - up) + 1.55 * up; y = -.28 * (1 - up); J.armL.rotation.set(-.6, 0, .9 * (1 - up)); J.armR.rotation.set(-.4, 0, -.9 * (1 - up)); J.torso.rotation.x = .5 * Math.sin(up * PI); }
+  else stance(h, t, i);
+  h.ry = turn(h.ry, ry, Math.min(1, dt * 12)); place(h, s.x, s.z, h.ry, pitch, y); return s; }
+function moveParty(tt, t, dt) {
+  // カイ：走りよって足を切る → ころがって尾をくぐる → すくむ → 火からにげる → くすり → ためて、ふりおろす
+  { const s = hunter(kai, trK, tt, t, dt, 0), J = kai.J, a = kai.a;
+    for (const [t0] of SWK) if (tt >= t0 && tt < t0 + 1.05) { MO.play(a, 'swing', tt - t0); twoHand(J); }
+    if (tt > 17.2 && tt < 18.5) { const u = pulse(tt, 17.2, 18.5); J.armL.rotation.set(-2.5 * u, 0, .15); J.foreL.rotation.x = -1 * u; J.head.rotation.x = -.3 * u; }
+    if (tt > 20.6 && tt < 23.3) { const k = seg(tt, 20.6, 21.1), sh = Math.sin(t * 40) * .012 * seg(tt, 21, 23.3); MO.reset(a); MO.squat(a, .4 * k); J.legL.rotation.x -= .4 * k; J.legR.rotation.x += .32 * k; J.shinR.rotation.x += .2 * k; J.torso.rotation.set(.08 * k, .5 * k, 0); J.armR.rotation.set(-1.25 * k + sh, 0, -.2); J.foreR.rotation.x = -.14 - .6 * k; twoHand(J); J.head.rotation.y = -.4 * k; }
+    if (tt >= 23.3 && tt < 24.1) { MO.play(a, 'swing', .44 + (tt - 23.3)); twoHand(J); a.position.x += Math.sin(kai.ry) * seg(tt, 23.3, 23.5) * .7; a.position.z += Math.cos(kai.ry) * seg(tt, 23.3, 23.5) * .7; }
+    if (s.mode === 'stay') for (const [a0, b0] of COW) cower(kai, t, pulse(tt, a0, b0));
+    const use = s.mode === 'run' ? -.1 : s.mode === 'roll' ? -.42 : tt > 20.6 && tt < 23.3 ? -.13 : tt > 23.3 && tt < 23.6 ? -.9 : .2; sta = cl(sta + use * dt, .04, 1); }
+  // ドン：足をたたく → 尾にとばされる → 起きる → とんで たたく
+  { const s = hunter(don, trD, tt, t, dt, 1), J = don.J, a = don.a;
+    for (const t0 of SWD) if (tt >= t0 && tt < t0 + 1.05) { MO.play(a, 'swing', tt - t0); twoHand(J); }
+    if (tt >= 21.9 && tt < 22.95) { MO.play(a, 'swing', tt - 21.9); twoHand(J); a.position.y += Math.sin(cl((tt - 21.9) / .66) * PI) * 1.7; J.legL.rotation.x = -.8; J.legR.rotation.x = .3; J.shinL.rotation.x = 1.1; J.shinR.rotation.x = .9; }
+    if (tt > 24.3 && tt < 26.4 && s.mode === 'stay') MO.play(a, 'cheer', t);
+    if (s.mode === 'stay') for (const [a0, b0] of COW) cower(don, t, pulse(tt, a0, b0)); }
+  // ミオ：はなれた所から弓をひく
+  { const s = hunter(mio, trM, tt, t, dt, 2), J = mio.J; let dr = 0, hold = 0; for (const [t0] of ARW) { dr = Math.max(dr, seg(tt, t0 - .55, t0 - .12) * (tt < t0 ? 1 : 0)); hold = Math.max(hold, pulse(tt, t0 - .6, t0 + .5, .2, .3)); }
+    if (s.mode === 'stay' && hold > 0) { J.torso.rotation.y = -.75 * hold; J.head.rotation.y = .6 * hold; J.armL.rotation.set(-1.75 * hold, 0, .75 * hold); J.foreL.rotation.x = -.14; J.armR.rotation.set(-.9 - .6 * hold, 0, -.2 - .5 * hold); J.foreR.rotation.x = -1.5 - .6 * dr; }
+    if (tt > 24.3 && tt < 26.4) MO.play(mio.a, 'cheer', t + .4);
+    if (s.mode === 'stay') for (const [a0, b0] of COW) cower(mio, t, pulse(tt, a0, b0)); }
+  for (const h of [kai, mio, don]) { h.hp = h.hp0; for (const [who, t0, n] of HPCH) if (who === h && tt >= t0) h.hp = cl(h.hp + n, 0, h.hpMax); h.hpShow += (h.hp - h.hpShow) * Math.min(1, dt * 2.2); if (Math.abs(h.hpShow - h.hp) < .5) h.hpShow = h.hp; }
+}
+// ---- 竜の動き：位置と向きはここで決め、関節は GD.pose にまかせる ----
+function moveDragon(tt, t, dt) { let i = 0; while (i < DK.length - 2 && tt >= DK[i + 1][0]) i++; const a = DK[i], b = DK[i + 1], k = ease(cl((tt - a[0]) / (b[0] - a[0]))), moving = b[4] - a[4] > .01;
+  drg.position.set(a[1] + (b[1] - a[1]) * k, 0, a[2] + (b[2] - a[2]) * k); drg.rotation.y = a[3] + (b[3] - a[3]) * k; dp.copy(drg.position);
+  const hb = wrap(Math.atan2(kai.p.x - dp.x, kai.p.z - dp.z) - drg.rotation.y), hd = Math.hypot(kai.p.x - dp.x, kai.p.z - dp.z); lookY += (cl(hb, -.85, .85) - lookY) * Math.min(1, dt * 2.5);
+  const acts = POSE ? [{ name: POSE[0], k: +POSE[1], sweep: 0 }] : ACTS.map(([name, t0, len]) => ({ name, k: (tt - t0) / len, sweep: 0, depth: .92 })).filter(q => q.k > 0 && q.k < 1), fa = acts.find(q => q.name === 'fire');
+  // 火：カイを追いかけるように首をふる（15.3 秒で追いつく）
+  let fbear = 0; if (fa) { fbear = hb - .6 * (1 - seg(tt, 14, 15.3)) + .3 * seg(tt, 15.4, 16.9); fa.aim = fbear; }
+  const low = cl(seg(tt, 3.6, 5.2) * (1 - seg(tt, 22.3, 22.9)) + seg(tt, 26.2, 27.4)), fk = fa ? fa.k : 0, inh = fa ? seg(fk, 0, .2) * (1 - seg(fk, .22, .32)) : 0, fl = fa ? seg(fk, .24, .34) * (1 - seg(fk, .86, 1)) : 0;
+  GD.pose(drg, { t, walk: (a[4] + (b[4] - a[4]) * k) / DU.cycle, walkAmt: moving ? Math.min(1, (tt - a[0]) / .4, (b[0] - tt) / .4) : 0, look: [lookY, .1 + .4 * (1 - low)], low, acts });
+  DU.at('head', head); DU.at('mouth', mouth); glow.intensity = 0;
+  if (fl > .55) { const ab = fbear + drg.rotation.y, r = cl(hd, 11, 16.5); aim.set(dp.x + Math.sin(ab) * r, .3, dp.z + Math.cos(ab) * r); dir.copy(aim).sub(mouth).normalize(); fire.emit(mouth, dir, dt);
+    glow.position.copy(mouth).addScaledVector(dir, 5); glow.intensity = (70 + Math.sin(t * 31) * 18) * fl; if (tt - lastFire > .26 || tt < lastFire) { lastFire = tt; F.fire(V(aim.x + (hash(tt, 1) - .5) * 2, 0, aim.z + (hash(tt, 2) - .5) * 2), { s: 2.4 }); } }
+  else if (inh > 0) { glow.position.copy(mouth); glow.intensity = 30 * inh; }
+  if (flashT < .4) { flashT += dt; glow.position.copy(head); glow.color.set('#fff4d0'); glow.intensity = Math.max(glow.intensity, (1 - flashT / .4) * 120); } else glow.color.set('#ffb050');
+  const roar = acts.find(q => q.name === 'roar'); if (roar && roar.k > .22 && roar.k < .84) shake = Math.max(shake, .55);
+  if (acts.some(q => q.name === 'tail' && q.k > .3 && q.k < .78)) shake = Math.max(shake, .22);
+  setD('wing', ALLD || tt >= 19.7); setD('head', ALLD || tt >= 23.52); setD('tail', ALLD);
+}
+
+// ---- 画面の表示 ----
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, top = tall ? 36 : 11, p = H.place('左上', 116, 58, 0, top), x = p.x, y = p.y;
+  // 左上：カイの名前・体力・スタミナ・刃の状態、仲間は小さく
+  H.rect(x - 2, y - 2, 114, 35, '#101828', .42); H.text(kai.name, x, y, { size: 10, c: '#ffffff' });
+  { const ch = tt > 20.8 && tt < 23.4 ? 1 + (tt > 21.5) + (tt > 22.2) : 0; for (let i = 0; i < 3; i++) if (tt > 20.6 && tt < 23.5) H.icon('star', x + 30 + i * 10, y + 2, { c: i < ch ? ['#a8d8ff', '#fff08a', '#ff9a4a'][ch - 1] : '#404860' }); }
+  H.icon('heart', x, y + 12, { c: '#ff6a7a' }); H.bar(x + 10, y + 12, 100, 5, kai.hp / kai.hpMax, { c: kai.hp / kai.hpMax < .45 ? B.PAL.warn : B.PAL.hp, v2: kai.hpShow / kai.hpMax });
+  H.icon('bolt', x + 1, y + 19, { c: '#ffd040' }); H.bar(x + 10, y + 20, 84, 3, sta, { c: sta < .25 ? '#ff8a3a' : '#ffd040' });
+  { const sharp = 6 - DULL.filter(q => tt >= q).length; H.icon('sword', x, y + 26, { c: '#d8e4f4' }); for (let i = 0; i < 6; i++) H.rect(x + 10 + i * 7, y + 28, 6, 3, i < sharp ? (sharp < 4 ? '#ffb050' : '#8ad8ff') : '#283048', 1); }
+  [mio, don].forEach((h, i) => { const yy = y + 38 + i * 10; H.rect(x - 2, yy - 1, 82, 9, '#101828', .42); H.text(h.name, x, yy - 1, { size: 8, c: '#e8ecf8' }); H.bar(x + 26, yy + 2, 50, 3, h.hp / h.hpMax, { c: B.PAL.hp, v2: h.hpShow / h.hpMax }); });
+  // 右上：残り時間
+  { const r = H.place('右上', 54, 15, 0, top), left = 1360 - tt, mm = Math.floor(left / 60), ss = Math.floor(left % 60); H.win(r.x, r.y, r.w, r.h, { c: '#3a3044', a: .8 }); H.ring(r.x + 9, r.y + 7.5, 5, left / 2100, { c: '#ffe890', back: '#1c1828', th: 2 }); H.num(mm + ':' + String(ss).padStart(2, '0'), r.x + r.w - 5, r.y + 4, { align: 'r', c: '#ffffff' }); }
+  // 右下：道具の枠（左右に送る）
+  { const r = H.place('右下', 80, 40), cx = r.x + 40, selF = seg(tt, 16.3, 16.6) - seg(tt, 27, 27.3), sel = Math.round(selF), fr = selF - sel, it = j => ITEMS[((sel + j) % 4 + 4) % 4], used = tt > 17.6 && tt < 18;
+    H.win(cx - 34, r.y + 5, 16, 16, { c: '#283048', a: .7 }); H.win(cx + 18, r.y + 5, 16, 16, { c: '#283048', a: .7 }); H.win(cx - 13, r.y, 26, 26, { c: used ? '#5a8a5a' : '#30406e', edge: '#ffe890', a: .88 });
+    H.icon(it(-1)[0], cx - 30, r.y + 9, { c: '#8088a0' }); H.icon(it(1)[0], cx + 22, r.y + 9, { c: '#8088a0' }); H.icon(it(0)[0], cx - 7 - Math.round(fr * 16), r.y + 6, { scale: 2, c: '#ffffff' });
+    const n = it(0)[2] - (it(0)[0] === 'potion' && tt >= 17.6 ? 1 : 0); H.num('x' + n, cx + 11, r.y + 19, { small: true, align: 'r', c: '#fff08a' });
+    for (let i = 0; i < 4; i++) H.rect(cx - 40 + i, r.y + 13 - i, 1, i * 2 + 1, '#ffe890', 1); H.icon('tri', cx + 37, r.y + 10, { c: '#ffe890' }); H.text(it(0)[1], cx, r.y + 29, { size: 8, align: 'c', c: '#ffffff' }); }
+  if (msg && tt < msg.until && tt > msg.until - 3) H.msg(msg.text, '上', { dy: tall ? 98 : 30 });
+  if (banner) H.banner(banner.text, (tt - banner.t0) / banner.len, { sub: banner.sub, c: banner.c, y: tall ? H.H * .3 : 72 });
+  H.end(dt);
+}
+
+// ---- カメラ：カイのうしろから竜を見上げる引きが基本。ほえる・火・弓・ため・ひるむ所で切りかえる ----
+const cp = V(), ct = V(), p2 = V(), t2 = V(), VIEW = (QS.get('v') || '').split(',').map(Number);
+const follow = (P, C, dist, h, side, lk, ly) => { dir.set(kai.p.x - dp.x, 0, kai.p.z - dp.z).normalize(); per.set(dir.z, 0, -dir.x); P.copy(kai.p).addScaledVector(dir, dist).addScaledVector(per, side); P.y = h; C.copy(kai.p).lerp(dp, lk); C.y = ly; };
+const SHOTS = [[0, 0, 0], [5.4, 1, 1], [9.4, 2, 1], [13.1, 3, 0], [17.15, 4, 0], [19.9, 5, 0], [23.3, 6, 0], [25.3, 7, 0], [32.8, 2, 1.2]];
+function shot(id, tt, t, P, C) { const tall = innerWidth < innerHeight, Z = tall ? 1.3 : 1;
+  if (id === 0) { const c = seg(tt, 3.4, 5); follow(P, C, (7.5 + c * .5) * Z, 1.4 + c * 1.2, -2.2 - c * 6.8, .5, (tall ? 5.4 : 5) - c * .4); }
+  else if (id === 1) follow(P, C, 15 * Z, 3.6, -6, .45, tall ? 5.2 : 4.4);
+  else if (id === 2) { follow(P, C, 15 * Z, 1.3, -4, 0, 0); C.copy(kai.p).lerp(head, .5); C.y = head.y * (tall ? .46 : .4); }
+  else if (id === 3) { P.set(21 * Z, 4.6, 21 * Z); C.set(5, tall ? 5.4 : 4.2, 5); }
+  else if (id === 4) { dir.set(mio.p.x - dp.x, 0, mio.p.z - dp.z).normalize(); per.set(dir.z, 0, -dir.x); P.copy(mio.p).addScaledVector(dir, (tall ? 3.6 : 5.5)).addScaledVector(per, tall ? -1.5 : 2); P.y = tall ? 2.1 : 2.8; DU.at('wingL', C); C.lerp(mio.p, .3); C.y = tall ? 4.6 : 2.8; }
+  else if (id === 5) follow(P, C, 6.5 * Z, 2.6, -3, .5, (tall ? 4.2 : 3.2) - seg(tt, 22.7, 23.4) * .8);
+  else if (id === 6) follow(P, C, 1.5, 2.4, 10.5 * Z, tall ? .2 : .42, tall ? 4.2 : 3.2);
+  else follow(P, C, 9 * Z, 2.4, -9.5 * Z, .5, tall ? 5.6 : 5.4); }
+function moveCam(tt, t, dt) { let i = 0; while (i < SHOTS.length - 1 && tt >= SHOTS[i + 1][0]) i++; const [t0, id, bl] = SHOTS[i]; shot(id, tt, t, cp, ct);
+  if (bl > 0 && i > 0 && tt < t0 + bl) { shot(SHOTS[i - 1][1], tt, t, p2, t2); const w = seg(tt, t0, t0 + bl); cp.lerpVectors(p2, cp, w); ct.lerpVectors(t2, ct, w); }
+  if (VIEW.length >= 3) { const a = VIEW[0] * PI / 180; const o = VIEW[4] ? [mio, kai, don][VIEW[4] - 1].p : dp; cp.set(o.x + Math.sin(a) * VIEW[1], VIEW[2], o.z + Math.cos(a) * VIEW[1]); ct.set(o.x, VIEW[3] ?? 5, o.z); }
+  shake = Math.max(0, shake - dt * 1.5); cp.x += Math.sin(t * 71) * shake * .14; cp.y += Math.sin(t * 93) * shake * .14;
+  cam.position.copy(cp); cam.lookAt(ct); sun.target.position.copy(dp); }
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); prev = prev > 1e8 ? T0 - .001 : -1; }
+  // 竜 → 人 → 竜の順に決める（人は竜の位置を見て向きを決め、竜はカイの位置を見て首をふる）
+  moveDragon(tt, t, 0); moveParty(tt, t, dt); moveDragon(tt, t, dt);
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt; moveCam(tt, t, dt);
+  birds.forEach((b, i) => { const [ph, r, h, sp] = b.userData.orb, a = ph + t * sp; b.position.set(dp.x + Math.cos(a) * r, h + Math.sin(t * .7 + ph) * .8, dp.z + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * 1.2 + ph); });
+  crits.forEach((c, i) => { const a = 1.2 + i * 2.4 + t * .09 * (i ? 1 : -1), r = 26 + i * 3; c.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); c.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)) + (i ? 0 : PI); FW.critterPose(c, 'walk', t * 10 + i); });
+  motes.userData.tick(t, kai.p.x, kai.p.z);
+  crt.u.bright.value = Math.min(1, tt / .4, (LOOP - tt) / .5);
+  F.update(dt); fire.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
