@@ -65,7 +65,7 @@ const ALL = [...R.CAST.map(c => ({ name: c.name, role: c.role, o: c.o })), ...EX
 // ---- いまの選び方（引数で最初の形を決められる）
 const VIEWS = [['four', '4 つの向き'], ['face', '顔のアップ'], ['cmp', '前とくらべる'], ['turn', '1 人を回す'], ['all', '全員をならべる'], ['game', '場面の中の大きさ']];
 const st = { who: Math.max(0, Math.min(ALL.length - 1, +q.get('who') || 0)), view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'four', motion: MO.list.some(m => m.id === q.get('motion')) ? q.get('motion') : 'stand',
-  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut', 'anime', 'anime1', 'anime2'].includes(q.get('face')) ? q.get('face') : 'anime', flat: !!q.get('flat'), cmpRot: (+q.get('crot') || 0) * Math.PI / 180, build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
+  raw: !!q.get('raw'), face: ['bowl', 'manga', 'cut', 'anime', 'anime1', 'anime2', 'anime3'].includes(q.get('face')) ? q.get('face') : 'anime', flat: !!q.get('flat'), cmpRot: (+q.get('crot') || 0) * Math.PI / 180, build: q.get('build') || '', tex: !!q.get('tex'), dark: q.get('bg') === 'dark', speed: q.has('speed') ? +q.get('speed') : 1, yaw: q.has('rot') ? +q.get('rot') * Math.PI / 180 : 0, spin: !q.has('rot'), pan: 0, zoom: 1, page: +q.get('page') || 0 };
 
 // ---- 舞台
 const { scene, cam, renderer, onResize } = K.stage({ fov: 30, far: 400, aa: false, fitAspect: .2, maxFov: 30 });
@@ -87,8 +87,8 @@ function tag(html) { const e = document.createElement('div'); e.className = 'tag
 function build() {
   clear(); const c = ALL[st.who];
   if (st.view === 'four') [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
-  if (st.view === 'face') [['正面', 0], ['ななめ 30 度', Math.PI / 6], ['ななめ 60 度', Math.PI / 3], ['真横', Math.PI / 2], ['ななめ上から', Math.PI / 5]].filter(([l, r]) => !q.get('ang') || q.get('ang').split(',').some(d => Math.abs(d * Math.PI / 180 - r) < .01 && l !== 'ななめ上から')).forEach(([l, a]) => { put(c, a, l).el = tag(l); });
-  if (st.view === 'cmp') [['今の版', 'anime1'], ['1 だけ', 'anime2'], ['2 まで', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
+  if (st.view === 'face') [['真横', 90], ['ななめ 60 度', 60], ['ななめ 30 度', 30], ['正面', 0], ['ななめ下から', 36], ['ななめ上から', -36]].filter(([l, d]) => q.get('ang') ? q.get('ang').split(',').includes(String(d)) : d >= 0).forEach(([l, d]) => { put(c, Math.abs(d) * Math.PI / 180, l).el = tag(l); });   // ?ang=90,0 で向きをしぼる（-36 は ななめ上から）
+  if (st.view === 'cmp') [['直す前', 'anime3'], ['直した後', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
   if (st.view === 'turn' || st.view === 'game') put(c, 0, '');
   if (st.view === 'all') ALL.forEach((p, i) => { const r = put(p, 0, p.name); r.i = i; r.el = tag(`${p.name}<small>${i} ・ ${p.role}</small>`); });
   const H = rows[0].a.userData.height, gap = FV() ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
@@ -136,7 +136,7 @@ K.loop((dt, t) => {
     cam.position.set(cx, cy + (FV() ? 0 : Hh * .1), dist); cam.lookAt(cx, cy, 0); }
   for (const r of rows) { r.a.position.x = r.sh.position.x = r.x; MO.play(r.a, st.motion, mt + (st.view === 'all' ? r.i * .37 : 0));
     if (st.view === 'turn') r.a.rotation.y = st.yaw; else if (st.view !== 'game') r.a.rotation.y = r.rotY + (st.view === 'all' ? 0 : st.yaw);
-    if (r.label === 'ななめ上から') r.a.rotation.x = .5;
+    r.a.rotation.x = r.label === 'ななめ上から' ? .5 : r.label === 'ななめ下から' ? -.5 : 0;
     if (r.el) { v.set(r.x, st.view === 'all' ? -.03 * Hh : FV() ? y1 + D.head * .16 : Hh * 1.2, 0).project(cam); const on = Math.abs(v.x) < 1.02; r.el.style.display = on ? '' : 'none'; r.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; r.el.style.top = Math.max($('ui').offsetHeight + 2, Math.min(innerHeight - 60, (-v.y * .5 + .5) * innerHeight - (st.view === 'all' ? 0 : 16))) + 'px'; } }
   (st.raw ? crtRaw : crtOn).render(scene, cam, t);
 });
