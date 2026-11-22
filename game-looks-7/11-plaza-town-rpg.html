@@ -72,6 +72,7 @@ for (const [x, z] of LAMPS.slice(0, 5)) { const l = new THREE.PointLight('#ffb86
 // 人は新しい作り R.actor の 5 頭身（toon）。?cast=heroic（7 頭身）/ ?cast=chibi（3 頭身）で体つきだけ変えて見くらべられる。人物は R.CAST から
 // ?cast=old で これまでの R.person（4 頭身）にもどす。このときだけ ?build=real などで、これまでの体つきを切りかえられる（一覧は retro-people.html?old=1）
 const Q = new URLSearchParams(location.search), CAST = Q.get('cast'), CB = CAST === 'old' ? null : ({ heroic: 'heroic', new: 'heroic', chibi: 'chibi' }[CAST] || 'toon'), mk = (id, ex = {}) => R.actor({ ...R.CAST.find(c => c.id === id).o, build: CB, ...ex });
+if (new URLSearchParams(location.search).get('face') === 'manga') R.cfg.face = 'manga';   // ?face=manga で、調整中の新しい顔の形を場面の中で見る
 if (!CB) R.cfg.build = Q.get('build') || 'classic';
 const hero = CB ? mk('gald') : R.person({ face: 0, cloth: 'tunic', top: '#3f72b0', top2: '#f0e0b8', bottom: '#6a5440', boots: true, cape: '#c2453a', hair: '#6e4628', s: 1.05 }); scene.add(hero);
 const npc = (o, x, z, ry, id, ex) => { const p = CB ? mk(id, ex) : R.person(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
