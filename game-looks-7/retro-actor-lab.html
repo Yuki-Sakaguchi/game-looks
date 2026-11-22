@@ -88,7 +88,7 @@ function build() {
   clear(); const c = ALL[st.who];
   if (st.view === 'four') [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]].forEach(([l, a]) => { put(c, a, l).el = tag(l); });
   if (st.view === 'face') [['真横', 90], ['ななめ 60 度', 60], ['ななめ 30 度', 30], ['正面', 0], ['ななめ下から', 36], ['ななめ上から', -36]].filter(([l, d]) => q.get('ang') ? q.get('ang').split(',').includes(String(d)) : d >= 0).forEach(([l, d]) => { put(c, Math.abs(d) * Math.PI / 180, l).el = tag(l); });   // ?ang=90,0 で向きをしぼる（-36 は ななめ上から）
-  if (st.view === 'cmp') [['直す前', 'anime3'], ['直した後', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
+  if (st.view === 'cmp') [['はじめの形', 'bowl'], ['カット', 'cut'], ['いま（アニメ）', 'anime']].forEach(([l, f]) => { put(c, st.cmpRot, l, f).el = tag(l); });
   if (st.view === 'turn' || st.view === 'game') put(c, 0, '');
   if (st.view === 'all') ALL.forEach((p, i) => { const r = put(p, 0, p.name); r.i = i; r.el = tag(`${p.name}<small>${i} ・ ${p.role}</small>`); });
   const H = rows[0].a.userData.height, gap = FV() ? rows[0].a.userData.build.head * 1.55 : st.view === 'all' ? .98 : Math.max(.8, H * .72);
