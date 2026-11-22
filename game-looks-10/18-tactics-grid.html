@@ -80,9 +80,6 @@ const circle = FW.magicCircle({ r: 2.5, c: '#ff9a40', star: true, spin: 1.2 }); 
 // ---- みかた 5 人と、てき 7 体 ----
 const U = [], ringTex = B.spriteTex.ring();
 function addU(u) { u.o.rotation.order = 'YXZ'; scene.add(u.o); const ring = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 1.15).rotateX(-PI / 2), new THREE.MeshBasicMaterial({ map: ringTex, color: u.team ? '#ff5a4a' : '#4ab0ff', transparent: true, opacity: .85, depthWrite: false, fog: false })); ring.userData.dyn = true; ring.renderOrder = 2; scene.add(ring); u.ring = ring; u.i0 = u.i; u.j0 = u.j; u.hp0 = u.hp ?? u.hpMax; u.yaw0 = u.team ? -PI / 2 : PI / 2; u.ph = U.length * 1.7; U.push(u); return u; }
-const mkA = (name, job, o, i, j, hpMax, mv, face, x = {}) => addU({ name, job, team: x.team || 0, a: R.actor(o), i, j, hpMax, mv, face, h: 1.55, ...x, o: null, get J() { return this.a.userData.J; } });
-// R.actor は そのまま盤に置く（のりてだけは、けものの上にのせた組にする）
-const fixO = u => { if (!u.o) u.o = u.a; return u; };
 const ALLY = (name, job, o, i, j, hp, mv, face, x) => { const a = R.actor(o), u = { name, job, team: 0, a, o: a, i, j, hpMax: hp, mv, face, h: 1.55, J: a.userData.J, ...x }; return addU(u); };
 const alto = ALLY('アルト', 'けんし', { hairStyle: 'spiky', hair: '#a8683a', eye: '#3a7ac8', brow: 'angry', cloth: 'armor', top: '#3f72c8', top2: '#f0d070', bottom: '#3a4a7a', gloves: 'gauntlet', gear: '#c8d0e0', shoulder: 'left', shoes: 'boot', neck: 'cape', acc: '#c8402e', hold: 'sword' }, 3, 5, 32, 3, { skin: '#f4d0b0', hair: '#a8683a', eye: '#3a7ac8' }, { wp: 'sword' });
 const berta = ALLY('ベルタ', 'やりつかい', { sex: 'f', hairStyle: 'bob', hair: '#5a9a8a', eye: '#c8553a', cloth: 'armor', top: '#3aa8a0', top2: '#f4f0e0', bottom: '#2f5a6a', gloves: 'glove', gear: '#d8d8e0', shoulder: 'both', shoes: 'boot', hold: 'spear' }, 3, 2, 28, 4, { skin: '#f4d0b0', hair: '#5a9a8a', eye: '#c8553a' }, { wp: 'spear' });
@@ -90,14 +87,14 @@ const mina = ALLY('ミーナ', 'ゆみつかい', { sex: 'f', hairStyle: 'tail',
 const oz = ALLY('オズ', 'じゅつし', { hairStyle: 'long', hair: '#e8e4f0', eye: '#8a5ac8', brow: 'soft', cloth: 'robe', top: '#6a4ac0', top2: '#ffe08a', shoes: 'shoe', hat: 'wizard', acc: '#6a4ac0', hold: 'staff' }, 2, 6, 20, 3, { skin: '#f4d0b0', hair: '#6a4ac0', eye: '#8a5ac8' }, { wp: 'staff' });
 B.arm(mina.a, B.weapon('bow', { s: 1.1 }));
 // のりて：大きなミミナガ（長い耳のけもの）にのった やりの人
-const dunk = (() => { const g = new THREE.Group(), mt = FW.critter({ s: 3.3, c: '#e8b060', belly: '#fff0d0' }), a = R.actor({ s: .82, hairStyle: 'short', hair: '#5a4030', brow: 'thick', cloth: 'armor', top: '#e8843a', top2: '#f4f0e0', bottom: '#5a4a3a', gloves: 'gauntlet', gear: '#d8c890', shoulder: 'both', shoes: 'boot', hat: 'helm', hold: 'spear' }); a.position.set(0, .78, -.12); g.add(mt, a);
-  return addU({ name: 'ダンク', job: 'けものきし', team: 0, a, mt, o: g, i: 1, j: 6, hpMax: 34, mv: 5, face: { skin: '#f4d0b0', hair: '#d8c890', eye: '#3a3020' }, h: 2.05, J: a.userData.J, wp: 'ride' }); })();
+const dunk = (() => { const g = new THREE.Group(), mt = FW.critter({ s: 2.7, c: '#e8b060', belly: '#fff0d0' }), a = R.actor({ s: .82, hairStyle: 'short', hair: '#5a4030', brow: 'thick', cloth: 'armor', top: '#e8843a', top2: '#f4f0e0', bottom: '#5a4a3a', gloves: 'gauntlet', gear: '#d8c890', shoulder: 'both', shoes: 'boot', hat: 'helm', hold: 'spear' }); a.position.set(0, .62, -.1); g.add(mt, a);
+  return addU({ name: 'ダンク', job: 'けものきし', team: 0, a, mt, o: g, i: 1, j: 6, hpMax: 34, mv: 5, face: { skin: '#f4d0b0', hair: '#d8c890', eye: '#3a3020' }, h: 1.85, J: a.userData.J, wp: 'ride' }); })();
 const SOL = { hairStyle: 'short', hair: '#2a2a34', eyes: 'sharp', brow: 'angry', mouth: 'frown', cloth: 'armor', top: '#7a2a3a', top2: '#2a2430', bottom: '#2a2430', gloves: 'gauntlet', gear: '#6a6a7a', glove: '#4a4a5a', shoulder: 'both', shoes: 'boot', hat: 'helm' }, EF = { skin: '#f4d0b0', hair: '#6a6a7a', eye: '#c82a2a', bg: '#7a2a3a' };
 const ENEMA = (name, job, o, i, j, hp, x) => { const a = R.actor(o), u = { name, job, team: 1, a, o: a, i, j, hpMax: hp, mv: 3, face: EF, h: 1.55, J: a.userData.J, ...x }; return addU(u); };
 const solA = ENEMA('くろがねへい', 'けんし', { ...SOL, hold: 'sword' }, 4, 3, 30, { wp: 'sword' }), solB = ENEMA('くろがねへい', 'けんし', { ...SOL, hold: 'sword' }, 8, 4, 30, { wp: 'sword' }), solC = ENEMA('くろがねへい', 'ゆみへい', { ...SOL, hat: 'cap', acc: '#7a2a3a', shoulder: undefined }, 7, 1, 20, { wp: 'bow' });
 B.arm(solC.a, B.weapon('bow', { s: 1.1, c: '#6a6a7a' }));
 const ENEMP = (name, job, e, i, j, hp, h, x) => addU({ name, job, team: 1, e, o: e, d: B.drive(e), i, j, hpMax: hp, mv: 3, h, ...x });
-const beast = ENEMP('キバイヌ', 'けもの', B.enemy.beast({ s: .95, c: '#8a4a6a', c2: '#f0c060' }), 7, 3, 28, 1.25, { mv: 5 }), jelly = ENEMP('プルル', 'ぷるぷる', B.enemy.jelly({ s: 1.2, c: '#c85a8a', c2: '#ffd0e0' }), 7, 5, 14, 1.05), shade = ENEMP('カゲマル', 'かげ', B.enemy.shade({ s: .78, c: '#3a2a72', c2: '#b070f0', eye: '#ffe060' }), 8, 5, 24, 1.6), golem = ENEMP('イワガシラ', 'とりでの ぬし', B.enemy.golem({ s: .86, kind: 'rock' }), 8, 1, 60, 1.9);
+const beast = ENEMP('キバイヌ', 'けもの', B.enemy.beast({ s: .95, c: '#8a4a6a', c2: '#f0c060' }), 7, 3, 28, 1.25, { mv: 5 }), jelly = ENEMP('モチダマ', 'ぷるぷる', B.enemy.jelly({ s: 1.2, c: '#c85a8a', c2: '#ffd0e0' }), 7, 5, 14, 1.05), shade = ENEMP('カゲマル', 'かげ', B.enemy.shade({ s: .78, c: '#3a2a72', c2: '#b070f0', eye: '#ffe060' }), 8, 5, 24, 1.6), golem = ENEMP('イワガシラ', 'とりでの ぬし', B.enemy.golem({ s: .86, kind: 'rock' }), 8, 1, 60, 1.9);
 const unitAt = (i, j) => U.find(u => !u.dead && u.i === i && u.j === j);
 function moveRange(u) { const best = new Set([u.i + ',' + u.j]), q = [[u.i, u.j, 0]], out = [[u.i, u.j]]; while (q.length) { const [i, j, c] = q.shift(); if (c >= u.mv) continue; for (const [di, dj] of D4) { const a = i + di, b = j + dj, key = a + ',' + b; if (!inB(a, b) || isW(a, b) || best.has(key)) continue; const dh = hgt(a, b) - hgt(i, j); if (dh > 1 || dh < -2) continue; const o = unitAt(a, b); if (o && o.team !== u.team) continue; best.add(key); q.push([a, b, c + 1]); if (!o) out.push([a, b]); } } return out; }
 const atkRange = (u, r0, r1) => { const out = []; for (let j = 0; j < NJ; j++) for (let i = 0; i < NI; i++) { const d = Math.abs(i - u.i) + Math.abs(j - u.j); if (d >= r0 && d <= r1) out.push([i, j]); } return out; };
@@ -142,8 +139,8 @@ const EV = [
   [14.6, () => act(alto, 'swing', 1)],
   [15.1, () => { F.slash(center(solA), { ry: alto.yaw, tilt: .9, s: 1.2 }); hitU(solA, 16, { shake: .6 }); }],
   [16.4, () => endBattle()],
-  [16.8, () => curTo(1, 6)], [17.5, () => select(dunk)], [18.2, () => curTo(4, 4)],
-  [18.8, () => { S.hl = new Map(); walk(dunk, [[1, 6], [1, 5], [2, 5], [3, 5], [4, 5], [4, 4]], 4.6); }],
+  [16.8, () => curTo(1, 6)], [17.5, () => select(dunk)], [18.2, () => curTo(2, 4)],
+  [18.8, () => { S.hl = new Map(); walk(dunk, [[1, 6], [1, 5], [1, 4], [2, 4]], 3.6); }],
   [20.1, () => turnBanner(1, 2)],
   [21.3, () => { S.focusU = beast; select(beast); }],
   [22, () => { S.hl = new Map(); walk(beast, [[7, 3], [6, 3], [5, 3], [4, 3]], 5); }],
@@ -178,7 +175,7 @@ function moveUnits(t, dt) {
     if (u.path) { u.pk += dt * u.sps; const n = u.path.length - 1; if (u.pk >= n) { [u.i, u.j] = u.path[n]; u.path = null; if (u !== beast) F.dust(V(cx(u.i), topY(u.i, u.j), cz(u.j)), { n: 3, s: .6, c: '#d8d0b8' }); } else { const s = Math.floor(u.pk), k = u.pk - s, [i0, j0] = u.path[s], [i1, j1] = u.path[s + 1]; cellPos(i0, j0, pa); cellPos(i1, j1, pb); o.position.lerpVectors(pa, pb, ease(k)); o.position.y = lerp(pa.y, pb.y, cl(k * 1.6 - .1)) + Math.sin(k * PI) * (.1 + Math.abs(pb.y - pa.y) * .55); u.yawT = Math.atan2(pb.x - pa.x, pb.z - pa.z); moving = true; } }
     if (!u.path) cellPos(u.i, u.j, o.position);
     let dy = u.yawT - u.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); u.yaw += dy * Math.min(1, dt * 12); let pitch = 0;
-    if (u.a) { const J = u.J; if (u.mt) { MO.reset(u.a); J.legL.rotation.set(-1.25, 0, .55); J.legR.rotation.set(-1.25, 0, -.55); J.shinL.rotation.x = J.shinR.rotation.x = 1.1; J.armR.rotation.set(-.9, 0, -.2); J.foreR.rotation.x = -.6; J.armL.rotation.set(-.7, 0, .1); J.foreL.rotation.x = -.8; J.torso.rotation.x = moving ? .2 : .05; u.a.position.y = .78 + (moving ? Math.abs(Math.sin(t * 14)) * .06 : Math.sin(t * 2.5) * .012); FW.critterPose(u.mt, 'walk', moving ? t * 15 : Math.sin(t * 1.2) * .25); }
+    if (u.a) { const J = u.J; if (u.mt) { MO.reset(u.a); J.legL.rotation.set(-1.25, 0, .55); J.legR.rotation.set(-1.25, 0, -.55); J.shinL.rotation.x = J.shinR.rotation.x = 1.1; J.armR.rotation.set(-.9, 0, -.2); J.foreR.rotation.x = -.6; J.armL.rotation.set(-.7, 0, .1); J.foreL.rotation.x = -.8; J.torso.rotation.x = moving ? .2 : .05; u.a.position.y = .62 + (moving ? Math.abs(Math.sin(t * 14)) * .06 : Math.sin(t * 2.5) * .012); FW.critterPose(u.mt, 'walk', moving ? t * 15 : Math.sin(t * 1.2) * .25); }
         else if (moving) MO.play(u.a, 'run', t * 1.1);
         else { MO.play(u.a, 'stand', t + u.ph); if (u.wp === 'sword') { J.armR.rotation.set(-.7, 0, -.25); J.foreR.rotation.x = -.9; MO.squat(u.a, .14); J.legL.rotation.x -= .2; J.legR.rotation.x += .2; } else if (u.wp === 'bow') { J.armL.rotation.set(-.5, 0, .2); J.foreL.rotation.x = -.7; } else if (u.wp === 'staff') { J.armR.rotation.set(-.6, 0, -.3); J.foreR.rotation.x = -.7; } }
       if (u.act) { u.act.t += dt; const k = u.act.t / u.act.len; if (k >= 1) u.act = null; else ACT[u.act.n](u, k); }
@@ -195,7 +192,7 @@ function moveUnits(t, dt) {
   cursor.position.set(cx(C.fi), cyy + .06, cz(C.fj)); cursor.scale.set(pu, 1, pu); ptr.position.set(cx(C.fi), cyy + top + Math.abs(Math.sin(t * 5)) * .14, cz(C.fj));
   const map = !S.battle; cursor.visible = ptr.visible = map && !S.zoomOn && !(S.side === 1 && !S.fore);
   for (let j = 0; j < NJ; j++) for (let i = 0; i < NI; i++) { const q = hlMesh[i + j * NI], k = S.hl.get(i + j * NI); q.visible = map && !!k; if (k) q.material = hlMat[k]; }
-  for (const k in hlMat) hlMat[k].opacity = (k === 'o' ? .75 : .55) + Math.sin(t * (k === 'o' ? 9 : 4.5)) * .16;
+  for (const k in hlMat) hlMat[k].opacity = (k === 'o' ? .8 : .66) + Math.sin(t * (k === 'o' ? 9 : 4.5)) * .16;
   if (circle.visible) { circle.userData.tick(t); circle.scale.setScalar(ease(cl((now - circle.userData.t0) / .5)) * .9); }
 }
 
@@ -204,9 +201,9 @@ const WINB = { c: '#22408e', c2: '#101a48' }, WINR = { c: '#8e2a34', c2: '#3a0e1
 function unitWin(u, x, y, w) { H.win(x, y, w, 40, u.team ? WINR : WINB); H.face(x + 5, y + 6, { ...u.face, scale: 2, hurt: now - u.hitAt < .4, bg: u.team ? '#5a1a24' : '#2a4a9a' }); const tx = x + 38;
   if (!u.face) { H.rect(x + 5, y + 6, 28, 28, '#3a1420'); H.icon(u === jelly ? 'drop' : u === golem ? 'shield' : 'bolt', x + 12, y + 13, { scale: 2, c: '#ffb0a0' }); }
   H.text(u.name, tx, y + 4, { c: '#ffffff' }); H.text(u.job, tx, y + 16, { size: 8, c: B.PAL.gold }); H.num('HP', tx, y + 28, { small: true, c: '#9ad0ff' }); H.num(Math.round(u.hp) + '/' + u.hpMax, tx + 10, y + 27, { c: u.hp / u.hpMax < .35 ? '#ffe060' : '#ffffff' });
-  H.text('うごき', x + w - 42, y + 16, { size: 8, c: '#c8d8ff' }); H.num(String(u.mv), x + w - 8, y + 17, { align: 'r' }); H.bar(tx + 44, y + 28, Math.max(10, w - 44 - 44), 5, u.hp / u.hpMax, { c: u.team ? '#ff7a5a' : '#5ce070', v2: u.hpShow / u.hpMax }); }
+  H.text('うごき', x + w - 40, y + 5, { size: 8, c: '#c8d8ff' }); H.num(String(u.mv), x + w - 7, y + 6, { align: 'r' }); H.bar(tx + 44, y + 28, Math.max(10, w - 44 - 44), 5, u.hp / u.hpMax, { c: u.team ? '#ff7a5a' : '#5ce070', v2: u.hpShow / u.hpMax }); }
 function drawHud(t, dt) {
-  H.begin(); const W = H.W, HH = H.H, tall = H.tall, top = tall ? 27 : 12, blink = Math.floor(t * 6) % 2;
+  H.begin(); const W = H.W, HH = H.H, tall = H.tall, top = tall ? 37 : 12, blink = Math.floor(t * 6) % 2;
   if (S.battle) { const b = S.battle, ally = b.a.team ? b.d : b.a, foe = b.a.team ? b.a : b.d, pw = tall ? W - 14 : 136;
     for (const [u, k] of [[ally, 0], [foe, 1]]) { const r = tall ? H.place('左下', pw, 26, 0, k ? 0 : -28) : H.place(k ? '右下' : '左下', pw, 26); H.win(r.x, r.y, r.w, r.h, u.team ? WINR : WINB); H.text(u.name, r.x + 6, r.y + 3, { c: u === b.a ? B.PAL.gold : '#ffffff' }); H.num(Math.round(u.hp) + '/' + u.hpMax, r.x + r.w - 6, r.y + 5, { align: 'r', c: u.hp / u.hpMax < .35 ? '#ffe060' : '#ffffff' });
       H.num('HP', r.x + 6, r.y + 18, { small: true, c: '#9ad0ff' }); H.bar(r.x + 16, r.y + 16, r.w - 22, 6, u.hp / u.hpMax, { c: u.team ? '#ff7a5a' : '#5ce070', v2: u.hpShow / u.hpMax }); }
@@ -242,9 +239,9 @@ function moveCam(t, dt, snap) {
   const tall = innerWidth < innerHeight, yaw = .36, pitch = .72;
   S.zoom += ((S.zoomOn ? 1 : 0) - S.zoom) * Math.min(1, dt * 4);
   if (S.focusU) fw.copy(S.focusU.o.position); else fw.set(cx(C.fi), topY(Math.round(C.fi), Math.round(C.fj)), cz(C.fj)); if (S.sel && !S.focusU) { fw.x = (fw.x + S.sel.o.position.x) / 2; fw.z = (fw.z + S.sel.o.position.z) / 2; }
-  if (S.zoomOn) fw.set(cx(6.6), .3, cz(5)); fw.x = cl(fw.x, tall ? -5 : -2.8, tall ? 5 : 3.2); fw.z = cl(fw.z, -2.2, 2.4); fw.y = Math.max(0, fw.y) * .6;
+  if (S.zoomOn) fw.set(cx(tall ? 7.7 : 6.6), .3, cz(5)); fw.x = cl(fw.x, tall ? -5 : -2.8, tall ? 5 : 3.2); fw.z = cl(fw.z, -2.2, 2.4); fw.y = Math.max(0, fw.y) * .6;
   foc.lerp(fw, snap ? 1 : Math.min(1, dt * 2.6));
-  const D = (tall ? 8.2 : 9.3) * (1 - S.zoom * .22); cp.set(foc.x + Math.sin(yaw) * Math.cos(pitch) * D, foc.y + Math.sin(pitch) * D, foc.z + Math.cos(yaw) * Math.cos(pitch) * D); ct.copy(foc).setY(foc.y + .5);
+  const D = (tall ? 9 : 10.6) * (1 - S.zoom * .22); cp.set(foc.x + Math.sin(yaw) * Math.cos(pitch) * D, foc.y + Math.sin(pitch) * D, foc.z + Math.cos(yaw) * Math.cos(pitch) * D); ct.copy(foc).setY(foc.y + .5);
   if (S.battle) { const b = S.battle, A = b.a.o.position, Dp = b.d.o.position, dx = Dp.x - A.x, dz = Dp.z - A.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L; let nx = -uz, nz = ux; if (nz < 0) { nx = -nx; nz = -nz; } const my = (A.y + Dp.y) / 2, mx = (A.x + Dp.x) / 2, mz = (A.z + Dp.z) / 2, sway = Math.sin(t * .5) * .25;
     if (b.ranged) { const sd = tall ? .9 : 1.7; cp.set(A.x - ux * 2.5 + nx * sd + sway * .4, A.y + 1.95, A.z - uz * 2.5 + nz * sd); ct.set(lerp(A.x, Dp.x, .5), lerp(A.y, Dp.y, .5) + .75, lerp(A.z, Dp.z, .5)); }
     else { const d = (tall ? 5.4 : 3.6) + L * .5; cp.set(mx + nx * d + ux * sway, my + 1.3, mz + nz * d + uz * sway); ct.set(mx, my + .78, mz); } }
