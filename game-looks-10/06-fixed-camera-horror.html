@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-06 固定カメラのホラー 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe6f4;opacity:.8;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-06 ─ 固定カメラのホラー / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 31 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-battle.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。月夜の古い屋敷。カメラは 4 か所に置きっぱなしで、主役が画面のはしへ行くと ぱっと切りかわる（カメラは動かさない）。
+// 色の組は「くすんだ青みどりのかべ紙」＋「黒茶の木」＋「えんじのじゅうたん」。あかりは 窓の月あかり（青白）と ろうそく・ランタン（だいだい）。差し色は主役のからし色の上着。
+// ふだんは画面に何も出さない。かまえたときだけ、左下に心ぱくの線（色で 3 段階）、右下に たまの数。血や残こくな絵は入れず、こわさは「間」と「影」で出す。
+// 部品は retro.js（R.〜）・pack-fantasy-town.js（FT.〜 家具と階段）・pack-dark.js（D.〜 あかりと小物）・pack-battle.js（B.〜 影の敵・効果・表示）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), B = PACK_BATTLE(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const keys = (list, tt) => { if (tt <= list[0][0]) return list[0].slice(1); for (let i = 0; i < list.length - 1; i++) { const a = list[i], b = list[i + 1]; if (tt < b[0]) { const k = (tt - a[0]) / (b[0] - a[0]); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * k); } } return list[list.length - 1].slice(1); };
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 400, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#3a2c3e', eye: '#5a8a6a', brow: 'soft', mouth: 'small', cloth: 'coat', top: '#d0a848', top2: '#f0e6cc', bottom: '#40445e', shoes: 'boot', gloves: 'glove', glove: '#6a4a38', neck: 'scarf', acc: '#b8402c' }), HJ = hero.userData.J; scene.add(hero);
+const mood = D.mood(scene, renderer, 'moon', { sky: ['#0a0e16', '#0a0e16', '#10161f', '#10161f'], fog: ['#121a28', 16, 70], hemi: ['#a8c0ec', '#544650', 1.3], key: ['#b4c8ff', .95, [.25, .8, .55]], fill: ['#8a7060', .4], base: [.6, .64, .78], hills: false, stars: false, follow: hero, range: 13, r: 300 });
+
+// ---- 屋敷の形：西の長い廊下（x -11〜3）と、東の広間（x 3〜13、z -5〜5）。廊下の北と広間の西に「あかずの部屋」のとびら、広間の東に出口 ----
+const CH = 3.2, HH = 4.6, CW = 1.3;
+const SCONCE = [[-5, 1.85, -CW + .12, 0], [-.8, 1.85, -CW + .12, 0], [12.88, 2, -2.6, -PI / 2], [3.12, 2, 3.4, PI / 2]], WINS = [[-8.5, CW, -1, 1.05], [-5, CW, -1, 1.05], [-1.5, CW, -1, 1.05], [5.6, 5, -1, 1.4], [8.8, 5, -1, 1.4]];
+const LIT = [{ x: -10.4, z: 0, r: 3.8, c: '#ffb860', k: .9 }, ...SCONCE.map(([x, y, z]) => ({ x, z, r: 3.2, c: '#ffb860', k: .7 })), { x: 4.7, z: -4.4, r: 3.6, c: '#ffb860', k: .7 }, { x: 9.6, z: 3, r: 4, c: '#ffb860', k: .85 }];
+const shade0 = D.lightShade(LIT, mood.base), shade = (x, z) => { const c = shade0(x, z); for (const [wx, wz, d, len] of WINS) { const u = (z - (wz + d * (len + .7))) / len, s = (x - (wx - .25)) / .62; if (Math.abs(u) < 1 && Math.abs(s) < 1) { const k = (1 - Math.abs(u) ** 3) * (1 - Math.abs(s) ** 3); c[0] += .42 * k; c[1] += .55 * k; c[2] += .85 * k; } } return c; };
+const lightAt = (x, y, z, h) => { const c = shade(x, z), f = 1 - .32 * y / h; return [c[0] * f, c[1] * f, c[2] * f]; };
+const land = R.ground({ w: 30, d: 12, cell: .5, layers: [T.planks({ c: '#5a423a', w: 8 })], shade }); scene.add(land.mesh);
+// かべ紙（上にまわりぶち、たてじまと ひし形のもよう、雨じみ。下 1.1 m は木の腰板）
+const wallT = (() => { const P = R.Px(64), C = R.ramp('#55766e', 6, { contrast: .8 }), W = R.ramp('#5a3c34');
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) { const q = x % 16, n = R.tn(x, y, 16, 16, 64, 64, 3); let c;
+    if (y < 4) c = W[y === 0 ? 1 : y === 3 ? 0 : y === 1 ? 4 : 3];
+    else if (y < 42) { const dx = Math.abs(q - 8), dy = Math.abs((y - 4) % 19 - 9), dm = dx + dy * .8; c = q === 0 ? C[1] : q === 1 ? C[3] : dm < 2 ? C[4] : dm < 4.2 ? C[3] : dm < 5.2 ? C[1] : (q === 8 && dy > 7) ? C[3] : C[2]; if (n > .66 && y < 22) c = C[y < 8 + n * 14 ? 1 : 2]; if (((x * 7 + y * 13) % 31) === 0) c = C[1]; }
+    else if (y < 44) c = W[y === 42 ? 5 : 1];
+    else if (y > 60) c = W[y === 61 ? 4 : 1];
+    else { const e = q < 2 || q > 13 || y < 46 || y > 58; c = e ? W[3] : (q === 2 || y === 46) ? W[0] : (q === 13 || y === 58) ? W[4] : W[2 + (n > .6 ? 1 : 0)]; if (q === 0) c = W[1]; }
+    P.set(x, y, c); } return T.from(P, { m: 3.2 }); })();
+const WG = R.geo(), vOf = (y, h) => y < 1.1 ? y / 1.1 * .344 : .344 + (y - 1.1) / (h - 1.1) * .656;
+// かべの 1 枚（部屋の中から見て 左→右）。1 m ごとに割り、あかりを頂点の色に焼きこむ
+const piece = (a, b, y0, y1, h) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(L / 1.01)), ys = [...new Set([y0, y0 < 1.1 && y1 > 1.1 ? 1.1 : y0, y1 - Math.max(1.1, y0) > 1.6 ? (Math.max(1.1, y0) + y1) / 2 : y1, y1])], u0 = (a[0] + a[1]) / 3.2, P = k => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  for (let i = 0; i < n; i++) for (let j = 0; j < ys.length - 1; j++) { const p0 = P(i / n), p1 = P((i + 1) / n), c = (p, y) => lightAt(p[0], y, p[1], h); WG.quad([p0[0], ys[j], p0[1]], [p1[0], ys[j], p1[1]], [p1[0], ys[j + 1], p1[1]], [p0[0], ys[j + 1], p0[1]], [u0 + L * i / n / 3.2, vOf(ys[j], h), u0 + L * (i + 1) / n / 3.2, vOf(ys[j + 1], h)], [c(p0, ys[j]), c(p1, ys[j]), c(p1, ys[j + 1]), c(p0, ys[j + 1])]); } };
+piece([-11, -CW], [-3.5, -CW], 0, CH, CH); piece([-3.5, -CW], [-2.5, -CW], 2.1, CH, CH); piece([-2.5, -CW], [3, -CW], 0, CH, CH); piece([3, CW], [-11, CW], 0, CH, CH); piece([-11, CW], [-11, -CW], 0, CH, CH);
+piece([3, 5], [3, CW], 0, HH, HH); piece([3, CW], [3, -CW], CH, HH, HH); piece([3, -CW], [3, -2.1], 0, HH, HH); piece([3, -2.1], [3, -3.1], 2.1, HH, HH); piece([3, -3.1], [3, -5], 0, HH, HH);
+piece([3, -5], [13, -5], 0, HH, HH); piece([13, -5], [13, -1.5], 0, HH, HH); piece([13, -1.5], [13, -.5], 2.1, HH, HH); piece([13, -.5], [13, 5], 0, HH, HH); piece([13, 5], [3, 5], 0, HH, HH);
+const walls = WG.mesh(wallT); walls.castShadow = false; scene.add(walls);
+// 天井（暗い板）と、とびらのむこうの暗がり
+{ const G = R.geo(), flat = (x0, z0, x1, z1, y) => { for (let x = x0; x < x1; x += 2) for (let z = z0; z < z1; z += 2) { const xa = Math.min(x1, x + 2), za = Math.min(z1, z + 2); G.quad([x, y, z], [xa, y, z], [xa, y, za], [x, y, za], [x / 3, z / 3, xa / 3, za / 3], .42); } };
+  flat(-11, -CW, 3, CW, CH); flat(3, -5, 13, 5, HH); G.quad([1.3, 0, -1.6], [1.3, 0, -3.6], [1.3, 2.3, -3.6], [1.3, 2.3, -1.6], [0, 0, 1, 1], .1).quad([14.2, 0, -2], [14.2, 0, 0], [14.2, 2.3, 0], [14.2, 2.3, -2], [0, 0, 1, 1], .1);
+  const m = G.mesh(T.planks({ c: '#4a3a3a', w: 8 }), { side: true }); m.castShadow = false; scene.add(m); }
+
+// ---- とびら（ちょうつがいが原点）・とびらのわく ----
+const doorT = T.door({ style: 'panel', c: '#5a3832' }), mkDoor = (x, z, ry) => { const g = new THREE.Group(), m = R.geo().box(1, 2.1, .07, .5, 0, 0, { uv: [0, 0, 1, 1] }).mesh(doorT); g.add(m); g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g); return g; };
+const doorA = mkDoor(-3.5, -CW, 0), doorB = mkDoor(3, -3.1, -PI / 2), doorC = mkDoor(13, -1.5, -PI / 2);
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const G = R.geo(), fr = (x, z, alongX) => { const [w, d] = alongX ? [.1, .16] : [.16, .1], ox = alongX ? 1 : 0, oz = alongX ? 0 : 1; G.box(w, 2.16, d, x - ox * .02, 0, z - oz * .02, { m: 1.5, c0: .8 }).box(w, 2.16, d, x + ox * 1.02, 0, z + oz * 1.02, { m: 1.5, c0: .8 }).box(alongX ? 1.2 : .16, .1, alongX ? .16 : 1.2, x + ox * .5, 2.1, z + oz * .5, { m: 1.5 }); };
+  fr(-3.5, -CW, true); fr(3, -3.1, false); fr(13, -1.5, false);
+  // かべのろうそく台
+  for (const [x, y, z, ry] of SCONCE) G.at(R.TR(x, y, z, ry)).box(.34, .04, .16, 0, -.03, 0, { m: 1 }).box(.05, .22, .05, 0, -.25, -.05, { m: 1, c0: .7 }).at(null);
+  fixed.push(G.mesh(T.planks({ c: '#6a4638' }))); }
+// じゅうたん（廊下の長い 1 本と、広間の 1 枚）。あかりを頂点の色にうつす
+{ const G = R.geo(), ct = FT.tex.carpet({ c: '#7e2436', c2: '#c8a050', c3: '#2c1822' }), strip = (x0, x1, z0, z1, alongX) => { if (alongX) for (let x = x0; x < x1; x += 1) { const xa = Math.min(x1, x + 1); G.quad([x, .035, z1], [x, .035, z0], [xa, .035, z0], [xa, .035, z1], [0, x / 2.4, 1, xa / 2.4], [shade(x, z1), shade(x, z0), shade(xa, z0), shade(xa, z1)]); } };
+  strip(-10.6, 2.6, -.62, .62, true); for (let z = -2.2; z < 2.6; z += 1.2) strip(5, 11, z, z + 1.2, true);
+  const m = G.mesh(ct, { offset: true, side: true }); m.castShadow = false; scene.add(m); }
+
+// ---- 絵（がくぶち）と、大きなふりこ時計。どれも手で打ったドット絵 ----
+const paintT = kind => { const P = R.Px(32, 40), G = R.ramp('#b08a3a'), N = R.ramp(kind === 1 ? '#34486a' : '#4a4038'); P.clip = true;
+  P.each((x, y) => { const e = Math.min(x, y, 31 - x, 39 - y); if (e < 3) return G[e === 0 ? 1 : e === 1 ? 4 : 2 + ((x + y) % 5 === 0 ? 1 : 0)]; if (e === 3) return G[0]; return N[1 + (R.tn(x, y, 8, 8, 32, 40, kind) > .55 ? 1 : 0)]; });
+  if (kind === 1) { P.disc(21, 12, 4, '#e8ecd8'); P.disc(22.5, 11, 3.2, N[2]); for (let x = 4; x < 28; x++) for (let y = 26 + Math.round(Math.sin(x * .4) * 2); y < 36; y++) P.set(x, y, N[0]); P.line(10, 28, 10, 15, N[0]); P.line(10, 20, 6, 15, N[0]); P.line(10, 18, 14, 13, N[0]); P.line(10, 22, 13, 19, N[0]); }
+  else { const S = R.ramp(kind ? '#6a3a44' : '#3a4a44'); for (let y = 22; y < 36; y++) for (let x = 6; x < 26; x++) if (Math.abs(x - 15.5) < 4 + (y - 22) * .8) P.set(x, y, S[1 + (x < 15 ? 1 : 0)]); P.disc(16, 16, 5.2, kind ? '#3a2c30' : '#2c2a2e'); P.disc(16, 17, 4, '#c8b8a0'); P.rect(13, 21, 6, 2, '#a89880'); P.set(14, 16, '#2a2028'); P.set(18, 16, '#2a2028'); P.rect(15, 19, 2, 1, '#8a6a60'); if (kind) { P.rect(9, 11, 14, 2, '#2a2028'); P.rect(12, 8, 8, 3, '#2a2028'); } }
+  return T.from(P, { m: 1 }); };
+{ const pics = [[-9, 1.95, -CW + .04, 0, 0, 1], [1.3, 1.95, -CW + .04, 0, 1, 1], [-10.96, 2, 0, PI / 2, 2, 1.1], [4.7, 2.9, -4.96, 0, 1, 1.5], [3.04, 2.4, 3.4, PI / 2, 0, 1.2], [12.96, 2.4, 1.8, -PI / 2, 2, 1.2]];
+  for (const [x, y, z, ry, kind, s] of pics) { const c = lightAt(x, y, z, 6).map(v => v * 1.15), m = R.geo().tint(c).quad([-.4 * s, -.5 * s, 0], [.4 * s, -.5 * s, 0], [.4 * s, .5 * s, 0], [-.4 * s, .5 * s, 0]).mesh(paintT(kind)); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = false; fixed.push(m); } }
+const clockT = (() => { const P = R.Px(64), W = R.ramp('#5c3a30'), Bz = R.ramp('#c8a048'); P.clip = true;
+  P.each((x, y) => { const q = x % 16; return q === 0 ? W[0] : q === 1 ? W[4] : q === 15 ? W[1] : W[2 + (R.tn(x, y, 4, 16, 64, 64, 2) > .6 ? 1 : 0)]; });
+  P.rect(16, 0, 16, 2, W[4]); P.disc(24, 11, 7, W[0]); P.disc(24, 11, 6, '#e8dcc0'); for (let a = 0; a < 12; a++) P.set(24 + Math.round(Math.sin(a / 6 * PI) * 4.6), 11 - Math.round(Math.cos(a / 6 * PI) * 4.6), '#3a2a2a'); P.line(24, 11, 24, 7, '#2a2028'); P.line(24, 11, 27, 13, '#2a2028'); P.set(24, 11, Bz[3]);
+  P.rect(16, 20, 16, 1, W[0]); P.rect(16, 21, 16, 1, W[4]); P.rect(19, 25, 10, 26, W[0]); P.rect(20, 26, 8, 24, '#1c1a26'); P.rect(20, 26, 1, 24, '#34384c'); P.rect(16, 56, 16, 1, W[4]); P.rect(16, 57, 16, 1, W[0]);
+  P.rect(40, 40, 8, 8, Bz[3]); P.disc(44, 44, 3.4, Bz[4]); P.disc(43, 43, 1.2, '#fff4c8'); return T.from(P, { m: 1 }); })();
+const clock = (() => { const g = new THREE.Group(), body = R.geo().smooth(0).loft(4, [[0, .32, .22, 0, .75], [.24, .32, .22, .1, .85], [.28, .24, .16, .12, .9], [1.5, .24, .16, .68, 1], [1.55, .33, .22, .7, 1], [2.08, .33, .22, .96, 1.05], [2.22, .1, .06, 1, 1.1]], { cap: 'top' }).mesh(clockT);
+  const pend = new THREE.Group(), bob = R.geo().px(40, 40, 8, 8, 64, 64).quad([-.07, -.62, 0], [.07, -.62, 0], [.07, -.48, 0], [-.07, -.48, 0]).px(41, 41, 1, 1, 64, 64).quad([-.012, -.5, 0], [.012, -.5, 0], [.012, 0, 0], [-.012, 0, 0]).mesh(R.mat(clockT, { glow: true })); bob.castShadow = false; pend.add(bob); pend.position.set(0, 1.42, .165); g.add(body, pend); g.userData.pend = pend; g.position.set(-6.7, 0, -CW + .2); scene.add(g); return g; })();
+
+// ---- 家具・ろうそく・窓の月あかり・小物 ----
+put(FT.table({ w: 1, d: .5, c: '#5a3a30' }), -10.5, 0, PI / 2); put(FT.table({ w: 1.7, d: .95, c: '#5a3a30' }), 9.6, 3, 0); put(FT.chair({ c: '#5e3a30' }), 8.5, 3.1, PI / 2); put(FT.chair({ c: '#5e3a30' }), 10.4, 3.9, PI + .5);
+{ const c = FT.chair({ c: '#5e3a30' }); c.position.set(7.2, .2, 3.6); c.rotation.set(-1.45, 1.1, 0); fixed.push(c); }
+put(FT.fireplace({ w: 2, h: 2.2, stone: '#6a6470', lit: false, light: false }), 4.7, -4.95, 0); put(FT.shelf({ w: 1.6, h: 2 }), 12.72, 3.6, -PI / 2);
+put(FT.stairs({ w: 1.5, h: HH, d: 6.4, tex: T.planks({ c: '#5e4238' }), rail: 'wood' }), 9.6, -4.2, -PI / 2);
+put(D.statue({ kind: 'knight', s: 1.1, c: '#7a7c90' }), 12.2, 4.2, -2.4);
+for (const [x, y, z, ry, s] of [[-10.95, CH - .05, -CW + .05, 0, 1.3], [2.9, CH - .05, CW - .05, PI, 1], [3.05, HH - .05, -4.95, 0, 2], [12.95, HH - .05, 4.95, PI, 2.2], [3.05, HH - .05, 4.9, PI / 2, 1.6], [-4.2, 1.8, CW - .04, PI, .7]]) put(D.web({ s, c: '#c8d0e4' }), x, z, ry, y);
+scene.add(R.merge(fixed));
+const cand = [[-10.5, .78, 0, 3, .5, true, PI / 2], [9.6, .8, 3, 4, .9, true, .3], [4.7, 1.55, -4.6, 3, .8, false, 0], ...SCONCE.map(([x, y, z, ry]) => [x, y, z, 2, .16, false, ry])].map(([x, y, z, n, len, light, ry]) => { const c = D.candles({ n, len, h: .22, light }); c.position.set(x, y, z); c.rotation.y = ry; scene.add(c); return c; });
+scene.add(D.pools([...SCONCE.map(([x, y, z, ry]) => ({ p: [x + Math.sin(ry) * .02, y + .3, z + Math.cos(ry) * .02 - (ry === 0 ? .1 : 0)], n: [Math.sin(ry), 0, Math.cos(ry)], r: 1.3, r2: 1.5, c: '#ffb050', k: .42 })), { p: [-10.94, 1.5, 0], n: [1, 0, 0], r: 1.4, r2: 1.4, c: '#ffb050', k: .4 }, { p: [4.7, 2.3, -4.93], n: [0, 0, 1], r: 1.6, r2: 1.4, c: '#ffb050', k: .36 }]));
+for (const [x, z, d, len] of WINS) { const hall = z > 2, w = D.windowLight({ kind: 'rect', w: hall ? 1.2 : 1, h: hall ? 2.6 : 1.8, c: '#a4bcf4', k: 1, pool: 0 }); w.position.set(x, hall ? 1.1 : .95, z - .03); w.rotation.y = PI; scene.add(w);
+  const s = D.shaft({ w: hall ? 1.3 : 1.1, h: hall ? 2.6 : 2, c: '#a8c0ff', a: .3, lean: [.25, len + .7] }); s.position.set(x - .25, 0, z - len - .7); scene.add(s); }
+scene.add(D.flakes({ kind: 'dust', n: 120, c: '#c8d8ff', box: [24, 3.4, 9], size: 1.2 }));
+const cat = D.cat({ s: 1 }); cat.position.set(8.25, 1.4, -4.2); cat.rotation.y = 1.2; scene.add(cat);
+
+// ---- 主役の持ち物と、影の敵 ----
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffc060', power: 11, range: 8, r: 3, k: .7 }), gun = B.arm(hero, B.weapon('gun', { s: 1.15 }));
+const foe = B.enemy.shade({ s: 1.2, c: '#3c3668', c2: '#9a88e0', eye: '#b8ffe0' }), fd = B.drive(foe); scene.add(foe);
+const flash = new THREE.PointLight('#ffe8b0', 0, 12, 1.2); scene.add(flash);
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
+
+// ---- 時間の表 ----
+const LOOP = 31, T0 = +(new URLSearchParams(location.search).get('t') || 0), SHOTS = [13.9, 15.2, 16.4, 20], T_HIT = 17.95, T_CURE = 23.3; let prev = 1e9, flashT = 9, hurtT = 9;
+const HPATH = [[0, -8.8, 0], [4.7, -2, 0], [5.9, -2, 0], [10.9, 6.4, 0], [18.2, 6.4, 0], [19.6, 7.8, .45], [24.6, 7.8, .45], [28.6, 12.25, -1], [29.5, 12.25, -1], [30.7, 13.7, -1]];
+const SPATH = [[12.2, 2, -2.6], [13.6, 3.7, -2.5], [13.9, 3.8, -2.45], [14.5, 3.8, -2.45], [15.2, 4.4, -1.9], [15.8, 4.4, -1.9], [16.4, 4.95, -1.4], [17, 4.95, -1.4], [17.5, 5.4, -.95]];
+// カメラ 4 か所：[いつから, 位置, 見る先, たて長のときの見る先]
+const CAMS = [[0, [2.6, 2.9, -.25], [-4, .5, .1]], [8, [12.6, 4.05, 1.7], [4, .7, -1]], [13, [10.6, .6, .85], [3.2, 1.4, -1.75]], [21, [12.6, 4.05, 1.7], [4, .7, -1]], [24.6, [3.5, 4.05, .5], [12.4, .7, -.9]]];
+const rattle = (tt, list) => { let k = 0; for (const tm of list) { const u = tt - tm; if (u > 0 && u < .55) k = Math.max(k, Math.sin(u / .55 * PI)); } return k; };
+const muzzle = V(), aimAt = V(), tmp = V();
+function reset() { F.clear(); fd.name = 'idle'; fd.t = 0; flashT = hurtT = 9; }
+const EV = [
+  ...SHOTS.map((tm, i) => [tm, () => { flashT = 0; flash.position.copy(muzzle); F.spark(muzzle, { c: '#ffe8a0', n: 5, s: .6 }); F.shot(muzzle, aimAt.clone(), { c: '#ffe8a0', speed: 40, s: .8, onHit: () => { fd.set(i === 3 ? 'down' : 'hurt'); F.spark(aimAt, { c: '#c8b8ff', n: 8, s: 1 }); } }); }]),
+  [4.6, () => F.dust([-3, 2.1, -CW + .2], { n: 3, s: .5, c: '#b8c0d0' })], [9.6, () => F.dust([3.15, 2.1, -2.6], { n: 3, s: .5, c: '#b8c0d0' })],
+  [17.4, () => fd.set('attack')], [T_HIT, () => { hurtT = 0; F.spark(tmp.copy(hero.position).setY(1), { c: '#c8b8ff', n: 6, s: .8 }); }],
+  [21.2, () => F.dust(foe.position, { n: 7, s: 1.2, c: '#8a80c0' })]];
+
+// ---- 主役と影を動かす ----
+function moveAll(tt, t, dt) {
+  const [hx, hz] = keys(HPATH, tt), [hx2, hz2] = keys(HPATH, tt + .05), moving = Math.hypot(hx2 - hx, hz2 - hz) > .01, back = tt > 18.2 && tt < 19.6;
+  const [sx, sz] = keys(SPATH, tt), [sx2, sz2] = keys(SPATH, tt + .05), out = tt > 12.2 && tt < 21.2;
+  hero.position.set(hx, 0, hz); foe.position.set(sx, 0, sz); foe.visible = out; foe.rotation.y = Math.atan2(hx - sx, hz - sz);
+  // 影：歩く・ひるむ・うでをふる・くずれる
+  if (out) { const walking = Math.hypot(sx2 - sx, sz2 - sz) > .004; if (fd.name === 'idle' && walking) fd.name = 'walk'; else if (fd.name === 'walk' && !walking) fd.name = 'idle'; fd.update(dt); foe.scale.setScalar(1 - seg(tt, 20.6, 21.2) * .5); foe.position.y = -seg(tt, 20.5, 21.2) * .6; }
+  // 主役の向き：歩く向き → 音のしたとびらを ふり返る → 影にむく
+  const look = seg(tt, 4.75, 5.2) - seg(tt, 5.55, 5.95), aim = seg(tt, 10.9, 11.4) - seg(tt, 20.5, 21), reach = seg(tt, 28.5, 28.9) - seg(tt, 29.3, 29.6);
+  let yaw = PI / 2 + look * 2.2; if (tt >= 10.9 && tt < 24.6) { const tx = tt < 12.6 ? 3 : sx, tz = tt < 12.6 ? -2.6 : sz, ya = Math.atan2(tx - hx, tz - hz); yaw = PI / 2 + ((ya - PI / 2 + PI * 3) % (PI * 2) - PI) * seg(tt, 10.9, 11.4) * (1 - seg(tt, 24, 24.6)); } else if (tt >= 24.6) yaw = Math.atan2(hx2 - hx || 1, hz2 - hz);
+  hero.rotation.y = yaw;
+  if (moving) MO.play(hero, 'walk', back ? -t * .9 : t, { speed: tt < 10.9 ? 1.1 : .85 }); else MO.play(hero, 'stand', t);
+  D.lanternPose(hero, 1 + look * .6);
+  // かまえる・うつ（はねる）・ひるむ・とびらに手をのばす
+  const kick = Math.max(0, 1 - flashT / .16), fl = Math.sin(cl(hurtT / .5) * PI) * (hurtT < .5 ? 1 : 0);
+  if (aim > 0) { HJ.armR.rotation.set(-1.5 * aim - kick * .4, 0, .12 * aim); HJ.foreR.rotation.x = -.14 - .05 * aim; HJ.torso.rotation.y = -.25 * aim; HJ.head.rotation.y = .2 * aim; if (!moving) { HJ.legL.rotation.x = -.18 * aim; HJ.legR.rotation.x = .2 * aim; } }
+  if (fl > 0) { HJ.torso.rotation.x = -.4 * fl; HJ.head.rotation.x = -.3 * fl; hero.position.x += fl * .2; }
+  if (reach > 0) { HJ.armR.rotation.set(-1.3 * reach, 0, -.1); HJ.foreR.rotation.x = -.3; }
+  hero.updateMatrixWorld(true); gun.getWorldPosition(muzzle); muzzle.y += .04; aimAt.set(sx, 1.15 - seg(tt, 20.5, 21.2) * .4, sz);
+  // とびら：がたつく／ひらく
+  doorA.rotation.y = Math.sin(t * 61) * .035 * rattle(tt, [4.6, 5.25]); doorB.rotation.y = -PI / 2 + Math.sin(t * 61) * .035 * rattle(tt, [9.6, 10.3, 11]) + seg(tt, 11.6, 12.9) * 1.2; doorC.rotation.y = -PI / 2 + seg(tt, 28.7, 29.6) * 1.25;
+  flashT += dt; hurtT += dt; flash.intensity = Math.max(0, 1 - flashT / .12) * 26;
+  clock.userData.pend.rotation.z = Math.sin(t * PI) * .16; R.catPose(cat, 'sit', t);
+}
+
+// ---- 画面の表示：かまえたときだけ。心ぱくの線は自分で描く（色で 3 段階） ----
+const ST_C = ['#5ce070', '#ffd040', '#ff5a4a'], ST_N = ['よし', 'ちゅうい', 'きけん'];
+function ecg(x, y, w, h, st, t) { const c = ST_C[st], per = [30, 22, 15][st], n = w - 6, head = (t * [26, 34, 44][st]) % n; H.rect(x, y, w, h, '#0a1410', .9); H.rect(x, y, w, 1, '#3a5a48', 1); H.rect(x, y + h - 1, w, 1, '#1c2c24', 1); H.rect(x, y, 1, h, '#3a5a48', 1); H.rect(x + w - 1, y, 1, h, '#1c2c24', 1);
+  let py = null; for (let i = 0; i < n; i++) { const ph = i % per, v = ph === 3 ? 2 : ph === 4 ? -3 : ph === 5 ? 7 : ph === 6 ? 3 : ph === 7 ? -2 : ph === 11 ? 1 : ph === 12 ? 2 : ph === 13 ? 1 : 0, yy = y + Math.round(h * .62) - Math.round(v * (h - 8) / 10), a = 1 - ((head - i + n) % n) / n; if (a > .12) { const y0 = py === null ? yy : Math.min(py, yy), y1 = py === null ? yy : Math.max(py, yy); H.rect(x + 3 + i, y0, 1, y1 - y0 + 1, a > .9 ? '#ffffff' : c, cl(a * 1.2)); } py = yy; } }
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, st = tt >= T_HIT && tt < T_CURE ? 1 : 0, aim = cl((tt - 11) / .3) * cl((21 - tt) / .3), inv = tt > 21.4 && tt < 24.1, ammo = 5 - SHOTS.filter(s => tt >= s).length;
+  if (aim > 0 && Math.sin(aim * 40) > -.5) { const a = H.place('左下', 66, 30, 2, -2); ecg(a.x, a.y + 10, 66, 20, st, t); H.text(ST_N[st], a.x + 1, a.y - 2, { size: 10, c: ST_C[st] });
+    const b = H.place('右下', 52, 18, -2, -2); H.rect(b.x, b.y, 52, 18, '#0c1018', .85); H.rect(b.x, b.y, 52, 1, '#5a6480', 1); H.rect(b.x, b.y + 17, 52, 1, '#20283a', 1); for (let i = 0; i < 5; i++) H.icon('bullet', b.x + 4 + i * 6, b.y + 6, { c: i < ammo ? '#ffd870' : '#3a3c4c' }); H.num(String(ammo), b.x + 48, b.y + 6, { align: 'r', c: ammo < 3 ? B.PAL.warn : '#ffffff' }); }
+  if (inv) { const items = [['bullet', 'ピストルのたま', 'x' + ammo], ['potion', 'くすりびん', tt < T_CURE ? 'x1' : 'x0'], ['bulb', 'ランタン', ''], ['star', 'ふるい おまもり', '']], sel = tt < 22.2 ? 0 : 1, w = Math.min(H.W - 16, 164), r = H.place('中', w, 84, 0, tall ? -20 : -6);
+    H.win(r.x, r.y, r.w, r.h, { c: '#1c2a26', c2: '#0e1614', edge: '#c8d4c8', title: 'もちもの' });
+    items.forEach(([ic, nm, ct], i) => { const x = r.x + 9 + i * 26, y = r.y + 12, on = i === sel; H.rect(x, y, 22, 22, on ? '#3a5a4a' : '#0c1210', .95); H.rect(x, y, 22, 1, on ? '#ffe890' : '#4a5a52', 1); H.rect(x, y + 21, 22, 1, on ? '#ffe890' : '#28322c', 1); H.rect(x, y, 1, 22, on ? '#ffe890' : '#4a5a52', 1); H.rect(x + 21, y, 1, 22, on ? '#ffe890' : '#28322c', 1); H.icon(ic, x + 7, y + 7, { c: ic === 'potion' && tt >= T_CURE ? '#4a5a52' : ic === 'potion' ? '#7ae0a0' : ic === 'bullet' ? '#ffd870' : ic === 'bulb' ? '#ffc060' : '#c8b8ff' }); if (ct) H.num(ct, x + 20, y + 15, { small: true, align: 'r', c: '#ffffff' }); });
+    H.text(items[sel][1], r.x + 9, r.y + 39, { size: 10, c: '#ffffff' }); if (sel === 1) H.text(tt < T_CURE ? 'つかう' : 'つかった', r.x + r.w - 9, r.y + 39, { size: 10, c: B.PAL.gold, align: 'r' });
+    ecg(r.x + 9, r.y + 56, r.w - 60, 20, st, t); H.text(ST_N[st], r.x + r.w - 9, r.y + 59, { size: 10, c: ST_C[st], align: 'r' }); if (sel === 1 && tt < T_CURE) H.icon('hand', r.x + 9 + 26 - 9 + Math.round(Math.sin(t * 9)), r.y + 20); }
+  H.end(dt);
+}
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); prev = prev > 1e8 ? T0 - .001 : -1; }
+  moveAll(tt, t, dt);
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt;
+  // カメラは置きっぱなし。時刻で ぱっと切りかえるだけ（ゆれも なし）
+  let c = CAMS[0]; for (const q of CAMS) if (tt >= q[0]) c = q; cam.position.set(...c[1]); cam.lookAt(...c[2]);
+  crt.u.bright.value = 1.08 * Math.min(1, tt / .6, (LOOP - tt - .1) / .8);
+  D.tick(t, cam); F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
