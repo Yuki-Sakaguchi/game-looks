@@ -69,8 +69,8 @@ const warnBig = ringMesh(5.2, 24), warnS = [0, 1, 2].map(() => ringMesh(2.3, 14)
 const spit = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.ball(), color: '#6ad0ff', transparent: true, fog: false })); s.visible = false; scene.add(s); return s; });
 
 // ---- 時間割り ----
-// ?t=秒 で途中から始める
-const LOOP = 40, T0 = +(new URLSearchParams(location.search).get('t') || 0);
+// ?t=秒 で途中から始める。?view=front / side / top は、ボスを近くから見る確かめ用
+const LOOP = 40, QS = new URLSearchParams(location.search), T0 = +(QS.get('t') || 0), VIEW = QS.get('view');
 const BK = [[0, 0, -4.5], [9.3, 0, -4.5], [10.2, 0, -2.5], [23, 0, -2.5], [23.8, 0, -4.5], [40, 0, -4.5]], BHOP = [[8.6, 9.3, 10.2], [22.4, 23, 23.8]];
 const RK = [[0, -1.2, 9], [1.4, -1.2, 5.5], [2.3, -1.2, 5.5], [2.75, -.9, 1.3], [6.3, -.9, 1.3], [6.6, -1, 2.6], [8.7, -1, 2.6], [9.5, -2.8, 7.6], [10.4, -2.8, 7.6], [10.8, -1.2, 3.3], [12.4, -1.2, 3.3], [13, -3.8, 7.6], [18.2, -3.8, 7.6], [18.8, -.6, 4.8], [19.6, -.6, 4.8], [20, -.4, 3.6], [20.7, -.4, 3.6], [21.4, -1.6, 6.6], [24, -1.6, 6.6], [24.6, -1, 4.6], [27.6, -1, 4.6], [28.2, -3.4, 6.4], [29.3, -3.4, 6.4], [29.9, -.5, 2.6], [31.4, -.5, 2.6], [32, -1.4, 4.8], [40, -1.4, 4.8]];
 const MK = [[0, 1.4, 9.8], [1.6, 1.4, 6.6], [12.4, 2.6, 7.2], [13, 1.3, 3.3], [15, 1.3, 3.3], [15.6, 1.8, 4.6], [18.2, 1.8, 4.6], [18.8, 3.6, 7.4], [22, 3.6, 7.4], [24, 3.2, 6.2], [27.6, 3.2, 6.2], [28.1, 1.2, 1.6], [29.2, 1.2, 1.6], [29.8, 3.2, 5.4], [32, 1.2, 5.2], [40, 1.2, 5.2]];
@@ -193,6 +193,7 @@ function moveCam(tt, t, dt) {
   const tall = innerWidth < innerHeight, k1 = snap ? 1 : 1 - Math.exp(-dt * 3.5); bc.lerp(bp, k1); hc.lerp(act, snap ? 1 : 1 - Math.exp(-dt * 4)); dir.set(hc.x - bc.x, 0, hc.z - bc.z).normalize();
   const far = bump(tt, 8.4, 10.8, .6) * .6 + bump(tt, 19.2, 20.6, .4) * .5 + bump(tt, 29.4, 34, .6) * .6, D = (tall ? 4.6 : 5.2) + far * 2, sd = tall ? 0 : .5, h = 2.4 + far * .5; cpT.set(hc.x + dir.x * D + dir.z * sd, h, hc.z + dir.z * D - dir.x * sd); cpT.x = cl(cpT.x, -15.5, 15.5); cpT.z = cl(cpT.z, -15.5, 15.5); cp.lerp(cpT, snap ? 1 : 1 - Math.exp(-dt * 4));
   ct.set(cp.x - dir.x * 16, h + 16 * ((tall ? -.17 : -.05) + far * .04), cp.z - dir.z * 16);
+  if (VIEW) { cp.set(bp.x + (VIEW === 'side' ? 11 : 5), VIEW === 'top' ? 12 : 3.4, bp.z + (VIEW === 'side' ? 2 : 9)); ct.set(bp.x, 2.2, bp.z + 1); }
   S.shake = Math.max(0, S.shake - dt * 1.8); cam.position.set(cp.x + Math.sin(t * 71) * S.shake * .08, cp.y + Math.sin(t * 93) * S.shake * .08, cp.z); cam.lookAt(ct);
 }
 
@@ -204,7 +205,7 @@ K.loop((dt, t) => {
   prev = tt; moveExtras(tt, t); moveOrbs(tt, dt); moveCam(tt, t, dt); snap = false;
   S.flashT += dt; flash.intensity = Math.max(0, 1 - S.flashT / .3) * S.flashK; R.flip(waterM, waterT, t, 5); for (const f of ticks) f(t); motes.userData.tick(t, act.x, act.z);
   crt.u.bright.value = Math.min(1, tt / .4, (LOOP - tt) / .5);
-  F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+  F.update(dt); if (!VIEW) drawHud(tt, t, dt); else { H.begin(); H.end(dt); } crt.render(scene, cam, t);
 });
 </script>
 </html>
