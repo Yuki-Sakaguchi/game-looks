@@ -175,21 +175,21 @@ window.BOSS_10 = (THREE, K, R) => {
     // 雷をためる：四つ足をふんばり、頭を空へ向けて ふるえる
     charge: (c, k, t) => { const a = seg(k, 0, .2) * (1 - seg(k, .85, 1)), sh = Math.sin(t * 41) * .02 * a; c.n[0] -= a * .45; c.n[1] -= a * .4; c.hx -= a * .1 - sh; c.jaw += a * .5; c.by -= a * .35; c.bp -= a * .1; c.br += sh; c.lookK *= 1 - a; for (let i = 0; i < 6; i++) c.tx[i] += a * .22; },
     // のびる：足を折って腹をつけ、頭を地面に落とす
-    down: (c, k, t) => { const a = seg(k, 0, .12) * (1 - seg(k, .85, 1)); c.by -= a * 1.5; c.bp += a * .05; c.br += a * .12; c.n[0] += a * .75; c.n[1] += a * .35; c.hx -= a * .75; c.hz += a * .5; c.jaw += a * (.25 + Math.sin(t * 3) * .08); c.lookK *= 1 - a; c.tx = lerpA(c.tx, [-.1, .05, .1, .05, 0, 0], a); for (let i = 0; i < 6; i++) c.ty[i] *= 1 - a * .7; } };
+    down: (c, k, t) => { const a = seg(k, 0, .12) * (1 - seg(k, .85, 1)); c.by -= a * 1.5; c.bp += a * .05; c.br += a * .12; c.n[0] += a * .5; c.n[1] += a * .08; c.hx -= a * .55; c.hz += a * .5; c.jaw += a * (.25 + Math.sin(t * 3) * .08); c.lookK *= 1 - a; c.tx = lerpA(c.tx, [-.1, .05, .1, .05, 0, 0], a); for (let i = 0; i < 6; i++) c.ty[i] *= 1 - a * .7; } };
   BD.acts = Object.keys(ACT);
 
   const v = new THREE.Vector3();
   BD.pose = (g, o = {}) => { const J = g.userData.J, c = g.userData.c, t = o.t || 0, amt = cl(o.walkAmt ?? 0), ph = o.walk || 0, rg = cl(o.rage || 0), sk = cl(o.sink || 0), br = Math.sin(t * (1.3 + rg * 2.2));
     // 1. ふだんの姿（頭を低く前へ。怒ると さらに低くかまえ、息と尾が速い）
     c.by = br * (.07 + rg * .05) + Math.sin(ph * PI * 4) * .1 * amt - rg * .3; c.bz = 0; c.bp = rg * .05; c.br = Math.sin(ph * PI * 2) * .035 * amt; c.spin = 0; c.step = 0; c.stepPh = 0; c.lookK = 1;
-    c.n = [-.5 + br * .02 + rg * .12, -.22 + rg * .1]; c.ny = 0; c.hx = .62 - br * .03 - rg * .15; c.hz = 0; c.jaw = .05 + Math.max(0, Math.sin(t * .9)) * .06 + rg * (.18 + Math.max(0, br) * .12);
+    c.n = [-.2 + br * .02 + rg * .1, .02 + rg * .08]; c.ny = 0; c.hx = .3 - br * .03 - rg * .12; c.hz = 0; c.jaw = .05 + Math.max(0, Math.sin(t * .9)) * .06 + rg * (.18 + Math.max(0, br) * .12);
     c.tx = [...TAIL0]; c.ty = TAIL0.map((_, i) => Math.sin(t * (.8 + rg * 2.4) - i * .7) * (.13 + rg * .16) + Math.sin(ph * PI * 2 - i * .5) * .08 * amt);
     c.lift = { FL: 0, FR: 0, BL: 0, BR: 0 }; c.fz = { FL: 0, FR: 0, BL: 0, BR: 0 };
     // 2. 技の動きを重ねる
     for (const a of o.acts || []) if (ACT[a.name] && a.k > 0 && a.k < 1) ACT[a.name](c, a.k, t, a);
     if (o.look) { c.ny += o.look[0] * c.lookK; c.hx += (o.look[1] || 0) * c.lookK; }
     // 落とし穴：前半分が しずみ、頭と前足で もがく
-    if (sk > 0) { const st = Math.sin(t * 7) * sk; c.by -= sk * 1.1; c.bp += sk * .34; c.bz += sk * .6; c.n[0] -= sk * .5; c.n[1] -= sk * .3 - st * .08; c.hx -= sk * .1; c.ny += st * .25; c.jaw += sk * .45; c.br += st * .05; c.lift.FL += sk * (1.2 + st * .9); c.lift.FR += sk * (1.2 - st * .9); c.fz.FL += sk * 1.2; c.fz.FR += sk * 1.2; for (let i = 0; i < 6; i++) { c.tx[i] += sk * .1; c.ty[i] += Math.sin(t * 6 - i) * .12 * sk; } }
+    if (sk > 0) { const st = Math.sin(t * 7) * sk; c.by -= sk * 1.1; c.bp += sk * .34; c.bz += sk * .6; c.n[0] -= sk * .2; c.n[1] -= sk * .1 - st * .08; c.hx -= sk * .1; c.ny += st * .25; c.jaw += sk * .45; c.br += st * .05; c.lift.FL += sk * (1.2 + st * .9); c.lift.FR += sk * (1.2 - st * .9); c.fz.FL += sk * 1.2; c.fz.FR += sk * 1.2; c.tx = lerpA(c.tx, [-.84, 0, .25, .25, 0, 0], sk); for (let i = 0; i < 6; i++) c.ty[i] = c.ty[i] * (1 - sk * .92) + Math.sin(t * 3 - i * .6) * .035 * sk; }
     // 3. 関節へ
     J.move.rotation.y = c.spin; J.body.position.set(0, H0 + c.by, c.bz); J.body.rotation.set(c.bp, 0, c.br);
     const ns = Math.sin(t * (.55 + rg * .9)) * .22 * c.lookK; J.neck.forEach((n, i) => n.rotation.set(c.n[i], c.ny * .35 + ns * [1, -.5][i], 0)); J.head.rotation.set(c.hx, c.ny * .3 + ns * .3, c.hz); J.jaw.rotation.x = c.jaw;
