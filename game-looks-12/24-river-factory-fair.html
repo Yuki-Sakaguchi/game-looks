@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-24 よごれた川と工場の夜祭り 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#120e1a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.88;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-24 ─ よごれた川と工場の夜祭り / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-under1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜。茶色くにごった川ぞい、れんがの工場の前で、手作りのちょうちんと屋台の祭り。川には あかりの小舟が流れ、むこう岸の煙突がけむりをはく。川の行く手の空の高みには、上の都市が 冷たく白く光っている。
+// 色の組は「こげ茶の川・れんがの赤茶・夜の紺」＋「ちょうちんの 赤とだいだい」、差し色は遠くの上の都市の 青白い光。
+// 主役は 手さげちょうちんを持った ふたつ結びの娘（R.actor の toon）。川ぞいの道を こちらへ歩き、カメラは前から 下がりながら向き合う（うしろに 祭りと川と 遠くの上の都市）。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), U = PACK_UNDER1(THREE, K, R, C), T = R.tex, X = C.tex, L = C.LIGHT, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 2000, aa: false, fitAspect: .9, maxFov: 80 }), HAZE = '#3a2c40';
+scene.add(R.skyDome([[0, '#0c0c24'], [.55, '#1e1a40'], [.85, '#3e2c4a'], [1, '#5a3a40']], { r: 1500 })); scene.fog = new THREE.Fog(HAZE, 50, 1500);
+const { sun } = K.lights(scene, renderer, { sky: 0x6a70b0, ground: 0x6a4a40, amb: 1.3, sun: 0xb0c0ff, power: .45, range: 30 }), SUN = new THREE.Vector3(.3, .8, -.4).normalize();
+
+// ---- 道（z の向き）と、川（x>3） ----
+const BANK = 3, lights = [], STALL = [];
+for (let z = 30, i = 0; z > -90; z -= 5.2 + hash(i, 1) * 1.5, i++) { STALL.push({ z, i }); lights.push({ x: -2.6, z, r: 4.6, c: L.bulb, k: .95 }); }
+for (let z = 30, k = 0; z > -90; z -= 6, k++) lights.push({ x: 0, z, r: 3.6, c: '#ff6a3a', k: .45 });
+const land = R.ground({ w: 60, d: 260, cell: 1.5, cx: -10, cz: -30, H: (x, z) => x > BANK ? -2.6 : 0, layers: [T.cobble({ c: '#6a5a58', kind: 'slab' }), X.conc({ c: '#7a6a64' }), T.dirt({ c: '#5a4a40' })],
+  mix: (x, z) => [x > BANK - .7 ? 1 : 0, x < -7 ? 1 : 0], shade: C.lightShade(lights, [.42, .38, .54]) }); scene.add(land.mesh);
+const WF = T.water({ c: '#5a4228' }), river = R.ground({ w: 60, d: 900, cell: 3, cx: 31, cz: -300, layers: [WF[0]], shade: (x, z) => [.75, .62, .55] }); river.mat.emissive.set('#3a2412'); { const g = new THREE.Group(); g.position.y = -1.3; g.add(river.mesh); scene.add(g); }
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const G = R.geo(), tc = X.conc({ c: '#7a6a64', seed: 2 }); for (let z = -120; z < 40; z += 6) G.quad([BANK, -2.6, z + 6], [BANK, -2.6, z], [BANK, 0, z], [BANK, 0, z + 6], [0, 0, 2, .87]); fixed.push(G.mesh(tc)); }
+fixed.push(C.fence({ len: 150, h: .9, kind: 'mesh' })); fixed[fixed.length - 1].position.set(BANK - .2, 0, -40); fixed[fixed.length - 1].rotation.y = PI / 2;
+
+// ---- 工場（道の左）：れんがの長い棟、のこぎり屋根、煙突、配管 ----
+{ const B = R.parts(), Wl = B.g(T.windowWall({ wall: 'brick', wallO: { c: '#8a4a38' }, lit: 1, bars: 'grid', frame: '#3a3038', glass: '#ffc070' }), { emissive: '#3a1a14' }), Br = B.g(T.brick({ c: '#7a4234' })), Tn = B.g(X.tin({ c: '#6a6a7a', rust: .6 }));
+  for (let z = -130; z < 40; z += 9) { Wl.quad([-7, 0, z + 9], [-7, 0, z], [-7, 9, z], [-7, 9, z + 9], [0, 0, 3, 3]); Br.quad([-7, 9, z + 9], [-7, 9, z], [-7, 11, z], [-7, 11, z + 9], [0, 0, 3, .67]);
+    Tn.quad([-7, 11, z + 9], [-7, 11, z], [-14, 16, z], [-14, 16, z + 9], [0, 0, 3, 2.9]); Tn.quad([-14, 11, z + 9], [-14, 11, z], [-14, 16, z], [-14, 16, z + 9], [0, 0, 3, 1.7]); }
+  scene.add(B.group()); }
+const chim = [[-16, -20, 2.2, 34], [-18, -58, 2.6, 42], [-14, -96, 2, 30]];   // 煙突（x, z, 半径, 高さ）
+chim.forEach(([x, z, r, h]) => { const B = R.parts(), Bk = B.g(T.brick({ c: '#8a4a3a' })).smooth(1), Bd = B.g(T.brick({ c: '#d8d0c0' })).smooth(1); Bk.loft(10, [[0, r * 1.3, r * 1.3, 0], [h * .85, r, r, h * .85 / 3]], { ur: 3 }); Bd.loft(10, [[h * .85, r, r, 0], [h, r * .95, r * .95, h * .15 / 3]], { ur: 3 }); put(B.group(), x, z); });
+for (const z of [12, -30, -74]) fixed.push(C.pipe([[-7.5, 7, z], [-4.5, 7, z], [-4.5, 9.5, z - 4], [-7.5, 9.5, z - 8]], .35, { c: C.PAL[0], joint: 3, bend: .8 }));
+// ---- 祭り：屋台（工場のかべの前）、ちょうちんの ひも、のぼり ----
+STALL.forEach(({ z, i }) => { put(C.yatai({ c: ['#c2453a', '#2f7a8a', '#c8a04a', '#6a3a7a'][i % 4], kind: ['wave', 'ring', 'dots', 'bars'][i % 4], noren: ['#2f4a8a', '#b8302a', '#2f7a5a', '#e8e0d0'][i % 4], seed: i }), -4.6, z, PI / 2);
+  if (i % 3 === 1) put(C.drum({ c: C.PAL[i % 3] }), -4.8, z - 2.6); if (i % 4 === 2) put(R.crate({ s: .6, kind: 'x' }), -5, z + 2.4, .3); });
+const POST = []; for (let z = 34, k = 0; z > -92; z -= 8, k++) { POST.push(put(C.pole({ h: 6, lamp: false, arms: 1 }), BANK - .4, z, 0)); }
+for (let k = 0; k < POST.length - 1; k++) { const z = POST[k].position.z; fixed.push(C.lanterns([BANK - .4, 5, z], [-7, 6, z - 4], { n: 7, sag: .9, kinds: ['red', 'yellow', 'white'] }), C.lanterns([BANK - .4, 5, z], [BANK - .4, 5, z - 8], { n: 5, sag: .6, kinds: ['red'] })); }
+scene.add(R.merge(fixed));
+// むこう岸：工場と煙突のかげ（あかりの窓）と、遠くの下層
+for (let z = 60, i = 0; z > -500; i++) { const w = 10 + hash(i, 2) * 14, h = 8 + hash(i, 3) * 14, B = R.parts(); B.g(T.windowWall({ wall: 'brick', wallO: { c: '#5a3a3a' }, lit: hash(i, 4) > .3 ? 1 : 0, frame: '#2a2030', glass: '#ffb050' }), { emissive: '#1a1018' }).box(w, h, 12, 0, 0, 0, { m: 4 });
+  B.g(X.tin({ c: '#4a4a5a' })).box(w + .4, 1, 12.4, 0, h, 0, { m: 3 }); const g = B.group(); g.position.set(64 + hash(i, 5) * 6, -2.6, z - w / 2); scene.add(g); z -= w + 2; }
+scene.add(C.backdrop({ r: 600, h: 70, y: -4, haze: '#4a3448', c: '#22182a' }));
+// 遠く：上の都市（青白く 冷たく光る）
+const city = U.city({ r: 220, n: 26, seed: 11, hmin: 60, hmax: 240, glow: '#d8e4ff', light: [.5, .5, .7], plate: { th: 24, cone: 1.7, pipes: 26, lampC: '#e8f0ff', lampR: 3.5, rimGlow: '#c8d4f0', emissive: '#14142a' } }); city.position.set(80, 250, -900); scene.add(city);
+scene.add(R.merge([[-60, -780, 16], [200, -760, 15]].map(([x, z, r], i) => { const p = C.pillar({ r, h: 230, seed: i + 3, c: '#4a4a74', emissive: '#1c1a36', lm: 40 }); p.position.set(x, -3, z); return p; })));
+
+// ---- 動く物：川を流れる あかりの小舟、煙突のけむり、映りこみ ----
+const FL = 16, floats = U.lights([...Array(FL)].map(() => [0, 0, 0]), { c: '#ffb050', r: .5, fog: true }); scene.add(floats);
+const boats = [...Array(FL)].map((_, k) => { const m = C.lantern({ kind: ['red', 'yellow', 'white'][k % 3], r: .16 }); scene.add(m); return m; });
+const smokes = chim.map(([x, z, r, h]) => { const s = C.steam({ r: 2.4, rise: 22, n: 9, spread: .5, speed: .16, c: '#a08898', a: .45 }); s.position.set(x, h, z); scene.add(s); return s; });
+scene.add(C.streaks(STALL.filter((_, i) => i % 2).map(({ z, i }) => ({ x: BANK + 2, z, c: i % 4 === 1 ? '#ff7a3a' : L.bulb, k: .5, w: 1.6, h: 3 })).concat([{ x: 30, z: -200, c: '#a8b8ff', k: .4, w: 8, h: 8 }]), { y: -1.25 }));
+
+// ---- 人 ----
+const npc = (o, x, z, ry) => { const p = R.actor(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const TOPS = ['#5a6a8a', '#8a5a3a', '#3f7a6a', '#a8743a', '#6a4a6a', '#b05a4a', '#7a7a5a'], HAIR = ['#2a2a34', '#6a3a2a', '#8a6a4a', '#b8b4b0'];
+const vendors = STALL.map(({ z, i }) => npc({ hairStyle: ['bald', 'bun', 'short', 'tail'][i % 4], hair: HAIR[i % 4], beard: i % 3 === 0 ? 'mustache' : undefined, eyes: ['closed', 'big', 'half'][i % 3], mouth: 'smile', cloth: 'tunic', top: '#f0e8d8', top2: TOPS[i % 7], bottom: '#4a4a5a', hat: 'band', acc: TOPS[(i + 2) % 7], sex: i % 2 ? 'f' : 'm' }, -5.4, z, PI / 2));
+const crowd = [...Array(34)].map((_, i) => { const kid = i % 5 === 3; const p = npc({ sex: i % 2 ? 'f' : 'm', hairStyle: ['short', 'bob', 'spiky', 'bun', 'tufts', 'tail', 'bald'][i % 7], hair: HAIR[i % 4], eyes: ['big', 'half', 'round'][i % 3], mouth: i % 3 ? 'smile' : 'open', blush: kid, cloth: ['coat', 'jacket', 'overall', 'robe', 'tunic', 'vest'][i % 6], top: TOPS[i % 7], top2: '#e8dcc0', bottom: ['#3a3a4a', '#5a4a3a'][i % 2], lower: i % 4 === 1 ? 'skirt' : 'pants', skirt: .7, shoes: 'shoe', hat: i % 6 === 2 ? 'cap' : i % 6 === 5 ? 'band' : undefined, acc: TOPS[(i + 3) % 7], s: kid ? .7 : .95 + hash(i, 4) * .1 }, 0, 0, 0);
+  if (i % 4 === 0) { const ln = C.lantern({ kind: ['red', 'yellow'][i % 2], r: .11 }); ln.position.set(0, -.5, .05); p.userData.J.foreR.add(ln); }
+  return { p, lane: -2.6 + hash(i, 1) * 4.6, dir: i % 3 ? -1 : 1, sp: .6 + hash(i, 2) * .6, ph: hash(i, 3) * 150, idle: i % 5 === 0, kid }; });
+const hero = npc({ sex: 'f', hairStyle: 'twin', hair: '#2a2230', bangs: 'straight', eyes: 'big', mouth: 'smile', blush: true, cloth: 'robe', top: '#3a4aa0', top2: '#f4e4c0', skirt: .85, skirtC: '#3a4aa0', belt: '#e8b040', shoes: 'shoe', shoe: '#6a3a2a', neck: 'collar', acc: '#e8b040', s: .95 }, 0, 0, 0);
+{ const ln = C.lantern({ kind: 'white', r: .15 }); ln.position.set(0, -.55, .08); hero.userData.J.foreR.add(ln); }
+const hl = new THREE.PointLight('#ffc070', 6, 6, 1.4); scene.add(hl);
+const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); scene.add(cat);
+const follow = new THREE.PointLight('#ffb468', 5, 9, 1.4); scene.add(follow);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = -40, SPEED = .9, LEN = 50;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 + dist, x = -.4 + Math.sin(z * .1) * .4;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.cos(z * .1) * .04; R.walk(hero, dist * 4.6, .7); hero.userData.J.armR.rotation.set(-.5, 0, .05); hero.userData.J.foreR.rotation.x = -.5;
+  hl.position.set(x + .3, 1, z + .6);
+  const tall = innerWidth < innerHeight, D = tall ? 3.7 : 4.3; cam.position.set(x + .7, tall ? 1.35 : 1.4, z + D); cam.lookAt(x + .9, tall ? 4.4 : 3.6, z - 20);   // 前から向き合う。うしろに祭りと遠くの上の都市
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, z + SUN.z * 50); sun.target.position.set(x, 0, z); follow.position.set(x - 1, 2.8, z - 1);
+  crowd.forEach((c, i) => { const p = c.p; if (c.idle) { const zz = -80 + (c.ph % 110); p.position.set(c.lane < -.5 ? -3.3 : 2.2, 0, zz); p.rotation.y = c.lane < -.5 ? -PI / 2 : PI / 2; R.idle(p, t + i, Math.sin(t * .4 + i) * .4); return; }
+    const sp = c.sp * (c.kid ? 1.7 : 1), u = (t * sp + c.ph) % 100, zz = c.dir > 0 ? -80 + u : 20 - u; let lx = c.lane; if (zz > z - 2 && zz < z + 6 && Math.abs(lx - x) < 1.9) lx = x + (lx > x ? 1.9 : -1.9);   // 主役とカメラのあいだは あける
+    p.position.set(lx, 0, zz); p.rotation.y = c.dir > 0 ? 0 : PI; R.walk(p, t * sp * 4.6 + i, c.kid ? 1.2 : .8); });
+  vendors.forEach((v, i) => { R.idle(v, t + i * 1.7, Math.sin(t * .5 + i) * .3); if (i % 2 === 0) { v.userData.J.armR.rotation.x = -.9 - Math.sin(t * 3 + i) * .25; v.userData.J.foreR.rotation.x = -.8; } });
+  boats.forEach((b, k) => { const u = (t * .7 + k * 9.3) % 150, bx = 8 + (k % 5) * 3.2 + Math.sin(t * .3 + k) * .5, bz = -110 + u; b.position.set(bx, -1.2 + Math.sin(t * 1.5 + k) * .05, bz); floats.userData.set(k, bx, -.9, bz); });
+  cat.position.set(-3.2, 0, z - 3 + Math.sin(t * .3)); cat.rotation.y = 0; R.catPose(cat, 'sit', t);
+  R.flip(river.mat, WF, t, 3); river.follow(31, z - 200);
+  C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

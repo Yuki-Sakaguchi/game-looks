@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-08 ブリキのおもちゃの町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#f0b8c8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-08 ─ ブリキのおもちゃの町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-book2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の昼。何もかもブリキでできた おもちゃの町。ゆがんだ家の かべから ぜんまいのねじが出て回り、ブリキの汽車が線路をかけぬけ、まん中には 回るこまの塔。ずっと遠くの丘には、山より大きな ぜんまいのねじが ささって ゆっくり回る。
+// 色の組は「ブリキの赤・青・金」＋差し色の 桃色の空と主役の みどり。ブリキの板（ぬい目・びょう・光のすじ・印刷した窓）は、手で打ったドット絵（pack-book2.js）。
+// 主役は みどりの服の子（R.actor の toon）。ブリキの石だたみを左から右へ歩き、カメラは真横から少し下で追う。前を背中にねじのある おもちゃの兵隊が行進し、汽車・こまの塔・ねじ・旗・鳥が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), B = PACK_BOOK2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#d86aa8'], [.5, '#f0a0c0'], [.85, '#f8d8d0'], [1, '#fff0c8']], { r: 600 })); scene.fog = new THREE.Fog('#f8d8d0', 140, 760);
+const { sun } = K.lights(scene, renderer, { sky: 0xffe0f0, ground: 0xc8a888, amb: 1.4, sun: 0xfff4e0, power: 2.4, range: 36 }), SUN = new THREE.Vector3(-.3, .8, .55).normalize();
+const TIN = (c, kind = 'plain', c2, o = {}) => B.tex.tin({ c, kind, c2, ...o });
+
+// ---- 地面：手前はブリキの市松の道、そのうしろに線路、奥は みどりのフェルトの原っぱ ----
+const land = R.ground({ w: 200, d: 160, cell: 2, cz: -40, H: (x, z) => z < -26 ? Math.sin(x * .05) * 1.5 * Math.min(1, (-z - 26) / 30) : 0,
+  layers: [T.grass({ c: '#7ac058', flowers: .2, fc: ['#ffffff', '#f8d040'] }), TIN('#d84030', 'check', '#f8ecd0', { m: 3 }), T.dirt({ c: '#a89078', pebbles: .8 })],
+  mix: (x, z) => [Math.abs(z) < 2.6 ? 1 : 0, Math.abs(z + 5.5) < 1.6 ? 1 : 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 線路（ブリキのレールと まくら木）。汽車はこの上を走る ----
+{ const G = R.geo().smooth(1); for (const dz of [-.5, .5]) FW.tube(G, [[-400, .12, -5.5 + dz, .06], [400, .12, -5.5 + dz, .06]], 5, { m: 2 }); fixed.push(G.mesh(R.tex.metal({ c: '#c8ccd8' })));
+  const Pl = R.geo(); for (let x = -200; x < 200; x += .9) Pl.box(.3, .1, 1.6, x, 0, -5.5, { m: 1 }); fixed.push(Pl.mesh(T.planks({ c: '#8a5a3a' }))); }
+
+// ---- 家：ブリキのゆがんだ家。かべから ぜんまいのねじが出て、くるくる回る ----
+const WALLS = [TIN('#3a6ac0', 'dots', '#f0c040'), TIN('#f0c040', 'plain'), TIN('#d84030', 'stripe', '#f8ecd0'), TIN('#58a8a0', 'dots', '#f8ecd0'), TIN('#f8ecd0', 'stripe', '#3a6ac0')];
+const ROOFS = [TIN('#d84030', 'stripe', '#f0c040'), TIN('#3a6ac0', 'plain'), TIN('#f0c040', 'check', '#d84030'), TIN('#58a8a0', 'stripe', '#f8ecd0')];
+const keys = [];
+[[-26, -12], [-19, -13], [-12, -11.5], [-5, -13], [2, -12], [9, -12.5], [16, -11.5], [23, -13], [30, -12], [37, -12.5], [44, -12], [-9, -20], [5, -21], [20, -20], [34, -21]].forEach(([x, z], i) => {
+  const h = 3 + hash(i, 1) * 1.6 + (z < -18 ? 1.2 : 0), w = 3.2 + hash(i, 2), d = 3, ln = (hash(i, 3) - .5) * 1.4;
+  put(B.house({ w, d, h, lean: ln, bulge: .14, roofH: 1.8 + hash(i, 4) * 2, roofLean: -ln, wall: WALLS[i % 5], roof: ROOFS[i % 4], wins: 2, chimney: hash(i, 5) > .5, brick: TIN('#8a8c98'), seed: i }), x, z, (hash(i, 6) - .5) * .3);
+  if (z > -15) { const kg = new THREE.Group(), k = B.key({ s: .7, c: '#f0c040' }); k.rotation.x = PI / 2; kg.add(k); kg.position.set(x + ln * .3 + (hash(i, 7) - .5), h * .42, z + d / 2 * 1.14); scene.add(kg); keys.push([kg, i % 2 ? 1 : -1, 1.2 + hash(i, 8)]); } });
+for (const [x, z] of [[-15.5, -9], [5.5, -9], [26.5, -9], [-29, -9]]) put(F.flag({ kind: 'pennant', pole: 4, w: 1.4, h: .7, c: '#3a6ac0', c2: '#f0c040' }), x, z);
+for (let i = 0; i < 14; i++) put(R.tree({ kind: 'round', h: 3.4 + hash(i, 1) * 2, c: i % 2 ? '#5aa848' : '#7ac058', seed: i }), -40 + i * 7 + hash(i, 2) * 3, -27 - hash(i, 3) * 8, i);
+for (let i = 0; i < 18; i++) put(R.tuft({ kind: 'flower', s: .7, fc: ['#f8d040', '#ffffff', '#d84030'], seed: i % 3 }), -30 + i * 4.3, 3.4 + hash(i, 1) * 1.2, i);
+scene.add(R.merge(fixed));
+
+// ---- こまの塔（ブリキのこま。しまの胴に窓。ゆっくり回り、首をふる） ----
+const top = new THREE.Group(); top.position.set(14, 0, -50); top.scale.setScalar(1.6); scene.add(top);
+{ const P = R.parts(), body = P.g(TIN('#d84030', 'stripe', '#f8ecd0', { m: 4 })).smooth(1);
+  body.loft(16, [[0, .3, .3, 0, .7], [3, 4, 4, .8, .85], [8, 9, 9, 1.8, 1], [10.5, 9.4, 9.4, 2.2, 1.05], [12.5, 7, 7, 2.6, 1.05], [15, 3, 3, 3.2, 1]], { ur: 6 });
+  P.g(TIN('#3a6ac0', 'dots', '#f0c040', { m: 2 })).smooth(1).loft(12, [[14.6, 3.2, 3.2, 0, .95], [15.4, 3.4, 3.4, .5, 1.05], [16, 1.4, 1.4, 1, 1]], { ur: 4 }).loft(8, [[15.8, 1.2, 1.2, 0, 1], [24, 1, 1, 4, 1]], { ur: 2 });
+  P.g(TIN('#f0c040', 'plain')).smooth(1).loft(10, [[23.6, 1.3, 1.3, 0, .9], [24.8, 2, 2, .5, 1.05], [26, 1.4, 1.4, .9, 1.1], [26.6, .2, .2, 1, 1.1]], { cap: 'top', ur: 2 });
+  const W = P.g(TIN('#3a6ac0', 'window', '#f8ecd0'), { offset: true, side: true }); for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2, r = 9.5, c = Math.cos(a), s = Math.sin(a); W.quad([c * r - s * 1.2, 9, s * r + c * 1.2], [c * r + s * 1.2, 9, s * r - c * 1.2], [c * r + s * 1.2, 11.4, s * r - c * 1.2], [c * r - s * 1.2, 11.4, s * r + c * 1.2].map((v, j) => v), [0, 0, 1, 1]); }
+  top.add(P.group()); }
+// ---- 遠くの丘に ささった、山より大きな ぜんまいのねじ ----
+const giant = B.key({ s: 58, c: '#e0b040' }); giant.position.set(-42, -4, -230); scene.add(giant);
+scene.add(R.backdrop({ c: '#b88ab0', haze: '#f8d0d8', r: 380, h: 40, y: -4, rep: 3 }));
+const clouds = []; for (let k = 0; k < 8; k++) { const c = B.puff({ s: 14 + hash(k, 1) * 10, n: 4, c: '#fff4f8', seed: k }); c.position.set(-160 + k * 48 + hash(k, 2) * 20, 40 + hash(k, 3) * 40, -220 - hash(k, 4) * 80); scene.add(c); clouds.push(c); }
+
+// ---- ブリキの汽車（ぜんまいの機関車と、荷台 2 両） ----
+const train = new THREE.Group(); scene.add(train);
+{ const P = R.parts(), gx = (g, rot) => g;
+  const boiler = R.geo().smooth(1).loft(12, [[-.3, .58, .58, 0, .9], [2.1, .58, .58, 1.6, 1], [2.25, .66, .66, 1.7, 1.05], [2.35, .5, .5, 1.8, 1]], { ur: 2, cap: 'top' }).mesh(TIN('#d84030', 'stripe', '#f0c040')); boiler.geometry.rotateZ(-PI / 2); boiler.position.set(0, 1.15, 0); train.add(boiler);
+  const cab = R.geo(); cab.box(1.3, 1.7, 1.4, -.95, .5, 0, { m: 1.5 }); train.add(cab.mesh(TIN('#3a6ac0', 'window', '#f0c040')));
+  const cr = R.geo().smooth(1).loft(4, [[2.2, .9, .95, 0, 1], [2.45, .7, .7, 1, 1.1]], { cap: 'top', ur: 2 }); cr.tint(1); const crm = cr.mesh(TIN('#d84030')); crm.position.set(-.95, 0, 0); train.add(crm);
+  const ch = R.geo().smooth(1).loft(8, [[1.6, .17, .17, 0, .9], [2.3, .15, .15, .7, 1], [2.55, .3, .3, 1, 1.1]], { ur: 2 }).mesh(TIN('#2a2a3a')); ch.position.x = 1.6; train.add(ch);
+  const base = R.geo(); base.box(4.2, .35, 1.2, .3, .35, 0, { m: 1 }); train.add(base.mesh(TIN('#2a2a3a', 'plain')));
+  const cars = []; for (let c = 0; c < 2; c++) { const x0 = -3.6 - c * 3.2, G = R.geo(); G.box(2.8, .9, 1.3, x0, .45, 0, { m: 1.4 }); train.add(G.mesh(TIN(c ? '#f0c040' : '#58a8a0', 'check', '#f8ecd0')));
+    for (let k = 0; k < 3; k++) { const ball = R.geo().smooth(1).loft(8, [[-.35, .08, .08, 0, .8], [-.2, .3, .3, .3, 1], [.1, .35, .35, .6, 1.05], [.33, .15, .15, 1, 1.1]], { cap: 'top', ur: 2 }).mesh(TIN(['#d84030', '#3a6ac0', '#f0c040'][(k + c) % 3], 'stripe', '#f8ecd0')); ball.position.set(x0 - .8 + k * .8, 1.55, (k - 1) * .2); train.add(ball); } cars.push(x0); }
+  const wheels = []; for (const x of [1.6, .5, -.8, ...cars.flatMap(x0 => [x0 - .9, x0 + .9])]) for (const sz of [-1, 1]) { const w = R.geo().smooth(0).loft(10, [[-.06, .32, .32, 0, .9], [.06, .32, .32, .3, 1]], { cap: 'both', capRect: true }).mesh(R.tex.wheel({ kind: 'wood', c: '#d84030' })); w.geometry.rotateX(PI / 2); w.position.set(x, .34, sz * .62); train.add(w); wheels.push(w); }
+  const kg = B.key({ s: .55, c: '#f0c040' }); kg.position.set(-.95, 2.4, 0); train.add(kg); train.userData = { wheels, key: kg }; }
+const smoke = [...Array(6)].map((_, k) => { const p = B.puff({ s: .9, n: 2, c: '#ffffff', seed: k }); scene.add(p); return p; });
+
+// ---- 人：主役と、ねじで行進する おもちゃの兵隊。空には ブリキの鳥 ----
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#e8a040', eyes: 'big', mouth: 'smile', cloth: 'overall', top: '#4aa858', top2: '#f8ecd0', shoes: 'shoe', shoe: '#8a4a2a', neck: 'scarf', acc: '#f0c040' }); scene.add(hero);
+const soldiers = [...Array(5)].map((_, k) => { const s = R.actor({ build: 'toon', hairStyle: 'short', hair: '#3a2a20', eyes: 'round', mouth: 'small', blush: true, cloth: 'jacket', top: k === 0 ? '#3a6ac0' : '#d84030', top2: '#f0c040', lower: 'pants', bottom: '#2a3a7a', belt: '#f8f8f0', strap: true, gloves: 'glove', glove: '#f8f8f0', shoes: 'boot', shoe: '#1a1a28', hold: k === 0 ? 'staff' : 'spear' }); B.busby(s, { c: k === 0 ? '#f8f8f0' : '#2a2430' });
+  const kg = B.key({ s: .22, c: '#c8ccd8' }); kg.rotation.x = -PI / 2; const kw = new THREE.Group(); kw.add(kg); kw.position.set(0, .22, -.2); s.userData.J.torso.add(kw); s.userData.key = kw; scene.add(s); return s; });
+const birds = [...Array(5)].map((_, k) => { const b = R.bird({ c: ['#3a6ac0', '#f0c040', '#d84030'][k % 3], belly: '#f8ecd0', s: 1.6 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const X0 = -14, SPEED = 1.3;
+K.loop((dt, t) => {
+  const tall = innerWidth < innerHeight, x = X0 + t * SPEED, z = .6;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 3.6, .85);
+  cam.position.set(x + (tall ? .3 : .9), tall ? 1.25 : 1.05, z + (tall ? 4.8 : 5)); cam.lookAt(x + (tall ? 1.4 : 1.2), tall ? 3.3 : 3.3, -8);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, SUN.z * 60); sun.target.position.set(x, 0, -4); land.follow(x, -40);
+  // 兵隊：かたい足で行進（ひざを曲げず、うでは まっすぐ）。背中のねじが回る
+  soldiers.forEach((s, k) => { const sx = X0 + 7.2 + t * 1.15 - k * 1.25; s.position.set(sx, 0, -2.3); s.rotation.y = PI / 2; const ph = t * 5.2 + k * .0, a = Math.sin(ph), J = s.userData.J;
+    R.walk(s, ph, 1); J.shinL.rotation.x = J.shinR.rotation.x = .05; J.legL.rotation.x = -Math.max(0, a) * .9; J.legR.rotation.x = -Math.max(0, -a) * .9; J.armL.rotation.set(-Math.max(0, -a) * .8, 0, .1); J.armR.rotation.set(-.5, 0, -.1); J.foreR.rotation.x = -.9; J.torso.rotation.set(0, 0, 0);
+    s.position.y = Math.abs(Math.sin(ph)) * .06; s.userData.key.rotation.z = -t * 3; });
+  // 汽車：右から左へ かけぬける
+  const tx = x + 16 - (t * 4.2) % 90; train.position.set(tx, .12, -5.5); train.userData.wheels.forEach(w => w.rotation.z = t * 4.2 / .32); train.userData.key.rotation.y = t * 4; train.position.y = .12 + Math.abs(Math.sin(t * 13)) * .03;
+  smoke.forEach((p, k) => { const q = ((t * 1.2 + k / 6) % 1); p.position.set(tx + 1.6 + q * 2.5, 2.6 + q * 2.4, -5.5); p.scale.setScalar(.4 + q * 1.4); });
+  keys.forEach(([kg, d, sp]) => kg.rotation.z = d * t * sp);
+  top.rotation.y = t * .9; top.rotation.z = Math.sin(t * .7) * .05; top.rotation.x = Math.cos(t * .7) * .05;
+  giant.rotation.y = t * .12; clouds.forEach((c, k) => c.position.x += dt * (1 + k % 3));
+  birds.forEach((b, k) => { const a = t * .5 + k * 1.3, r = 9 + k * 2; b.position.set(x + 6 + Math.cos(a) * r, 11 + k * 1.5 + Math.sin(t + k) * .6, -22 + Math.sin(a) * 6); b.rotation.y = -a; R.birdPose(b, 'fly', t * .8 + k); });
+  F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

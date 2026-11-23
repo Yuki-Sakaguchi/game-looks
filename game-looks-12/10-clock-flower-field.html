@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-10 時計の花畑 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#f0a060;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-10 ─ 時計の花畑 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-book2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の夕方。花がみんな時計の花畑。どの花も針が ばらばらの速さと向きで回る。うねって ゆがんだ れんがの道が地平まで続き、道のわきには砂の落ちる 砂時計の木。空には、どこからつるされているのか分からない 巨大な振り子が ゆっくりゆれる。
+// 色の組は「夕やけの だいだいと、空の青みどり・時計の文字盤のクリームと金」＋差し色の 主役の むらさき。花びら・砂時計・振り子の おもりは手で打ったドット絵。
+// 主役は むらさきの上着の子（R.actor の toon）。うねる道を奥へ歩き、カメラは うしろの高い所から見下ろして、道の先の地平と振り子まで入れる。時計の針・砂・振り子・ちょう・前を行く ねこが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), B = PACK_BOOK2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a7a8a'], [.4, '#58a8a0'], [.72, '#f0c070'], [1, '#ff7a50']], { r: 640 })); scene.fog = new THREE.Fog('#f4a870', 60, 520);
+const { sun } = K.lights(scene, renderer, { sky: 0xa8e0d8, ground: 0xc88a5a, amb: 1.3, sun: 0xffc080, power: 2.4, range: 34 }), SUN = new THREE.Vector3(-.35, .32, -.88).normalize();
+const fill = new THREE.DirectionalLight(0x9ad0e0, .6); fill.position.set(10, 20, 30); scene.add(fill);
+
+// ---- 地面：うねる丘。道は左右にくねり、上り下りする ----
+const H = (x, z) => Math.sin(x * .07 + z * .02) * 1.4 + Math.cos(z * .045) * 2 + Math.sin(x * .19) * Math.cos(z * .13) * .4;
+const RX = z => Math.sin(z * .055) * 4.2 + Math.sin(z * .021 + 1) * 6;
+const land = R.ground({ w: 200, d: 220, cell: 2, cz: -70, H, layers: [T.grass({ c: '#8aa848', flowers: .35, fc: ['#f8f0d0', '#f0c040', '#e86a8a'] }), T.dirt({ c: '#a8885a' })], mix: (x, z) => [Math.abs(x - RX(z)) < 2.6 ? .9 : 0, 0] }); scene.add(land.mesh);
+{ const pts = []; for (let z = 30; z > -260; z -= 1.5) { const x = RX(z); pts.push([x, H(x, z) + .07, z]); } scene.add(R.strip(pts, 2.6, T.brickFloor({ c: '#e0a858' }))); }
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 時計の花：茎と葉、色の花びら、時計の顔。針は 1 本ずつ ばらばらに回る ----
+const petal = c => { const P = R.Px(16, 24), A = R.ramp(c, 6, { contrast: .8 }); P.clip = true; P.each((x, y) => { const u = (x + .5 - 8) / 8, v = (y + .5) / 24, w = Math.sin(v * PI) * (v < .3 ? 1 : 1) * .95; if (Math.abs(u) > w) return null; return Math.abs(u) > w - .18 ? A[1] : x === 8 ? A[2] : v < .35 ? A[4] : A[3]; }); return T.from(P, { m: 1, cut: true }); };
+const PC = ['#e86a8a', '#f0c040', '#a878d8', '#f8f0e0', '#e88a40'].map(petal), FACE = F.tex.clock({ c: '#fff4dc' }), FACE2 = F.tex.clock({ c: '#f8e8c8', rim: '#c8783a' });
+const handM = R.mat('#3a3038', { glow: true }), hands = [];
+const stemT = T.bark({ c: '#5a8a3a' });
+const flower = (x, z, s, i) => { const y = H(x, z), h = (.8 + hash(i, 1) * .7) * s, g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = (hash(i, 2) - .5) * .7;
+  const st = R.geo(); FW.tube(st, [[0, 0, 0, .04 * s], [.05, h * .5, 0, .035 * s], [0, h, .05, .03 * s]], 4); g.add(st.mesh(stemT)); g.add(R.tuft({ kind: 'grass', s: .55 * s, seed: i % 3 }));
+  const head = new THREE.Group(); head.position.set(0, h, .05); head.rotation.x = -.35 - hash(i, 3) * .4; g.add(head); const r = .3 * s, P = R.geo(), pc = PC[i % PC.length], n = 8;
+  for (let k = 0; k < n; k++) { const a = k / n * PI * 2, c = Math.cos(a), sn = Math.sin(a), wv = .17 * s; P.at(new THREE.Matrix4().makeRotationZ(a - PI / 2)).quad([-wv, r * .6, -.02], [wv, r * .6, -.02], [wv, r * 1.9, -.07], [-wv, r * 1.9, -.07]); } P.at(null);
+  head.add(P.mesh(pc, { side: true })); const fc = R.geo(); fc.quad([-r, -r, 0], [r, -r, 0], [r, r, 0], [-r, r, 0]); head.add(fc.mesh(i % 3 ? FACE : FACE2, { side: true }));
+  for (const [len, wd, sp] of [[.62, .07, (hash(i, 4) - .5) * 6], [.85, .045, (hash(i, 5) - .5) * 14]]) { const G = R.geo(); G.quad([-wd * r, -.08 * r, .02], [wd * r, -.08 * r, .02], [wd * .4 * r, len * r, .02], [-wd * .4 * r, len * r, .02]); const m = new THREE.Mesh(G.build(), handM), pv = new THREE.Group(); pv.userData.dyn = true; pv.add(m); head.add(pv); hands.push([m, sp, hash(i, 6) * 6]); }
+  return g; };
+const fl = []; let fi = 0; for (let k = 0; k < 130; k++) { const z = 22 - hash(k, 1) * 120, side = hash(k, 2) > .5 ? 1 : -1, x = RX(z) + side * (2.2 + Math.pow(hash(k, 3), 1.6) * 16); fl.push(flower(x, z, .9 + hash(k, 4) * .9 + (Math.abs(x - RX(z)) > 9 ? .6 : 0), fi++)); }
+scene.add(R.merge(fl));
+
+// ---- 砂時計の木（木わくの柱、ガラスのふくらみ、上から下へ落ちる砂） ----
+const glassT = (() => { const P = R.Px(16, 32), A = R.ramp('#c8e8f0', 6, { contrast: .5 }); P.each((x, y) => x === 3 || x === 4 ? A[5] : x === 12 ? A[4] : (x + y) % 11 === 0 ? A[4] : A[3]); return T.from(P, { m: 2 }); })();
+const glassM = R.mat(glassT, { side: true }).clone(); glassM.transparent = true; glassM.opacity = .3; glassM.depthWrite = false;
+const sandT = T.sand({ c: '#f0c060' }), woodT = T.planks({ c: '#7a4a32' }), glasses = [];
+const hourglass = (x, z, s, i) => { const g = new THREE.Group(), y = H(x, z); g.position.set(x, y - .1, z); g.rotation.y = hash(i, 1) * 3; g.scale.setScalar(s); scene.add(g); const P = R.parts();
+  P.g(woodT).smooth(0).loft(8, [[0, 1.5, 1.5, 0, .8], [.4, 1.5, 1.5, .3, 1]], { cap: 'top' }).loft(8, [[5.6, 1.5, 1.5, 0, .9], [6, 1.5, 1.5, .3, 1.05], [6.2, 1.1, 1.1, .45, 1.1]], { cap: 'both' });
+  const Wd = P.g(woodT).smooth(1); for (let k = 0; k < 3; k++) { const a = k / 3 * PI * 2 + .3; Wd.loft(5, [[.4, .13, .13, 0, .9, Math.cos(a) * 1.25, Math.sin(a) * 1.25], [3, .1, .1, 1, 1, Math.cos(a) * 1.1, Math.sin(a) * 1.1], [5.6, .13, .13, 2, 1, Math.cos(a) * 1.25, Math.sin(a) * 1.25]]); }
+  // 葉のかたまりを てっぺんに（砂時計の「木」）
+  P.g(T.leaves({ c: '#4a8a4a', shape: 'tile' })).smooth(2).loft(7, [[6.1, .5, .5, 0, .7], [6.6, 1.5, 1.5, .5, .9], [7.3, 1.6, 1.6, 1, 1.05], [8, 1, 1, 1.5, 1.1], [8.4, .15, .15, 2, 1.15]], { ur: 3 });
+  g.add(P.group()); const gl = R.geo().smooth(1).loft(10, [[.4, .7, .7, 0, 1], [1.1, 1.1, 1.1, .2, 1], [2, .8, .8, .4, 1], [2.8, .18, .18, .5, 1], [3.2, .18, .18, .55, 1], [4, .8, .8, .7, 1], [4.9, 1.1, 1.1, .85, 1], [5.6, .7, .7, 1, 1]], { ur: 2 }); const gm = new THREE.Mesh(gl.build(), glassM); gm.renderOrder = 2; g.add(gm);
+  const top = R.geo().smooth(1).loft(8, [[0, .05, .05, 0, 1], [1, .95, .95, 1, 1.1]], { cap: 'top' }).mesh(sandT), bot = R.geo().smooth(1).loft(8, [[0, .95, .95, 0, .9], [1, .05, .05, 1, 1.05]], { cap: 'bot' }).mesh(sandT), fall = R.geo().loft(4, [[0, .04, .04, 0, 1], [1, .04, .04, 1, 1]]).mesh(R.mat('#f0c060', { glow: true }));
+  top.position.y = 3.05; bot.position.y = .42; fall.position.y = .42; g.add(top, bot, fall); glasses.push({ top, bot, fall, ph: hash(i, 2) * 10 }); };
+[[-6, -6, 1.1], [7, -16, 1.3], [-8, -30, 1.5], [10, -42, 1.4], [-7, -54, 1.3], [9, -68, 1.6], [-14, -80, 1.7], [16, -94, 1.7], [-11, -112, 1.9]].forEach(([dx, z, s], i) => hourglass(RX(z) + dx, z, s, i));
+for (let i = 0; i < 40; i++) { const z = 20 - hash(i, 1) * 140, x = RX(z) + (hash(i, 2) > .5 ? 1 : -1) * (2.4 + hash(i, 3) * 20); put(R.tuft({ kind: 'flower', s: .8, fc: ['#f8f0d0', '#f0c040', '#a878d8'], seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#7a6a9a', haze: '#f0a878', r: 330, h: 34, y: -2, rep: 3 }));
+
+// ---- 空の巨大な振り子（どこにもつながらない糸の先で、ゆっくりゆれる） ----
+const pend = new THREE.Group(); pend.position.set(8, 230, -240); scene.add(pend);
+{ const bobT = (() => { const P = R.Px(64), A = R.ramp('#e8b048', 6, { contrast: .85 }), Dk = R.ramp('#8a5a2a'); P.clip = true; P.each((x, y) => { const d = Math.hypot(x + .5 - 32, y + .5 - 32); if (d > 31.5) return null; if (d > 29) return A[1]; if (d > 27) return A[(x + y) < 64 ? 5 : 2]; const l = (32 - x) * .6 + (32 - y) * .8; return d < 6 ? Dk[3] : (d > 22 && d < 24) ? Dk[2] : l > 18 ? A[5] : l > 4 ? A[4] : l > -12 ? A[3] : A[2]; });
+    for (let k = 0; k < 12; k++) { const a = k / 12 * PI * 2; P.disc(32 + Math.cos(a) * 18, 32 + Math.sin(a) * 18, 1.5, Dk[1]); } P.disc(32, 32, 3, A[5]); return T.from(P, { m: 1, cut: true }); })();
+  const G = R.geo(), Rb = 40; G.quad([-Rb, -Rb, 0], [Rb, -Rb, 0], [Rb, Rb, 0], [-Rb, Rb, 0]); const bob = G.mesh(R.mat(bobT, { side: true, cut: true, fog: false })); bob.position.y = -190; bob.castShadow = false; pend.add(bob);
+  const edge = R.geo().smooth(1).loft(16, [[-2.5, Rb * .98, Rb * .98, 0, .7], [2.5, Rb * .98, Rb * .98, 1, .9]], { ur: 8 }).mesh(R.mat(R.tex.metal({ c: '#c8883a' }), { fog: false })); edge.geometry.rotateX(PI / 2); edge.position.y = -190; edge.position.z = -.3; pend.add(edge);
+  const rod = R.geo().loft(4, [[-168, .9, .9, 0, 1], [60, .9, .9, 20, 1]]).mesh(R.mat(R.tex.metal({ c: '#8a6a4a' }), { fog: false })); pend.add(rod); }
+const butterflies = [...Array(5)].map((_, k) => { const g = R.bird({ c: ['#f0c040', '#a878d8', '#f8f0e0'][k % 3], belly: '#ffffff', s: .7 }); scene.add(g); return g; });
+
+// ---- 主役と、前を行く ねこ ----
+const hero = R.actor({ build: 'toon', hairStyle: 'tail', hair: '#2a2a3a', eyes: 'big', mouth: 'smile', cloth: 'coat', top: '#7a4ab0', top2: '#f8e8c8', lower: 'pants', bottom: '#3a3a5a', shoes: 'boot', shoe: '#8a4a2a', neck: 'scarf', acc: '#f0c040', back: 'bag' }); scene.add(hero);
+const cat = R.cat({ c: '#f8f0e0', belly: '#ffffff' }); scene.add(cat);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 16, SPEED = 1.35;
+K.loop((dt, t) => {
+  const tall = innerWidth < innerHeight, z = Z0 - t * SPEED, x = RX(z), y = H(x, z) + .07, x2 = RX(z - .5), ang = Math.atan2(x2 - x, -.5);
+  hero.position.set(x, y, z); hero.rotation.y = ang; R.walk(hero, t * SPEED * 3.6, .85);
+  const cx = RX(z + 5) * .6 + x * .4; cam.position.set(cx + 1, y + (tall ? 3.1 : 2.8), z + (tall ? 3.9 : 4.3)); cam.lookAt(RX(z - 6) * .7 + x * .3, y + .55, z - 7);
+  sun.position.set(x + SUN.x * 60 * -1, 40, z + 50); sun.target.position.set(x, y, z - 6); land.follow(x, z - 50);
+  const cz = z - 3.2 - Math.sin(t * .8) * .4, cxx = RX(cz) + .4; cat.position.set(cxx, H(cxx, cz) + .07, cz); cat.rotation.y = Math.atan2(RX(cz - .5) - RX(cz), -.5); R.catPose(cat, 'walk', t * 1.2);
+  hands.forEach(([m, sp, ph]) => { m.rotation.z = -(ph + t * sp); });
+  glasses.forEach(({ top, bot, fall, ph }) => { const q = ((t + ph) % 12) / 12; top.scale.set(1 - q * .9, 1 - q * .95, 1 - q * .9); bot.scale.set(.3 + q * .7, .1 + q * .9, .3 + q * .7); fall.scale.set(1, 2.6 - bot.scale.y * .6, 1); });
+  pend.rotation.z = Math.sin(t * .45) * .28;
+  butterflies.forEach((b, k) => { const a = t * 1.1 + k * 1.6; b.position.set(x + Math.cos(a) * (2 + k * .6), y + 1.2 + Math.sin(t * 3 + k) * .3, z - 3 - k * 1.5 + Math.sin(a) * 1.4); b.rotation.y = -a; R.birdPose(b, 'fly', t * 2 + k); });
+  F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-48 白い浜とドットの海 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#d8eef8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#2e4058;opacity:.85;text-shadow:0 1px 0 #ffffff}
+</style>
+<div id="cap">12-48 ─ 白い浜とドットの海 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-cyber2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 白い電脳世界の浜。白い砂浜に、色の点（ドット）でできた海が寄せては返す。空には記号でできた雲が流れ、沖には浮かぶ島の上に しまの灯台が立って光をまわす。浜ではアバターたちが ボールで遊ぶ。
+// 色の組は「白とうすい灰（砂・板）・海と空の水色」＋差し色の 灯台と記号の雲の もも色。白い砂がとばないよう、砂の波もようと足あと、板の目地に うすい青むらさきの影を打った。
+// 主役は 音符を頭に浮かべた子（R.actor の toon、ミントのシャツ）。波うちぎわを右へ歩き、カメラは陸がわの横から追って、海と沖の灯台を うしろに入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), CY = PACK_CYBER2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 1000, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#6aa8e0'], [.45, '#a0cdf0'], [.82, '#d8eef8'], [1, '#f4f8f8']], { r: 700 })); scene.fog = new THREE.Fog('#e0eef6', 80, 700);
+const { sun } = K.lights(scene, renderer, { sky: 0xf0f8ff, ground: 0xb8c0dc, amb: 1.4, sun: 0xfff6e4, power: 1.5, range: 30 }), SUN = new THREE.Vector3(-.3, .75, .6).normalize();
+
+// ---- ドットの海（この場面で打った 4 コマ）。4 ドットごとに 3×3 の色の点。波の帯が手前へ寄せる ----
+const SEA = ['#3a7ac8', '#4a9ad8', '#6ab8e8', '#8ad4f0', '#b8e8f8', '#f4f8fc'];
+const seaFrames = [0, 1, 2, 3].map(f => { const P = R.Px(64), bg = '#cfe6f4';
+  P.fill(bg);  for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) { const v = R.tn(i, j, 8, 4, 16, 16, 3) * .6 + Math.sin((j - f * 4) / 16 * 2 * PI) * .3 + .2, k = Math.max(0, Math.min(5, Math.floor(v * 5.2))), c = SEA[k], x = i * 4, y = j * 4;
+    P.rect(x, y, 3, 3, c); P.set(x, y, R.mix(c, '#ffffff', .35)); P.set(x + 2, y + 2, R.mix(c, '#203060', .25)); }
+  return T.from(P, { m: 12 }); });
+const seaMat = R.mat(seaFrames[0], { vc: true });
+{ const G = R.geo().normal([0, 1, 0]), S = 16; for (let i = -30; i < 30; i++) for (let j = 0; j < 40; j++) { const x0 = i * S, z0 = -3 - j * S, k = Math.max(.75, 1 - j * .008); G.quad([x0, 0, z0], [x0 + S, 0, z0], [x0 + S, 0, z0 - S], [x0, 0, z0 - S], [x0 / 12, -z0 / 12, (x0 + S) / 12, -(z0 - S) / 12], k); }
+  const sea = new THREE.Mesh(G.build(), seaMat); sea.position.y = -.25; scene.add(sea); }
+// 波うちぎわの白い点の帯（寄せては返す）
+const foamP = R.Px(64, 16); foamP.clip = true; for (let j = 0; j < 4; j++) for (let i = 0; i < 16; i++) if (hash(i, j, 2) > j * .22) { foamP.rect(i * 4, j * 4, 3, 3, j ? '#e8f4fc' : '#ffffff'); foamP.set(i * 4 + 2, j * 4 + 2, '#a8d0ec'); }
+const foamT = T.from(foamP, { m: 4, cut: true }), foam = new THREE.Group(); scene.add(foam);
+for (let k = 0; k < 2; k++) { const G = R.geo().normal([0, 1, 0]); for (let i = -40; i < 40; i++) G.quad([i * 4, 0, 0], [i * 4 + 4, 0, 0], [i * 4 + 4, 0, -1], [i * 4, 0, -1], [i, 0, i + 1, 1]); const m = G.mesh(foamT, { glow: true }); m.position.z = -2.4 - k * 3; foam.add(m); }
+
+// ---- 白い砂浜（ゆるく陸へ上がる）。陸の奥に白い板の遊歩道と、パラソル ----
+const H = (x, z) => Math.max(-.34, Math.min(2.4, (z + .6) * .1)) + (z > 0 ? Math.sin(x * .3 + z * .5) * .05 : 0);   // 水ぎわは なだらかに しずむ
+const land = R.ground({ w: 120, d: 60, cell: 2, cz: 20, H, layers: [T.sand({ c: '#e8e6ee' }), CY.tex.tile({ n: 2, seed: 3, accent: ['#f2a0c4', '#7ad0ec'] }), T.sand({ c: '#d8dce8', seed: 2 })], mix: (x, z) => [z > 14 && z < 18 ? 1 : 0, 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const umb = (c) => { const Bp = R.parts(); Bp.g(CY.tex.tile({ n: 4, c: '#e4e4ee', seed: 4 })).loft(6, [[0, .04, .04, 0, .9], [2.3, .04, .04, 1, 1]], {}); Bp.g(T.fabric({ c, c2: '#f8f6fa', pattern: 'stripe', w: 8 }), { side: true }).loft(8, [[1.9, 1.5, 1.5, 0, .85], [2.5, .05, .05, 1, 1.05]], { ur: 4 }); return Bp.group(); };
+[[-14, 7, '#f2a0c4'], [-6, 9, '#7ad0ec'], [6, 8, '#eed070'], [16, 7.5, '#9ad88a'], [26, 9, '#f2a0c4'], [36, 7, '#b8a8e8']].forEach(([x, z, c]) => put(umb(c), x, z, hash(x, 1) * PI));
+for (let i = 0; i < 18; i++) { const x = -40 + i * 5 + hash(i, 1) * 3; put(CY.board({ w: 1.2, h: .9, kind: ['list', 'icons', 'face'][i % 3], c: ['#7ad0ec', '#f2a0c4', '#eed070'][i % 3], seed: i }), x, 19 + hash(i, 2) * 2, PI + (hash(i, 3) - .5) * .5, H(x, 19) + 1.4); }
+for (let i = 0; i < 26; i++) { const x = -50 + hash(i, 4) * 100, z = 1 + hash(i, 5) * 12; put(R.rock({ s: .3 + hash(i, 6) * .4, c: '#e4e2ee', seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(CY.lines([[[-60, H(0, 16) + .06, 16], [80, H(0, 16) + .06, 16]]], { w: .3, c: '#f2a0c4', k: .8 }));
+
+// ---- 沖の、浮かぶ島の しまの灯台（光をまわす）。遠くの浮島の町 ----
+const lhTex = (() => { const P = R.Px(64), A = R.ramp('#e4e4ee', 6, { contrast: .5 }), Pk = R.ramp('#f08aac', 6, { contrast: .7 });
+  P.each((x, y) => { const band = Math.floor(y / 16) % 2, S = band ? Pk : A, v = R.tn(x, y, 16, 8, 64, 64, 2); return y % 16 === 0 ? S[5] : y % 16 === 15 ? S[1] : v > .6 ? S[4] : S[3]; });
+  for (let x = 6; x < 64; x += 16) { P.rect(x, 20, 4, 6, '#5a8ac0'); P.rect(x, 20, 4, 1, '#b8e0f4'); } return T.from(P, { m: 4 }); })();
+const lh = new THREE.Group(); lh.position.set(46, 22, -150); scene.add(lh);
+{ const isle = CY.isle({ r: 14, depth: 18, seed: 3, rim: '#f2a0c4' }); lh.add(isle); const Bp = R.parts(); Bp.g(lhTex).loft(10, [[0, 3, 3, 0, .92], [26, 2, 2, 6.5, 1.05]], { ur: 3 }); Bp.g(CY.tex.tile({ n: 4, seed: 6 })).loft(10, [[26, 3, 3, 0, .9], [27, 3, 3, .3, 1]], { cap: 'top', capRect: true, ur: 4 }).loft(10, [[30.5, 2.4, 2.4, 0, 1], [33, .2, .2, 1, 1.1]], { ur: 3 }); Bp.g(CY.tex.beam(), { glow: true, color: '#fff4c0' }).loft(10, [[27, 1.8, 1.8, 0], [30.5, 1.8, 1.8, 1]], { ur: 5 }); lh.add(Bp.group()); }
+const beam = CY.lines([[[0, 28.8, 0], [140, 28.8, 0]], [[0, 28.8, 0], [-140, 28.8, 0]]], { w: 7, c: '#fff4c0', mode: 'cross', k: .35, fog: false }); lh.add(beam);
+for (const [x, y, z, r] of [[-160, 40, -330, 22], [180, 60, -420, 26], [-30, 70, -520, 30]]) { const g = CY.isle({ r, depth: r * 1.2, seed: x }); for (let k = 0; k < 4; k++) { const tw = CY.tower({ r: 2 + hash(k, x) * 2, h: 14 + hash(k, y) * 20, steps: 2, seed: k }); tw.position.set((hash(k, 1, x) - .5) * r, 0, (hash(k, 2, x) - .5) * r); g.add(tw); } g.position.set(x, y, z); scene.add(g); }
+
+// ---- 記号でできた雲（星・音符・ハートなどの記号が かたまって浮かび、ゆっくり流れる） ----
+const KINDS = ['star', 'note', 'heart', 'diamond', 'plus', 'drop'], SC = ['#f2a0c4', '#7ad0ec', '#eed070', '#ffffff', '#b8a8e8'];
+const clouds = [...Array(9)].map((_, c) => { const g = new THREE.Group(); for (let k = 0; k < 14; k++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: CY.tex.sym({ kind: KINDS[(k + c) % KINDS.length], c: SC[(k * 3 + c) % SC.length], edge: '#ffffff' }), alphaTest: .5, fog: false })), s = 14 + hash(k, c) * 14; sp.scale.set(s, s, 1); sp.position.set((hash(k, c, 1) - .5) * 70, (hash(k, c, 2) - .5) * 16 - Math.abs(hash(k, c, 1) - .5) * 16, (hash(k, c, 3) - .5) * 20); g.add(sp); }
+  g.position.set(-300 + c * 90 + hash(c, 4) * 40, 80 + hash(c, 5) * 70, -300 - hash(c, 6) * 150); scene.add(g); g.userData.x0 = g.position.x; return g; });
+
+// ---- 人：主役、ボールを投げ合う 2 人、波で遊ぶ子、すわる人、かもめ ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'short', hair: '#5ac8a8', eye: '#2e8a7a', eyes: 'big', cloth: 'tunic', top: '#9ad8b8', top2: '#f4f8f4', lower: 'pants', bottom: '#f4f0f4', shoes: 'boot', shoe: '#5a8ac0', back: 'bag', belt: '#5a8ac0' }); scene.add(hero); CY.wear(hero, 'mark', { kind: 'note', c: '#f2a0c4', s: .34 });
+const p1 = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#f2a0c4', cloth: 'vest', top: '#f8f4f8', top2: '#f2a0c4', lower: 'skirt', skirt: .5, skirtC: '#7ad0ec', shoes: 'boot', shoe: '#f2a0c4' }); scene.add(p1); CY.wear(p1, 'ears', { kind: 'cat', c: '#f2a0c4', c2: '#ffffff' }); CY.wear(p1, 'tail', { kind: 'cat', c: '#f2a0c4', c2: '#ffffff' });
+const p2 = R.actor({ hairStyle: 'spiky', hair: '#3a4a7a', cloth: 'tunic', top: '#eed070', top2: '#f8f4f0', bottom: '#3a4a7a', shoes: 'boot', shoe: '#3a4a7a' }); scene.add(p2); CY.wear(p2, 'ears', { kind: 'bear', c: '#8a6a5a', c2: '#e8c8b0' });
+const kid = R.actor({ s: .75, hairStyle: 'bob', hair: '#f4f0f4', cloth: 'overall', top: '#7ad0ec', top2: '#f8f8f8', shoes: 'boot', shoe: '#5a8ac0' }); scene.add(kid); CY.wear(kid, 'ears', { kind: 'rabbit', c: '#f4f0f4', c2: '#f4b0c8' });
+const sitter = R.actor({ hairStyle: 'long', sex: 'f', hair: '#b8a8e8', cloth: 'robe', top: '#f4f0f8', top2: '#b8a8e8', skirt: .8 }); scene.add(sitter); CY.wear(sitter, 'halo', { c: '#eed070' });
+const ball = new THREE.Mesh(R.geo().loft(8, [[-.18, .02, .02, 0], [-.12, .14, .14, .2], [0, .19, .19, .5], [.12, .14, .14, .8], [.18, .02, .02, 1]], { cap: 'both' }).build(), R.mat(T.fabric({ c: '#f2a0c4', c2: '#ffffff', pattern: 'stripe', w: 8 }), { vc: true, smooth: true })); scene.add(ball);
+const gulls = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#f4f4f8', belly: '#ffffff', neck: false, s: 1.6 }); scene.add(b); return b; });
+const splash = K.fx(scene, 40);
+
+const crt = R.crt(renderer, { noise: 0, bloom: .15 }); onResize(crt.resize);
+const SPEED = 1.3; let sp = 0;
+K.loop((dt, t) => {
+  const x = -12 + t * SPEED, z = .2 + Math.sin(x * .2) * .3, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI / 2 - .1; R.walk(hero, t * SPEED * 3.6, .9);
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.6; cam.position.set(x + .4, y + 1.5, z + D); cam.lookAt(x + (tall ? .2 : .8), y + (tall ? 1.6 : 1.9), z - 6);   // 陸がわの横から。海と沖の灯台を うしろに入れる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z); land.follow(Math.round(x / 20) * 20, 20);
+  // ボール遊び：2 人の間をボールが弧をえがいて行き来する
+  { const bx = -4, ax = bx - 2.4, cx = bx + 2.4, zz = -1.6; p1.position.set(ax, H(ax, zz), zz); p2.position.set(cx, H(cx, zz), zz); p1.rotation.y = PI / 2; p2.rotation.y = -PI / 2; R.idle(p1, t, 0); R.idle(p2, t, 0);
+    const ph = (t * .7) % 2, k = ph % 1, dir = ph < 1 ? 1 : -1, sx = dir > 0 ? ax : cx; ball.position.set(sx + dir * 4.8 * k, H(bx, zz) + 1.3 + Math.sin(k * PI) * 2.6, zz); ball.rotation.set(t * 5, t * 3, 0);
+    (dir > 0 ? p1 : p2).userData.J.armR.rotation.set(-2.2 * (1 - k), 0, .2); (dir > 0 ? p2 : p1).userData.J.armL.rotation.set(-1.6 * k, 0, -.3); (dir > 0 ? p2 : p1).userData.J.armR.rotation.set(-1.6 * k, 0, .3); }
+  { const kx = -13 + Math.sin(t * .9) * 1.5, kz = -2.2 + Math.sin(t * 1.8) * .5; kid.position.set(kx, -.25, kz); kid.rotation.y = Math.cos(t * .9) > 0 ? PI / 2 : -PI / 2; R.walk(kid, t * 7, 1); kid.userData.J.armL.rotation.set(-2.6, 0, -.3); kid.userData.J.armR.rotation.set(-2.6, 0, .3);
+    if ((sp += dt) > .25) { sp = 0; splash.emit('splash', kx, 0, kz, { size: .5, life: .6, vy: 2, grav: -6, spread: 1.4, tint: '#d8f0fc' }); } }
+  { const sx = Math.floor((x + 10) / 30) * 30 + 14; sitter.position.set(sx, H(sx, 6) - .45, 6); sitter.rotation.y = PI; R.idle(sitter, t, Math.sin(t * .5) * .3); const J = sitter.userData.J; J.legL.rotation.x = J.legR.rotation.x = -1.45; J.shinL.rotation.x = J.shinR.rotation.x = 1.3; }
+  gulls.forEach((b, k) => { const a = t * (.25 + k * .05) + k * 1.7, r = 8 + k * 3; b.position.set(x + 6 + Math.cos(a) * r, 7 + k * 1.5 + Math.sin(t + k), -8 + Math.sin(a) * r * .6); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .6); R.birdPose(b, 'fly', t * .5 + k); });
+  foam.children.forEach((m, k) => { const w = Math.sin(t * .9 + k * 1.6); m.position.z = -2.6 - k * 3 + w * .8; m.position.y = -.2 + Math.max(0, w) * .02; });
+  R.flip(seaMat, seaFrames, t, 3); beam.rotation.y = t * .6;
+  clouds.forEach((g, k) => { g.position.x = g.userData.x0 + t * 1.5; });
+  splash.update(dt); CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

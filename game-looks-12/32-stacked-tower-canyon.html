@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-32 積み重なったビルの谷間の屋台 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8d8;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-32 ─ 積み重なったビルの谷間の屋台 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-neon1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方。40 階をこえる集合住宅が両がわから かぶさるように立ち、空は上の細い すき間だけ。その谷の底の通りに屋台がならび、人ごみが行きかう。上の階どうしに物干しがわたり、とびが すき間を回る。
+// 色の組は「日かげの ふじ色（谷の底・かべ）」＋「夕やけの もも だいだい（空・上の階に当たる光）」。差し色は 屋台の赤いちょうちん。かべの上ほど明るく あたたかく、底ほど青く暗くした。
+// 主役は青みどりの上着の女の子。低い所からカメラが主役のまわりを ゆっくり回りながら見上げ、通りのつきあたりに夕日を受けた いちばん高い棟がそびえる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), PK = PACK_RUINS(THREE, K, R), N = PACK_NEON1(THREE, K, R, C), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const RED = '#e8443a', SHADE = '#6a5a98', GLOW = '#ffb27a';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 60, far: 900, aa: false, fitAspect: .9, maxFov: 86 });
+scene.add(R.skyDome([[0, '#4a4a98'], [.35, '#a86aa0'], [.7, '#f08a78'], [1, '#ffd09a']], { r: 600 })); scene.fog = new THREE.Fog('#e8a08a', 110, 620);
+const { sun } = K.lights(scene, renderer, { sky: 0xffc8b0, ground: 0x6a5aa0, amb: 1.6, sun: 0xffb070, power: 1.5, range: 30 }), SUN = new THREE.Vector3(.9, .4, .35).normalize();
+
+// ---- 谷：通り（はば 9 m）の両がわに、上へ細くなりながら積み重なった棟。底は日かげの ふじ色、上は夕日で だいだい ----
+const HW = 4.5, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const WALLC = ['#c8b0b8', '#b8b8c8', '#d0b8a0', '#a8b8c0', '#c8c0a8', '#b8a8c0'], GR = [[.52, .5, .82], [1.75, 1.22, .88]];
+for (const s of [-1, 1]) for (let x = -110, i = 0; x < 110; i++) { const w = 10 + Math.floor(hash(i, s, 1) * 3) * 3, h = 84 + Math.floor(hash(i, s, 2) * 8) * 9, d = 14;
+  put(N.tower({ w, d, h, step: h * (.55 + hash(i, s, 4) * .2), c: WALLC[(i * 2 + (s > 0 ? 1 : 0)) % 6], seed: 60 + i * 2 + (s > 0 ? 1 : 0), lit: .16, acBox: .4, cage: .65, wash: .4, grad: GR }), x + w / 2, s * (HW + d / 2), s > 0 ? PI : 0);
+  x += w + (hash(i, s, 3) > .7 ? 1.2 : 0); }
+put(N.tower({ w: 40, d: 20, h: 168, step: 120, c: '#d8c0a8', seed: 3, lit: .12, acBox: .2, grad: [[.7, .6, .8], [1.9, 1.3, .9]] }), 120, 0, -PI / 2);   // つきあたりの いちばん高い棟
+put(N.tower({ w: 30, d: 20, h: 132, c: '#c0b0c0', seed: 9, lit: .1, grad: GR }), -125, 0, PI / 2);
+
+// ---- 通りの底：屋台の列・ちょうちんのひも・店の看板 ----
+const lights = [], stalls = [];
+for (let k = 0; k < 16; k++) { const s = k % 2 ? 1 : -1, x = -42 + k * 5.6 + hash(k, 1) * 1.5, kind = k % 3;
+  const st = kind === 0 ? C.yatai({ c: ['#c83a34', '#3a6a8a', '#8a4a8a'][k % 3], c2: '#f8f0e0', kind: ['wave', 'ring', 'dots'][k % 3], noren: ['#a8302a', '#2a4a6a'][k % 2], seed: k }) : R.stall({ w: 2.6, c: ['#e8443a', '#e8c84a', '#4a8ac8', '#f0f0e8'][k % 4], c2: '#f8f0e0' });
+  put(st, x, s * (HW - 1.6), s > 0 ? PI : 0); stalls.push([x, s]); lights.push({ x, z: s * (HW - 1.4), r: 3.6, c: '#ffb070', k: .7 }); }
+for (let k = 0; k < 9; k++) { const x = -40 + k * 10; scene.add(C.lanterns([x, 6.5, -HW + .2], [x + 2, 6.8, HW - .2], { n: 7, sag: .8, kind: k % 3 ? 'red' : 'yellow', r: .17 })); }
+for (let k = 0; k < 40; k++) { const x = -45 + hash(k, 1) * 90, s = hash(k, 2) > .5 ? 1 : -1, y = 3.5 + hash(k, 3) * 12, v = hash(k, 4) < .7, c = ['#ff5a8a', '#4ae0d0', '#ffc040', '#f0f0ff'][Math.floor(hash(k, 5) * 4)];
+  const sg = N.sign({ kind: v ? 'v' : 'h', n: 2 + Math.floor(hash(k, 6) * 3), c, c2: '#ffc040', w: v ? .9 : 2.2, seed: k + 200, flicker: k % 13 === 6 }); sg.position.set(x, y, s * (HW - sg.userData.w / 2 - .1)); sg.rotation.y = PI / 2; fixed.push(sg); }
+const land = R.ground({ w: 220, d: 12, cell: 1, layers: [X.conc({ c: '#8a849c' }), T.cobble({ c: '#7a7090', kind: 'slab' }), X.plate({ c: '#6a6488', n: 2 })], mix: (x, z) => [Math.abs(z) < 1.6 ? 1 : 0, hash(Math.round(x / 6), Math.round(z / 3)) > .86 ? 1 : 0], shade: C.lightShade(lights, [.62, .58, .82]) });
+scene.add(land.mesh);
+for (const s of [-1, 1]) fixed.push(C.pipe([[-110, 4.4, s * (HW - .1)], [110, 4.4, s * (HW - .1)]], .14, { c: '#7a7a98', joint: 4 }));
+put(C.drum({ c: '#4f8f88' }), 3, -2.4); put(R.crate({ s: .6 }), 8, 2.5, .3); put(C.bike({ c: '#e8443a' }), -6, 3.1, .1); put(C.trike({ c: '#4a6a94', load: true }), 14, -2.6, 0);
+scene.add(R.merge(fixed));
+// 上の階どうしに わたした物干し（下から見上げると、空のすき間にせんたく物がならぶ）
+for (let k = 0; k < 14; k++) { const x = -40 + k * 6.3 + hash(k, 3) * 2, y = 14 + hash(k, 4) * 40; scene.add(N.laundry([x, y, -HW], [x + 1.5 - hash(k, 5) * 3, y + .3, HW], { n: 5 + (k % 3), seed: k, sag: .5 })); }
+const kites = PK.flock({ n: 6, r: 14, h: 6, c: '#3a3040', s: 3, speed: .18 }); kites.position.set(10, 95, 0); scene.add(kites);
+const steam = stalls.filter((_, i) => i % 3 === 0).map(([x, s], i) => { const m = C.steam({ r: .5, rise: 3, n: 7, c: '#fff4ec', a: .42 }); m.position.set(x, 1.3, s * (HW - 1.8)); scene.add(m); return m; });
+
+// ---- 人：主役・人ごみ・屋台の売り手 ----
+const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#3a2430', mouth: 'smile', blush: true, cloth: 'jacket', top: '#2fa89a', top2: '#f4ecd8', lower: 'pants', bottom: '#f0e4c8', shoes: 'shoe', shoe: '#e8443a', back: 'bag', acc: '#e8443a' }); scene.add(hero);
+const npc = (o, x, z, ry) => { const p = R.actor(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const sellers = stalls.filter((_, i) => i % 2 === 0).map(([x, s], i) => npc(N.extra(i + 50, { cloth: 'tunic', top: '#f4ecd8', top2: RED }), x, s * (HW - .5), s > 0 ? PI : 0));
+const crowd = [...Array(22)].map((_, i) => ({ p: npc(N.extra(i + 80), 0, 0, 0), dir: i % 2 ? 1 : -1, z: (i % 2 ? 1 : -1) * (1.35 + hash(i, 3) * .9), sp: .55 + hash(i, 4) * .5, off: hash(i, 5) * 70, stop: i % 5 === 0 }));
+
+// ---- 主人公：通りを +x へ。カメラは低い所から主役のまわりを回り、見上げる ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = .55, X0 = -14;
+K.loop((dt, t) => {
+  const x = X0 + t * SPEED, z = Math.sin(t * .3) * .4, tall = innerWidth < innerHeight;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 7.6, .85); hero.userData.J.head.rotation.x = -.35;
+  const a = PI - .22 + Math.sin(t * .06) * .12, D = tall ? 3.9 : 4; cam.position.set(x + Math.cos(a) * D, tall ? .7 : .75, z + Math.sin(a) * D); cam.lookAt(x + 3, tall ? 4.4 : 3.4, z * .5);
+  sun.position.set(x + SUN.x * 80, SUN.y * 80, SUN.z * 80); sun.target.position.set(x, 0, 0);
+  crowd.forEach((c, i) => { const W = 50, b = c.off + t * c.sp * c.dir * (c.stop ? 0 : 1) - x + 14, px = x - 14 + ((b % W) + W) % W; c.p.position.set(px, 0, c.z); c.p.rotation.y = c.stop ? (c.z > 0 ? 0 : PI) : c.dir > 0 ? PI / 2 : -PI / 2; if (c.stop) R.idle(c.p, t + i, Math.sin(t * .4 + i) * .3); else R.walk(c.p, t * c.sp * 4.8 + c.off, .8); });
+  sellers.forEach((c, i) => { R.idle(c, t + i, Math.sin(t * .5 + i) * .25); c.userData.J.armR.rotation.x = -.8 - Math.sin(t * 2.6 + i) * .2; });
+  kites.userData.tick(t); C.update(t, cam); N.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

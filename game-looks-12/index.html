@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>五つの世界の 50 案 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#0c0d10;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{display:flex;gap:10px;padding:8px 10px 9px;align-items:baseline}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a}
+.genre{color:#9a988f;font-size:11px}
+.look{font-weight:600}
+.tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>五つの世界の 50 案</h1>
+  <p>第 12 集。第 8・9・11 集と同じ「描きこんだテクスチャとブラウン管」のテイストで、5 つの世界を作った 50 案です。持ち主が雰囲気の参考に挙げた作品は写さず、雰囲気だけをふくらませています。第 11 集の感想（大きい物や遠くの物が映ると壮大）を受けて、巨大な物や遠くの物を主役の向こうに見せる場面を多くしました。絵本の世界（01〜10）、霧と飛空艇の王国（11〜20）、上と下の鉄の都市（21〜30）、ネオンの港町（31〜40）、白い電脳世界（41〜50）の順に並んでいます。サムネは 3 秒ほどの GIF です。カードを押すと、実際に動くページを別タブで開きます。全部 three.js を CDN から読むので、ネット接続が要ります。</p>
+</header>
+<div id="grid"></div>
+<script>
+// [ファイル名, 場面, ルック, 3D なら 1]
+const LOOKS = [
+  ['01-candy-slope-town', 'お菓子の坂の町', '絵本の世界：ゆがんだお菓子の家とクッキーの雲', 1],
+  ['02-upside-down-town', 'さかさまの町', '絵本の世界：空いっぱいに浮かぶ、さかさまの町', 1],
+  ['03-teacup-lake', 'ティーカップの湖', '絵本の世界：紅茶の湖とスプーンの橋', 1],
+  ['04-giant-book-mountains', '本のページの山', '絵本の世界：開いた本の山と文字の川', 1],
+  ['05-boot-house-hills', 'くつの家とつぎはぎの丘', '絵本の世界：長ぐつの家と山ほどのはさみ', 1],
+  ['06-ladder-to-the-moon', '月へのはしご', '絵本の世界：三日月の横顔へ続く長いはしごと、ぶらさがる星', 1],
+  ['07-whale-sky-town', '空を泳ぐくじらの町', '絵本の世界：雲の海の上を泳ぐくじらの背中の町と、持ち上がった尾', 1],
+  ['08-tin-toy-town', 'ブリキのおもちゃの町', '絵本の世界：ねじの回るブリキの家・汽車・こまの塔と、遠くの巨大なねじ', 1],
+  ['09-umbrella-forest-rain', 'かさの森', '絵本の世界：雨の夕方、巨大なかさの下の家とかえるの池', 1],
+  ['10-clock-flower-field', '時計の花畑', '絵本の世界：針がばらばらに回る時計の花と、空の巨大な振り子', 1],
+  ['11-mist-sea-castle-town', '霧の上の城下町', '霧と飛空艇の王国：まるい屋根の家と、霧の海に立つ城', 1],
+  ['12-world-tree-village', '大樹の根もとの村', '霧と飛空艇の王国：雲までとどく大樹と、根のアーチ', 1],
+  ['13-airship-harbor-cliff', 'がけの上の飛空艇の港', '霧と飛空艇の王国：がけにはりつく港町と、出入りする船', 1],
+  ['14-dragon-bone-town', '竜の骨の上の町', '霧と飛空艇の王国：ろっ骨のアーチの市場と、大きな頭の骨', 1],
+  ['15-snow-palace-stairs', '雪山の宮殿への石段', '霧と飛空艇の王国：雲の上の石段と、白い宮殿', 1],
+  ['16-traveling-circus-forest', '森の旅芸人の祭り', '霧と飛空艇の王国：夜の森の広場に、赤白しまの大テントとちょうちん', 1],
+  ['17-crystal-tower-sky', '空の大陸の水晶の塔', '霧と飛空艇の王国：雲の海に浮かぶ草原と、空までのびる水晶の塔', 1],
+  ['18-glowing-mushroom-capital', '地底のきのこの都', '霧と飛空艇の王国：地底湖の向こうに、光るきのこの塔の都', 1],
+  ['19-library-tower-kingdom', '王国の図書館の塔', '霧と飛空艇の王国：夕日の霧にとける本だなの吹き抜けと、窓の外の王都', 1],
+  ['20-storm-castle-airfleet', '嵐の夜の城と飛空艇の艦隊', '霧と飛空艇の王国：がけの城壁から見る、赤い灯の黒い艦隊', 1],
+  ['21-under-market-looking-up', '上を見上げる下層の市場', '上と下の鉄の都市：巨大な台の裏のすきまから、夕日の白い塔をのぞく', 1],
+  ['22-trackside-stall-town', '線路ぞいの屋台町と巨大な柱', '上と下の鉄の都市：夜の屋台の向こうに、あかりが登る柱と光る上の都市', 1],
+  ['23-freight-lift-to-upper', '上層へのぼる貨物エレベーター', '上と下の鉄の都市：屋根の海の上を、白い都市へのぼる鉄のかご', 1],
+  ['24-river-factory-fair', 'よごれた川と工場の夜祭り', '上と下の鉄の都市：茶色い川と工場のちょうちん祭り、遠くに冷たく白い上の都市', 1],
+  ['25-upper-white-boulevard', '上層の白い大通り', '上と下の鉄の都市：大理石と金の大通りの手すりから、けむった下層を見下ろす', 1],
+  ['26-junk-hill-village', 'ごみの山の村と遠くの光る塔', '上と下の鉄の都市：拾い物の家の坂と、地平線にうかぶ白い塔の台', 1],
+  ['27-lower-pleasure-street', '下層の夜の歓楽街', '上と下の鉄の都市：手描きの看板と赤みどりの電球、空から下りるサーチライト', 1],
+  ['28-checkpoint-stairs', '上と下をつなぐ長い階段と検問', '上と下の鉄の都市：さびた鉄の段から大理石の段へ、検問にならぶ列', 1],
+  ['29-rain-under-viaduct-homes', '雨の台の下の家々', '上と下の鉄の都市：台のふちから落ちる雨のたきと、窓のあかり', 1],
+  ['30-rooftop-upper-fireworks', '下層の屋上から見る上層の花火', '上と下の鉄の都市：洗たく物と植木の屋上から、手のとどかない塔の花火', 1],
+  ['31-neon-sign-alley', 'ネオン看板の重なる路地', 'ネオンの港町：頭上をおおう漢字ふうの看板と、ぬれた路面の映りこみ', 1],
+  ['32-stacked-tower-canyon', '積み重なったビルの谷間の屋台', 'ネオンの港町：夕日の当たる高層の谷と、底の屋台の人ごみ', 1],
+  ['33-junk-boat-harbor-night', '港のジャンク船と夜景', 'ネオンの港町：赤い帆の船と、対岸の高層の夜景に巨大な看板', 1],
+  ['34-rain-neon-crossing', '雨のネオンの交差点', 'ネオンの港町：かさの人ごみと二階建てバス、雨にぬれた路面', 1],
+  ['35-rooftop-laundry-plane', '屋上の洗たく物と低く飛ぶ飛行機', 'ネオンの港町：屋上の海の洗たく物と、頭上すれすれの旅客機', 1],
+  ['36-maze-stairs-pipes', '迷路の階段と配管', 'ネオンの港町：巨大な集合住宅の吹きぬけを鉄の階段がわたる', 1],
+  ['37-night-market-dragon-parade', '夜市の龍のまつり', 'ネオンの港町：屋台の夜市を布の龍がおどりながら進む', 1],
+  ['38-temple-among-towers', '高層ビルの中の小さな寺', 'ネオンの港町：ビルにかこまれたお堂とうずまきの線香', 1],
+  ['39-neon-tram-street', 'ネオンの路面電車の通り', 'ネオンの港町：二階建ての路面電車と看板の光の谷', 1],
+  ['40-morning-market-signs-off', '朝のネオンが消える市場', 'ネオンの港町：看板が消えていく朝の市場と、その先の港', 1],
+  ['41-white-plaza-avatars', '白い広場のアバターたち', '白い電脳世界：耳としっぽのアバターが集まる、まるい広場と浮かぶ島々', 1],
+  ['42-cloud-tower-city', '雲の上の巨大なビル群', '白い電脳世界：雲の海にそびえる高さ 400 m の白い塔と光の線', 1],
+  ['43-data-river-bridge', 'データの川と光の橋', '白い電脳世界：光のすじが流れる川と、光る板の太鼓橋', 1],
+  ['44-floating-island-festival', '浮かぶ島々の電脳の祭り', '白い電脳世界：光の道でつながる島々の屋台と記号の花火', 1],
+  ['45-giant-guardian-statue', '巨大な守り神の像', '白い電脳世界：白い広場にそびえる、けものの守り神の巨像', 1],
+  ['46-white-maze-library', '白い迷路の図書館', '白い電脳世界：本だなの迷路と、上下さかさまの通路', 1],
+  ['47-sky-arena-tournament', '空の円形の大会場', '白い電脳世界：雲の上のすりばちの観客席と、光の得点板', 1],
+  ['48-white-beach-pixel-sea', '白い浜とドットの海', '白い電脳世界：色の点の海と、記号の雲と、浮かぶ灯台', 1],
+  ['49-glitching-world-red', 'こわれかける電脳世界', '白い電脳世界：赤と黒にくずれる床と、空のひび', 1],
+  ['50-night-network', '電脳の夜', '白い電脳世界：地平線まで走る光の線と、またたくサーバーの塔', 1],
+];
+const grid = document.getElementById('grid');
+for (const [file, genre, look, is3d] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-01 お菓子の坂の町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#bff0dc;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf4;opacity:.92;text-shadow:0 1px 0 #6a3a5a}
+</style>
+<div id="cap">12-01 ─ お菓子の坂の町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-book1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の中の、真昼のお菓子の町。ワッフルの坂道にそって、ぐにゃりとゆがんだジンジャーブレッドの家がならび、キャンディのしまの街灯、空にはクッキーの雲、遠くに巨大なケーキの山。
+// 色の組は「ミントの空と地面・クリームのもも色・焼き色の茶」＋差し色の キャンディの赤。家と木は R.house・R.tree を pack-book1.js の warp で曲げ、クッキー・ケーキ・グミ・うずまきキャンディは手打ちのドット絵。
+// 主役は赤いぼうしの子ども（R.actor の toon）。坂を右へのぼり、横からカメラが追う（横スクロールふう）。町の人が坂を下り、風船とうかぶグミがただよい、鳥が飛び、えんとつから もも色のけむり。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), B1 = PACK_BOOK1(THREE, K, R), T = R.tex, X = B1.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#3ab8c0'], [.45, '#7ad8c8'], [.75, '#c8f4d8'], [.92, '#fff0d8'], [1, '#ffd8e8']], { r: 600 })); scene.fog = new THREE.Fog('#f8e4ec', 120, 760);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0fff0, ground: 0xe8a8c0, amb: 1.2, sun: 0xfff0e0, power: 2.1, range: 34 }), SUN = new THREE.Vector3(-.4, .8, .45).normalize();
+
+// ---- 坂：右（+x）へのぼるワッフルの道。うしろ（-z）はさらに高く、手前は下がる ----
+const S = .15, ss = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => x * S + Math.sin(x * .12) * .8 - ss(-2.5, -9, z) * 3.2 - ss(-14, -30, z) * 4 + ss(-50, -80, z) * 14 + (z > 4 ? -(z - 4) * .25 : 0) + Math.sin(x * .5 + z * .7) * .08;   // 道の向こうは だんだんの谷へ下がり、遠くでまた上がる
+const land = R.ground({ w: 130, d: 110, cell: 2, cz: -36, H, layers: [X.sugarGround({ c: '#a8e4c4' }), X.wafer({ c: '#e4b474' }), X.sugarGround({ c: '#f8c4d4', seed: 3 })],
+  mix: (x, z) => [Math.abs(z) < 1.7 ? 1 : 0, Math.sin(x * .21 + z * .33) + Math.sin(z * .5) > .9 ? 1 : 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- ぐにゃりとした家（ジンジャーブレッド・しっくい、板チョコと砂糖の屋根） ----
+const WALLS = [X.ginger({}), T.plaster({ c: '#ffd8e0', frame: 'box', wood: '#b8743e' }), X.ginger({ c: '#c88a50', icing: '#ffe0f0' }), T.plaster({ c: '#fff0c8', frame: 'cross', wood: '#e05a7a' }), T.plaster({ c: '#c8f0e0', frame: 'none' })];
+const ROOFS = [X.choco({}), T.roof({ c: '#f890b0', kind: 'scale' }), X.cream({ c: '#ffb0cc' }), T.roof({ c: '#7ad0e0', kind: 'wave' }), X.choco({ c: '#8a4a2a' })];
+const winW = T.window({ bars: 'cross', curtain: '#ffe0ec', frame: '#fff8f0', box: true }), winL = T.window({ bars: 'cross', lit: 1, curtain: '#ffe0a0', frame: '#fff8f0' }), SMOKE = [];
+for (let i = 0; i < 16; i++) { const x = -38 + i * 6.6 + hash(i, 1) * 1.5, row = i % 2, z = row ? -15 - hash(i, 2) * 3 : -7.2, w = 3.8 + hash(i, 3) * 1.6, d = 3.6, h2 = hash(i, 4) > .35 ? 2.2 + hash(i, 5) * 1.4 : 0;
+  const hs = R.house({ w, d, h: 2.5, h2, wall: WALLS[i % 5], wall2: WALLS[(i + 2) % 5], roof: ROOFS[(i * 3) % 5], base: X.cookieEdge({}), trim: X.candy({ c: '#e23a4e' }), pitch: 1.1 + hash(i, 6) * .5, eave: .45, win: winW, winLit: winL, lit: .3, door: T.door({ style: 'panel', c: ['#e23a4e', '#5ac0e0', '#f8c040'][i % 3], arch: true }), chimney: i % 3 === 0 ? { tex: X.candy({ c: '#5ac0e0' }), h: 1.6 } : false, seed: i, ridge: i % 4 === 1 ? 'z' : 'x' });
+  const top = hs.userData.top, wv = B1.warp(hs, { lean: [(hash(i, 7) - .5) * .34, (hash(i, 8) - .5) * .12], twist: (hash(i, 9) - .5) * 1.1, bulge: .15 + hash(i, 10) * .25, pinch: .15, wave: .8 + hash(i, 11) * .8, seed: i, step: .8 });
+  put(wv, x, z, (hash(i, 12) - .5) * .3, H(x, z) - .1); if (i % 3 === 0) SMOKE.push([x + wv.userData.top[0] + w * .24, H(x, z) + top + 1.6, z]); }
+
+// ---- 街灯・木・グミ・ぺろぺろキャンディ（道の両わき） ----
+for (let i = 0; i < 12; i++) { const x = -36 + i * 8.6; put(B1.caneLamp({ h: 3.4, c: i % 2 ? '#e23a4e' : '#3aa8d8', lc: i % 2 ? '#ffe070' : '#ffb0d0' }), x, -2.3, PI / 2 * 0 + (i % 2 ? 0 : PI), H(x, -2.3) - .05); }
+for (let i = 0; i < 9; i++) { const x = -30 + i * 10 + hash(i, 3) * 4, z = -21 - hash(i, 4) * 10, tr = R.tree({ kind: 'round', h: 7 + hash(i, 5) * 5, c: ['#f8b0d0', '#fff0f4', '#b8e8ff'][i % 3], bark: X.candy({ c: '#a8643a', c2: '#f8e8d8' }), seed: i });
+  put(B1.warp(tr, { lean: [(hash(i, 6) - .5) * .5, 0], wave: 1.2, twist: .6, seed: i, step: 1 }), x, z, i); }
+for (let i = 0; i < 10; i++) { const x = -34 + i * 9 + hash(i, 7) * 5, z = i % 2 ? -11 : -26 - hash(i, 6) * 10; put(B1.lollipop({ h: 7 + hash(i, 8) * 7, r: 2 + hash(i, 9) * 1.6, cs: [['#f04a6a', '#fff4ea', '#5ac0e0', '#fff4ea'], ['#f8c040', '#f05a9a', '#fff4ea'], ['#7ad070', '#fff4ea', '#b070e0', '#fff4ea']][i % 3], seed: i }), x, z, (hash(i, 10) - .5) * .6); }
+for (let i = 0; i < 26; i++) { const x = -40 + hash(i, 1) * 95, z = 2.3 + hash(i, 2) * 1.2, r = .25 + hash(i, 3) * .3; put(B1.gumdrop({ r, c: ['#f05a7a', '#f8c040', '#7ad070', '#5ac0e0', '#b070e0'][i % 5] }), x, z, 0, H(x, z) - .05); }
+for (let i = 0; i < 14; i++) { const x = -40 + hash(i, 4) * 95, z = 2.5 + hash(i, 5) * 3; put(R.tuft({ kind: 'flower', s: .8 }), x, z, i); }
+{ const G = R.geo().smooth(1), SV = X.silver({});   // 谷につきささった、大きすぎるフォーク（高さ 40 m）
+  G.loft(8, [[0, .9, .5, 0, .8], [14, 1.1, .5, 3, 1], [22, 1.6, .6, 5, 1], [25, 2.6, .7, 6, 1], [27, 3.4, .7, 7, 1]], { ur: 2 });
+  for (let k = 0; k < 4; k++) G.smooth(0).box(.9, 13, .6, -2.7 + k * 1.8, 27, 0, { m: 2, taper: [.5, .8] });
+  put(G.mesh(SV), 26, -46, .3, H(26, -46) - 8); fixed[fixed.length - 1].rotation.z = .22; }
+scene.add(R.merge(fixed));
+
+// ---- 遠くのケーキの山・クッキーの雲・遠い丘 ----
+const far = [];
+const cakeA = B1.cake({ tiers: [[90, 34], [66, 30], [44, 26], [24, 20]], cream: '#fff4f6', sponge: '#f4c878', jam: '#d83a5a', candles: 6, seed: 2 }); cakeA.position.set(30, -6, -300); scene.add(cakeA);
+const cakeB = B1.cake({ tiers: [[50, 24], [34, 20]], cream: '#ffd0e0', sponge: '#a86a3a', jam: '#fff0f0', candles: 3, seed: 5 }); cakeB.position.set(-150, -6, -260); scene.add(cakeB);
+scene.add(R.backdrop({ c: '#e8a8c8', haze: '#fff0e8', r: 560, h: 46, y: -8, rep: 5, seed: 3 }));
+const cookies = [];
+for (let k = 0; k < 6; k++) { const ck = B1.cookie({ r: 7 + hash(k, 1) * 6, c: hash(k, 2) > .5 ? '#d8985a' : '#c07a40', seed: k }); ck.position.set(-90 + k * 42 + hash(k, 3) * 12, 52 + hash(k, 4) * 36 + (k % 2) * 14, -120 - hash(k, 5) * 60); ck.rotation.set(-.15 + hash(k, 6) * .3, (hash(k, 7) - .5) * .6, (hash(k, 8) - .5) * .8); scene.add(ck); cookies.push(ck); }
+for (let k = 0; k < 6; k++) { const c = R.cloud({ s: 60 + hash(k, 9) * 40, c: '#fff8fc', shade: '#f0b8d0', seed: k }); c.position.set(-260 + k * 110, 70 + hash(k, 8) * 50, -420); scene.add(c); }
+
+// ---- 動く物：うかぶグミ、風船、鳥、町の人、ねこ ----
+const floaters = [...Array(10)].map((_, i) => { const g = B1.gumdrop({ r: .3 + hash(i, 1) * .3, c: ['#f05a7a', '#f8c040', '#7ad070', '#5ac0e0', '#b070e0'][i % 5] }); scene.add(g); return g; });
+const balloons = [...Array(6)].map((_, i) => { const b = B1.balloon({ r: .6, c: ['#f05a6a', '#f8d050', '#5ac0e0', '#b070e0', '#7ad070', '#ffffff'][i], c2: i % 2 ? '#fff4ea' : null, len: 1.8, seed: i }); scene.add(b); return b; });
+const birds = PK.flock({ n: 6, r: 10, h: 3, c: '#fff4f8', s: 1.6, speed: .35 }); birds.position.set(10, 22, -30); scene.add(birds);
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'short', hair: '#6a3a2a', skin: '#f4c8a0', eyes: 'big', mouth: 'smile', blush: true, cloth: 'overall', top: '#f4f0f8', top2: '#e23a4e', bottom: '#3a7ab8', lower: 'shorts', shoes: 'boot', shoe: '#e23a4e', hat: 'cap', acc: '#e23a4e', back: 'pack' }); scene.add(hero);
+const folk = [R.actor({ sex: 'f', hairStyle: 'bun', hair: '#f4f0e8', eyes: 'closed', mouth: 'smile', cloth: 'robe', top: '#f890b0', top2: '#fff4f8', skirt: .8, shoe: '#8a4a2a' }), R.actor({ hairStyle: 'tufts', hair: '#3a2a4a', eyes: 'round', cloth: 'jacket', top: '#5ac0e0', top2: '#fff8f0', lower: 'pants', bottom: '#f8c040', shoes: 'shoe', shoe: '#6a3a2a' }), R.actor({ sex: 'f', hairStyle: 'twin', hair: '#e86a3a', s: .8, eyes: 'big', cloth: 'tunic', top: '#7ad070', top2: '#fff', lower: 'skirt', skirtC: '#fff0f4', shoe: '#e23a4e' })];
+folk.forEach(f => scene.add(f));
+const cat = R.cat({ c: '#f4e8dc', belly: '#ffffff' }); scene.add(cat);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 60), SPEED = 1.3, X0 = -14; let sm = 0;
+K.loop((dt, t) => {
+  const x = X0 + t * SPEED, y = H(x, 0); hero.position.set(x, y, .3); hero.rotation.y = PI / 2 - .12; R.walk(hero, t * SPEED * 3.8, .85);
+  const tall = innerWidth < innerHeight, D = tall ? 5.4 : 6.4; cam.position.set(x + 1.2, y + (tall ? 1.6 : 1.4), D + .3); cam.lookAt(x + 1.6, y + (tall ? 3.2 : 2.6), -8);   // 横から、すこし見上げて家なみと空のクッキーまで
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, SUN.z * 60); sun.target.position.set(x, y, -3); land.follow(x, -36);
+  folk.forEach((f, i) => { const fxp = x + 16 - ((t * 1.1 + i * 7) % 34), fz = [-.6, -1.1, .9][i]; f.position.set(fxp, H(fxp, fz), fz); f.rotation.y = -PI / 2; R.walk(f, t * 4.2 + i, .6); });
+  { const cx = x + 3 + Math.sin(t * .6) * 1.5; cat.position.set(cx, H(cx, 1.5), 1.5); cat.rotation.y = Math.cos(t * .6) > 0 ? PI / 2 : -PI / 2; R.catPose(cat, Math.sin(t * .3) > .4 ? 'sit' : 'walk', t * 5); }
+  floaters.forEach((g, i) => { const fxp = x - 10 + ((i * 4.3 + t * .4) % 30), fz = -1 - hash(i, 3) * 6; g.position.set(fxp, H(fxp, fz) + 2.5 + hash(i, 4) * 3 + Math.sin(t * 1.2 + i) * .5, fz); g.rotation.set(Math.sin(t + i) * .5, t * .7 + i, Math.cos(t * .8 + i) * .4); });
+  balloons.forEach((b, i) => { const bx = x - 6 + i * 4 + Math.sin(t * .3 + i) * 2, by = ((t * .8 + i * 3.1) % 18); b.position.set(bx, H(bx, -4) + 1 + by, -4 - i * 1.6); });
+  cookies.forEach((c, i) => { c.position.x += dt * (.6 + hash(i, 9) * .5); if (c.position.x > 200) c.position.x = -160; c.rotation.z += dt * .03 * (i % 2 ? 1 : -1); });
+  if ((sm += dt) > .4) { sm = 0; for (const [sx, sy, sz] of SMOKE) if (Math.abs(sx - x) < 30) fx.emit('smoke', sx, sy, sz, { size: .6, life: 4, vy: .7, vx: .3, grow: 2, spread: .15, tint: '#ffc8dc' }); }
+  birds.userData.tick(t); B1.tick(t); fx.update?.(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

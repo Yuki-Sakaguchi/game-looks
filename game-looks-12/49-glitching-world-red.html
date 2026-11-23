@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-49 こわれかける電脳世界 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1e1622;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e0e8;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-49 ─ こわれかける電脳世界 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で走る）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-cyber2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// こわれかける白い電脳世界。まわりの床は赤と黒の模様にくずれて ぼろぼろと下へ落ち、空には赤いひびが走り、窓の板が回りながら落ちていく。まだ白いまま残った 1 本の道を、主役が こちらへ走ってくる。
+// 色の組は「白い道・すみれ色がかった暗い灰（くずれた所と空）」＋差し色の 赤。黒でつぶさず、くずれた床にも 赤と灰むらさきの段を打って読ませる。道のふちの水色の光が主役を照らす。
+// 主役は 頭に「！」を浮かべた白いパーカーの子（R.actor の toon）。カメラは前の低い所から下がりながら主役を追い、うしろの くずれる世界と遠くの割れた塔を入れる。白いねこが いっしょに走る。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), CY = PACK_CYBER2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#141018'], [.5, '#221e2a'], [.8, '#342834'], [.93, '#6a2a36'], [1, '#b04a50']], { r: 600 })); scene.fog = new THREE.Fog('#2c2430', 50, 460);
+const hemi = new THREE.HemisphereLight(0xc8c4dc, 0x3a3040, 1.3); scene.add(hemi);
+const key = new THREE.DirectionalLight(0xff7070, 1.2); key.position.set(-10, 20, -40); scene.add(key);
+const fill = new THREE.DirectionalLight(0xe8eeff, 1.2); fill.position.set(8, 14, 30); scene.add(fill);
+
+// ---- くずれた床の絵（白い板が、赤と黒のずれた帯と ドットの欠けに食われていく） ----
+const glitch = sd => { const P = R.Px(64), A = R.ramp('#4a3a52', 6, { contrast: .7 }), Rd = R.ramp('#d83a4a', 6, { contrast: .8 }), W = R.ramp('#c8c6d8', 6, { contrast: .5 });
+  P.each((x, y) => { const row = Math.floor(y / 4), sh = Math.floor(hash(row, 1, sd) * 12) - 6, xx = (x + sh + 64) % 64, n = R.tn(xx, y, 16, 8, 64, 64, sd), lx = xx % 32, ly = y % 32;
+    if (hash(row, 2, sd) > .82) return (xx >> 2) % 3 ? Rd[hash(row, 3, sd) > .5 ? 3 : 2] : A[0];   // 横にずれた赤い帯
+    if (n > .62) return lx === 0 || ly === 0 ? W[1] : lx === 1 || ly === 1 ? W[5] : W[3];   // 残った白い板
+    if (n > .56) return (x + y) & 1 ? W[2] : A[1];
+    return (lx === 0 || ly === 0) ? Rd[1] : hash(xx >> 1, y >> 1, sd) > .9 ? Rd[3] : n < .3 ? A[1] : A[2]; });
+  for (let k = 0; k < 10; k++) { const x = Math.floor(hash(k, 4, sd) * 60), y = Math.floor(hash(k, 5, sd) * 60); P.rect(x, y, 4, 4, A[0]); P.rect(x, y, 4, 1, Rd[4]); }   // 四角い欠け
+  return T.from(P, { m: 4 }); };
+const GL = [0, 1].map(glitch);
+
+// ---- 地面：まん中の白い道（はば 5 m）。両がわは くずれた床で、外へ行くほど ます目ごとに下へ落ちている ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => { const ax = Math.abs(x); if (ax < 3) return 0; const cx = Math.floor(x / 4), cz = Math.floor(z / 4), d = sm(5, 26, ax) * (2 + hash(cx, cz, 5) * 30) + (hash(cx, cz, 6) > .7 ? sm(4, 7, ax) * 8 : 0); return -d; };
+const land = R.ground({ w: 90, d: 170, cell: 2, cz: -40, H, layers: [CY.tex.tile({ n: 2, seed: 1, c: '#dcdae6', accent: ['#7ad0ec'] }), GL[0], GL[1]], mix: (x, z) => [Math.abs(x) > 2.6 ? 1 : 0, Math.abs(x) > 2.6 && hash(Math.floor(x / 6), Math.floor(z / 6), 2) > .5 ? 1 : 0] }); scene.add(land.mesh);
+scene.add(CY.lines([[[-2.6, .05, 30], [-2.6, .05, -260]], [[2.6, .05, 30], [2.6, .05, -260]]], { w: .28, c: '#7ad0ec', k: 1 }));
+scene.add(CY.lines([[[0, .05, 30], [0, .05, -260]]], { w: .14, c: '#f4f0ff', k: .5 }));
+
+// ---- 遠くの白い塔（上が割れて、かけらが浮いている）と、町なみ。赤いひびの入った空 ----
+const towers = [[-40, -200, 9, 120], [55, -260, 12, 160], [-120, -320, 14, 190], [130, -360, 10, 140], [10, -420, 18, 230]].map(([x, z, r, h], k) => { const tw = CY.tower({ r, h, n: 8, steps: 3, c: k % 2 ? '#d83a4a' : '#7ad0ec', seed: k, tex: CY.tex.wall({ c: '#a8a4bc', glass: '#5a4a6a', lit: .15, seed: k }) }); tw.position.set(x, -20, z); scene.add(tw);
+  const top = tw.userData.top - 20, bits = new THREE.Group(); bits.position.set(x, top, z); scene.add(bits);
+  for (let i = 0; i < 10; i++) { const G = R.geo(), s = r * (.2 + hash(i, k) * .35); G.box(s, s * .7, s, 0, -s * .35, 0, { m: 3, bottom: true, c0: .8 }); const m = G.mesh(hash(i, k, 3) > .5 ? GL[i % 2] : CY.tex.tile({ n: 2, c: '#a8a4bc', seed: i })); m.position.set((hash(i, k, 1) - .5) * r * 3, hash(i, k, 2) * r * 3, (hash(i, k, 4) - .5) * r * 3); m.rotation.set(hash(i, 5) * 3, hash(i, 6) * 3, 0); m.userData.v = .2 + hash(i, k, 5) * .5; bits.add(m); }
+  return bits; });
+scene.add(CY.backdrop({ r: 560, h: 90, y: -30, c: '#4a3a52', haze: '#7a3a4a', lit: '#ff7a7a', rep: 6 }));
+// 空のひび（ぎざぎざの赤い線が、ゆっくり明るく暗く）
+const cracks = []; for (let c = 0; c < 5; c++) { const segs = []; let a = -1.2 + c * .6 + hash(c, 1) * .3, el = .55 + hash(c, 2) * .35; let p = [Math.sin(a) * 500 * Math.cos(el), Math.sin(el) * 500, -Math.cos(a) * 500 * Math.cos(el)];
+  for (let i = 0; i < 9; i++) { a += (hash(c, i, 3) - .5) * .18; el -= .06 + hash(c, i, 4) * .05; const q = [Math.sin(a) * 500 * Math.cos(el), Math.sin(el) * 500, -Math.cos(a) * 500 * Math.cos(el)]; segs.push([p, q]); if (hash(c, i, 5) > .6) { const b = [q[0] + (hash(c, i, 6) - .5) * 80, q[1] + 30, q[2]]; segs.push([q, b]); } p = q; }
+  const m = CY.lines(segs, { w: 5 + hash(c, 7) * 4, c: '#ff4a5a', mode: 'cross', fog: false }); scene.add(m); cracks.push(m); }
+
+// ---- 落ちていく窓の板と、ドットのかけら（道の両がわ） ----
+const falling = [...Array(14)].map((_, k) => { const b = CY.board({ w: 1.6 + hash(k, 1) * 1.4, h: 1.2 + hash(k, 2), kind: ['text', 'list', 'graph', 'map'][k % 4], c: k % 3 ? '#d83a4a' : '#c8c6d8', bg: k % 2 ? '#3a2a3a' : '#e8e4f0', ink: k % 2 ? '#ff7a8a' : '#5a4a6a', seed: k }); scene.add(b); b.userData.o = { x: (k % 2 ? 1 : -1) * (6 + hash(k, 3) * 14), z0: -hash(k, 4) * 60, sp: 2 + hash(k, 5) * 3, ph: hash(k, 6) * 20, rot: (hash(k, 7) - .5) * 3 }; return b; });
+const debrisN = 160, dg = new THREE.BufferGeometry(), dpos = new Float32Array(debrisN * 3), dcol = new Float32Array(debrisN * 3); dg.setAttribute('position', new THREE.BufferAttribute(dpos, 3)); dg.setAttribute('color', new THREE.BufferAttribute(dcol, 3));
+for (let i = 0; i < debrisN; i++) { const c = new THREE.Color(hash(i, 1) > .5 ? '#ff5a6a' : hash(i, 2) > .5 ? '#e8e4f0' : '#2a1e2e'); dcol.set([c.r, c.g, c.b], i * 3); }
+const debris = new THREE.Points(dg, new THREE.PointsMaterial({ size: .28, vertexColors: true, sizeAttenuation: true })); debris.frustumCulled = false; scene.add(debris);
+// ちらつくずれの帯（空中に ときどき出る、横長の赤と白の しま）
+const strips = [...Array(6)].map((_, k) => { const G = R.geo(); G.quad([-6, 0, 0], [6, 0, 0], [6, .6, 0], [-6, .6, 0], [0, 0, 3, .15]); const m = new THREE.Mesh(G.build(), R.mat(GL[k % 2], { glow: true, side: true, vc: true })); scene.add(m); m.userData.k = k; return m; });
+
+// ---- 主役と、いっしょに走る白いねこ ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'tufts', hair: '#2a2a3e', eye: '#d83a4a', eyes: 'sharp', cloth: 'coat', sleeve: 'long', top: '#eeecf4', top2: '#7ad0ec', lower: 'pants', bottom: '#3a3a5a', shoes: 'boot', shoe: '#eeecf4', neck: 'scarf', acc: '#7ad0ec', belt: '#3a3a5a', gloves: 'glove', glove: '#3a3a5a' }); scene.add(hero);
+CY.wear(hero, 'mark', { kind: 'excl', c: '#ff5a6a', s: .32 });
+const heroL = new THREE.PointLight('#cfe8ff', 6, 9, 1.4); scene.add(heroL);
+const cat = R.cat({ c: '#eeecf4', belly: '#ffffff', s: 1.3 }); scene.add(cat);
+
+const crt = R.crt(renderer, { noise: 0, bloom: .3 }); onResize(crt.resize);
+const SPEED = 3.4;
+K.loop((dt, t) => {
+  const z = -40 + t * SPEED, x = Math.sin(t * .7) * .5;   // こちら（+z）へ走る
+  hero.position.set(x, 0, z); hero.rotation.y = Math.cos(t * .7) * .1; R.walk(hero, t * SPEED * 2.4, 1.5); hero.userData.J.torso.rotation.x = .18;
+  heroL.position.set(x + .6, 2.2, z + 2);
+  cat.position.set(x + 1.4, 0, z - .9 + Math.sin(t * 2) * .3); cat.rotation.y = 0; R.catPose(cat, 'walk', t * 3.2);
+  const tall = innerWidth < innerHeight, D = tall ? 3.7 : 4.2; cam.position.set(x * .5 - .8, 1.15, z + D); cam.lookAt(x * .5, tall ? 2.3 : 2.1, z - 6);   // 前の低い所から、下がりながら追う
+  land.follow(0, Math.round(z / 4) * 4);
+  falling.forEach(b => { const o = b.userData.o, q = ((t + o.ph) % 8) / 8; b.position.set(o.x, 14 - q * 34, z + o.z0 - 6); b.rotation.set(t * o.rot * .4, t * o.rot, t * o.rot * .3); });
+  for (let i = 0; i < debrisN; i++) { const q = ((t * (.3 + hash(i, 3) * .4) + hash(i, 4)) % 1), sx = hash(i, 5) > .5 ? 1 : -1; dpos[i * 3] = sx * (3.5 + hash(i, 6) * 22); dpos[i * 3 + 1] = 6 - q * 26; dpos[i * 3 + 2] = z - 4 - hash(i, 7) * 50; } dg.attributes.position.needsUpdate = true;
+  strips.forEach(m => { const k = m.userData.k, on = hash(Math.floor(t * 4), k) > .7; m.visible = on; if (on) m.position.set((hash(Math.floor(t * 4), k, 1) - .5) * 30, 2 + hash(Math.floor(t * 4), k, 2) * 12, z - 10 - hash(Math.floor(t * 4), k, 3) * 30); });
+  towers.forEach((bits, k) => bits.children.forEach((m, i) => { m.position.y += Math.sin(t * .5 + i) * .02; m.rotation.y += dt * m.userData.v; }));
+  cracks.forEach((m, k) => { m.material.opacity = .55 + .45 * Math.abs(Math.sin(t * (.6 + k * .2) + k)); });
+  CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

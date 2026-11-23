@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-28 上と下をつなぐ長い階段と検問 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#a8c8e8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8e8;opacity:.92;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-28 ─ 上と下をつなぐ長い階段と検問 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（列が自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-under2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 真昼。さびた鉄の下町から、空にうかぶ「上の都市」の台のふちまで、まっすぐのびる巨大な階段。下の半分は つぎはぎの鉄板、とちゅうの白い門から上は まぶしい大理石。
+// 門の前には検問があり、荷物をせおった下の人々が段の上に長い列を作る。門の向こうを、白い服の上の人が すいすい上っていく。てっぺんには白と金の塔がかがやく。
+// 色の組は「さびた鉄の赤茶・下町のくすんだ青ねず・空の青」＋差し色は大理石の白と金。主役は列のいちばんうしろにならぶ荷物の少年（R.actor の toon）。カメラは階段の下の低い所から、列と門と塔を見上げる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), U = PACK_UNDER2(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const HAZE = '#c8d4e0';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 58, far: 1200, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a5aa8'], [.55, '#5a94d8'], [.85, '#a8cceb'], [1, '#e8eef0']], { r: 1100 })); scene.fog = new THREE.Fog(HAZE, 70, 420);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0x8a6a58, amb: 1.5, sun: 0xfff4e0, power: 2.5, range: 40 }), SUN = new THREE.Vector3(.45, .8, .4).normalize();
+
+// ---- 階段の高さ：z = 0 から -40 まで鉄の段（0.55 の こうばい）、門の踊り場（-40〜-52）、そこから -160 まで大理石の段。1 段は高さ .3 ----
+const ZG0 = -40, ZG1 = -52, ZTOP = -160, YG = 22, YTOP = 86, RISE = .3, HW = 5;
+const slope = z => z > 0 ? 0 : z > ZG0 ? -z / -ZG0 * YG : z > ZG1 ? YG : YG + (ZG1 - z) / (ZG1 - ZTOP) * (YTOP - YG);
+const SY = z => (z > ZG0 && z <= 0) || z <= ZG1 ? Math.floor(slope(z) / RISE + 1e-6) * RISE : slope(z);   // 段に丸めた高さ
+const stairs = (z0, z1, y0, y1, tex, side) => { const n = Math.round((y1 - y0) / RISE), dz = (z1 - z0) / n, G = R.geo(), m = tex.userData.m;
+  for (let k = 0; k < n; k++) { const za = z0 + k * dz, zb = za + dz, y = y0 + k * RISE; G.quad([-HW, y, za], [HW, y, za], [HW, y + RISE, za], [-HW, y + RISE, za], [0, 0, 2 * HW / m, RISE / m], .8); G.quad([-HW, y + RISE, za], [HW, y + RISE, za], [HW, y + RISE, zb], [-HW, y + RISE, zb], [0, 0, 2 * HW / m, -dz / m], 1.05); }
+  const ms = side.userData.m, W = R.geo();   // 段の両がわの かべ（段の線にそって、上へ 1.1 m・下へ 2.5 m）
+  for (let k = 0; k < n; k++) { const za = z0 + k * dz, zb = za + dz, y = y0 + k * RISE; for (const sx of [-1, 1]) { const q = [[sx * HW, y - 2.5, za], [sx * HW, y - 2.5, zb], [sx * HW, y + RISE + 1.1, zb], [sx * HW, y + RISE + 1.1, za]], uv = [-za / ms, (y - 2.5) / ms, -zb / ms, (y + RISE + 1.1) / ms]; if (sx > 0) W.quad(q[0], q[1], q[2], q[3], uv, .9); else W.quad(q[1], q[0], q[3], q[2], uv, .9);
+    W.quad([sx * (HW - .35), y + RISE + 1.1, za], [sx * HW, y + RISE + 1.1, za], [sx * HW, y + RISE + 1.1, zb], [sx * (HW - .35), y + RISE + 1.1, zb], [0, 0, .2, .2], 1.1);
+    const qi = [[sx * (HW - .35), y + RISE, za], [sx * (HW - .35), y + RISE, zb], [sx * (HW - .35), y + RISE + 1.1, zb], [sx * (HW - .35), y + RISE + 1.1, za]]; if (sx < 0) W.quad(qi[0], qi[1], qi[2], qi[3], [0, 0, .5, .5], .8); else W.quad(qi[1], qi[0], qi[3], qi[2], [0, 0, .5, .5], .8); } }
+  const me = [G.mesh(tex), W.mesh(side, { side: true })];
+  return me; };
+const IRON = X.plate({ c: '#8a6a5a', n: 2, rust: .9 }), IRONW = X.plate({ c: '#6a5a5a', rust: 1, warn: true }), MAR = U.tex.marble({ seed: 1 }), MARW = U.tex.marble({ gold: true });
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+fixed.push(...stairs(0, ZG0, 0, YG, IRON, IRONW), ...stairs(ZG1, ZTOP, YG, YTOP, MAR, MARW));
+{ const G = R.geo(); G.box(2 * HW + 1.2, 1.2, ZG0 - ZG1, 0, YG - 1.2, (ZG0 + ZG1) / 2, { m: 3 }); fixed.push(G.mesh(MAR)); }   // 門の踊り場
+// 階段を下から支える柱（下は鉄、上は大理石）。下町の地面から立つ
+{ const Gi = R.geo(), Gm = R.geo(); for (let z = -8; z > ZTOP; z -= 13) { const y = SY(z) - 1, G = z > ZG1 ? Gi : Gm, w = 2.4 + (y / 40); G.box(w, y, w, -HW + 1.4, 0, z, { m: 3, taper: .8 }); G.box(w, y, w, HW - 1.4, 0, z, { m: 3, taper: .8 }); G.box(2 * HW, 1.4, 1.6, 0, y - .4, z, { m: 3 }); } fixed.push(Gi.mesh(X.plate({ c: '#7a6a62', n: 2, rust: .8 })), Gm.mesh(MAR)); }
+
+// ---- 門と検問：大理石の門（金の紋と旗）、見張りの小屋、しま模様の横木 ----
+put(F.gate({ w: 14, h: 11, d: 4, aw: 7, ah: 7.6, stone: MARW, door: 'portcullis', open: .92, crest: 'sun' }), 0, (ZG0 + ZG1) / 2 - 2, 0, YG);
+{ const B = R.parts(); B.g(MAR).box(2.4, 2.6, 2.4, 0, 0, 0, { m: 3 }); B.g(U.tex.gold()).box(2.8, .4, 2.8, 0, 2.6, 0, { m: 1.5 }); const k = B.group(); put(k, -3.4, ZG0 - 3, 0, YG); put(F.spire({ r: 1.6, h: 2.2, roof: U.tex.gold() }), -3.4, ZG0 - 3, 0, YG + 3); }
+const bar = new THREE.Group(); { const G = R.geo(); G.box(.18, .18, 4.6, 0, -.09, -2.3, {}); const m = G.mesh(R.tex.from((() => { const P = R.Px(16); P.each((x, y) => ((x + y) >> 2) % 2 ? '#e84a3a' : '#f4f0e8'); return P; })(), { m: 1 })); bar.add(m); } bar.rotation.y = -PI / 2; bar.position.set(-.6, YG + 1, ZG0 - .4); scene.add(bar);
+const FLAGS = [-6.2, 6.2].map(x => { const f = F.flag({ kind: 'banner', c: '#f4f0e8', c2: '#e0b040', crest: 'sun', cc: '#e0b040', pole: 4 }); f.position.set(x, YG + 11, (ZG0 + ZG1) / 2 - 2); scene.add(f); return f; });
+
+// ---- 下町：階段の足もとに つぎはぎの家、配管、けむり ----
+const land = R.ground({ w: 260, d: 220, cell: 3, cz: -60, layers: [X.asphalt({ wet: .1, c: '#6a6460' }), T.dirt({ c: '#8a7058' }), X.plate({ c: '#6a6a78', n: 2 })], mix: (x, z) => [hash(Math.round(x / 9), Math.round(z / 9)) > .6 ? 1 : 0, hash(Math.round(x / 6), Math.round(z / 6), 3) > .85 ? 1 : 0] });
+scene.add(land.mesh);
+const vents = []; for (const sd of [-1, 1]) for (let i = 0; i < 26; i++) { const x = sd * (10 + (i % 4) * 8 + hash(i, sd) * 3), z = 14 - Math.floor(i / 4) * 11 - hash(i, sd, 2) * 4, fl = 2 + Math.floor(hash(i, sd, 3) * 3), s = C.shack({ w: 5 + hash(i, sd, 4) * 2, d: 5, floors: fl, seed: i + (sd > 0 ? 40 : 0), lit: .2, shop: ['door', 'window', 'shutter', 'open'][i % 4], awning: i % 3 ? 'tin' : false, laundry: i % 2 === 0, antenna: i % 3 === 1, tank: i % 4 === 2 });
+  put(s, x, z, sd > 0 ? -PI / 2 + (hash(i, 9) - .5) * .4 : PI / 2 + (hash(i, 9) - .5) * .4); if (i % 5 === 1) vents.push([x, (s.userData.h || fl * 3) + .3, z]); }
+fixed.push(C.pipe([[-60, 9, -20], [-14, 9, -20], [-14, 12, -30]], .6, { c: '#7a6a62', joint: 5 }), C.pipe([[60, 7, -6], [14, 7, -6], [14, 10, -16]], .5, { c: '#4f8f88', joint: 5 }));
+scene.add(R.merge(fixed));
+const smoke = vents.map(([x, y, z], i) => { const s = C.steam({ r: .9, rise: 7, n: 9, speed: .2, c: '#d8d0d0', a: .4, phase: i }); s.position.set(x, y, z); scene.add(s); return s; });
+
+// ---- 上の都市：階段のてっぺんの台と、白と金の塔（昼の光で白くかがやく） ----
+const UR = 130, UZ = ZTOP - UR + 6; { const up = U.upper({ r: UR, y: YTOP - 10, th: 34, towers: 18, tall: .9, emissive: '#6a6258', tint: .92, seed: 7, hang: 8, dots: false, underGlow: '#4a4858' }); up.position.set(0, 0, UZ); scene.add(up);
+  const h = U.halo({ c: '#fff8e0', r: 170, k: .16 }); h.position.set(0, YTOP + 150, UZ); scene.add(h); }
+const birds = PK.flock({ n: 10, r: 18, h: 6, c: '#f4f0e8', s: 2, speed: .22 }); birds.position.set(0, 60, -110); scene.add(birds);
+
+// ---- 人：主役（列の中）、列の人々、見張り 3 人、門の向こうを上る上の人 ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, SY(z), z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ s: .9, hairStyle: 'tufts', hair: '#3a2a20', bangs: 'jag', eyes: 'big', mouth: 'line', cloth: 'jacket', sleeve: 'long', top: '#c8603a', top2: '#e8dcc0', lower: 'baggy', bottom: '#5a5a6a', belt: '#6a4a30', shoes: 'boot', shoe: '#4a3a2a', neck: 'scarf', acc: '#4f8f88', back: 'pack', gloves: 'wrap', glove: '#c8b090' });
+const HS = [['bun', 'f'], ['short', 'm'], ['long', 'f'], ['bald', 'm'], ['bob', 'f'], ['spiky', 'm'], ['tail', 'f'], ['tufts', 'm']], DULL = ['#7a6a5a', '#5a6a7a', '#8a5a4a', '#6a7a6a', '#7a5a6a', '#9a8a6a'];
+const QN = 24, queue = [...Array(QN)].map((_, i) => act({ s: i % 5 === 3 ? .72 : 1, sex: HS[i % 8][1], hairStyle: HS[i % 8][0], hair: ['#3a2a20', '#6a6a6a', '#2a2228'][i % 3], beard: i % 8 === 3 ? 'beard' : undefined, mouth: ['line', 'small', 'frown', 'line'][i % 4], cloth: ['coat', 'tunic', 'jacket', 'robe'][i % 4], sleeve: 'long', top: DULL[i % 6], top2: '#d8ccb0', bottom: DULL[(i + 2) % 6], lower: HS[i % 8][1] === 'f' ? 'skirt' : 'pants', skirt: .8, skirtC: DULL[(i + 3) % 6], shoes: 'shoe', back: ['pack', 'bag', undefined][i % 3], hat: i % 4 === 1 ? 'cap' : undefined, acc: DULL[(i + 4) % 6] }));
+const GUARD = { hairStyle: 'short', hair: '#c8a870', eyes: 'sharp', brow: 'angry', mouth: 'line', cloth: 'armor', top: '#f4f0e8', top2: '#e0b040', gear: '#e8c050', bottom: '#e8e4dc', shoes: 'boot', shoe: '#c8a040', shoulder: 'both', hat: 'helm', neck: 'cape', acc: '#3a5aa8', gloves: 'gauntlet', glove: '#e8c050' };
+const guards = [act({ ...GUARD, hold: 'spear' }, -.2, ZG0 - 1.5, 0), act({ ...GUARD, hold: 'spear' }, 4.2, ZG0 - 2.2, 0), act({ ...GUARD, sex: 'f', hairStyle: 'tail', hold: 'case' }, 1.4, ZG0 + .2, PI - .6)];
+const UPPER = { cloth: 'robe', top: '#fbf8f0', top2: '#e8c050', skirt: 1, shoes: 'shoe', shoe: '#e8c050', neck: 'collar', acc: '#e8c050', mouth: 'small' };
+const uppers = [act({ ...UPPER, sex: 'f', hairStyle: 'long', hair: '#f0d890' }), act({ ...UPPER, hairStyle: 'short', hair: '#e8e0d0' }), act({ ...UPPER, sex: 'f', hairStyle: 'bun', hair: '#f0d890', s: .74 })];
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const QSP = 1.45;   // 列の間かく（m）
+K.loop((dt, t) => {
+  // 列は少し進んでは止まる（検問で 1 人ずつ）
+  const cyc = 4.2, move = (t % cyc) < cyc * .45;
+  const shift = (Math.floor(t / cyc) + Math.min(1, (t % cyc) / (cyc * .45))) * .55 % (QSP * 1.5);
+  queue.forEach((p, i) => { const z = ZG0 + 1.5 + Math.floor(i / 2) * QSP * 1.5 + (i % 2) * .5 - shift, x = (i % 2 ? 3.3 : 1.7) + (hash(i, 4) - .5) * .5; p.position.set(x, SY(z), z); p.rotation.y = PI + (hash(i, 5) - .5) * .5; if (move && i > 0) R.walk(p, t * 4 + i, .55); else R.idle(p, t + i, Math.sin(t * .4 + i) * .5); if (i === 0) { p.userData.J.armR.rotation.set(-1.2, 0, -.1); p.userData.J.foreR.rotation.x = -.6; } });
+  const hz = ZG0 + 1.5 + (QN / 2) * QSP * 1.5 - shift + .2, hx = 2.4; hero.position.set(hx, SY(hz), hz); hero.rotation.y = PI + .25; if (move) R.walk(hero, t * 4, .55); else { R.idle(hero, t, 0); } hero.userData.J.head.rotation.set(-.35, -.2 + Math.sin(t * .3) * .3, 0);
+  const hy = hero.position.y, tall = innerWidth < innerHeight;
+  cam.position.set(hx + 1.5, hy + 1.2, hz + (tall ? 3.9 : 4.3)); cam.lookAt(hx - 1.2, hy + (tall ? 6.4 : 6.2), hz - 14);   // 階段の下の低い所から、列と門と塔を見上げる
+  sun.position.set(hx + SUN.x * 70, hy + SUN.y * 70, hz + SUN.z * 70); sun.target.position.set(hx, hy, hz - 10);
+  // 見張り：1 人は書きつけを見る、1 人はやりを持って立ち、1 人は首をめぐらす。横木は 1 人通すたびに上がる
+  guards.forEach((g, i) => { R.idle(g, t + i * 2, i === 2 ? Math.sin(t * .7) * .6 : 0); if (i === 2) { g.userData.J.armL.rotation.set(-1.2, 0, .2); g.userData.J.foreL.rotation.x = -.9; } else { g.userData.J.armR.rotation.set(-.4, 0, -.1); g.userData.J.foreR.rotation.x = -.8; } });
+  bar.rotation.z = move ? -Math.sin(Math.min(1, (t % cyc) / (cyc * .4)) * PI) * 1.1 : 0;
+  // 上の人：門の向こうの白い段を、すいすい上っていく
+  uppers.forEach((p, i) => { const z = ZG1 - 2 - ((t * 1.3 + i * 7) % 60), x = [-1.6, -2.6, -1.9][i]; p.position.set(x, SY(z), z); p.rotation.y = PI; R.walk(p, t * 5.2 + i, .7); });
+  birds.userData.tick(t); F.tick(t); U.update(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

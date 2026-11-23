@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-09 かさの森 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2a4a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-09 ─ かさの森 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-book2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の雨の夕方。木の代わりに、家より大きな かさが にょきにょき生える森。かさの下には小さな家があかりをともし、ほねの先から しずくが落ちる。水たまりがつながった池には はすの葉と かえる。森のむこうには 山のような かさが 1 本。
+// 色の組は「夕ぐれの むらさきと青・ぬれた みどり」＋差し色の かさの赤・からし・青みどりの水玉と、主役の黄色い雨がっぱ。かさの布・かえる・はすの葉は手で打ったドット絵。
+// 主役は黄色い雨がっぱの子（R.actor の toon）。小さなかさをさして、ぬれた石の道を右から左へ歩く。カメラは ななめ前の上から見下ろす。雨・しずく・はねる かえる・水の輪・ゆれる ちょうちん・かさをさした町の人が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), B = PACK_BOOK2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a2e5e'], [.5, '#5a4a8a'], [.82, '#b86a8a'], [1, '#f0a060']], { r: 600 })); scene.fog = new THREE.Fog('#6a5a8a', 30, 330);
+const { sun } = K.lights(scene, renderer, { sky: 0x9a90d8, ground: 0x3a4a48, amb: 1.25, sun: 0xffb878, power: 1.5, range: 30 }), SUN = new THREE.Vector3(.2, .45, -.85).normalize();
+const fill = new THREE.DirectionalLight(0xb8c0ff, .55); fill.position.set(0, 20, 30); scene.add(fill);
+
+// ---- 地面：ぬれた草、石の道、どろ。水たまりと池 ----
+const PZ = x => Math.sin(x * .12) * 1.3;   // 道の まがり
+const LAMPS = [[-6, -2.6], [5, -2.9], [-17, -2.2], [14, -2.4]];
+const land = R.ground({ w: 140, d: 110, cell: 1.5, cz: -20, H: (x, z) => { const p = Math.hypot((x + 9) / 1.3, z + 12); return (p < 9 ? -(1 - p / 9) * .6 : 0) + Math.sin(x * .1) * Math.cos(z * .13) * .25; },
+  layers: [T.grass({ c: '#3a6a52', flowers: .1, fc: ['#f8d060', '#ffffff'] }), D.tex.wetCobble({ wet: .7 }), T.dirt({ c: '#5a4a48' })],
+  mix: (x, z) => [Math.abs(z - PZ(x)) < 1.4 ? 1 : 0, Math.abs(z - PZ(x)) < 2.1 && hash(Math.round(x), Math.round(z)) > .4 ? 1 : 0],
+  shade: (x, z) => { let s = .82; for (const [lx, lz] of LAMPS) s += Math.max(0, 1 - Math.hypot(x - lx, z - lz) / 6) * .5; return [s * 1.05, s * .95, s * .82]; } }); scene.add(land.mesh);
+const pond = FW.pool({ kind: 'water', r: 9, rz: 6.5, c: '#5a6aa8', wobble: .18 }); pond.position.set(-9, -.15, -12); scene.add(pond);
+const puddles = [[-3, .6, 1.2, .7], [8, -.8, 1, .6], [-13, PZ(-13) + .3, 1.4, .8], [16, 1, .9, .5]].map(([x, z, r, rz], i) => { const p = FW.pool({ kind: 'water', r, rz, c: '#6a7ab8', seed: i }); p.position.set(x, .04, z); scene.add(p); return p; });
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- かさの木（家より大きい）。下には小さな家 ----
+const UC = [['#d84a4a', '#f8ecd0', 'dots'], ['#e8b040', '#7a3a2a', 'stripe'], ['#3aa8a0', '#f8ecd0', 'dots'], ['#5a6ac8', '#f0c040', 'check'], ['#c86a9a', '#f8ecd0', 'stripe'], ['#e87a3a', '#3a3a6a', 'dots']];
+const UMB = [[-22, -6, 13, 6.5], [-12, -24, 15, 7.5], [-1, -9, 11, 5.6], [9, -16, 14, 7], [20, -7, 12, 6], [-28, -20, 16, 8], [28, -22, 17, 8], [3, -30, 18, 9], [-5, 8, 10, 4.5], [14, 8, 11, 5], [-30, 6, 12, 6], [36, 0, 13, 6.5]];
+const drips = [];
+UMB.forEach(([x, z, h, r], i) => { const [c, c2, kind] = UC[i % UC.length], u = B.umbrella({ r: r * .85, h: h * .58, c, c2, kind, shaft: '#4a3a3a', sr: .16 }); u.position.set(x, 0, z); u.rotation.set((hash(i, 1) - .5) * .16, hash(i, 2) * 6, (hash(i, 3) - .5) * .16); fixed.push(u);
+  u.updateMatrixWorld(true); u.userData.ribs.forEach((p, k) => { if (k % 2) return; const v = new THREE.Vector3(...p).applyMatrix4(u.matrixWorld); drips.push([v, hash(i, k) * 2]); }); });
+const WALL = [T.plaster({ c: '#e8d0b0' }), T.boards({ c: '#8a6a5a' }), T.plaster({ c: '#c8d0e0', seed: 2 })], ROOF = [T.shingle({ c: '#3a4a7a' }), T.shingle({ c: '#7a3a4a', seed: 2 }), T.roof({ c: '#4a6a5a', kind: 'slate' })];
+[[-22, -4], [-1, -7.5], [9, -13.5], [20, -5], [-12, -21]].forEach(([x, z], i) => put(B.house({ w: 2.4, d: 2.4, h: 2.6 + hash(i, 1), lean: (hash(i, 2) - .5) * .8, roofH: 1.8, roofLean: (hash(i, 3) - .5), wall: WALL[i % 3], roof: ROOF[i % 3], lit: true, seed: i + 3 }), x, z, (hash(i, 4) - .5) * .8 + (x > 0 ? -.3 : .3)));
+const lily = (() => { const P = R.Px(32), G = R.ramp('#4a9a5a'); P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5), a = Math.atan2(y - 15.5, x - 15.5); if (d > 14 || (a > -.25 && a < .25)) return null; return d > 12.6 ? G[1] : ((x + y) % 9 === 0 || Math.abs(a - 1.6) < .05 || Math.abs(a + 1.6) < .05) ? G[2] : d < 5 ? G[4] : G[3]; }); return T.from(P, { m: 1, cut: true }); })();
+for (let i = 0; i < 11; i++) { const a = hash(i, 1) * PI * 2, r = 1.5 + hash(i, 2) * 5.4, s = .8 + hash(i, 3) * .7, G = R.geo().normal([0, 1, 0]); G.quad([-s, 0, s], [s, 0, s], [s, 0, -s], [-s, 0, -s]); put(G.mesh(lily), -9 + Math.cos(a) * r, -12 + Math.sin(a) * r * .7, a, -.1); }
+for (let i = 0; i < 40; i++) { const x = -34 + hash(i, 1) * 70, z = -30 + hash(i, 2) * 36; if (Math.abs(z - PZ(x)) < 2.4 || Math.hypot(x + 9, z + 12) < 9.5) continue; put(R.tuft({ kind: i % 3 ? 'grass' : 'reed', s: .9, c: '#4a8a5a', seed: i % 3 }), x, z, i); }
+for (let i = 0; i < 18; i++) { const a = hash(i, 4) * PI * 2, x = -9 + Math.cos(a) * 9.6, z = -12 + Math.sin(a) * 6.8; put(R.tuft({ kind: 'reed', s: 1.2, c: '#3a7a5a', seed: i % 3 }), x, z, a); }
+scene.add(R.merge(fixed.splice(0)));
+// ---- 遠くの、山のような かさ ----
+const huge = B.umbrella({ r: 46, h: 95, c: '#c84a5a', c2: '#f0c0a0', kind: 'stripe', shaft: '#3a2a3a', sr: 1.2 }); huge.position.set(-40, -2, -230); scene.add(huge);
+scene.add(R.backdrop({ c: '#3a3a6a', haze: '#8a6a9a', r: 300, h: 26, y: -3, rep: 3 }));
+
+// ---- ちょうちん（かさの ほねから ぶらさがる。道を照らす） ----
+const lanterns = LAMPS.map(([x, z], i) => { const g = new THREE.Group(), L = R.geo().smooth(1).loft(8, [[-.45, .08, .08, 0, .9], [-.35, .2, .2, .2, 1], [-.1, .24, .24, .5, 1.1], [.1, .18, .18, .8, 1], [.18, .08, .08, 1, .9]], { cap: 'both' }).mesh(R.mat(T.lamp({}), { glow: true })); L.position.y = -.6; g.add(L);
+  const halo = D.halo({ c: '#ffb860', r: 1.1, k: .55 }); halo.position.y = -.65; g.add(halo); const cord = R.geo(); FW.tube(cord, [[0, 0, 0, .02], [0, -.42, 0, .02]], 3); g.add(cord.mesh(R.tex.metal({ c: '#3a3a3a' })));
+  if (i < 3) { const pl = new THREE.PointLight(0xffb060, 9, 9, 1.6); pl.position.y = -.7; g.add(pl); } g.position.set(x, 3.4, z); scene.add(g); return g; });
+for (const [x, z] of LAMPS) put(R.geo().loft(4, [[0, .06, .06, 0, .9], [3.4, .05, .05, 2, 1]], { cap: 'top' }).mesh(R.tex.metal({ c: '#4a3a3a' })), x, z);
+scene.add(R.merge(fixed.splice(0)));
+scene.add(D.rain({ n: 650, box: [26, 12, 26], slant: [.12, .05], a: .26, c: '#c8d0ff', len: .45 }));
+
+// ---- 生きもの：かえる（池のふちで はねる）、水の輪、しずく ----
+const frogT = (() => { const P = R.Px(32), G = R.ramp('#5ab048'), Y = R.ramp('#f0e8a0'); P.each((x, y) => y > 20 ? Y[3] : (hash(x >> 2, y >> 2, 5) > .8 ? G[2] : G[3])); for (let k = 0; k < 8; k++) P.disc(4 + hash(k, 1) * 24, 3 + hash(k, 2) * 14, 1.6, G[1]); for (let x = 0; x < 32; x++) { P.set(x, 20, G[1]); P.set(x, 0, G[4]); } return T.from(P, { m: .5 }); })();
+const eyeT = (() => { const P = R.Px(8); P.disc(4, 4, 4, '#5ab048'); P.disc(4, 4.5, 2.8, '#f8f4e0'); P.disc(4.3, 4.6, 1.6, '#1a1a28'); P.set(3, 3, '#ffffff'); return T.from(P, { m: .3, cut: true }); })();
+const frog = s => { const g = new THREE.Group(), body = R.geo().smooth(1).loft(8, [[0, .2, .26, 0, .8], [.12, .32, .4, .3, 1], [.3, .3, .34, .65, 1.05], [.42, .16, .2, 1, 1.1]], { cap: 'both' }).mesh(frogT); body.geometry.translate(0, 0, .04); g.add(body);
+  for (const sx of [-1, 1]) { const e = R.geo().smooth(1).loft(6, [[0, .08, .08, 0, 1], [.1, .09, .09, .5, 1.1], [.18, .02, .02, 1, 1.1]], { cap: 'top' }).mesh(frogT); e.position.set(sx * .14, .3, .16); g.add(e); const ey = new THREE.Sprite(new THREE.SpriteMaterial({ map: eyeT, alphaTest: .5, fog: true })); ey.scale.setScalar(.14); ey.position.set(sx * .14, .42, .22); g.add(ey);
+    const leg = R.geo().smooth(1).loft(5, [[0, .07, .07, 0, .9], [.3, .05, .05, 1, 1]], { cap: 'top' }).mesh(frogT); leg.geometry.rotateX(-PI / 2 - .4); const lp = new THREE.Group(); lp.add(leg); lp.position.set(sx * .22, .1, -.12); g.add(lp); g.userData['leg' + sx] = lp; }
+  g.scale.setScalar(s); return g; };
+const frogs = [[-3, -7.4, 0, 1.6], [-15, -8.4, 1, 1.3], [-6, -18, 2, 1.4], [-1.6, -11.6, 3, 1.1]].map(([x, z, k, s]) => { const f = frog(s); scene.add(f); return { f, x, z, k }; });
+const ringM = new THREE.MeshBasicMaterial({ color: '#d8e0ff', transparent: true, opacity: .5, depthWrite: false, side: THREE.DoubleSide }), ringG = new THREE.RingGeometry(.85, 1, 16); ringG.rotateX(-PI / 2);
+const rings = [...Array(14)].map((_, k) => { const m = new THREE.Mesh(ringG, ringM.clone()); scene.add(m); return { m, k }; });
+const dropM = new THREE.MeshBasicMaterial({ color: '#d8e8ff', transparent: true, opacity: .8 }), dropG = new THREE.SphereGeometry(.06, 4, 3);
+const drops = drips.map(([v, ph]) => { const m = new THREE.Mesh(dropG, dropM); scene.add(m); return { m, v, ph }; });
+
+// ---- 人：主役（小さなかさ）と、かさをさした町の人 ----
+const hero = R.actor({ build: 'toon', hairStyle: 'bob', hair: '#5a3a2a', eyes: 'big', mouth: 'smile', blush: true, cloth: 'coat', top: '#f8d038', top2: '#f8f0d0', lower: 'pants', bottom: '#3a4a7a', shoes: 'boot', shoe: '#d84a3a', hat: 'cap', acc: '#f8d038' }); scene.add(hero);
+const hu = B.umbrella({ r: .78, h: 1.15, c: '#3aa8a0', c2: '#f8ecd0', kind: 'dots', hook: true, shaft: '#6a4a3a' }); hu.position.set(-.16, .74, .24); hero.add(hu);
+const folk = [R.actor({ build: 'toon', sex: 'f', hairStyle: 'bun', hair: '#3a2a2a', cloth: 'coat', top: '#7a4a8a', top2: '#f0e0d0', lower: 'skirt', skirt: .8, shoes: 'boot', shoe: '#3a2a2a' }),
+  R.actor({ build: 'toon', hairStyle: 'short', hair: '#8a8a8a', beard: 'mustache', cloth: 'coat', top: '#3a5a4a', top2: '#e0d8c0', bottom: '#3a3a4a', shoes: 'boot', shoe: '#2a2a2a', hat: 'cap', acc: '#3a3a4a' })];
+folk.forEach((p, k) => { const u = B.umbrella({ r: .8, h: 1.15, c: k ? '#d84a4a' : '#e8b040', c2: '#f8ecd0', kind: k ? 'stripe' : 'dots', hook: true, shaft: '#4a3a3a' }); u.position.set(-.18, .78, .08); p.add(u); scene.add(p); });
+const holdArm = p => { const J = p.userData.J; J.armR.rotation.set(-.55, 0, .15); J.foreR.rotation.x = -1.35; };
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const X0 = 10, SPEED = 1.2;
+K.loop((dt, t) => {
+  const tall = innerWidth < innerHeight, x = X0 - t * SPEED, z = PZ(x);
+  hero.position.set(x, 0, z); hero.rotation.y = -PI / 2 + Math.atan(Math.cos(x * .12) * .156); R.walk(hero, t * SPEED * 3.6, .8); holdArm(hero);
+  cam.position.set(x - (tall ? 1.6 : 3), tall ? 2.5 : 2.4, z + (tall ? 4.8 : 4.4)); cam.lookAt(x - (tall ? .2 : 1.1), tall ? 2.3 : 1.9, z - (tall ? 6 : 7));
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, SUN.z * 60); sun.target.position.set(x, 0, z - 4); land.follow(x, -20);
+  folk.forEach((p, k) => { const L = 34, u = (t * (.9 + k * .2) + k * 15) % L, px = k ? -20 + u : 14 - u, pz = PZ(px) + (k ? -1.9 : -1.2); p.position.set(px, 0, pz); p.rotation.y = k ? PI / 2 : -PI / 2; R.walk(p, t * 3.8 + k, .7); holdArm(p); });
+  frogs.forEach(({ f, x: fx, z: fz, k }) => { const per = 2.6 + k * .4, q = ((t + k * .9) % per) / per, hop = q < .3 ? q / .3 : 1, n = Math.floor((t + k * .9) / per), dir = (n % 2 ? 1 : -1) * .9, y = Math.sin(Math.min(1, hop) * PI) * .55 * (q < .3 ? 1 : 0);
+    f.position.set(fx + dir * (q < .3 ? hop : 1) - (n % 2 ? .9 : 0), y + .02, fz); f.rotation.y = dir > 0 ? PI / 2 : -PI / 2; const st = q < .3 ? Math.sin(hop * PI) * 1.3 : 0; f.userData['leg-1'].rotation.x = st; f.userData.leg1.rotation.x = st; });
+  rings.forEach(({ m, k }) => { const per = 1.4, q = ((t + k * .37) % per) / per, n = Math.floor((t + k * .37) / per), a = hash(k, n) * PI * 2, r = Math.sqrt(hash(k, n, 2)) * 6;
+    m.position.set(-9 + Math.cos(a) * r, -.08, -12 + Math.sin(a) * r * .7); if (k > 10) { const p = puddles[k - 11]; m.position.set(p.position.x + (hash(k, n, 3) - .5), .07, p.position.z + (hash(k, n, 4) - .5) * .6); } m.scale.setScalar(.1 + q * .5); m.material.opacity = .55 * (1 - q); });
+  drops.forEach(({ m, v, ph }) => { const q = ((t * .9 + ph) % 1.2) / 1.2; m.position.set(v.x, v.y - q * q * v.y, v.z); m.visible = q < .98; });
+  lanterns.forEach((g, i) => { g.rotation.z = Math.sin(t * 1.3 + i) * .08; g.rotation.x = Math.cos(t * 1.1 + i) * .06; });
+  pond.userData.tick?.(t); puddles.forEach(p => p.userData.tick?.(t)); D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

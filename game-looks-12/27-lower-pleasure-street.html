@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-27 下層の夜の歓楽街 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#120e20;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8c8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-27 ─ 下層の夜の歓楽街 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-under2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の下層の歓楽街。つぎはぎの店がならぶ細い通りに、手で描いた木の看板が つき出し、赤とみどりの裸電球が頭の上に何本もわたる。酒場の前の台では楽師が鳴らし、通りは人でごったがえす。
+// 見上げると、空の半分を ふさぐ「上の都市」の台の裏。そのふちから白いサーチライトの光の柱が何本も下りてきて、通りを ゆっくり なめる。
+// 色の組は「夜の紺むらさき・さびた鉄・木の茶」＋電球の赤とみどり、差し色はサーチライトの つめたい白。主役は人ごみを こちらへ歩く旅の娘（R.actor の toon）。カメラは前から後ずさりして顔と、うしろの通りと空を見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), F = PACK_FTOWN(THREE, K, R), U = PACK_UNDER2(THREE, K, R), T = R.tex, X = C.tex, L = C.LIGHT, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const HAZE = '#2a2244', RED = '#ff4a36', GRN = '#5af07a', AMB = '#ffb050';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1200, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#0a0a1e'], [.6, '#1c1838'], [.9, '#3a2a50'], [1, '#5a3a5a']], { r: 1100 })); scene.fog = new THREE.Fog(HAZE, 30, 160);
+const { sun } = K.lights(scene, renderer, { sky: 0x7a70c0, ground: 0x6a4038, amb: 1.25, sun: 0xc8d4ff, power: .55, range: 26 }), SUN = new THREE.Vector3(-.2, .9, -.4).normalize();
+
+// ---- 通り：z の向きにのびる。両がわに店（x = ±6.3）。あかりの一覧は地面に焼きこむ ----
+const LOTS = [], lights = [], ZS = -110, ZE = 40;
+for (const sd of [-1, 1]) for (let z = ZS, i = 0; z < ZE; i++) { const w = [4.6, 5.4, 4.2, 6, 4.8][(i + (sd > 0 ? 2 : 0)) % 5]; LOTS.push({ z: z + w / 2, sd, w, i: LOTS.length }); z += w + .25; }
+for (const l of LOTS) lights.push({ x: l.sd * 4.4, z: l.z, r: 4.6, c: l.i % 3 ? AMB : RED, k: .75 });
+for (let z = ZS; z < ZE; z += 5) lights.push({ x: 0, z, r: 4.2, c: (z / 5) % 2 ? RED : GRN, k: .42 });
+const land = R.ground({ w: 40, d: 170, cell: 1.5, cz: -35, layers: [X.asphalt({ wet: .35, c: '#4a4448' }), T.cobble({ c: '#6a5e58', kind: 'slab' }), X.plate({ c: '#5a5a6a', n: 2 })], mix: (x, z) => [Math.abs(x) > 3.8 ? 1 : 0, Math.abs(x) < 3.6 && hash(Math.round(x / 3), Math.round(z / 3)) > .82 ? 1 : 0], shade: C.lightShade(lights, [.32, .3, .44]) });
+scene.add(land.mesh);
+
+// ---- 手で描いた看板（木の板に、びん・はち・魚・月・音ぷ・さかずき の絵。字はない） ----
+const SIGN = (kind, c, seed) => { const P = R.Px(24, 64), A = R.ramp(c), W = R.ramp('#8a5a34'), I = R.ramp(['#f4e8c8', '#ffd860', '#f4e8c8', '#ffb8a0'][seed % 4]);
+  P.each((x, y) => { const e = x < 2 || x > 21 || y < 2 || y > 61; return e ? (x === 0 || y === 0 ? W[4] : W[1]) : (hash(x >> 1, y, seed) > .9 ? A[2] : (x + Math.floor(y / 3)) % 7 === 0 ? A[2] : A[3]); });
+  for (let k = 0; k < 3; k++) { const cy = 13 + k * 19, sh = (kind + k) % 6, ic = I[3], id = I[1];
+    if (sh === 0) { P.rect(10, cy - 7, 4, 4, ic); P.rect(8, cy - 3, 8, 10, ic); P.rect(9, cy - 2, 2, 6, I[5]); P.rect(14, cy - 3, 2, 10, id); }   // びん
+    else if (sh === 1) { for (let y = 0; y < 7; y++) P.rect(12 - (7 - y), cy + y - 2, (7 - y) * 2, 1, y > 4 ? id : ic); for (let i = 0; i < 3; i++) P.line(8 + i * 3, cy - 8, 9 + i * 3, cy - 4, I[4]); }   // はちと湯気
+    else if (sh === 2) { P.disc(11, cy, 5.2, ic); P.rect(15, cy - 3, 5, 6, ic); P.set(9, cy - 1, A[0]); P.line(12, cy - 4, 12, cy + 4, id); }   // 魚
+    else if (sh === 3) { P.disc(12, cy, 6, ic); P.disc(14.5, cy - 1.5, 5, A[3]); }   // 月
+    else if (sh === 4) { P.disc(9, cy + 4, 2.6, ic); P.rect(11, cy - 7, 2, 11, ic); P.rect(11, cy - 7, 6, 2, ic); P.disc(16, cy + 2, 2.6, ic); P.rect(17, cy - 7, 2, 9, ic); }   // 音ぷ
+    else { P.rect(7, cy - 6, 10, 2, ic); for (let y = 0; y < 7; y++) P.rect(8 + Math.floor(y / 2), cy - 4 + y, 8 - Math.floor(y / 2) * 2, 1, y > 4 ? id : ic); P.rect(11, cy + 3, 2, 3, ic); P.rect(8, cy + 6, 8, 1, ic); } }   // さかずき
+  return T.from(P, { m: 1 }); };
+const SC = ['#2a5a4a', '#8a2a2a', '#2a3a6a', '#7a5a1a', '#4a2a5a'];
+
+// ---- 店（つぎはぎの家）、つき出し看板、ネオン少し、酒場の外の台・たる・いす ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const KIND = ['open', 'noren', 'window', 'open', 'door', 'noren'], ICON = ['bottle', 'cup', 'fish', 'moon', 'heart', 'star'];
+for (const { z, sd, w, i } of LOTS) { const g = new THREE.Group(), fl = 2 + Math.floor(hash(i, 3) * 1.8), kind = KIND[i % 6];
+  g.add(C.shack({ w, d: 4.6, floors: fl, seed: i + 3, shop: kind, shopC: ['#8a2a2a', '#2a5a4a', '#5a3a7a', '#8a5a1a'][i % 4], goods: ['food', 'goods', 'parts'][i % 3], lit: .85, awning: kind === 'door' ? false : i % 3 === 0 ? 'tin' : [RED, '#2f7a5a', '#c8a04a'][i % 3], laundry: i % 4 === 1, stairs: i % 9 === 4 ? 'r' : false,
+    sign: i % 3 === 2 ? { kind: ICON[i % 6], c: [L.pink, L.cyan, L.amber][i % 3], c2: L.amber, shape: 'sq', side: 1, flicker: i % 7 === 3 } : false }));
+  put(g, sd * 6.6, z, -sd * PI / 2);
+  if (i % 2 === 0) { const G = R.geo(), hh = 2.2 + hash(i, 5) * .6, y0 = 3.2 + hash(i, 6) * 1.6, x0 = sd * 4.1; const xa = sd * 3.75, xb = sd * 2.85; G.quad([xb, y0, z], [xa, y0, z], [xa, y0 + hh, z], [xb, y0 + hh, z]); fixed.push(G.mesh(SIGN(i, SC[i % 5], i), { side: true, emissive: '#4a3a34' }));   // 店の前へ つき出す板（通りの向きから絵が見える）
+    const B = R.geo(); B.box(2, .06, .06, sd * 3.7, y0 + hh + .05, z, { m: 1 }); fixed.push(B.mesh(T.metal({ c: '#4a4a5a' }))); } }
+// 酒場の前：台（楽師）、たる、テーブル、つりランプ
+const TAV = -14; put(F.table({ w: 1.2, round: true }), -3, TAV + 2.2); put(F.table({ w: 1.2, round: true }), -3.1, TAV - 2.4); for (const [x, z] of [[-3.8, TAV + 2.2], [-2.2, TAV + 2.2], [-3.9, TAV - 2.4], [-2.3, TAV - 2.4]]) put(F.stool(), x, z);
+put(F.keg({}), -4.6, TAV + 4.6, PI / 2); put(R.barrel({ c: '#7a4a2a' }), -4.3, TAV - 4.6); put(R.barrel({ c: '#7a4a2a' }), 4.4, TAV + 8);
+{ const G = R.geo(); G.box(2.6, .45, 2, 3.6, 0, TAV, { m: 2 }); put(G.mesh(T.planks({ c: '#7a5434' })), 0, 0); }   // 楽師の台（右がわ）
+put(C.vending({ c: '#c2453a' }), 4.6, 6, -PI / 2); put(C.drum({ c: '#4f8f88', mark: 'band' }), 4.4, -30); put(C.trike({ load: 'drum', c: '#c8a04a' }), -4.2, -38, .2); put(C.yatai({ c: '#c2453a', kind: 'wave', noren: '#2f4a8a', seed: 1 }), 3.6, -46, -PI / 2); put(C.yatai({ c: '#2f7a8a', kind: 'ring', noren: '#8a2a2a', seed: 2 }), -3.6, -60, PI / 2);
+// 頭の上：通りを ジグザグにわたる 赤とみどりの裸電球
+for (let z = ZS + 4, k = 0; z < ZE; z += 4.2, k++) fixed.push(C.bulbs([-4.2, 4.3 + (k % 2) * .5, z], [4.2, 4.6 - (k % 2) * .4, z + 2.4], { n: 7, sag: .55, cs: k % 3 === 2 ? [AMB] : [RED, GRN, RED, AMB] }));
+scene.add(R.merge(fixed));
+for (const { z, sd, i } of LOTS) if (i % 3 === 0 && z > -70) { const h = C.halo({ c: i % 2 ? RED : AMB, r: 1.4, k: .5 }); h.position.set(sd * 4.2, 3, z); scene.add(h); }
+const steam = [C.steam({ r: .5, rise: 2.4, n: 8, c: '#f0e0e8', a: .4 }), C.steam({ r: .5, rise: 2.4, n: 8, c: '#f0e0e8', a: .4 })]; steam[0].position.set(3.2, 1.2, -46); steam[1].position.set(-3.2, 1.2, -60); scene.add(...steam);
+
+// ---- 上の都市：空の半分をふさぐ台の裏。ふちの窓のあかりと、上に光る塔。ふちから白いサーチライト ----
+const UPZ = -440, UPR = 260, UPY = 96; { const up = U.upper({ r: UPR, y: UPY, th: 36, towers: 16, tall: .45, glow: true, tint: .95, seed: 5, hang: 10, lamps: .8, dotSize: 2.5, underGlow: '#2a2440' }); up.position.set(0, 0, UPZ); scene.add(up);
+  const h = U.halo({ c: '#e8ecff', r: 260, k: .1 }); h.position.set(0, UPY + 160, UPZ - 60); scene.add(h); }
+const BEAMS = [[-70, .2], [-25, 1.7], [30, 3.1], [80, 4.4]].map(([x, ph]) => { const s = U.searchlight({ len: 300, r0: 1.4, r1: 14, a: .17, c: '#eef2ff' }), z = UPZ + Math.sqrt(UPR * UPR - x * x) - 4; s.position.set(x, UPY - 6, z); scene.add(s); const sp = U.spot({ r: 9, k: .32, c: '#e8eeff' }); scene.add(sp); return { s, sp, x, z, ph }; });
+const DOWN = new THREE.Vector3(0, -1, 0), dv = new THREE.Vector3();
+
+// ---- 人：主役、楽師 3 人、酒場の客、立ち話、行きかう人ごみ ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ sex: 'f', hairStyle: 'tail', hair: '#e8c070', bangs: 'swept', eyes: 'big', mouth: 'smile', blush: true, cloth: 'coat', top: '#2f6a8a', top2: '#f0e4c8', lower: 'pants', bottom: '#3a3448', belt: '#8a5a2c', strap: true, shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#e8402a', back: 'bag', gloves: 'glove', glove: '#8a5a34' });
+const HS = [['bun', 'f'], ['short', 'm'], ['long', 'f'], ['tufts', 'm'], ['bob', 'f'], ['spiky', 'm'], ['tail', 'f'], ['bald', 'm']], TOPS = ['#8a3a3a', '#3a5a7a', '#c8a04a', '#4a7a5a', '#6a4a7a', '#a8a49a', '#b5603c', '#2a4a4a'], BOTS = ['#3a3448', '#4a3a30', '#2a2a3a', '#5a4a3a'];
+const who = (i, o = {}) => ({ sex: HS[i % 8][1], hairStyle: HS[i % 8][0], hair: ['#2a2228', '#5a3a28', '#8a8a8a', '#3a2a20'][i % 4], mouth: ['smile', 'open', 'smile', 'line'][i % 4], beard: i % 8 === 7 ? 'beard' : i % 8 === 3 ? 'stubble' : undefined, cloth: ['jacket', 'tunic', 'coat', 'vest'][i % 4], sleeve: 'long', top: TOPS[i % 8], top2: '#e8dcc0', lower: HS[i % 8][1] === 'f' && i % 3 ? 'skirt' : 'pants', skirt: .7, skirtC: BOTS[(i + 1) % 4], bottom: BOTS[i % 4], shoes: 'shoe', hat: i % 5 === 2 ? 'cap' : undefined, acc: TOPS[(i + 3) % 8], ...o });
+const musicians = [act(who(1, { hairStyle: 'short', beard: 'mustache', cloth: 'vest', top: '#8a2a2a', hat: 'band', acc: '#f0d060' }), 2.9, TAV + .5, -PI / 2 + .3), act(who(2, { sex: 'f', hairStyle: 'long', cloth: 'tunic', top: '#e8c040' }), 3.7, TAV - .6, -PI / 2 + .1), act(who(5, { hairStyle: 'bald', cloth: 'jacket', top: '#2f6a6a' }), 4.2, TAV + .9, -PI / 2 - .2)];
+musicians.forEach(p => p.position.y = .45);
+// 楽器：ふいごの箱（手でのびちぢみ）、たいこ、細長い弦の楽器
+const box = new THREE.Group(); { const G = R.geo(); G.box(.36, .3, .18, 0, 0, 0, { m: .5 }); box.add(G.mesh(T.fabric({ c: '#c8402e', c2: '#f0d060', pattern: 'stripe' }))); } musicians[0].userData.J.torso.add(box); box.position.set(0, .05, .28);
+const drum = R.barrel({ h: .5, r: .26, c: '#8a4a2a' }); drum.position.set(4.2 + .45, .45, TAV + 1.1); scene.add(drum);
+const lute = new THREE.Group(); { const G = R.geo(); G.loft(8, [[0, .02, .02, 0, 1], [.12, .16, .07, .2, 1], [.3, .18, .08, .5, 1], [.42, .08, .05, .7, 1], [1, .03, .03, 1, 1]], { cap: 'both' }); const m = G.mesh(T.planks({ c: '#a8743a' })); lute.add(m); } lute.rotation.set(.2, 0, 1.2); lute.position.set(0, .05, .22); musicians[1].userData.J.torso.add(lute);
+const SEAT = [[-3.8, TAV + 2.2, PI / 2], [-2.2, TAV + 2.2, -PI / 2], [-3.9, TAV - 2.4, PI / 2], [-2.3, TAV - 2.4, -PI / 2]], seated = SEAT.map(([x, z, ry], i) => { const p = act(who(i + 9), x, z, ry); p.position.y = .3; return p; });
+const STAND = [[2.6, TAV - 3.6, -.6], [3, TAV + 3.4, -2.4], [-2.6, -24, .8], [-3.2, -23, 2.4], [2.8, -32, -.9], [3.4, -31, -2.6], [-2.9, -6, 1.2], [-3.4, -5, 2.2], [2.8, 2, -1.4], [3.3, 3, -2.8], [-3, 10, 1], [3, 16, -1], [-3.3, 22, 1.4], [2.9, 26, -1.8], [-3, -44, 1], [3, -52, -1], [2.2, TAV + 1.6, -1.6], [2, TAV - 1.4, -1.4]], standers = STAND.map(([x, z, ry], i) => act(who(i + 2), x, z, ry));
+const NW = 40, walkers = [...Array(NW)].map((_, i) => { const p = act(who(i + 4, { s: i % 7 === 3 ? .72 : 1 })); p.userData.lane = [-2.6, -1.5, 1.4, 2.5, -2, 2][i % 6]; p.userData.dir = i % 3 === 0 ? -1 : 1; p.userData.v = .9 + hash(i, 1) * .6; p.userData.off = (i + hash(i, 2)) / NW * 56; return p; });
+const cat = R.cat({ c: '#3a3a44', belly: '#e8e4dc' }); cat.position.set(-4.4, .9, TAV + 4.6); cat.rotation.y = 1; scene.add(cat);
+const pl = [new THREE.PointLight('#ffb060', 10, 9, 1.4), new THREE.PointLight(RED, 7, 8, 1.4), new THREE.PointLight(GRN, 5, 7, 1.5)]; scene.add(...pl);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = 1.15, Z0 = -2, LEN = 40;
+K.loop((dt, t) => {
+  const z = Z0 + (t * SPEED) % LEN - 6, x = Math.sin(z * .18) * .35;
+  hero.position.set(x, 0, z); hero.rotation.y = Math.cos(z * .18) * .06; R.walk(hero, t * SPEED * 4.4, .85); hero.userData.J.head.rotation.set(-.12, Math.sin(t * .6) * .4, 0);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.4 : 3.9;
+  cam.position.set(x + .5, tall ? 1.25 : 1.2, z + Dc); cam.lookAt(x - .1, tall ? 2.7 : 2.7, z - 8);   // 前から後ずさり。低めから、顔と うしろの通りと空の台を見上げる
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, z + SUN.z * 50); sun.target.position.set(x, 0, z);
+  pl[0].position.set(x + 1.6, 3.6, z + 1.2); pl[1].position.set(x - 2.6, 4.2, z - 3); pl[2].position.set(x + 2.6, 4.2, z - 6);
+  // サーチライト：台のふちから、通りのあたりを ゆっくり なめる
+  BEAMS.forEach(({ s, sp, x: bx, z: bz, ph }, i) => { const tx = Math.sin(t * .23 + ph) * 26 + (i - 1.5) * 4, tz = z - 24 + Math.cos(t * .17 + ph * 1.3) * 40; dv.set(tx - bx, -(UPY - 6), tz - bz).normalize(); s.quaternion.setFromUnitVectors(DOWN, dv); sp.position.set(tx, .06, tz); sp.material.opacity = Math.abs(tx) < 9 ? .3 : .12; });
+  // 楽師
+  { const [a, b, c] = musicians, sq = Math.sin(t * 3.2); R.idle(a, t, Math.sin(t * .8) * .3); a.userData.J.armL.rotation.set(-1.1, 0, .6 + sq * .35); a.userData.J.armR.rotation.set(-1.1, 0, -.6 - sq * .35); a.userData.J.foreL.rotation.x = a.userData.J.foreR.rotation.x = -.9; box.scale.x = 1 + sq * .35;
+    R.idle(b, t + 1, Math.sin(t * .5) * .2); b.userData.J.armR.rotation.set(-.9, 0, -.2 + Math.sin(t * 9) * .12); b.userData.J.foreR.rotation.x = -1.1; b.userData.J.armL.rotation.set(-1.3, 0, .9); b.userData.J.foreL.rotation.x = -.6;
+    R.idle(c, t + 2, .3); const d1 = Math.abs(Math.sin(t * 4.4)), d2 = Math.abs(Math.sin(t * 4.4 + 1.6)); c.userData.J.armL.rotation.set(-.6 - d1 * .7, 0, .1); c.userData.J.armR.rotation.set(-.6 - d2 * .7, 0, -.1); c.userData.J.foreL.rotation.x = c.userData.J.foreR.rotation.x = -.8; }
+  seated.forEach((p, i) => { const J = p.userData.J; R.idle(p, t + i, Math.sin(t * .4 + i) * .4); J.legL.rotation.x = J.legR.rotation.x = -1.45; J.shinL.rotation.x = J.shinR.rotation.x = 1.4; if (i % 2) { J.armR.rotation.set(-1.4 - Math.max(0, Math.sin(t * .9 + i)) * .7, 0, -.2); J.foreR.rotation.x = -1.2; } else MO.cheerish(p, t + i); });
+  standers.forEach((p, i) => { R.idle(p, t * .9 + i, Math.sin(t * .5 + i * 2) * .5); if (i % 3 === 0) { p.userData.J.armR.rotation.set(-.8 + Math.sin(t * 2 + i) * .3, 0, -.3); p.userData.J.foreR.rotation.x = -1; } });
+  walkers.forEach((p, i) => { const u = p.userData, span = 56, k = ((t * u.v * u.dir + u.off) % span + span) % span, wz = z - 50 + k; p.position.set(u.lane + (u.dir < 0 ? (u.lane > 0 ? .9 : -.9) : 0), 0, wz); p.rotation.y = u.dir > 0 ? 0 : PI; p.visible = wz < z + 1.6 || Math.abs(p.position.x - x) > 1.2; R.walk(p, t * u.v * 4.3 + i, .8); });
+  R.catPose(cat, 'sit', t);
+  U.update(t); C.update(t, cam); F.tick?.(t); crt.render(scene, cam, t);
+});
+const MO = { cheerish: (p, t) => { const J = p.userData.J, k = Math.max(0, Math.sin(t * 1.3)); J.armL.rotation.set(-1.2 - k * 1.2, 0, .3); J.foreL.rotation.x = -.8; } };
+</script>
+</html>

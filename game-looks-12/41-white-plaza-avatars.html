@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-41 白い広場のアバターたち 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#e4e6ee;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;opacity:.92;text-shadow:0 1px 0 #3a3a5a,0 0 3px #3a3a5a}
+</style>
+<div id="cap">12-41 ─ 白い広場のアバターたち / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-cyber1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 白を基調とした電脳世界の、まるい広場の昼。耳やしっぽ、頭の上の記号を付けた いろいろな姿のアバターが集まり、まん中の上には案内の板が浮かび、遠くの空に島々が浮かぶ。
+// 色の組は「少し灰をおびた白・青むらさきの影の灰・うすい水色の空」＋差し色の ミント（光の目地と板）。白がとばないよう、床は面取りと目地の段で読ませる。
+// 主役は きつねの耳としっぽの子（ミントの上着）。広場のふちから まん中へ歩き、カメラは前からななめに引いて、主役と、うしろの板と島々を入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FW = PACK_FWILD(THREE, K, R), CY = PACK_CYBER1(THREE, K, R, FW), T = R.tex, { hash } = K, PI = Math.PI, AC = CY.AC;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#8eacdc'], [.45, '#b4c6ea'], [.8, '#d8dcee'], [1, '#e8e6f0']], { r: 420 })); scene.fog = new THREE.Fog('#dfe2ee', 50, 420);
+const { sun } = K.lights(scene, renderer, { sky: 0xe4eaff, ground: 0xd4d0e6, amb: 1.45, sun: 0xfff6e8, power: 1.6, range: 30 }), SUN = new THREE.Vector3(-.5, .8, .35).normalize();
+
+// ---- 地面：まるい広場（同心の輪の板と、光の目地）。広場の外は白い板の床が霧へ消える ----
+const RP = 24, land = R.ground({ w: 300, d: 300, cell: 2, layers: [CY.tex.floor({ seed: 1 }), CY.tex.floor({ kind: 'ring', ac: AC.mint, seed: 2, c: '#dcdeea' }), CY.tex.floor({ kind: 'path', ac: AC.mint, seed: 3 })],
+  mix: (x, z) => { const r = Math.hypot(x, z), a = Math.atan2(x, z); if (r > RP) return [0, 0]; const ring = Math.floor(r / 4) % 2 ? 1 : 0, spoke = Math.abs(((a / (PI / 4)) % 1 + 1) % 1 - .5) < .07 && r > 5 ? 1 : 0; return [ring, spoke]; },
+  shade: (x, z) => { const r = Math.hypot(x, z); return r > RP && r < RP + 2 ? .86 : 1; } }); scene.add(land.mesh);
+const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// 広場のふちの光の輪と、まん中の台
+{ const pts = []; for (let k = 0; k <= 48; k++) { const a = k / 48 * PI * 2; pts.push([Math.sin(a) * RP, .06, Math.cos(a) * RP]); } scene.add(CY.line(pts, { c: AC.mint, w: .35, speed: 2, rep: 6 })); }
+{ const B = R.parts(), G = B.g(CY.tex.panel({ kind: 'band', ac: AC.mint, m: 3 })), G2 = B.g(CY.tex.floor({ seed: 7, m: 2 }));
+  CY.prism(G, [[0, 2.8, 2.8], [.45, 2.8, 2.8]], 12, { m: 3 }); CY.prism(G2, [[.45, 2.8, 2.8], [.45, 0, 0]], 12, {}); put(B.group(), 0, 0, 0); }
+const circle = FW.magicCircle({ r: 2.4, c: AC.mint, star: false, spin: .3 }); circle.position.y = .48; scene.add(circle);
+
+// ---- 案内の板：まん中の上に大きな板 1 枚と、まわりに小さな板 ----
+const boards = [];
+{ const big = CY.board({ w: 6, h: 3.6, ac: AC.mint, kind: 'map', seed: 1 }); big.position.set(0, 7.6, 0); scene.add(big); boards.push(big);
+  [['list', AC.sky], ['icon', AC.pink], ['chart', AC.mint], ['face', AC.lemon], ['wave', AC.lilac]].forEach(([k, c], i) => { const a = i / 5 * PI * 2 + .4, b = CY.board({ w: 2.6, h: 1.6, ac: c, kind: k, seed: i + 3 }); b.position.set(Math.sin(a) * 9, 4.4 + (i % 2) * .8, Math.cos(a) * 9); b.rotation.y = a; scene.add(b); boards.push(b); });
+  [[-14, 6], [15, 2], [-8, -16]].forEach(([x, z], i) => { const b = CY.board({ w: 1.6, h: 1, ac: [AC.pink, AC.sky, AC.lemon][i], kind: ['icon', 'list', 'face'][i], seed: 20 + i, stand: 1.4 }); b.position.set(x, 2.8, z); b.rotation.y = Math.atan2(-x, -z) + PI; fixed.push(b); }); }
+
+// ---- 広場のふちの白い柱（上に光る記号）と、遠くの浮かぶ島々・塔 ----
+for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2 + PI / 8, B = R.parts(), G = B.g(CY.tex.panel({ kind: 'fin', ac: AC.mint, m: 4, seed: k })); CY.prism(G, [[0, .7, .7], [.4, .7, .7], [.4, .45, .45], [4.5, .4, .4], [4.9, .6, .6], [5.2, .6, .6]], 6, { m: 4, cap: true }); put(B.group(), Math.sin(a) * (RP + 1.5), 0, Math.cos(a) * (RP + 1.5));
+  const g = CY.glyphSprite(['star', 'heart', 'diamond', 'note', 'ring', 'plus', 'tri', 'moon'][k], [AC.pink, AC.sky, AC.mint, AC.lemon][k % 4], 1.1); g.position.set(Math.sin(a) * (RP + 1.5), 6.2, Math.cos(a) * (RP + 1.5)); scene.add(g); }
+const isles = [];
+[[-50, 22, -80, 12, 'spire'], [30, 40, -130, 20, 'round'], [80, 20, -60, 10, 'slab'], [-110, 42, -70, 16, 'twist'], [-10, 62, -230, 34, 'halo'], [120, 52, -170, 18, 'stack'], [-60, 18, 110, 12, 'round'], [90, 30, 100, 10, 'spire'], [-160, 30, -170, 22, 'round']].forEach(([x, y, z, r, kind], i) => {
+  const g = new THREE.Group(), is = CY.island({ r, h: r * .85, seed: i + 3, ac: [AC.sky, AC.mint, AC.pink][i % 3] }); g.add(is); const tw = CY.tower({ kind, h: r * 2.2, r: r * .3, seed: i, ac: [AC.mint, AC.sky, AC.pink, AC.lemon][i % 4] }); g.add(tw);
+  for (let j = 0; j < 3; j++) { const a = hash(i, j) * PI * 2, d = r * (.5 + hash(i, j, 2) * .3), t2 = CY.tower({ kind: 'slab', h: r * (.4 + hash(i, j, 3) * .5), r: r * .12, seed: i * 3 + j }); t2.position.set(Math.sin(a) * d, 0, Math.cos(a) * d); g.add(t2); }
+  g.position.set(x, y, z); scene.add(g); isles.push([g, y, i]); });
+for (let i = 0; i < 10; i++) { const c = R.cloud({ s: 30 + hash(i, 1) * 30, c: '#f6f6fa', shade: '#c8cce4', seed: i % 3 }); const a = hash(i, 2) * PI * 2, d = 140 + hash(i, 3) * 120; c.position.set(Math.sin(a) * d, 14 + hash(i, 4) * 30, Math.cos(a) * d); c.lookAt(0, c.position.y, 0); scene.add(c); }
+scene.add(R.merge(fixed));
+
+// ---- 光の粒と、空を行く乗りもの ----
+const motes = FW.motes({ n: 60, box: [40, 9, 40], c: '#5ad0b0', size: .14, rise: .4, drift: .6 }); scene.add(motes);
+const pods = [0, 1, 2].map(i => { const p = CY.pod({ ac: [AC.sky, AC.pink, AC.mint][i], s: 1.2 }); scene.add(p); return p; });
+
+// ---- アバターたち ----
+const hero = CY.avatar({ sex: 'f', hairStyle: 'tail', hair: '#f4c890', eyes: 'big', blush: true, cloth: 'jacket', top: '#5ac8a8', top2: '#f4f4f4', lower: 'shorts', bottom: '#5a6a9a', shoes: 'boot', shoe: '#f4f4f8', ears: 'fox', earC: '#f4c890', earIn: '#fff0e0', tail: 'fox', tailC: '#f4c890', icon: 'star', iconC: AC.lemon, seed: 1 }); scene.add(hero);
+const CROWD = [
+  { o: { sex: 'm', hairStyle: 'spiky', hair: '#8ab8f0', cloth: 'coat', top: '#f4f4f8', top2: '#78b4f0', bottom: '#4a5a8a', ears: 'cat', earC: '#8ab8f0', tail: 'cat', tailC: '#8ab8f0', icon: 'note', iconC: AC.sky }, p: [-3.3, 6.8], kind: 'wave' },
+  { o: { sex: 'f', hairStyle: 'twin', hair: '#f4a8c8', cloth: 'robe', top: '#f8f0f4', top2: '#f08cb8', skirt: .6, ears: 'bunny', earC: '#ffffff', earIn: '#f4b0c8', tail: 'bunny', tailC: '#ffffff', icon: 'heart', iconC: AC.pink }, p: [-4.8, 6.7], kind: 'idle' },
+  { o: { sex: 'm', hairStyle: 'short', hair: '#4a4a6a', cloth: 'overall', top: '#f0d468', top2: '#f4f4f4', ears: 'bear', earC: '#8a6a5a', earIn: '#d8b098', icon: 'plus', iconC: AC.lemon, bulk: 1.15 }, p: [6.2, 2.0], kind: 'idle' },
+  { o: { sex: 'f', hairStyle: 'long', hair: '#c8b8f0', cloth: 'tunic', top: '#a898f0', top2: '#ffffff', lower: 'skirt', skirt: .5, ears: 'horn', earC: '#f0e8c8', icon: 'moon', iconC: AC.lilac, ring: AC.lemon }, p: [7.5, 1.3], kind: 'cheer' },
+  { o: { sex: 'm', hairStyle: 'bob', hair: '#f4f4f8', cloth: 'vest', top: '#78b4f0', top2: '#f4f4f4', lower: 'baggy', bottom: '#e8e8f0', ears: 'antenna', earC: '#d8dce8', iconC: AC.mint, tail: 'cat', tailC: '#d8dce8' }, p: [3, 8], kind: 'walk', r: 11, sp: .16 },
+  { o: { sex: 'f', hairStyle: 'bun', hair: '#5a4a6a', cloth: 'jacket', top: '#f08cb8', top2: '#ffffff', lower: 'pants', bottom: '#f4f4f8', ears: 'cat', earC: '#5a4a6a', tail: 'cat', tailC: '#5a4a6a', icon: 'diamond', iconC: AC.mint }, p: [0, 0], kind: 'walk', r: 14, sp: -.12 },
+  { o: { sex: 'm', hairStyle: 'tufts', hair: '#f0d468', cloth: 'armor', top: '#e8ecf4', top2: '#78b4f0', gear: '#c8d0e4', ears: 'fox', earC: '#f0d468', tail: 'fox', tailC: '#f0d468', icon: 'tri', iconC: AC.sky }, p: [-3, -9], kind: 'walk', r: 8, sp: .2 },
+  { o: { sex: 'f', hairStyle: 'short', hair: '#78c8a8', cloth: 'coat', top: '#e8f4f0', top2: '#5ac8a8', lower: 'skirt', skirt: .4, ears: 'bunny', earC: '#78c8a8', earIn: '#e8fff4', icon: 'star', iconC: AC.pink, s: .82 }, p: [-2.3, 11.3], kind: 'cheer' },
+  { o: { sex: 'm', hairStyle: 'bald', hair: '#8a8aa8', beard: 'mustache', cloth: 'robe', top: '#d8dcec', top2: '#a898f0', skirt: .9, ears: 'bear', earC: '#f4f4f8', earIn: '#d8dcec', icon: 'ring', iconC: AC.lilac }, p: [10.4, 6.0], kind: 'idle' },
+  { o: { sex: 'f', hairStyle: 'tail', hair: '#f8b088', cloth: 'tunic', top: '#f8f0e8', top2: '#f8b088', lower: 'shorts', bottom: '#f8b088', ears: 'cat', earC: '#f8b088', tail: 'cat', tailC: '#f8b088', icon: 'paw', iconC: AC.peach, s: .8 }, p: [3.6, 2.9], kind: 'wave' }];
+// まん中の台のまわりに、さらに集まる人（姿は くじで まぜる）
+{ const HS = ['spiky', 'tufts', 'short', 'tail', 'twin', 'bob', 'bun', 'long'], EA = ['cat', 'bunny', 'fox', 'bear', 'horn', 'antenna', null], TL = ['cat', 'fox', 'bunny', null], IC = ['star', 'heart', 'note', 'diamond', 'plus', 'moon', 'paw', 'ring'], CL = ['jacket', 'tunic', 'coat', 'robe', 'vest', 'overall'], TOPS = ['#f4f4f8', '#78b4f0', '#f08cb8', '#6fd8c0', '#f0d468', '#a898f0', '#f8b088'], HC = ['#4a4a6a', '#f4f4f8', '#f4c890', '#8ab8f0', '#f4a8c8', '#78c8a8', '#6a4a3a'];
+  for (let i = 0; i < 9; i++) { const an = PI + .45 + (i / 8 - .5) * 2.6, r = 3.6 + (i % 3) * 1.1, h = (k) => hash(i, k, 41), hc = HC[Math.floor(h(1) * 7)];
+    CROWD.push({ o: { sex: h(2) > .5 ? 'f' : 'm', hairStyle: HS[Math.floor(h(3) * 8)], hair: hc, cloth: CL[Math.floor(h(4) * 6)], top: TOPS[Math.floor(h(5) * 7)], top2: '#ffffff', bottom: TOPS[Math.floor(h(6) * 7)], ears: EA[Math.floor(h(7) * 7)], earC: hc, tail: TL[Math.floor(h(8) * 4)], tailC: hc, icon: h(9) > .35 ? IC[Math.floor(h(10) * 8)] : null, iconC: TOPS[1 + Math.floor(h(11) * 6)], s: h(12) > .8 ? .82 : 1 }, p: [Math.sin(an) * r, Math.cos(an) * r], kind: ['idle', 'wave', 'cheer', 'idle'][i % 4] }); } }
+const crowd = CROWD.map((c, i) => { const a = CY.avatar({ ...c.o, seed: i + 5 }); a.position.set(c.p[0], 0, c.p[1]); a.rotation.y = Math.atan2(-c.p[0], -c.p[1]); scene.add(a); return { a, ...c, ph: i * 1.7 }; });
+const crt = R.crt(renderer, { noise: 0, bloom: .12 }); onResize(crt.resize);
+
+const PATH = t => { const k = Math.min(1, t / 26), r = 4.5 + k * 15, a = .2 + k * .5; return [Math.sin(a) * r, Math.cos(a) * r]; };   // まん中から ふちへ、ゆるい弧
+K.loop((dt, t) => {
+  const tt = t % 26, [x, z] = PATH(tt), [x2, z2] = PATH(tt + .1), dir = Math.atan2(x2 - x, z2 - z); hero.position.set(x, 0, z); hero.rotation.y = dir; R.walk(hero, t * 5.6, .9);
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4, ca = dir + PI - .55; cam.position.set(x + Math.sin(dir + .45) * D, tall ? 1.3 : 1.15, z + Math.cos(dir + .45) * D); cam.lookAt(x - Math.sin(dir) * 3, tall ? 3.2 : 2.9, z - Math.cos(dir) * 3);   // 前からななめに見上げる。うしろに まん中の板・アバターたち・島々
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z); land.follow(x, z);
+  for (const c of crowd) { const a = c.a, J = a.userData.J;
+    if (c.kind === 'walk') { const an = t * c.sp + c.ph, px = Math.sin(an) * c.r, pz = Math.cos(an) * c.r; a.position.set(px, 0, pz); a.rotation.y = an + (c.sp > 0 ? PI / 2 : -PI / 2); R.walk(a, t * 5.2 + c.ph, .8); }
+    else { R.idle(a, t + c.ph); a.rotation.y = Math.atan2(x - a.position.x, z - a.position.z) * .3 + Math.atan2(-a.position.x, -a.position.z) * .7;
+      if (c.kind === 'wave') { J.armR.rotation.set(-2.6, 0, -.3 + Math.sin(t * 6 + c.ph) * .3); J.foreR.rotation.x = -.4; }
+      if (c.kind === 'cheer') { const h = Math.max(0, Math.sin(t * 4 + c.ph)); a.position.y = h * .25; J.armR.rotation.set(-2.8, 0, -.2); J.armL.rotation.set(-2.8, 0, .2); } } }
+  boards.forEach((b, i) => { if (i) b.rotation.y += 0; }); boards[0].rotation.y = Math.sin(t * .15) * .4 + Math.atan2(x, z) * .6;
+  isles.forEach(([g, y, i]) => { g.position.y = y + Math.sin(t * .3 + i) * 1.2; });
+  pods.forEach((p, i) => { const an = t * (.12 + i * .03) + i * 2, rr = 60 + i * 25; p.position.set(Math.sin(an) * rr, 26 + i * 9 + Math.sin(t * .5 + i) * 2, Math.cos(an) * rr - 40); p.rotation.y = an + PI / 2; });
+  motes.userData.tick(t, x, z); circle.userData.tick?.(t); CY.tick(t); FW.tick?.(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-03 ティーカップの湖 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#f8e0c8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.92;text-shadow:0 1px 0 #6a4a3a}
+</style>
+<div id="cap">12-03 ─ ティーカップの湖 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-book1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の中の朝。湖ほどある巨大なティーカップに紅茶がたたえられ、ふちから湖へ ぎんのスプーンが橋のように わたされている。紅茶には角砂糖の島と レモンの輪切りが浮かび、湯気が雲になってのぼる。カップの外には、山より大きなティーポット。
+// 色の組は「紅茶の こはく色・磁器の白と青・朝の空の もも色」＋差し色の レモンの黄。カップ・スプーン・角砂糖・レモン・ポットは、この場面のために打ったドット絵（pack-book1.js と、ページの中）。
+// 主役は水色の上着の旅人（R.actor の toon）。スプーンの柄を下っていき、ななめ上からカメラが見下ろす。小舟をこぐ人・角砂糖の上の人・湯気の雲・紅茶の波・鳥が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), B1 = PACK_BOOK1(THREE, K, R), T = R.tex, X = B1.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#7ab0e8'], [.4, '#b8c8f0'], [.7, '#f8c8d0'], [.9, '#ffe0b8'], [1, '#fff4d8']], { r: 700 })); scene.fog = new THREE.Fog('#f8e0d0', 140, 820);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8e8ff, ground: 0xe8a060, amb: 1.35, sun: 0xfff0d8, power: 2.3, range: 36 }), SUN = new THREE.Vector3(.6, .55, -.55).normalize();
+const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- カップ：うちがわの磁器のかべ（半径 76、ふちは紅茶の 32 m 上）と金のふち、外へ出た取っ手 ----
+const RC = 76, RIM = 18;
+{ const B = R.parts(); B.g(X.porcelain({})).smooth(1).loft(40, [[-6, RC - 3, RC - 3, 0, .8], [RIM - 1, RC, RC, 1, 1]], { ur: 20 });
+  B.g(X.porcelain({})).smooth(1).loft(40, [[RIM - 1, RC + 2.4, RC + 2.4, 1, 1], [-40, RC + 8, RC + 8, 0, .8]], { ur: 20 });   // 外がわ（ふちごしに少し見える）
+  B.g(X.porcelain({ gold: '#e0b040' })).loft(40, [[RIM - 1, RC, RC, .93, 1.05], [RIM + .6, RC + 1.2, RC + 1.2, .97, 1.15], [RIM - 1, RC + 2.4, RC + 2.4, 1, 1]], { ur: 40 });
+  const G = B.g(X.porcelain({})).smooth(1), pts = []; for (let i = 0; i <= 14; i++) { const a = -PI * .45 + i / 14 * PI * .9; pts.push([RC + 4 + Math.cos(a) * 26, -2 + Math.sin(a) * 30, 0, 5]); } B1.tube(G, pts, 8, { m: 8, ur: 1 });
+  const cup = B.group(); cup.children.forEach(m => m.material.side = THREE.DoubleSide); const hd = new THREE.Group(); hd.add(cup); hd.rotation.y = -.55; fixed.push(hd); }
+// ---- 紅茶の水面（コマ送り）と、かべぎわの茶しぶの輪 ----
+const teaT = (() => { const P = R.Px(64), A = R.ramp('#a85a24', 6, { contrast: .9 }), tn = R.tn; P.each((x, y) => { const n = tn(x, y, 32, 16, 64, 64, 2), w = Math.sin(x / 64 * TAU * 2 + tn(x, y, 16, 16, 64, 64, 5) * 4 + y / 64 * TAU); return n > .8 ? A[4] : n < .2 ? A[2] : (n > .74 || n < .26) && (x + y) & 1 ? (n > .5 ? A[4] : A[2]) : A[3]; });
+  for (let k = 0; k < 26; k++) { const x = Math.floor(hash(k, 1) * 64), y = Math.floor(hash(k, 2) * 64), L = 3 + Math.floor(hash(k, 3) * 6); for (let i = 0; i < L; i++) P.set(x + i, y, k % 3 ? A[5] : '#fff0d8'); for (let i = 1; i < L - 1; i++) P.set(x + i, y + 1, A[1]); }   // さざなみの光と かげ
+  return T.from(P, { m: 8 }); })(), WF = [teaT], wm = R.mat(teaT, { vc: true, smooth: true, color: '#fff0e0' });
+{ const G = R.geo().normal([0, 1, 0]); for (let i = -8; i < 8; i++) for (let j = -8; j < 8; j++) { const x0 = i * 10, z0 = j * 10; if (Math.hypot(x0 + 5, z0 + 5) > RC + 8) continue; G.quad([x0, 0, z0 + 10], [x0 + 10, 0, z0 + 10], [x0 + 10, 0, z0], [x0, 0, z0], [0, 0, .7, .7], 1); } scene.add(new THREE.Mesh(G.build(), wm)); }
+const ripples = (() => { const m = R.mat(X.porcelain({ inner: true }), { vc: true }), G = R.geo().normal([0, 1, 0]); for (let k = 0; k < 90; k++) { const a = hash(k, 1) * TAU, r = Math.sqrt(hash(k, 2)) * (RC - 6), x = Math.cos(a) * r, z = Math.sin(a) * r, w = .8 + hash(k, 3) * 2.4; G.tint(.95).quad([x - w, .05, z + .12], [x + w, .05, z + .12], [x + w, .05, z - .12], [x - w, .05, z - .12], [.1, .2, .9, .25]); } const me = new THREE.Mesh(G.build(), m); me.material.transparent = true; me.material.opacity = .5; scene.add(me); return me; })();
+
+// ---- ぎんのスプーン（ふちから湖へ。柄の上を歩ける） ----
+const SP0 = [-RC - 2, RIM + 1.4], SP1 = [-22, 1.4], spY = x => { const k = Math.max(0, Math.min(1, (x - SP0[0]) / (SP1[0] - SP0[0]))); return SP0[1] + (SP1[1] - SP0[1]) * k - Math.sin(k * PI) * 1.5; };
+const SPZ = 6;
+{ const G = R.geo().smooth(1), N = 40; for (let i = 0; i < N; i++) { const xa = SP0[0] + (SP1[0] - SP0[0]) * i / N, xb = SP0[0] + (SP1[0] - SP0[0]) * (i + 1) / N, wa = 1.5 + i / N * .9 + Math.max(0, 6 - i) * .12, wb = 1.5 + (i + 1) / N * .9 + Math.max(0, 5 - i) * .12, ya = spY(xa), yb = spY(xb), th = .7, ua = i / N * 3, ub = (i + 1) / N * 3;
+    G.quad([xa, ya, SPZ + wa], [xb, yb, SPZ + wb], [xb, yb, SPZ - wb], [xa, ya, SPZ - wa], [ua, 0, ub, 1]);   // 上の面
+    G.quad([xa, ya - th, SPZ + wa], [xb, yb - th, SPZ + wb], [xb, yb, SPZ + wb], [xa, ya, SPZ + wa], [0, ua, .3, ub], .8); G.quad([xb, yb - th, SPZ - wb], [xa, ya - th, SPZ - wa], [xa, ya, SPZ - wa], [xb, yb, SPZ - wb], [0, ua, .3, ub], .8);
+    G.quad([xb, yb - th, SPZ + wb], [xa, ya - th, SPZ + wa], [xa, ya - th, SPZ - wa], [xb, yb - th, SPZ - wb], [0, ua, 1, ub], .6); }
+  fixed.push(G.mesh(X.silver({}), { side: true })); }
+{ const G = R.geo().smooth(1); G.loft(18, [[-4, 2, 1.4, 0, .7], [-1.2, 11, 7.5, .4, .9], [1.3, 14, 9.5, 1, 1.1], [1.1, 13.4, 9, 1.1, 1]], { ur: 3, rot: 0 }); put(G.mesh(X.silver({}), { side: true }), SP1[0] + 13.5, 2.6, SPZ); }   // 湖にしずむ さじの部分
+
+// ---- 角砂糖の島・レモンの輪切り・島の上の小さな家と木 ----
+const SUG = X.sugar({}), cubes = [[8, 18, 9, .3], [26, -14, 6, .9], [-8, -30, 11, .2], [40, 20, 5, 1.2], [-40, 30, 7, .5], [50, -36, 9, .1], [14, 46, 6, .7], [-34, -12, 4, 1], [62, 6, 6, .4]];
+cubes.forEach(([x, z, s, ry], i) => { const G = R.geo(); G.box(s, s, s, 0, -s * .35, 0, { bottom: false }); const m = G.mesh(SUG); put(m, x, 0, z, ry); m.rotation.set((hash(i, 1) - .5) * .25, ry, (hash(i, 2) - .5) * .25); });
+{ const [x, z, s] = cubes[2], top = s * .65; const hs = R.house({ w: 4.4, d: 3.6, h: 2.4, h2: 2, wall: T.plaster({ c: '#f8f0e0', frame: 'cross', wood: '#3a5ab0' }), roof: T.roof({ c: '#3a5ab0', kind: 'scale' }), win: T.window({ bars: 'cross', curtain: '#ffe0e8', box: true }), lit: 0, door: T.door({ style: 'plank', c: '#e0b040' }), chimney: true, seed: 3 });
+  put(B1.warp(hs, { lean: [.18, .05], twist: .4, bulge: .15, wave: .6, seed: 3 }), x + 1, top, z, .4); put(R.tree({ kind: 'round', h: 4, c: '#7ab870', seed: 2 }), x - 3, top, z + 2.6); put(R.tree({ kind: 'round', h: 3, c: '#9ac870', flowers: .3, fc: ['#ffd8e8'], seed: 5 }), x + 3.6, top, z - 3); }
+const lemonT = (() => { const P = R.Px(64), Y = R.ramp('#f8d838'), W = R.ramp('#fff8e0', 6, { contrast: .4 }), P2 = R.ramp('#f8e888'); P.each((x, y) => { const dx = x + .5 - 32, dy = y + .5 - 32, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx), seg = ((a / TAU * 10) % 1 + 1) % 1;
+    if (d > 30) return Y[1]; if (d > 27.5) return dx + dy < 0 ? Y[4] : Y[2]; if (d > 25) return W[3]; if (d < 3) return W[4]; if (seg < .07 || seg > .95) return W[4]; return hash(x, y, 3) > .9 ? P2[5] : (d > 22 ? P2[2] : P2[3]); }); return T.from(P, { m: 4 }); })();
+const lemons = [[-14, 30, 9], [34, -2, 7]].map(([x, z, r], i) => { const G = R.geo(); G.loft(20, [[-.5, r, r, 0, .9], [.5, r, r, 1, 1]], { cap: 'top', capRect: true }); const m = G.mesh(lemonT); m.position.set(x, 0, z); scene.add(m); return m; });
+
+// ---- カップの外：山より大きなティーポット（遠く）と、遠いテーブルの丘 ----
+{ const B = R.parts(), P = B.g(X.porcelain({ blue: '#5a6ac8' })).smooth(1); P.loft(16, [[0, 70, 70, 0, .8], [40, 100, 100, .3, .95], [100, 104, 104, .6, 1.05], [150, 72, 72, .9, 1.1], [158, 40, 40, 1, 1.1]], { ur: 6 });
+  B.g(X.porcelain({ blue: '#5a6ac8' })).loft(12, [[156, 44, 44, 0, 1], [176, 30, 30, .6, 1.1], [186, 10, 10, .9, 1.1], [196, 8, 8, 1, 1.1]], { cap: 'top', ur: 3 });
+  const S = B.g(X.porcelain({ blue: '#5a6ac8' })).smooth(1), sp = []; for (let i = 0; i <= 10; i++) { const k = i / 10; sp.push([-90 - k * 70, 50 + k * 90 + k * k * 20, 0, 26 - k * 14]); } B1.tube(S, sp, 8, { m: 40 });
+  const pot = B.group(); pot.position.set(250, -20, -150); pot.rotation.y = .5; scene.add(pot); }
+scene.add(R.backdrop({ c: '#c89a88', haze: '#ffe4d0', r: 640, h: 50, y: -40, rep: 6, seed: 4 }));
+scene.add(R.merge(fixed));
+
+// ---- 動く物：湯気の雲、小舟、鳥、人 ----
+const steam = [...Array(7)].map((_, k) => { const c = R.cloud({ s: 12 + hash(k, 1) * 14, c: '#ffffff', shade: '#e8c8d8', seed: k }); scene.add(c); c.userData = { x: (hash(k, 2) - .3) * 90, z: (hash(k, 3) - .5) * 90, ph: hash(k, 4) }; return c; });
+const boatG = new THREE.Group(), boat = R.boat({ c: '#e8e0f0' }); boatG.add(boat); scene.add(boatG);
+R.cfg.actorBuild = 'toon';
+const rower = R.actor({ hairStyle: 'short', hair: '#4a3a2a', mouth: 'smile', cloth: 'tunic', sleeve: 'long', top: '#f8d838', top2: '#fff', bottom: '#3a4a6a', shoes: 'boot' }); rower.position.set(0, .05, -.2); boatG.add(rower);
+const islander = R.actor({ sex: 'f', hairStyle: 'bun', hair: '#e8e0d8', eyes: 'closed', mouth: 'smile', cloth: 'robe', top: '#3a5ab0', top2: '#fff', skirt: .8, shoe: '#6a3a2a' }); scene.add(islander);
+const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2a2a', skin: '#f0c098', eyes: 'big', cloth: 'jacket', sleeve: 'long', top: '#3ab0c8', top2: '#fff4e0', lower: 'pants', bottom: '#5a4a6a', shoes: 'boot', shoe: '#6a4434', neck: 'scarf', acc: '#f8d838', back: 'pack', belt: '#6a4434' }); scene.add(hero);
+const birds = PK.flock({ n: 7, r: 14, h: 3, c: '#ffffff', s: 1.8, speed: .3 }); birds.position.set(-10, 26, 0); scene.add(birds);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 80), X0 = -64, SPEED = 1.25; let sm = 0;
+K.loop((dt, t) => {
+  const x = Math.min(X0 + t * SPEED, SP1[0] - 2), y = spY(x), z = SPZ + Math.sin(t * .7) * .3; hero.position.set(x, y, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 3.7, x < SP1[0] - 2 ? .85 : 0);
+  const tall = innerWidth < innerHeight; cam.position.set(x - (tall ? 3.8 : 4.4), y + (tall ? 4.4 : 4), z + (tall ? 2.2 : 2.8)); cam.lookAt(x + 12, y - (tall ? 2.6 : 2.4), z - 2);   // ななめ上から見下ろす
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z);
+  teaT.offset.set(Math.sin(t * .2) * .05, t * .01); ripples.position.x = Math.sin(t * .3) * .6; ripples.position.z = Math.cos(t * .25) * .6;
+  lemons.forEach((l, i) => { l.position.y = Math.sin(t * .8 + i) * .12; l.rotation.y = t * .03 * (i ? 1 : -1); });
+  { const a = t * .06; boatG.position.set(Math.cos(a) * 30, 0, Math.sin(a) * 30 + 4); boatG.rotation.y = -a; boatG.position.y = Math.sin(t * 1.3) * .08; const k = t * 2.2; rower.userData.J.armL.rotation.x = rower.userData.J.armR.rotation.x = -1 + Math.sin(k) * .5; }
+  { const [cx, cz, s] = cubes[2]; islander.position.set(cx - 1.2, s * .65, cz + 3.2); islander.rotation.y = .3; R.idle(islander, t, Math.sin(t * .5) * .4); }
+  steam.forEach((c, k) => { const u = (t * .03 + c.userData.ph) % 1; c.position.set(c.userData.x + Math.sin(u * 6 + k) * 4, 3 + u * 50, c.userData.z); c.lookAt(cam.position.x, c.position.y, cam.position.z); c.material.opacity = 1; c.scale.setScalar(.6 + u * .8); });
+  birds.userData.tick(t); B1.tick(t); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

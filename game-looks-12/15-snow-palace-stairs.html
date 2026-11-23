@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-15 雪山の宮殿への石段 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#d8e4f0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffffff;opacity:.9;text-shadow:0 1px 0 #2a3448}
+</style>
+<div id="cap">12-15 ─ 雪山の宮殿への石段 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で上る）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-realm1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝。雲の海の上につき出た雪の尾根を、白い石段が何段もの踊り場をはさんで山の上の白い宮殿まで のびる。石段のわきには色とりどりの のぼり旗、踊り場には旗のひも。巡礼の人々が一歩ずつ上る。
+// 色の組は「雪と石の白・朝の空と影の青」＋差し色の 金の丸屋根と、旗の赤・黄。石段・宮殿・旗は pack-fantasy-town.js、下の雲の海は pack-realm1.js。雪は手打ちのテクスチャ（R.tex.snow）。
+// 主役は毛皮のえりの青いコートの巡礼の若者（R.actor の toon）。石段を上へ上り、すぐうしろの低い所からカメラが追って、石段の先の宮殿を見上げる。巡礼の人・旗・鳥・ちらつく雪・流れる雲が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), RM = PACK_REALM1(THREE, K, R, F), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 1400, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#3a6ac0'], [.5, '#7aa8e0'], [.82, '#c8dcf0'], [.94, '#f4dcd0'], [1, '#ffe8c8']], { r: 640 })); scene.fog = new THREE.Fog('#e0e8f4', 140, 820);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0x9aa8c8, amb: 1.6, sun: 0xfff0d8, power: 2.5, range: 40 }), SUN = new THREE.Vector3(.6, .45, -.3).normalize();
+
+// ---- 石段の高さ：12 m の段（6 m 上る）と 4 m の踊り場を 10 回 ----
+const FL = 12, LD = 4, RISE = 6, NF = 10, TOPZ = -NF * (FL + LD), TOPY = NF * RISE;
+const stairY = z => { const s = Math.max(0, -z); if (s >= -TOPZ) return TOPY; const k = Math.floor(s / (FL + LD)), r = s - k * (FL + LD); return k * RISE + (r < FL ? r / FL * RISE : RISE); };
+const H = (x, z) => { const ax = Math.abs(x), base = z > 0 ? -z * .25 : z > TOPZ ? stairY(z) : TOPY + Math.min(0, (TOPZ - 70 - z)) * 0, top = z <= TOPZ ? TOPY - 1.5 - Math.max(0, ax - 50) * .9 - Math.max(0, TOPZ - 90 - z) * 1.2 : base - 1.2 - Math.max(0, ax - 3) ** 1.15 * .6;
+  return Math.max(-34, top + Math.sin(x * .2 + z * .13) * .5); };
+const land = R.ground({ w: 240, d: 340, cell: 2, cz: -110, H, layers: [T.snow({ c: '#e8eef8' }), T.rock({ c: '#8a90a8', moss: 0 })], mix: (x, z) => [Math.sin(x * .3 + z * .21) + Math.sin(x * .11 - z * .3) > 1.2 ? 1 : 0, 0] }); scene.add(land.mesh);
+const sea = RM.cloudSea({ y: -30, cz: -100, w: 1200, d: 1000, c: '#fbf0ec', shade: [.74, .78, .9] }); scene.add(sea.mesh);
+scene.add(R.backdrop({ c: '#a8b8d8', haze: '#e8ecf4', r: 700, h: 220, y: -32, rep: 3, seed: 3 }), R.backdrop({ c: '#8898c0', haze: '#e0e8f4', r: 640, h: 120, y: -32, rep: 4, seed: 7 }));
+
+// ---- 石段・踊り場・のぼり旗・旗のひも ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const WS = F.tex.ashlar({ c: '#e4e2dc', moss: 0 }), WS2 = F.tex.ashlar({ c: '#d0d4dc', seed: 4 });
+const FC = ['#c83a34', '#f0c040', '#3a6ab0', '#f4f0e8', '#3a9a6a'], flagList = [];
+for (let k = 0; k < NF; k++) { const z0 = -k * (FL + LD), y0 = k * RISE;
+  put(F.stairs({ w: 4.2, h: RISE, d: FL, n: 26, tex: WS }), 0, z0 - FL / 2, 0, y0);
+  { const G = R.geo(); G.box(4.6, y0 + RISE + 2, LD, 0, -2, z0 - FL - LD / 2, { m: 3 }); fixed.push(G.mesh(WS2)); }
+  for (const s of [-1, 1]) { put(F.flag({ kind: 'banner', w: .8, h: 2.4, pole: 4.2, c: FC[(k + (s > 0 ? 2 : 0)) % 5], crest: ['sun', 'star', 'moon'][k % 3], cc: '#f4f0e8' }), s * 3.1, z0 - FL - .6, 0, y0 + RISE);
+  }
+  const b2 = F.bunting({ from: [-3.1, y0 + RISE + 4, z0 - FL - .6], to: [-3.1, y0 + RISE + 4, z0 - FL - LD - FL + .4], n: 14, sag: 1.2, cs: FC }); b2.position.y = 0; scene.add(b2); }
+for (let i = 0; i < 60; i++) { const z = 10 - hash(i, 1) * 180, s = i % 2 ? 1 : -1, x = s * (5 + hash(i, 2) * 14); put(i % 3 ? R.tree({ kind: 'pine', h: 4 + hash(i, 3) * 3, c: '#3a6a5a', seed: i }) : R.rock({ s: 1 + hash(i, 4) * 1.6, c: '#9aa0b8', seed: i }), x, z, i); }
+
+// ---- 山の上の白い宮殿：城壁と門、金の丸屋根、高い尖塔 ----
+const PZ = TOPZ - 34;
+put(F.castle({ s: 4.4, stone: F.tex.ashlar({ c: '#f4f2ee' }), roof: F.tex.slate({ c: '#4a7ac0', c2: '#6a98d8' }), c: '#c83a34', crest: 'sun' }), 0, PZ, 0, TOPY - 1);
+put(F.dome({ r: 15, c: '#e8b838', c2: '#f4d870', kind: 'onion' }), 0, PZ - 24, 0, TOPY + 46);
+for (const s of [-1, 1]) put(F.tower({ kind: 'round', r: 4.4, h: 58, stone: F.tex.ashlar({ c: '#f0eee8' }), roof: F.tex.slate({ c: '#4a7ac0' }), top: 'cone', roofH: 20, flag: { c: s > 0 ? '#f0c040' : '#c83a34', crest: 'sun' } }), s * 52, PZ + 2, 0, TOPY - 1);
+put(F.gate({ w: 9, h: 9, d: 3, aw: 4.2, ah: 6, stone: F.tex.ashlar({ c: '#f4f2ee' }), door: 'none', crest: 'sun' }), 0, TOPZ - 6, 0, TOPY);
+scene.add(R.merge(fixed));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(16, 20), new THREE.MeshBasicMaterial({ color: '#fff8e0', fog: false })); sunD.position.set(SUN.x * 600, 90, SUN.z * 600); sunD.lookAt(0, 30, 0); scene.add(sunD);
+const mist = RM.drift(scene, { n: 16, area: [-260, 260, -22, 2, -300, 40], s: 60, c: '#ffffff', shade: '#b8c4dc', speed: 1.8, seed: 3 });
+
+// ---- ちらつく雪（粒） ----
+const SN = 300, sp = new Float32Array(SN * 3), sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+const snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#ffffff', size: 1.5, sizeAttenuation: false })); scene.add(snow);
+
+// ---- 人・鳥（人は 5 頭身の toon。どれもこの場面のためのオリジナル） ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'short', hair: '#3a2a24', eye: '#3a6aa8', eyes: 'big', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#2e5a9a', top2: '#f4ecdc', lower: 'pants', bottom: '#4a4a5a', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', shoe: '#5a3a2a', neck: 'collar', acc: '#f4ecdc', back: 'pack', belt: '#6a4a34', strap: true }); scene.add(hero); F.wear(hero, 'staff', { len: 1.6, c: '#7a5a3a' });
+const pil = [{ hairStyle: 'bald', hair: '#7a6a5a', beard: 'beard', eyes: 'closed', cloth: 'robe', top: '#c86a2e', top2: '#f0d890', skirt: .95 }, { sex: 'f', hairStyle: 'long', hair: '#2a2a2a', cloth: 'robe', top: '#e8e4dc', top2: '#c83a34', skirt: .9 }, { hairStyle: 'short', hair: '#5a4a3a', cloth: 'coat', top: '#8a3a3a', top2: '#f0e4cc', bottom: '#4a4a4a', hat: 'cap', acc: '#f0c040' }, { s: .74, sex: 'f', hairStyle: 'twin', hair: '#6a3a2a', cloth: 'coat', top: '#f0c040', top2: '#f4ecdc', bottom: '#4a5a8a', blush: true }, { bulk: 1.1, hairStyle: 'bald', hair: '#5a4a3a', cloth: 'robe', top: '#c86a2e', top2: '#f0d890', skirt: .95 }]
+  .map((o, k) => { const p = R.actor(o); scene.add(p); if (k === 0 || k === 4) F.wear(p, 'staff', { len: 1.6, c: '#7a5a3a' }); if (k === 2) F.wear(p, 'sack', { c: '#d8c49a' }); return p; });
+const birds = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#3a3a4a', belly: '#e8e8f0', neck: false, s: 2 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = .95, ZS = -2, LEN = 110;
+K.loop((dt, t) => {
+  const z = ZS - (t * SPEED) % LEN, x = -.6, y = stairY(z);
+  hero.position.set(x, y, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.8, .9); hero.userData.J.torso.rotation.x += .12;
+  const tall = innerWidth < innerHeight, D = tall ? 3.8 : 4.6, cy = stairY(z + D); cam.position.set(x + (tall ? .6 : 1.2), Math.max(cy, y - 1.2) + 1.5, z + D); cam.lookAt(x - .2, y + (tall ? 6.8 : 6.2), z - 14);   // すぐうしろから、石段の先の宮殿を見上げる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 6); land.follow(0, -110);
+  pil.forEach((p, k) => { const down = k === 2, sp2 = .8 + k * .06, pz = down ? z - 30 + ((t * 1.1) % 40) : z - 4 - k * 3.4 + Math.sin(t * .3 + k) * .8, px = down ? 1 : (k % 2 ? .8 : -.2); p.position.set(px, stairY(pz), pz); p.rotation.y = down ? 0 : PI; R.walk(p, t * 3.6 + k, .7); });
+  birds.forEach((b, k) => { const a = t * (.16 + k * .03) + k * 1.6, r = 14 + k * 5; b.position.set(Math.cos(a) * r, y + 14 + k * 2, z - 30 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .4 + k); });
+  for (let i = 0; i < SN; i++) { const fx2 = hash(i, 1), fz = hash(i, 2), fy = hash(i, 3); sp[i * 3] = x + (fx2 - .5) * 40 + Math.sin(t * .6 + i) * .6; sp[i * 3 + 1] = y - 4 + (((fy * 24 - t * 1.1) % 24) + 24) % 24; sp[i * 3 + 2] = z - 2 - fz * 40; } sg.attributes.position.needsUpdate = true;
+  mist.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

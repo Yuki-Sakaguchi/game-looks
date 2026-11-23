@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-18 地底のきのこの都 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#141c3a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0f4ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-18 ─ 地底のきのこの都 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 地下の巨大な洞くつ。地底の湖の向こう岸に、光るきのこの塔が何十本も立ちならぶ都。塔のじくには窓のあかりがならび、塔と塔のあいだに つり橋、てっぺんには水色ともも色に光るかさ。天井からは つらら石と細い滝。
+// 色の組は「洞くつの あい色・湖の深い青みどり・きのこの水色の光」＋差し色は窓の だいだいと、もも色のかさ。きのこ・塔の窓・石の橋・岩は、少ない面に手打ちのドット絵。
+// 主役は だいだいのローブの見習い魔法使い（R.actor の toon）。湖にかかる長い石の橋を、横から見る カメラ（ややななめ前）が追う。小舟・ほたる・ただよう胞子・橋を行く人・滝が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), T = R.tex, X = FW.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#0a0e24'], [.6, '#18264a'], [1, '#2a4a6a']], { r: 600 })); scene.fog = new THREE.Fog('#1e3058', 70, 520); renderer.setClearColor('#1e3058');
+const { sun } = K.lights(scene, renderer, { sky: 0x7ab8e0, ground: 0x3a3a6a, amb: 1.5, sun: 0x9ae8ff, power: 1.1, range: 34 });
+
+// ---- 地形：湖（y=0）。手前の岸（z > 14）と、向こう岸の都の台地（z < -46）。洞くつの天井 ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => -4 + sm(10, 18, z) * 5.4 + sm(-84, -96, z) * 6.5 + Math.sin(x * .05 + z * .03) * .6;
+const ROCK = X.caveRock({ c: '#4a4a7a', moss: .3, mossC: '#3a7a7a' });
+const glowAt = (x, z) => { const d = Math.max(0, 1 - Math.abs(z + 150) / 100); return [.5 + d * .25, .58 + d * .38, .9 + d * .3]; };
+const land = R.ground({ w: 440, d: 360, cell: 4, cz: -90, H, layers: [X.caveRock({ c: '#3e4672', glint: false }), X.moss({ kind: 'tile', c: '#3a8a8a' }), T.cobble({ kind: 'slab', c: '#7a7a9a' })],
+  mix: (x, z) => [Math.sin(x * .1) * Math.cos(z * .13) > .2 ? .7 : 0, z < -56 && z > -170 && Math.abs(x) < 120 ? .8 : 0], shade: glowAt }); scene.add(land.mesh);
+const HC = FW.caveH({ rx: 230, rz: 190, h: 170, seed: 4, bump: 8, dist: (x, z) => Math.hypot(x / 230, (z + 90) / 190) });
+scene.add(FW.caveCeil({ w: 520, d: 440, cx: 0, cz: -90, cell: 12, H: HC, tex: ROCK, shade: (x, z, y) => { const g = glowAt(x, z); return [g[0] * .7, g[1] * .7, g[2] * .75]; } }));
+// 湖の水（コマ送り）
+const WF = T.water({ c: '#1e5a7a' }), wm = R.mat(WF[0], { vc: true, smooth: true, color: '#9ae0ff' });
+{ const G = R.geo().normal([0, 1, 0]); for (let i = -9; i < 9; i++) for (let j = 0; j < 9; j++) { const x0 = i * 24, z0 = 20 - j * 24; G.quad([x0, 0, z0], [x0 + 24, 0, z0], [x0 + 24, 0, z0 - 24], [x0, 0, z0 - 24], [0, 0, 8, 8]); } scene.add(new THREE.Mesh(G.build(), wm)); }
+
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- きのこの塔：光るかさ、じくに窓のあかりの輪、ぐるりと回るバルコニー ----
+const WIN = T.window({ lit: 1, glass: '#ffb860', curtain: '#ffe0a0', bars: 'cross', arch: 1, frame: '#5a4a3a' }), PLK = T.planks({ c: '#7a5a44' });
+const winG = R.geo(), balG = R.geo(), LIGHTS = [];
+const tower = (x, z, h, sr, c, c2, shape, kind, seed) => { const y0 = H(x, z), stemC = '#c8c0d8', m = FW.mushroom({ h, r: sr * (shape === 'cone' ? 2.6 : 3.4), stemR: sr, shape, kind, c, c2, stemC, glow: '#a8f0ff', lean: .15, skirt: false, seed }); m.position.set(x, y0, z); m.rotation.y = seed;
+  const st = X.stem({ c: stemC, seed: seed % 2 }); m.traverse(o => { if (o.isMesh && o.material.emissive && o.material.map !== st) o.material.emissive.set(c).multiplyScalar(.5); });
+  fixed.push(m); const capY = m.userData.top[1] - sr * 1.6;
+  for (let y = 3; y < capY - 4; y += 4.5) { const n = Math.max(4, Math.round(sr * 2.2)), rr = sr * (y < .4 * capY ? 1.08 : 1.0) * .98 + .05; for (let k = 0; k < n; k++) { if (hash(k, y, seed) < .3) continue; const a = k / n * TAU + y * .3, cx = x + Math.sin(a) * rr, cz = z + Math.cos(a) * rr, tx = Math.cos(a) * .45, tz = -Math.sin(a) * .45, yy = y0 + y;
+      winG.quad([cx - tx, yy, cz - tz], [cx + tx, yy, cz + tz], [cx + tx, yy + 1.4, cz + tz], [cx - tx, yy + 1.4, cz - tz]); } }
+  for (const f of [.35, .62]) { const y = y0 + capY * f; balG.loft(10, [[y - .3, sr + 1.6, sr + 1.6, 0, .7, x, z], [y, sr + 1.8, sr + 1.8, .3, 1, x, z]], { cap: 'top', ur: 6 }); }
+  LIGHTS.push([x, z, h]); return m; };
+// 都：まん中の王宮の塔（いちばん高い）、そのまわりの塔
+const TOW = [[0, -130, 120, 6, '#5ae0f0', '#f8ffff', 'dome', 'ring'], [-40, -110, 80, 4.5, '#e070c8', '#ffe0f8', 'cone', 'spot'], [42, -105, 86, 4.8, '#5ae0f0', '#e8ffff', 'dome', 'fleck'],
+  [-78, -140, 96, 5, '#5ae0f0', '#f8ffff', 'flat', 'ring'], [80, -150, 100, 5.2, '#e070c8', '#ffe8f8', 'dome', 'spot'], [-20, -80, 52, 3.4, '#8af0a8', '#f0ffe8', 'bell', 'stripe'], [24, -74, 46, 3, '#e070c8', '#ffe0f8', 'dome', 'spot'],
+  [-62, -78, 44, 3, '#5ae0f0', '#e8ffff', 'cone', 'fleck'], [64, -82, 54, 3.4, '#8af0a8', '#f0ffe8', 'dome', 'ring'], [-120, -110, 70, 4, '#e070c8', '#ffe0f8', 'dome', 'spot'], [120, -112, 64, 4, '#5ae0f0', '#f8ffff', 'bell', 'stripe'],
+  [-150, -170, 110, 6, '#5ae0f0', '#f8ffff', 'flat', 'fleck'], [160, -180, 104, 5.5, '#e070c8', '#ffe8f8', 'cone', 'spot'], [0, -200, 80, 5, '#8af0a8', '#f0ffe8', 'dome', 'ring']];
+TOW.forEach(q => { q[1] -= 44; }); TOW.forEach(([x, z, h, sr, c, c2, sh, kd], i) => tower(x, z, h, sr, c, c2, sh, kd, i + 3));
+{ const wm2 = winG.mesh(WIN, { glow: true, side: true }); wm2.castShadow = false; scene.add(wm2); fixed.push(balG.mesh(PLK)); }
+// 塔と塔のあいだの つり橋
+for (const [a, b, f] of [[0, 1, .5], [0, 2, .45], [1, 3, .55], [2, 4, .5], [5, 0, .32], [6, 0, .3], [1, 5, .4], [2, 8, .4]]) { const A = TOW[a], B = TOW[b], y = Math.min(A[2], B[2]) * f + H(A[0], A[1]), dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+  scene.add(F.ropeBridge({ from: [A[0] + ux * (A[3] + 1.6), y, A[1] + uz * (A[3] + 1.6)], to: [B[0] - ux * (B[3] + 1.6), y, B[1] - uz * (B[3] + 1.6)], w: 1.6, sag: L * .04 })); }
+// 都の岸：きのこの家、石の塔と城壁、ちょうちん
+for (let i = 0; i < 26; i++) { const x = -130 + i * 10.4 + (hash(i, 1) - .5) * 4, z = -100 - hash(i, 2) * 14; if (TOW.some(t => Math.hypot(t[0] - x, t[1] - z) < t[3] + 4)) continue; put(FW.mushroomHouse({ c: ['#e070c8', '#5ac8e0', '#8ad890'][i % 3], kind: i % 2 ? 'spot' : 'fleck', shape: i % 4 ? 'dome' : 'cone', door: '#5a4a8a', h: 4 + hash(i, 3) * 2.5, r: 2.6 + hash(i, 4), seed: i, lit: true }), x, z, (hash(i, 5) - .5) * .6); }
+for (const sx of [-1, 1]) { put(F.wall({ len: 60, h: 5, stone: F.tex.ashlar({ c: '#6a6a90', moss: .4 }) }), sx * 50, -94, 0); put(F.tower({ r: 3, h: 13, stone: F.tex.ashlar({ c: '#6a6a90' }), roof: F.tex.slate({ c: '#3a8a9a' }), top: 'cone', roofH: 5, lit: 1, flag: { c: '#e070c8', crest: 'moon', cc: '#f8f0ff', w: 2, h: 1.2 } }), sx * 18, -93); }
+put(F.gate({ w: 9, h: 9, d: 4, stone: F.tex.ashlar({ c: '#6a6a90' }), door: 'wood', open: 1, crest: 'moon' }), 0, -94);
+// 光る小さなきのこ（岸と、手前の岩場）
+for (let i = 0; i < 60; i++) { const near = i < 26, x = near ? -60 + hash(i, 6) * 120 : -150 + hash(i, 6) * 300, z = near ? 15 + hash(i, 7) * 14 : -96 - hash(i, 7) * 20, h = near ? .6 + hash(i, 8) * 1.8 : 2 + hash(i, 8) * 4;
+  put(FW.mushroom({ h, r: h * .45, shape: ['dome', 'bell', 'cone'][i % 3], kind: 'plain', c: ['#5ae0f0', '#e070c8', '#8af0a8'][i % 3], glow: '#c8f8ff', skirt: false, seed: i + 40 }), x, z, i); }
+for (let i = 0; i < 30; i++) { const x = -70 + hash(i, 9) * 140, z = 16 + hash(i, 10) * 18; put(R.rock({ s: .8 + hash(i, 11) * 1.6, c: '#4a4a7a', moss: .4, seed: i }), x, z, i); }
+// 天井から さがる つらら石・岩の柱、滝
+for (let i = 0; i < 46; i++) { const x = (hash(i, 12) - .5) * 380, z = 10 - hash(i, 13) * 300, y = HC(x, z); if (y < 30) continue; put(FW.spike({ h: 12 + hash(i, 14) * 30, r: 4 + hash(i, 15) * 4, down: true, seed: i, tex: ROCK }), x, z, 0, y + 1); }
+const FALLS = [];
+for (const [x, z, h] of [[-170, -60, 70], [190, -90, 90], [-60, -260, 100]]) { const wf = FW.waterfall({ w: 6, h, c: '#a8e8ff', lip: 3 }); wf.position.set(x, 0, z); wf.rotation.y = -Math.atan2(x, z + 60); scene.add(wf); FALLS.push(wf); }
+scene.add(R.merge(fixed));
+// 塔のかさの光のにじみ
+TOW.forEach(([x, z, h, sr, c]) => { const hl = FW.halo(c, sr * 9, .32); hl.position.set(x, H(x, z) + h - sr, z); scene.add(hl); });
+
+// ---- 湖にかかる長い石の橋（x の向き）と、橋の上の灯 ----
+const BL = 140, BY = 2.2, bridge = FW.stoneBridge({ len: BL, w: 3.4, rise: 1.2, n: 60, c: '#8a8aa8', moss: .4, drop: 3, rail: .25 }); bridge.position.set(0, BY, 0); scene.add(bridge);
+const deckY = x => BY + bridge.userData.deckY(x);
+for (let x = -60; x <= 60; x += 10) { const p = F.column ? F.column({ h: 6, r: .9, tex: F.tex.ashlar({ c: '#6a6a90', moss: .5 }) }) : null; if (p) { p.position.set(x, -4, 0); scene.add(p); } }
+const LAMPS = []; for (let x = -55; x <= 55; x += 11) { const l = R.lamp({ h: 2.4, cold: true }); l.position.set(x, deckY(x), -1.55); scene.add(l); const hl = D.halo({ c: '#9ae8ff', r: 1.4, k: .6 }); hl.position.set(x, deckY(x) + 2.4, -1.4); scene.add(hl); LAMPS.push(x); }
+
+// ---- 小舟（ちょうちんつき）、ほたる、ただよう胞子 ----
+const boats = [0, 1, 2].map(i => { const g = new THREE.Group(), b = R.boat({ c: ['#c8a070', '#8a6ac0', '#5a9aa0'][i] }); g.add(b); const h = D.halo({ c: '#ffc070', r: 1.6, k: .8 }); h.position.set(0, 1.6, -1); g.add(h); const r = R.actor({ build: 'toon', hairStyle: ['bald', 'bun', 'short'][i], beard: i === 0 ? 'beard' : undefined, cloth: 'coat', top: ['#6a4a8a', '#3a7a8a', '#8a5a3a'][i], top2: '#e8d8c0', bottom: '#3a3a5a', hat: i === 2 ? 'cap' : undefined }); r.position.set(0, .1, -.4); r.scale.setScalar(.95); g.add(r); g.userData.rower = r; scene.add(g); return g; });
+const bugs = [...Array(18)].map(() => { const b = FW.bug({ s: .8, c: '#a8ffe0' }); scene.add(b); return b; });
+const spores = D.flakes({ kind: 'dust', n: 140, box: [40, 16, 24], c: '#a8f0ff', size: 2 }); scene.add(spores);
+
+// ---- 人：主役（だいだいのローブの見習い魔法使い）、橋を行く人、手をつなぐ親子 ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'long', hair: '#3a2a5a', eye: '#5a3a9a', eyes: 'big', mouth: 'small', blush: true, cloth: 'robe', sleeve: 'long', top: '#c8583a', top2: '#f0d870', skirt: .9, skirtC: '#c8583a', shoes: 'boot', shoe: '#3a2a4a', neck: 'cape', acc: '#2e8a9a', hold: 'staff' }); scene.add(hero);
+const orb = new THREE.Mesh(new THREE.OctahedronGeometry(.13, 0), new THREE.MeshBasicMaterial({ color: '#c8ffff', fog: false })); scene.add(orb); const orbH = D.halo({ c: '#a8f0ff', r: 1.8, k: .9 }); scene.add(orbH);
+const hl = new THREE.PointLight('#a8f0ff', 10, 9, 1.4); scene.add(hl);
+const PASS = [{ o: { hairStyle: 'tufts', hair: '#3a2a24', cloth: 'tunic', top: '#3a7a6a', top2: '#e8d8b0', bottom: '#4a3a34', back: 'pack' }, v: -1.2, off: 30 }, { o: { sex: 'f', hairStyle: 'bun', hair: '#6a3a3a', cloth: 'robe', top: '#c86a8a', top2: '#f8e8d0', skirt: 1 }, v: -1, off: 50 }, { o: { s: .72, hairStyle: 'spiky', hair: '#e8a040', cloth: 'tunic', top: '#e8b830', bottom: '#3a4a6a' }, v: -1, off: 48.8 }];
+PASS.forEach(p => { p.a = R.actor(p.o); scene.add(p.a); });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const X0 = -24, LEN = 48, SPEED = 1.3;
+K.loop((dt, t) => {
+  const x = X0 + (t * SPEED) % LEN, y = deckY(x), z = .5;
+  hero.position.set(x, y, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 3.8, .8);
+  hero.updateMatrixWorld(); const ox = x + .55 + Math.sin(t * 2) * .05, oy = y + 1.95 + Math.sin(t * 2.4) * .06; orb.position.set(ox, oy, z + .35); orbH.position.copy(orb.position); hl.position.copy(orb.position); orb.rotation.y = t * 2;
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? 1.2 : 1.8), y + 1.15, z + (tall ? 4.2 : 4.6)); cam.lookAt(x + (tall ? .5 : .7), y + (tall ? 2.9 : 2.4), z - 6);   // 横から（少し前）。湖の向こうの都を見上げる
+  sun.position.set(x + 20, 60, -100); sun.target.position.set(x, y, 0);
+  PASS.forEach((p, i) => { const px = 40 - ((t * -p.v + p.off) % 80), py = deckY(px); p.a.position.set(px, py, -.6); p.a.rotation.y = -PI / 2; R.walk(p.a, t * 4.2 + i, i === 2 ? 1 : .8); if (i === 2) p.a.position.y += Math.abs(Math.sin(t * 8.4)) * .08; });
+  boats.forEach((g, i) => { const a = t * .05 + i * 2.1, bx = Math.sin(a) * (30 + i * 12), bz = -20 - i * 9 + Math.cos(a) * 6; g.position.set(bx, Math.sin(t + i) * .05, bz); g.rotation.y = a + (i % 2 ? PI : 0); const J = g.userData.rower.userData.J; J.armL.rotation.x = J.armR.rotation.x = -1 + Math.sin(t * 2 + i) * .5; });
+  bugs.forEach((b, i) => { const a = t * .3 + i * .9; b.position.set(x + Math.sin(a + i) * (5 + i % 5), y + 1 + Math.sin(t * .7 + i) * 1.2 + (i % 3), Math.cos(a * 1.2) * 4 - 2); b.rotation.y = a; FW.bugPose(b, t + i); });
+  spores.position.set(x, y - 4, -6);
+  R.flip(wm, WF, t, 4); FALLS.forEach(w => w.userData.tick?.(t));
+  F.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

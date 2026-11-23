@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-06 月へのはしご 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1c1a4a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-06 ─ 月へのはしご / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動でのぼる）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-book2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の夜。丘のてっぺんから、空にかかった大きな三日月の下の先まで、ゆらゆら曲がった長い木のはしごがのびる。月は目をとじて ほほえむ横顔。はしごのまわりには星が ぶらさがり、上のほうで かごを持った人が星をつんでいる。
+// 色の組は「夜空の藍とむらさき・月と星の黄」＋差し色の 地平の ありえない桃色と、主役の赤いマフラー。月の顔・星・雲のもこもこは、手で打ったドット絵（この場面と pack-book2.js で描いた）。
+// 主役は赤いマフラーの子（R.actor の toon）。はしごを一段ずつのぼり、ななめ うしろの下からカメラが見上げて、はしごの先の月まで入れる。星つみの人・ゆれる星・流れ星・雲・ねこが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), B = PACK_BOOK2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 900, aa: false, fitAspect: .9, maxFov: 84 });
+scene.add(FW.starDome({ r: 600, n: 420, stops: [[0, '#14124a'], [.45, '#3a2a86'], [.8, '#8a3a9a'], [1, '#f08aa8']], milky: true })); scene.fog = new THREE.Fog('#5a3a8a', 120, 560);
+const { sun } = K.lights(scene, renderer, { sky: 0x8a80e0, ground: 0x3a4a6a, amb: 1.25, sun: 0xfff0b0, power: 1.9, range: 30 });
+const fill = new THREE.DirectionalLight(0xc8b8ff, .7); scene.add(fill, fill.target);
+
+// ---- 丘：まるい丘のてっぺんに はしごの足。草は青みどりで、白と黄の小さな花 ----
+const H = (x, z) => 7 * Math.exp(-(x * x + z * z) / 420) + Math.sin(x * .07) * Math.cos(z * .06) * 1.2 - 2;
+const land = R.ground({ w: 220, d: 220, cell: 2.5, H, layers: [T.grass({ c: '#3a7a74', flowers: .3, fc: ['#fff0a0', '#ffffff', '#f8b0d0'] }), T.dirt({ c: '#6a5a6a' })], mix: (x, z) => [Math.hypot(x, z) < 2.2 ? .8 : 0, 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 三日月（顔の横顔。80×80 の手打ち）。はしごの先は下の角に かかる ----
+const N = 80, inMoon = (x, y) => { const a = Math.hypot(x - 40, y - 40) < 37, b = Math.hypot(x - 52, y - 40) < 31, nose = Math.hypot(x - 23.5, y - 39) < 4.6, lip = Math.hypot(x - 26, y - 49.5) < 2.4; return a && (!b || nose || lip); };
+const moonTex = (() => { const P = R.Px(N), A = R.ramp('#ffe27a', 6, { contrast: .75 }), O = R.ramp('#e8902a'), pk = '#ff9a9a';
+  P.each((x, y) => { if (!inMoon(x + .5, y + .5)) return null; const dIn = Math.hypot(x - 52, y - 40) - 31, dOut = 37 - Math.hypot(x - 40, y - 40), lt = (x - 40) * -.4 + (y - 40) * -.6; let t = dOut < 3 ? (lt > 6 ? 5 : 3) : dIn < 3 ? 4 : lt > 10 ? 4 : 3; if (hash(x >> 2, y >> 2, 3) > .9 && dOut > 4 && dIn > 3) t--; return A[t]; });
+  P.each((x, y, c) => c && (!inMoon(x + 1.5, y + .5) || !inMoon(x - .5, y + .5) || !inMoon(x + .5, y + 1.5) || !inMoon(x + .5, y - .5)) ? O[2] : undefined);
+  for (const [cx, cy, r] of [[12, 26, 3], [9, 50, 2.4], [18, 62, 2], [30, 14, 2.2]]) for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const d = Math.hypot(i, j); if (d < r) P.set(cx + i, cy + j, d > r - 1 && i + j > 0 ? A[4] : A[2]); }   // くぼみ
+  for (let i = -3; i <= 3; i++) { const yy = 34 + Math.round(Math.abs(i) * .5) - (i < 0 ? 0 : 0); P.set(16 + i, yy, O[0]); P.set(16 + i, yy + 1, O[1]); } P.set(12, 33, O[1]); P.set(20, 33, O[1]); for (let i = -2; i <= 2; i++) P.set(16 + i, 31 - (Math.abs(i) < 2 ? 1 : 0), O[2]);   // とじた目とまゆ
+  for (let i = 0; i < 5; i++) P.set(22 + i, 46 + Math.round(Math.sin(i / 4 * PI) * 1.2), O[1]);   // ほほえみ
+  for (let j = -1; j <= 1; j++) for (let i = -2; i <= 2; i++) P.set(15 + i, 42 + j, Math.abs(i) + Math.abs(j) > 2 ? undefined : pk);   // ほお
+  P.set(25, 37, A[5]); P.set(26, 37, A[5]); P.set(25, 38, A[5]);   // 鼻の光
+  return T.from(P, { m: 1, cut: true }); })();
+const MS = 62, moon = new THREE.Group(); moon.position.set(-20, 76, -52); moon.rotation.set(.12, .32, -.18); scene.add(moon);
+{ const G = R.geo(); G.quad([-MS / 2, -MS / 2, 0], [MS / 2, -MS / 2, 0], [MS / 2, MS / 2, 0], [-MS / 2, MS / 2, 0]); const m = G.mesh(R.mat(moonTex, { glow: true, cut: true, side: true, fog: false })); m.castShadow = false; moon.add(m);
+  const back = G.mesh(R.mat(moonTex, { glow: true, cut: true, side: true, fog: false, color: '#c89a4a' })); back.position.set(.6, -.4, -1.6); back.castShadow = false; moon.add(back);
+  const halo = FW.halo('#ffe8a0', MS * 1.8, .35); halo.position.set(-6, 0, -3); moon.add(halo); }
+moon.updateMatrixWorld(true);
+const hornL = [(61 / N - .5) * MS, (.5 - 67 / N) * MS, 0], TOP = new THREE.Vector3(...hornL).applyMatrix4(moon.matrixWorld);
+
+// ---- はしご：丘から月の角まで。ゆらゆら横へ曲がる 2 本の柱と、40 cm ごとの横木 ----
+const A0 = new THREE.Vector3(0, H(0, 0) - .2, 0), DIR = TOP.clone().sub(A0), LEN = DIR.length(); DIR.normalize();
+const SIDE = new THREE.Vector3(0, 1, 0).cross(DIR).normalize(), NRM = DIR.clone().cross(SIDE).normalize();   // NRM ＝ はしごの上の面（のぼる人のがわ）
+const sway = u => Math.sin(u * .09) * 1.6 * Math.min(1, u / 12) + Math.sin(u * .23 + 1) * .3 * Math.min(1, u / 8);
+const at = (u, s = 0) => A0.clone().addScaledVector(DIR, u).addScaledVector(SIDE, sway(u) + s);
+{ const G = R.geo().smooth(1), WD = .42, rails = [-WD, WD].map(s => { const pts = []; for (let u = 0; u <= LEN + .01; u += 1.5) { const p = at(u, s); pts.push([p.x, p.y, p.z, .085]); } return pts; });
+  rails.forEach(p => FW.tube(G, p, 5, { m: 1.4, up: [NRM.x, NRM.y, NRM.z] })); G.smooth(0);
+  for (let u = .4; u < LEN - .2; u += .42) { const a = at(u, -WD), b = at(u, WD); FW.tube(G, [[a.x, a.y, a.z, .05], [b.x, b.y, b.z, .05]], 4, { m: .9, c: i => .85 + hash(Math.round(u * 10), 1) * .3 }); }
+  fixed.push(G.mesh(T.bark({ c: '#c8945a' }))); }
+// はしごの足の、くいと ひも
+for (const s of [-.6, .6]) { const p = at(0, s), G = R.geo(); FW.tube(G, [[p.x, p.y - .3, p.z, .12], [p.x, p.y + .6, p.z + .08, .1]], 5, { cap: true }); fixed.push(G.mesh(T.bark({ c: '#7a5a3a' }))); }
+
+// ---- 星：はしごのまわりに ぶらさがり、ゆっくり回って またたく ----
+const stars = [];
+for (let i = 0; i < 46; i++) { const u = 5 + hash(i, 1) * (LEN - 8), sd = (hash(i, 2) > .5 ? 1 : -1) * (1.4 + hash(i, 3) * 6), up = (hash(i, 4) - .3) * 4, s = .32 + hash(i, 5) * .45 + (Math.abs(sd) > 5 ? .4 : 0), st = B.star({ s, c: ['#ffe060', '#fff0a0', '#ffc860', '#fff8d8'][i % 4], face: s > .62 && i % 3 === 0 });
+  const p = at(u, sd).addScaledVector(NRM, up); st.position.copy(p); scene.add(st); stars.push({ st, p, ph: hash(i, 6) * 9, s }); }
+// つまれていく星（星つみの人の手もとから かごへ）
+const PICK_U = 13.6, pick = B.star({ s: .38, c: '#fff0a0', face: true }); scene.add(pick);
+
+// ---- 雲：はしごが ふたつの雲をつきぬける。ほかにも 遠くに もこもこ ----
+const clouds = [];
+for (const [u, sd, s, k] of [[30, 9, 8, 0], [5, -9, 7, 1]]) { const c = B.puff({ s, n: 6, c: '#c8b8f0', seed: k }), p = at(u, sd); c.position.set(p.x, p.y - s * .3, p.z); c.rotation.y = k * 1.3; scene.add(c); clouds.push([c, p.x, k]); }
+for (let k = 0; k < 9; k++) { const c = B.puff({ s: 14 + hash(k, 1) * 10, n: 5, c: k % 2 ? '#b8a8e8' : '#d8c0f0', seed: k + 5 }), a = -1.4 + hash(k, 2) * 2.8, r = 90 + hash(k, 3) * 120; c.position.set(Math.sin(a) * r, -4 + hash(k, 4) * 16, -Math.cos(a) * r); c.rotation.y = -a; scene.add(c); clouds.push([c, c.position.x, k + 2]); }
+
+// ---- ふもとの小さな村（ゆがんだ家。窓にあかり）と、丘の木 ----
+const WALL = [T.plaster({ c: '#e8c8a0' }), T.plaster({ c: '#c8d0e8', seed: 2 }), T.plaster({ c: '#f0c0c8', seed: 3 })], ROOF = [T.shingle({ c: '#4a5aa8' }), T.shingle({ c: '#a84a6a', seed: 2 }), T.roof({ c: '#5a8a6a', kind: 'slate' })];
+[[-16, -10, .6], [-23, -2, -.5], [-13, 6, .9], [15, -6, -.7], [21, 4, .5], [26, -14, -.3], [-30, -16, .4]].forEach(([x, z, ln], i) => { const h = put(B.house({ w: 2.6 + hash(i, 1), d: 2.6, h: 3.2 + hash(i, 2) * 2.4, lean: ln, bulge: .15, roofH: 2.6 + hash(i, 3) * 2, roofLean: -ln * 1.4, wall: WALL[i % 3], roof: ROOF[i % 3], lit: true, seed: i }), x, z, Math.atan2(-x, -z) + PI, H(x, z) - .2); });
+for (let i = 0; i < 16; i++) { const a = hash(i, 1) * PI * 2, r = 12 + hash(i, 2) * 30, x = Math.cos(a) * r, z = Math.sin(a) * r; if (Math.abs(x) < 4 && z < 0) continue; put(R.tree({ kind: i % 3 ? 'round' : 'pine', h: 3 + hash(i, 3) * 2.5, c: i % 2 ? '#2e6a6a' : '#3a5a8a', seed: i }), x, z, i); }
+for (let i = 0; i < 26; i++) { const a = hash(i, 5) * PI * 2, r = 2 + hash(i, 6) * 16; put(R.tuft({ kind: 'flower', s: .7, fc: ['#fff0a0', '#ffffff', '#f8b0d0'], seed: i % 3 }), Math.cos(a) * r, Math.sin(a) * r + 3, a); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#3a3a8a', haze: '#7a4a9a', r: 260, h: 30, y: -4, rep: 3 }));
+const meteors = FW.meteors({ n: 4, r: 420, dir: -.6, arc: 1.6, c: '#fff4c8' }); scene.add(meteors);
+
+// ---- 人：主役（はしごをのぼる）と、上で星をつむ人。ふもとに ねこ ----
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#5a3a2a', eyes: 'big', mouth: 'smile', cloth: 'tunic', top: '#e8d8b0', top2: '#3a4a8a', lower: 'shorts', bottom: '#3a4a8a', shoes: 'boot', shoe: '#6a3a2a', neck: 'scarf', acc: '#d83a3a', back: 'bag' }); scene.add(hero);
+const picker = R.actor({ build: 'toon', sex: 'f', hairStyle: 'long', hair: '#e8e0f0', eyes: 'closed', mouth: 'smile', cloth: 'robe', top: '#3a4a9a', top2: '#ffe27a', skirt: .8, hat: 'wizard', acc: '#2a3a7a', shoe: '#2a2a4a' }); scene.add(picker);
+F.wear(picker, 'basket', { hand: 'L', c: '#c8945a', fc: ['#ffe060', '#fff0a0', '#ffc860'] });
+const cat = R.cat({ c: '#3a3a4a', belly: '#d8d0e8' }); scene.add(cat);
+const place = (p, u, k = .16) => { const q = at(u); p.position.copy(q).addScaledVector(NRM, .05); p.position.z += k; p.rotation.order = 'YXZ'; p.rotation.y = Math.atan2(-DIR.x, -DIR.z) + PI; p.rotation.x = 0; };
+// のぼる形：うでを交互に上の横木へ、足を交互に下の横木へ
+const climb = (p, ph, lean = .25) => { const J = p.userData.J, a = Math.sin(ph), b = Math.cos(ph);
+  J.armL.rotation.set(-2.1 - a * .45, 0, .18); J.armR.rotation.set(-2.1 + a * .45, 0, -.18); J.foreL.rotation.x = -.35 - Math.max(0, a) * .5; J.foreR.rotation.x = -.35 - Math.max(0, -a) * .5;
+  J.legL.rotation.x = -.35 - Math.max(0, a) * .7; J.legR.rotation.x = -.35 - Math.max(0, -a) * .7; J.shinL.rotation.x = .5 + Math.max(0, a) * .8; J.shinR.rotation.x = .5 + Math.max(0, -a) * .8;
+  J.torso.rotation.set(lean, a * .06, 0); J.head.rotation.set(-.35, 0, 0); J.hips.position.y = p.userData.hipY - .04; if (J.cape) J.cape.rotation.x = -.3; };
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const U0 = 3.2, ULEN = 7, CS = .42;
+K.loop((dt, t) => {
+  const tall = innerWidth < innerHeight, u = U0 + (t * CS) % ULEN; place(hero, u); hero.rotation.x = .38; climb(hero, u / .42 * PI, .1);
+  const hp = hero.position, sv = SIDE.clone().multiplyScalar(tall ? .9 : 2);
+  cam.position.copy(hp).addScaledVector(DIR, tall ? -3.8 : -3.4).add(sv).addScaledVector(NRM, tall ? 1.5 : 1.3); cam.position.y += -.2;
+  const look = hp.clone().addScaledVector(DIR, tall ? 7 : 8).addScaledVector(SIDE, tall ? .9 : 1.5); look.y += tall ? 3 : 1.9; cam.lookAt(look);
+  sun.position.set(hp.x + 30, hp.y + 60, hp.z - 50); sun.target.position.copy(hp); fill.position.copy(cam.position).add(new THREE.Vector3(10, 6, 30)); fill.target.position.copy(hp); land.follow(hp.x, hp.z - 10);
+  // 星つみの人：右手をのばして星をとり、左手のかごへ
+  place(picker, PICK_U, .2); R.idle(picker, t, .5); const Jp = picker.userData.J, k = (t % 4) / 4, reach = k < .5 ? Math.sin(k * 2 * PI) : 0;
+  Jp.armR.rotation.set(-1.6 - reach * .9, 0, -.4 - reach * .5); Jp.foreR.rotation.x = -.3; Jp.armL.rotation.set(-.5, 0, .25); Jp.foreL.rotation.x = -.6; picker.rotation.y += .5; Jp.head.rotation.set(-.3, -.4 + reach * .3, 0);
+  { const hand = at(PICK_U, -2.2).addScaledVector(NRM, 2.2), bask = at(PICK_U, .3).addScaledVector(NRM, .9); bask.z += .5; const q = k < .45 ? 0 : Math.min(1, (k - .45) / .35);
+    pick.position.copy(hand).lerp(bask, q * q); pick.position.y += Math.sin(q * PI) * .8; pick.scale.setScalar(1 - q * .55); pick.rotation.z = t * 2; pick.visible = k < .85; }
+  stars.forEach(({ st, p, ph, s }) => { st.position.set(p.x, p.y + Math.sin(t * .9 + ph) * .25, p.z); st.rotation.y = Math.sin(t * .6 + ph) * .9; st.rotation.z = Math.sin(t * .4 + ph) * .3; st.scale.setScalar(1 + Math.sin(t * 3 + ph * 2) * .08); });
+  clouds.forEach(([c, x0, k]) => { c.position.x = x0 + Math.sin(t * .15 + k) * (k < 2 ? .6 : 3); });
+  const cp = at(1.2, 1.4); cat.position.set(cp.x + 1, H(cp.x + 1, cp.z + 2.2), cp.z + 2.2); cat.rotation.y = PI * .85; R.catPose(cat, 'sit', t);
+  meteors.userData.tick(t); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

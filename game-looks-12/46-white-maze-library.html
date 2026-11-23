@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-46 白い迷路の図書館 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#e8eaf2;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3e5a;opacity:.85;text-shadow:0 1px 0 #ffffff}
+</style>
+<div id="cap">12-46 ─ 白い迷路の図書館 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-cyber2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 白い電脳世界の図書館。白い本だなが迷路のように地平線まで続き、頭の上には上下さかさまの通路がわたって、そこを逆さの人が歩く。本は表紙をはばたかせて鳥のように群れで飛び、遠くに本だなの巨大な塔がそびえる。
+// 色の組は「白とうすい灰むらさき（たなと床）・空のうすい水色」＋差し色の 本の背の ももと水色、光の線のレモン色。白がとばないよう、たなの板・目地・本の背に 2〜3 段の影を打った。
+// 主役は うさぎの耳の司書見習い（R.actor の toon、ラベンダーのコート）。通路をこちらへ歩き、前の低い所から少し見上げて、さかさまの通路と飛ぶ本を入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), CY = PACK_CYBER2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 900, aa: false, fitAspect: .9, maxFov: 82 });
+scene.add(R.skyDome([[0, '#a8c0e8'], [.45, '#cdd8f0'], [.8, '#e8ecf6'], [1, '#f6f4f4']], { r: 600 })); scene.fog = new THREE.Fog('#e6e8f2', 60, 900);
+const { sun } = K.lights(scene, renderer, { sky: 0xf0f4ff, ground: 0x9a9ac0, amb: 1.35, sun: 0xfff6e8, power: 1.5, range: 34 }), SUN = new THREE.Vector3(-.4, .8, .45).normalize();
+
+// ---- 本だなの絵（この場面のための手打ちのドット絵）。64 ドット＝2 m。白いたなの板と、うすい色の本の背 ----
+const BOOKC = ['#f2a0c4', '#7ad0ec', '#eed070', '#9ad88a', '#b8a8e8', '#f4f0ec', '#e8b890', '#a8c8f0'];
+const shelfTex = sd => { const P = R.Px(64), W = R.ramp('#e4e4ee', 6, { contrast: .55 }), Bk = R.ramp('#8a8cb0');
+  P.each((x, y) => (x < 2 || x > 61) ? (x === 0 ? W[5] : x === 63 ? W[1] : W[3]) : W[1]);
+  for (let r = 0; r < 4; r++) { const y0 = r * 16; for (let x = 0; x < 64; x++) { P.set(x, y0, W[5]); P.set(x, y0 + 1, W[4]); P.set(x, y0 + 2, W[2]); }
+    let x = 3; while (x < 60) { const h1 = hash(x, r, sd), w = 2 + Math.floor(h1 * 3), hh = 9 + Math.floor(hash(x, r, sd + 1) * 4), S = R.ramp(BOOKC[Math.floor(hash(x, r, sd + 2) * BOOKC.length)], 6, { contrast: .7 }), yb = y0 + 16;
+      if (h1 > .93) { x += 3; continue; }   // すきま
+      for (let i = 0; i < w && x + i < 61; i++) for (let y = yb - hh; y < yb; y++) { const ly = y - (yb - hh); P.set(x + i, y, i === 0 ? S[4] : i === w - 1 ? S[1] : ly === 2 || ly === hh - 3 ? S[5] : ly === 3 || ly === hh - 2 ? S[1] : S[3]); }
+      if (w > 2 && hash(x, r, sd + 4) > .5) P.rect(x + 1, yb - hh + 5, w - 2, 1, S[5]);
+      x += w + (hash(x, r, sd + 5) > .8 ? 1 : 0); }
+    for (let x = 2; x < 62; x++) P.set(x, y0 + 15, Bk[2]); }
+  return T.from(P, { m: 2 }); };
+const SHELF = [0, 1, 2].map(shelfTex), SIDE = CY.tex.tile({ n: 4, c: '#dcdde8', seed: 7 }), TOPT = CY.tex.tile({ n: 2, c: '#e8e8f0', seed: 8 });
+// たな 1 本（x の向きにのびる。両面に本。上にかざりの段、下に台）
+const shelf = (len, h = 4.2, sd = 0) => { const Bp = R.parts(), F = Bp.g(SHELF[sd % 3]), S = Bp.g(SIDE), Tp = Bp.g(TOPT), d = .7;
+  for (const sz of [1, -1]) F.quad([-len / 2 * sz, .4, sz * d / 2], [len / 2 * sz, .4, sz * d / 2], [len / 2 * sz, h, sz * d / 2], [-len / 2 * sz, h, sz * d / 2], [0, 0, len / 2, (h - .4) / 2]);
+  S.box(len + .1, .4, d + .1, 0, 0, 0, { m: 1.5, top: false, c0: .8 }); for (const sx of [-1, 1]) S.box(.12, h, d + .04, sx * len / 2, 0, 0, { m: 1.5, top: false });
+  Tp.box(len + .3, .18, d + .32, 0, h, 0, { m: 1.5, c0: .82 }); Tp.box(len + .1, .12, d + .12, 0, h + .18, 0, { m: 1.5, c0: .9 });
+  return Bp.group(); };
+
+// ---- 床（白い板）と、迷路のたな ----
+const land = R.ground({ w: 140, d: 160, cell: 2, cz: -40, layers: [CY.tex.tile({ n: 2, seed: 1 }), CY.tex.tile({ n: 4, c: '#d8dae8', seed: 2, accent: ['#eed070'] })], mix: (x, z) => [Math.abs(x) < 1.1 ? 1 : 0, 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const C = 5, open = (i, j) => i === 0;   // まん中の通路（x=0）はあける
+for (let j = -26; j <= 3; j++) for (let i = -9; i <= 9; i++) { const x = i * C, z = j * C, r = hash(i, j, 3);
+  if (Math.abs(i) <= 0) continue;
+  if (Math.abs(i) === 1) { if (r > .22) put(shelf(C, 4.2, i + j), (x - Math.sign(x) * C / 2) * 0 + Math.sign(x) * 2.6, 0, z, PI / 2); continue; }   // 通路のりょうわき（ところどころ切れて、横の通路が見える）
+  if (r < .5) put(shelf(C, 3.6 + hash(i, j, 4) * 1.6, i * 3 + j), x, 0, z, r < .25 ? 0 : PI / 2); }
+// 通路の先のつきあたりの門のような高いたな
+put(shelf(8, 7, 2), -6.5, 0, -132, 0); put(shelf(8, 7, 1), 6.5, 0, -132, 0);
+
+// ---- 頭の上の、上下さかさまの通路（床が上、たなが下へ下がる）。ななめにわたる ----
+const inv = new THREE.Group(); inv.position.set(0, 10.5, -52); inv.rotation.set(0, .45, PI); scene.add(inv);
+{ const Bp = R.parts(), Fl = Bp.g(CY.tex.tile({ n: 2, seed: 4 })), Ud = Bp.g(CY.tex.under({ seed: 2 })), L = 120, Wd = 6;
+  Fl.quad([-L / 2, 0, Wd / 2], [L / 2, 0, Wd / 2], [L / 2, 0, -Wd / 2], [-L / 2, 0, -Wd / 2], [0, 0, L / 3, Wd / 3]); Ud.box(L, .9, Wd, 0, -.9, 0, { m: 3, top: false, bottom: true, c0: .8 }); inv.add(Bp.group());
+  for (let k = -5; k <= 5; k++) for (const sz of [-1, 1]) if (sz < 0 ? hash(k, sz, 8) > .2 : Math.abs(k) > 2 && hash(k, 1, 8) > .5) { const s = shelf(8, 3.4, k + 2); s.position.set(k * 10, 0, sz * 2.6); inv.add(s); } }   // 手前がわは まん中をあけて、逆さに歩く人を見せる
+const inv2 = new THREE.Group(); inv2.position.set(-20, 24, -96); inv2.rotation.set(0, -.6, PI); scene.add(inv2);
+{ const Bp = R.parts(), L = 90, Wd = 5; Bp.g(CY.tex.tile({ n: 2, seed: 6 })).quad([-L / 2, 0, Wd / 2], [L / 2, 0, Wd / 2], [L / 2, 0, -Wd / 2], [-L / 2, 0, -Wd / 2], [0, 0, L / 3, Wd / 3]); Bp.g(CY.tex.under({ seed: 3 })).box(L, .8, Wd, 0, -.8, 0, { m: 3, top: false, bottom: true }); inv2.add(Bp.group());
+  for (let k = -4; k <= 4; k++) for (const sz of [-1, 1]) if (hash(k, sz, 9) > .3) { const s = shelf(8, 3, k + 5); s.position.set(k * 10, 0, sz * 2.1); inv2.add(s); } }
+const invBoard = CY.board({ w: 1.6, h: 1.2, kind: 'map', c: '#eed070', seed: 3 }); invBoard.position.set(-6, 2.4, -1.6); inv.add(invBoard);
+const invLines = CY.lines([[[-60, .03, 0], [60, .03, 0]]], { w: .5, c: '#eed070', k: .8 }); inv.add(invLines);
+
+// ---- 遠くの、本だなの巨大な塔（らせんにたなを巻いた筒）と、浮かぶたなの島 ----
+const giant = (x, z, r, h, sd) => { const Bp = R.parts(), Sh = Bp.g(SHELF[sd % 3]), Tp = Bp.g(TOPT), n = 16, sec = R.ngon(n, .5), steps = 6;
+  for (let i = 0; i < steps; i++) { const y0 = i * h / steps, rr = r * (1 - i * .06), r2 = r * (1 - (i + 1) * .06); Sh.loft(sec, [[y0, rr, rr, 0, .95], [y0 + h / steps - 1, r2, r2, (h / steps - 1) / 2, 1.05]], { ur: Math.round(2 * PI * rr / 2 / 2) * 2 }); Tp.loft(sec, [[y0 + h / steps - 1, r2 * 1.1, r2 * 1.1, 0, .85], [y0 + h / steps, r2 * 1.1, r2 * 1.1, .2, 1]], { cap: 'top', capRect: true, ur: 8 }); }
+  Tp.loft(sec, [[h, r * .6, r * .6, 0, 1], [h + r * 1.4, r * .05, r * .05, 1, 1.1]], { ur: 8 }); const g = Bp.group(); g.position.set(x, 0, z); scene.add(g); return g; };
+giant(-30, -330, 26, 170, 0); giant(80, -420, 18, 120, 1); giant(-150, -380, 14, 90, 2);
+const isles = [[-38, 34, -120, 8], [34, 42, -170, 10], [60, 22, -90, 6], [-70, 50, -220, 12]].map(([x, y, z, r], k) => { const g = CY.isle({ r, depth: r * 1.1, seed: k, rim: '#eed070' }); for (let q = 0; q < 3; q++) { const s = shelf(r * .9, 3, q + k); s.position.set(0, 0, (q - 1) * r * .5); g.add(s); } g.position.set(x, y, z); scene.add(g); return g; });
+scene.add(CY.backdrop({ r: 560, h: 70, y: -2, c: '#c8cade', haze: '#eceef6', rep: 6 }));
+
+// ---- 光の線（床の通路のまん中と、たなの足もと）と、浮かぶ窓の板 ----
+scene.add(CY.lines([[[0, .05, 16], [0, .05, -134]]], { w: .35, c: '#eed070', k: .9 }));
+scene.add(CY.lines([[[-2.2, .05, 16], [-2.2, .05, -134]], [[2.2, .05, 16], [2.2, .05, -134]]], { w: .12, c: '#7ad0ec', k: .8 }));
+const boards = [[-3.6, 3.4, -10, .5, 'text', '#b8a8e8'], [3.8, 3.8, -22, -.6, 'list', '#7ad0ec'], [-4, 4.6, -40, .4, 'icons', '#f2a0c4'], [4.2, 3.2, -52, -.5, 'face', '#9ad88a']].map(([x, y, z, ry, kind, c], k) => { const b = CY.board({ w: 1.8, h: 1.35, kind, c, seed: k }); b.position.set(x, y, z); b.rotation.y = ry; scene.add(b); b.userData.y0 = y; return b; });
+scene.add(R.merge(fixed));
+
+// ---- 鳥のように飛ぶ本（表紙を はばたかせる）。いくつかの群れが輪をかく ----
+const bookMat = BOOKC.map(c => R.mat(T.fabric({ pattern: 'plain', c }), { side: true, vc: true })), pageMat = R.mat(CY.tex.tile({ n: 4, c: '#f4f2ec', seed: 5 }), { vc: true });
+const book = k => { const g = new THREE.Group(), w = .4, h = .56, cv = new THREE.PlaneGeometry(w, h); cv.translate(w / 2, 0, 0); const mk = () => { const g2 = R.geo(); g2.quad([0, -h / 2, 0], [w, -h / 2, 0], [w, h / 2, 0], [0, h / 2, 0]); return new THREE.Mesh(g2.build(), bookMat[k % BOOKC.length]); };
+  const L = new THREE.Group(), Rr = new THREE.Group(); L.add(mk()); Rr.add(mk()); L.rotation.y = PI; g.add(L, Rr); const pg = R.geo(); pg.box(.04, h * .92, .2, 0, -h * .46, 0, { c0: .9 }); const p = new THREE.Mesh(pg.build(), pageMat); p.rotation.y = PI / 2; g.add(p); g.userData = { L, Rr }; g.rotation.x = PI / 2; const o = new THREE.Group(); o.add(g); o.userData = g.userData; return o; };
+const flocks = [[0, 6.5, -46, 6, 9, .35], [-8, 9, -62, 8, 8, -.28], [10, 11, -80, 10, 10, .22]].map(([cx, cy, cz, r, n, sp], f) => [...Array(n)].map((_, i) => { const b = book(i + f * 3); scene.add(b); return { b, cx, cy, cz, r: r + hash(i, f) * 3, sp: sp * (1 + hash(i, f, 2) * .3), ph: i / n * PI * 2 + hash(i, f, 3), dy: hash(i, f, 4) * 3 }; })).flat();
+
+// ---- 人：主役、さかさまの通路を歩く人、たなの前で本を読む人、ねこの耳の子 ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'long', hair: '#f4f0f4', eye: '#7a6ac8', eyes: 'round', blush: true, cloth: 'coat', sleeve: 'long', top: '#a898d8', top2: '#f4f0f8', lower: 'skirt', skirt: .6, skirtC: '#6a6aa8', tights: '#4a4a78', shoes: 'boot', shoe: '#5a5a8a', neck: 'collar', acc: '#eed070', back: 'bag', belt: '#6a6aa8' }); scene.add(hero);
+CY.wear(hero, 'ears', { kind: 'rabbit', c: '#f4f0f4', c2: '#f4b0c8' }); CY.wear(hero, 'tail', { kind: 'rabbit', c: '#f4f0f4' });
+const upside = R.actor({ hairStyle: 'spiky', hair: '#5ab8e8', cloth: 'tunic', top: '#f4f0f8', top2: '#5ab8e8', bottom: '#5a6aa0', shoes: 'boot', shoe: '#3a4a7a' }); inv.add(upside); CY.wear(upside, 'mark', { kind: 'quest', c: '#eed070' });
+const reader = R.actor({ sex: 'f', hairStyle: 'bob', hair: '#3a3a5a', cloth: 'robe', top: '#f2a0c4', top2: '#f8f0f4', skirt: .85, shoes: 'boot', shoe: '#8a5a7a' }); reader.position.set(-1.9, 0, -24); reader.rotation.y = PI / 2 - .5; scene.add(reader); CY.wear(reader, 'ears', { kind: 'cat', c: '#3a3a5a', c2: '#f4b0c8' });
+const rbook = book(2); rbook.scale.setScalar(.5); scene.add(rbook);
+const kid = R.actor({ s: .78, hairStyle: 'tufts', hair: '#eed070', cloth: 'overall', top: '#7ad0ec', top2: '#f4f0f8', shoes: 'boot', shoe: '#5a6aa0' }); scene.add(kid); CY.wear(kid, 'ears', { kind: 'fox', c: '#eed070', c2: '#f4f0f4' }); CY.wear(kid, 'tail', { kind: 'fox', c: '#eed070', c2: '#f8f4ec' });
+
+const crt = R.crt(renderer, { noise: 0, bloom: .15 }); onResize(crt.resize);
+const LEN = 40, SPEED = 1.25;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = -40 + dist, x = Math.sin(z * .08) * .25;   // こちら（+z）へ歩く
+  hero.position.set(x, 0, z); hero.rotation.y = 0; R.walk(hero, t * SPEED * 3.6, .8);
+  const tall = innerWidth < innerHeight, D = tall ? 3.6 : 4.2; cam.position.set(x - .7, .55, z + D); cam.lookAt(x + .1, tall ? 2.6 : 2.4, z - 3);   // 前の低い所から、少し見上げる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z); land.follow(0, z);
+  // さかさまの通路の人は、天井の床を歩く
+  { const u = -8 + ((t * 1.1) % 20); upside.position.set(u, 0, -1); upside.rotation.y = PI / 2; R.walk(upside, t * 4, .8); }
+  R.idle(reader, t, Math.sin(t * .4) * .15); { const J = reader.userData.J; J.armL.rotation.set(-1.1, 0, -.5); J.armR.rotation.set(-1.1, 0, .5); J.foreL.rotation.x = J.foreR.rotation.x = -.6; J.head.rotation.x = .35; }
+  rbook.position.set(-1.6, 1.0, -23.6); rbook.rotation.set(-.6, PI / 2 - .5, 0); rbook.userData.L.rotation.y = PI - .9; rbook.userData.Rr.rotation.y = .9;
+  { const kz = z - 7 + Math.sin(t * .8) * 1.5, kx = 1 + Math.cos(t * .8) * .6; kid.position.set(kx, 0, kz); kid.rotation.y = Math.atan2(-Math.sin(t * .8) * .6 * .8, Math.cos(t * .8) * 1.5 * .8) ; R.walk(kid, t * 6, 1); kid.userData.J.armR.rotation.set(-2.4, 0, .2); }
+  for (const f of flocks) { const a = f.ph + t * f.sp, px = f.cx + Math.cos(a) * f.r, pz = f.cz + Math.sin(a) * f.r * .7, py = f.cy + f.dy + Math.sin(t * 1.3 + f.ph) * .6; f.b.position.set(px, py, pz); f.b.rotation.y = -a + (f.sp > 0 ? 0 : PI); const fl = Math.sin(t * 9 + f.ph * 3) * .9; f.b.userData.L.rotation.y = PI - .5 - fl; f.b.userData.Rr.rotation.y = .5 + fl; }
+  boards.forEach((b, k) => { b.position.y = b.userData.y0 + Math.sin(t * 1.1 + k) * .12; });
+  isles.forEach((g, k) => { g.position.y += Math.sin(t * .5 + k) * .004; });
+  CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
