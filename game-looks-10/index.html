@@ -2,7 +2,7 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ゲームの画面の試作 22 案 一覧</title>
+<title>ゲームの画面の試作 26 案 一覧</title>
 <style>
 html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
 header{padding:18px 20px 6px}
@@ -20,8 +20,8 @@ a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
 .tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
 </style>
 <header>
-  <h1>ゲームの画面の試作 22 案</h1>
-  <p>第 10 集。「描きこんだテクスチャとブラウン管」のテイストの場面と人を使って、実際にゲームにしたときの画面を見るための 22 案です。01〜08 はジャンルごとのバトル、09〜16 はそれぞれの「中盤まで進んだボス戦」、17〜22 はほかのジャンル（対戦格闘、マス目の戦術、空のシューティング、ステルス、町の会話と店、乗りものの追いかけっこ）。窓や文字もドット絵で、ブラウン管ごしに見せています。操作はなく、30〜45 秒のひと回りを自動でくり返します。</p>
+  <h1>ゲームの画面の試作 26 案</h1>
+  <p>第 10 集。「描きこんだテクスチャとブラウン管」のテイストの場面と人を使って、実際にゲームにしたときの画面を見るための 26 案です。01〜08 はジャンルごとのバトル、09〜16 はそれぞれの「中盤まで進んだボス戦」、17〜26 はほかのジャンル（対戦格闘、マス目の戦術、空のシューティング、ステルス、町の会話と店、乗りものの追いかけっこ、大軍をなぎたおす、広い世界の探検、町をとびまわる、武器を作って使い分ける）。窓や文字もドット絵で、ブラウン管ごしに見せています。操作はなく、30〜45 秒のひと回りを自動でくり返します。</p>
 </header>
 <div id="grid"></div>
 <script>
@@ -49,6 +49,10 @@ const LOOKS = [
   ['20-stealth-sneak', '見つからないように進むステルス', '雨の夜の倉庫街：見はりの扇形とレーダー', 1],
   ['21-town-talk-shop', 'RPG の町の中（会話・店・探索）', '夕方の町：会話の窓、店の窓、依頼と宝箱', 1],
   ['22-chase-ride', '乗りものに乗って追いかける・逃げるアクション', '夕やけの高架：三輪の機械と追っ手', 1],
+  ['23-crowd-battle', '大軍をなぎたおすアクション', '草原の戦場：100 体の兵、数えあがる「げきは」、大技と敵の武将', 1],
+  ['24-open-world-explore', '広い世界を自由に探検する', 'がけの上の見わたし：望遠の印、葉っぱのかさで滑空、よじのぼり', 1],
+  ['25-town-acrobat', '町をとびまわって探検するアクション', '昼の町と屋根：2 段ジャンプ、かべキック、ダイブ、ポール', 1],
+  ['26-weapon-forge-action', '武器を作って使い分けるアクション RPG', '炉とかなとこ：素材をまぜて進化、4 種の武器を持ちかえて戦う', 1],
 ];
 const grid = document.getElementById('grid');
 for (const [file, genre, look, is3d] of LOOKS) {

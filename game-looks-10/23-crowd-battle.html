@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-23 大軍をなぎたおすアクション 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffffff;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-23 ─ 大軍をなぎたおすアクション / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 40 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-battle.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。夕方に近い昼の草原の戦場で、白と金のよろいに青いマントの武将ライガ（長い柄の大きな刃）が、赤い大軍（96 体）を 1 人でなぎたおす。
+// このジャンルの味：ひとふりで 10 体以上がまとめて ふきとぶ、右下に大きく数えあがる「たおした数」と 100 ごとの知らせ、つづけて当てた数、体力と「ほむら」のゲージ、
+//   大技「ぐれんせんぷう」（カメラが回る）、名前つきの敵の武将との打ち合い、右上の戦場の地図（青＝味方、赤＝敵、点＝拠点）、味方の兵、拠点をおとす知らせ。
+// 兵は R.actor ではなく、少ない面（loft）＋手で打った 64 ドットの絵 1 枚。動きの形を 4 つ（歩く 2 コマ・かまえ・ふきとび）だけ作り、形ごとの InstancedMesh にならべる。
+// 色の組は「草のみどり・空の青とクリーム・土のベージュ」＋敵の赤・味方の青・主役の白と金。部品は retro.js（R.〜）・pack-fantasy-town.js（FT.〜）・pack-fantasy-wild.js（FW.〜）・pack-battle.js（B.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), B = PACK_BATTLE(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), V = (x, y, z) => new THREE.Vector3(x, y, z), lerp = (a, b, k) => a + (b - a) * k;
+const turn = (cur, want, k) => { const d = Math.atan2(Math.sin(want - cur), Math.cos(want - cur)); return cur + d * Math.min(1, k); };
+const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 900, aa: false, fitAspect: .9, maxFov: 72 });
+scene.add(R.skyDome([[0, '#2f62c8'], [.4, '#6aa0e4'], [.75, '#c0d8ec'], [1, '#ffe6b4']], { r: 420 })); scene.fog = new THREE.Fog('#ecdcb8', 55, 250);
+const { sun } = K.lights(scene, renderer, { sky: 0xd0e0ff, ground: 0xb8b090, amb: 1.55, sun: 0xffe6bc, power: 2.7, range: 24, map: 2048, pos: [20, 34, 22] });
+const RED = '#c8382e', BLUE = '#3468d0', DUSTC = '#dcc8a0';
+
+// ---- 地面：草原。ふみ荒らされた土の道が、手前の味方の陣から 敵の陣・遠くのとりでへ のびる ----
+const BX = 3, BZ = -33, roadX = z => Math.sin(z * .06) * 3, wav = (x, z) => .5 + .5 * Math.sin(x * .19 + Math.sin(z * .15) * 2.2) * Math.cos(z * .12 + x * .05);
+const land = R.ground({ w: 150, d: 210, cell: 2, cz: -42, layers: [T.grass({ c: '#68a64a' }), T.dirt({ c: '#b89c6c' }), T.grass({ c: '#8cb84e', flowers: .35, fc: ['#fff6c0', '#ffffff'] })],
+  mix: (x, z) => { const rd = cl(1.4 - Math.abs(x - roadX(z)) / 2.4), camp = cl(1.5 - Math.hypot((x - BX) / 11, (z - BZ) / 7.5) * 1.5); return [Math.max(rd, camp, wav(x + 40, z - 9) > .93 ? 1 : 0), wav(x, z) > .62 ? 1 : 0]; },
+  shade: (x, z) => { const k = .94 + wav(x * 1.7, z * 1.3) * .1; return [k * 1.02, k, k * .95]; } });
+scene.add(land.mesh);
+
+// ---- 戦場の物：遠くのとりで、敵の陣（さく・見はり台・テント・かがり火・のろし）、味方の陣、旗、さかもぎ、岩と木 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, OBS = [];
+const fort = FT.castle({ s: 1.5, roof: FT.tex.slate({ c: '#8a4038' }), stone: FT.tex.ashlar({ c: '#b4a690' }), c: RED, crest: 'sun' }); fort.position.set(-4, 0, -112); fixed.push(fort);
+// テント（オリジナル）：8 角のすい＋たてじまの布。入口の暗い三角と、てっぺんの小旗
+function tent(c, c2, s = 1) { const g = new THREE.Group(), G = R.geo().smooth(0), D = R.geo().smooth(0); G.loft(8, [[0, 2.2 * s, 2.2 * s, 0, .78], [1.25 * s, 1.75 * s, 1.75 * s, 1, 1], [1.4 * s, 1.5 * s, 1.5 * s, 1.1, 1.08], [3 * s, .1 * s, .1 * s, 2.3, 1]], { ur: 8 });
+  D.tri([-.62 * s, 0, 2.06 * s], [.62 * s, 0, 2.06 * s], [0, 1.5 * s, 1.66 * s], [0, 0], [1, 0], [.5, 1], .5); g.add(G.mesh(T.fabric({ c, c2, pattern: 'stripe', w: 8 })), D.mesh(T.fabric({ c: '#3a2a2a', c2: '#2a2020', pattern: 'stripe' })));
+  const f = FT.flag({ kind: 'pennant', pole: 1.3, w: 1.3, h: .4, c, c2 }); f.position.y = 2.9 * s; g.add(f); return g; }
+// さかもぎ（オリジナル）：横木に、とがった くいを ななめに組む
+function barricade(len = 3.4) { const G = R.geo().smooth(0); G.at(R.TR(0, .55, 0, 0, 0, PI / 2)).loft(5, [[-len / 2, .09, .09, 0, .85], [len / 2, .09, .09, 3, 1]], { cap: 'both' });
+  for (let i = 0; i < 6; i++) { const x = -len / 2 + .3 + i * (len - .6) / 5, s = i % 2 ? 1 : -1; G.at(R.TR(x, .55, 0, 0, s * .85, 0)).loft(4, [[-.75, .06, .06, 0, .8], [.6, .055, .055, 1.4, 1], [.95, .008, .008, 1.8, 1.15]]); } return G.mesh(T.bark({ c: '#8a6a48' })); }
+const tentAt = (x, z, ry, c, c2, s = 1) => { put(tent(c, c2, s), x, z, ry); OBS.push([x, z, 2.5 * s]); };
+// 敵の陣：左右に さく、すみに見はり台、まん中の右に大きな旗（おとすと青に変わる）
+for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) { const x = BX + sx * 12.5, z = BZ + 3 - k * 4; put(R.fence({ len: 4, kind: 'picket', h: 1.7, c: '#8a6a44' }), x, z, PI / 2); OBS.push([x, z - 1.3, 1.2], [x, z + 1.3, 1.2]); }
+put(FT.tower({ kind: 'square', r: 1.3, h: 6.4, top: 'crenel', stone: T.boards({ c: '#8a6a48' }), flag: { c: RED, crest: 'sun', w: 1.3, h: .9 } }), BX - 11, BZ - 7.5, .3); OBS.push([BX - 11, BZ - 7.5, 2.4]);
+tentAt(BX + 10, BZ - 4.5, -2.5, RED, '#f4e0c0', 1.1); tentAt(BX - 8.6, BZ - 1.5, 2.2, '#a02c3a', '#e8c890'); tentAt(BX + 9.4, BZ + 3.6, -1.4, RED, '#f4e0c0', .85);
+const FLAGP = V(BX + 5.6, 0, BZ - 1.4), flagR = FT.flag({ kind: 'flag', w: 2.5, h: 1.6, pole: 6.6, c: RED, crest: 'sun', cc: '#ffe070' }), flagB = FT.flag({ kind: 'flag', w: 2.5, h: 1.6, pole: 6.6, c: BLUE, crest: 'star', cc: '#fff6c0' });
+for (const f of [flagR, flagB]) { f.position.copy(FLAGP); f.rotation.y = .5; scene.add(f); } OBS.push([FLAGP.x, FLAGP.z, .9]);
+const fires = [[FLAGP.x - 1.9, FLAGP.z + .9], [FLAGP.x + 1.9, FLAGP.z + .2], [-30, -56], [33, -27], [-20, -84]].map(([x, z], i) => { const b = FW.brazier({ s: i < 2 ? .9 : 1.3, light: false, seed: i }); b.position.set(x, 0, z); scene.add(b); OBS.push([x, z, .9]); return b; });
+// 遠くの敵の陣と、手前の味方の陣
+[[-33, -52, 1.2], [-27, -58, 1], [-37, -60, .9], [30, -23, 1.2], [36, -30, 1], [-24, -88, 1.2], [14, -92, 1.1], [22, -86, .9]].forEach(([x, z, s], i) => tentAt(x, z, i * 1.3, i % 3 ? RED : '#a02c3a', '#f4e0c0', s));
+[[-9, 26, 1.2], [8, 28, 1.1], [-17, 31, 1], [17, 33, 1], [0, 36, 1.3]].forEach(([x, z, s], i) => tentAt(x, z, PI + i * .5, BLUE, '#f4f0e0', s));
+[[-12, -14, .4], [13, -9, -.5], [-15, -26, .9], [19, -41, -.3], [-9, -47, .2], [12, -52, -.2]].forEach(([x, z, ry]) => { put(barricade(), x, z, ry); OBS.push([x - Math.cos(ry), z + Math.sin(ry), 1.2], [x + Math.cos(ry), z - Math.sin(ry), 1.2]); });
+[[-6, -19, RED, 'sun'], [9, -17, RED, 'sun'], [-10, -40, '#a02c3a', 'sun'], [-4, -56, RED, 'sun'], [10, -60, RED, 'sun'], [-7, 15, BLUE, 'star'], [7, 17, BLUE, 'star'], [-12, 5, BLUE, 'star']].forEach(([x, z, c, crest], i) => { put(FT.flag({ kind: 'banner', c, crest, pole: 4.2, cc: '#fff0b0' }), x, z, i * .7); OBS.push([x, z, .7]); });
+for (let i = 0; i < 26; i++) { const sx = i % 2 ? 1 : -1, x = sx * (26 + hash(i, 1) * 34), z = 34 - hash(i, 2) * 150; if (i % 3 === 0) put(R.rock({ s: 1 + hash(i, 3) * 1.6, c: '#a8a090', moss: .3, seed: i }), x * .8, z, i); else put(R.tree({ kind: ['round', 'tall', 'round', 'pine'][i % 4], h: 5.5 + hash(i, 4) * 4, c: i % 5 ? '#4f9a48' : '#6a9a3a', seed: i }), x, z, i); }
+for (let i = 0; i < 46; i++) { const x = (hash(i, 5) - .5) * 60, z = 20 - hash(i, 6) * 90; if (Math.abs(x - roadX(z)) < 3) continue; put(R.tuft({ kind: i % 4 === 0 ? 'flower' : i % 4 === 1 ? 'bush' : 'grass', s: .6 + hash(i, 7) * .5, seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#6a8aa0', haze: '#f0e4c8', r: 320, y: -8 }));
+for (let i = 0; i < 9; i++) { const c = R.cloud({ s: 40 + hash(i, 8) * 34, c: '#fff8ec', shade: '#c8c8e0', seed: i }), a = i * .7 + .9; c.position.set(Math.cos(a) * 260, 54 + hash(i, 9) * 50, Math.sin(a) * 260 - 40); c.lookAt(0, 30, -40); scene.add(c); }
+// のろし：陣のかがり火から、けむりが風に流れてのぼる
+const SMK = [[fires[2].position, '#5a4a52'], [fires[3].position, '#5a4a52'], [fires[4].position, '#4a3c48'], [V(-10, 0, 31), '#e8ecf4']], smoke = [];
+SMK.forEach(([p, c], k) => { for (let j = 0; j < 9; j++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.puff(), color: c, transparent: true, depthWrite: false })); s.userData.dyn = true; scene.add(s); smoke.push({ s, p, k, j }); } });
+const flash = new THREE.PointLight('#ffb060', 0, 22, 1.2); scene.add(flash);
+
+// ---- 主役：武将ライガ。白と金のよろい、青いマント、金のかざり羽、長い柄の大きな刃 ----
+// 大きな刃（オリジナル）：赤い うるしの柄に金の輪、はばの広い そった刃、金のつば、青いふさ。32 ドットを手で打つ
+function glaive() {
+  const P = R.Px(32), wd = R.ramp('#a03a2c'), go = R.ramp('#ffc830'), st = R.ramp('#c4d4ec'), bl = R.ramp('#3a6ae0'), tn = R.tone;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 8; x++) P.set(x, y, y % 8 < 2 ? tn(go, x < 2 ? 5 : x > 5 ? 2 : 4) : tn(wd, (x < 2 ? 5 : x > 5 ? 1 : 3) - ((x + y) % 5 === 0 ? 1 : 0)));
+  for (let y = 0; y < 24; y++) for (let x = 8; x < 32; x++) { const u = (x - 8) / 23, wv = 22 + Math.round(Math.sin(y * .9) * 2); P.set(x, y, tn(st, u < .12 ? 1 : x === wv ? 5 : x > wv ? 4 : u < .4 ? 2 : 3)); }
+  for (let y = 2; y < 22; y += 5) { P.rect(12, y, 2, 2, go[4]); P.set(12, y, go[5]); } for (let y = 0; y < 24; y++) { P.set(31, y, '#ffffff'); P.set(8, y, st[0]); }
+  for (let y = 24; y < 32; y++) for (let x = 8; x < 20; x++) { const d = Math.abs(x - 13.5); P.set(x, y, tn(go, y === 24 || y === 31 ? 1 : d < 2 ? 5 : d < 4 ? 4 : 3)); } P.rect(13, 27, 2, 2, '#e04848');
+  for (let y = 24; y < 32; y++) for (let x = 20; x < 32; x++) P.set(x, y, tn(bl, x % 3 === 0 ? 1 : y < 26 ? 5 : y > 29 ? 2 : 3 + (x % 3 === 1 ? 1 : 0)));
+  const G = R.geo().smooth(0); G.px(0, 0, 8, 32, 32, 32).loft(5, [[-.8, .012, .012, 0, .7], [-.74, .032, .032, .04, 1], [1.24, .027, .027, 1, 1]], { cap: 'bot' });
+  G.px(8, 24, 12, 8, 32, 32).loft(6, [[1.18, .03, .03, 0, .85], [1.26, .1, .05, .5, 1], [1.33, .03, .03, 1, 1]]);
+  const sp = [[-.03, 1.3], [-.07, 1.56], [-.05, 1.86], [.05, 2.16]], ed = [[.11, 1.32], [.3, 1.56], [.33, 1.86], [.05, 2.16]]; G.px(8, 0, 24, 24, 32, 32);
+  for (let i = 0; i < 3; i++) for (const zs of [1, -1]) { const a = [sp[i][0], sp[i][1], zs * .014], b = [ed[i][0], ed[i][1], 0], c = [ed[i + 1][0], ed[i + 1][1], 0], d = [sp[i + 1][0], sp[i + 1][1], zs * (i === 2 ? 0 : .014)]; if (zs > 0) G.quad(a, b, c, d, [0, i / 3, 1, (i + 1) / 3], 1); else G.quad(b, a, d, c, [1, i / 3, 0, (i + 1) / 3], .82); }
+  G.px(20, 24, 12, 8, 32, 32); for (const zs of [1, -1]) { const a = [-.03, 1.2, zs * .03], b = [-.2, 1.02, zs * .03], c = [-.24, .84, zs * .03], d = [-.07, .98, zs * .03]; if (zs > 0) G.quad(a, b, c, d, [0, 0, 1, 1], 1); else G.quad(b, a, d, c, [1, 0, 0, 1], .85); }
+  const m = G.mesh(T.from(P, { m: 1 }), { side: true }); m.userData.tip = 2.16; return m;
+}
+// 頭のかざり：金の羽（主役）と、ねじれた つの（敵の武将）
+function plume() { const P = R.Px(16), go = R.ramp('#ffc830'), rd = R.ramp('#e0483a'); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(x, y, y < 5 ? R.tone(rd, 3 + (x % 3 === 0 ? -1 : x % 3 === 1 ? 1 : 0)) : R.tone(go, (x % 4 === 0 ? 2 : x % 4 === 2 ? 5 : 4) - (y > 13 ? 1 : 0)));
+  const G = R.geo().smooth(0); for (const zs of [1, -1]) { const a = [zs * .012, .2, .15], b = [zs * .012, .22, -.1], c = [0, .62, -.34], d = [0, .5, .04]; if (zs > 0) G.quad(a, b, c, d, [0, 0, 1, 1], 1); else G.quad(b, a, d, c, [1, 0, 0, 1], .85); } return G.mesh(T.from(P, { m: 1 }), { side: true }); }
+function horns() { const G = R.geo().smooth(0); for (const s of [-1, 1]) G.at(R.TR(s * .15, .2, 0, 0, -.2, -s * .75)).loft(5, [[0, .05, .05, 0, .8], [.14, .04, .04, .5, 1, s * .03], [.3, .004, .004, 1, 1.1, s * .1]]); return G.mesh(T.metal({ c: '#e8dcc0' })); }
+const mkA = (name, o, hp, hp0) => { const a = R.actor(o); a.rotation.order = 'YXZ'; scene.add(a); return { a, name, pos: V(0, 0, 0), hpMax: hp, hp0, J: a.userData.J, yawB: PI }; };
+const hero = mkA('ライガ', { s: 1.14, hairStyle: 'tufts', hair: '#f4f0f4', eye: '#e04a3a', eyes: 'sharp', brow: 'angry', mouth: 'smile', cloth: 'armor', top: '#f4efe0', top2: '#ffc830', bottom: '#2c3a7a', gloves: 'gauntlet', glove: '#ffc830', gear: '#ffc830', shoulder: 'both', shoes: 'boot', shoe: '#ffc830', neck: 'cape', skirtC: '#2a5ae0', acc: '#2a5ae0', belt: '#c8303a' }, 480, 436);
+const boss = mkA('ゴウエン', { s: 1.34, bulk: 1.28, hairStyle: 'bald', hair: '#2a2028', skin: '#c89070', eyes: 'sharp', brow: 'angry', mouth: 'frown', beard: 'beard', cloth: 'armor', top: '#4a2a72', top2: '#e04a30', bottom: '#2a2030', gloves: 'gauntlet', glove: '#2a2438', gear: '#3a3048', shoulder: 'both', shoes: 'boot', shoe: '#2a2438', hat: 'helm', neck: 'cape', skirtC: '#8a1c20', acc: '#8a1c20' }, 1, 1);
+const blade = B.arm(hero.a, glaive()); hero.J.head.add(plume()); boss.J.head.add(horns()); B.arm(boss.a, B.weapon('greatsword', { s: 1.45, c: '#d8c8f0', c2: '#5a2a3a', gem: '#ff5a40' }));
+
+// ---- 兵：少ない面の体（loft）＋ 64 ドットの手打ちの絵 1 枚。色ちがい 3 種（やり・たて・はた）と、味方の青 ----
+function soldierTex(p) {
+  const P = R.Px(64), M = R.ramp(p.main), A = R.ramp(p.metal), Tm = R.ramp(p.trim), S = R.ramp(p.skin || '#e8b48a'), W = R.ramp('#8a6238'), L = R.ramp(p.leg || '#4a4458'), ST = R.ramp('#c8d4e8'), D = '#1c1620', tn = R.tone;
+  // 頭（0〜15 行）：かぶと（上のつや、ふちの帯、はなあて、ほお当て）と顔（目 2 つ、口）
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 64; x++) { const front = x >= 21 && x <= 42, lit = x > 8 && x < 30 ? 1 : 0; let c;
+    if (y < 6) c = tn(A, (y === 0 ? 5 : y < 3 ? 4 : 3) - (lit ? 0 : 1) + (x % 16 === 5 && y > 0 ? 1 : 0)); else if (y === 6) c = tn(Tm, lit ? 5 : 3); else if (y === 7) c = front ? '#3a2a24' : tn(A, 1);
+    else if (!front) c = tn(A, x % 8 === 0 ? 1 : lit ? 3 : 2); else c = x === 21 || x === 42 ? tn(A, 1) : x < 24 || x > 39 ? tn(A, 3) : tn(S, y > 13 ? 2 : x < 27 ? 3 : 4); P.set(x, y, c); }
+  for (const ex of [27, 35]) { P.rect(ex, 10, 2, 2, D); P.set(ex, 9, '#3a2a24'); P.set(ex + 1, 9, '#3a2a24'); } P.rect(31, 7, 2, 4, tn(A, 4)); P.set(31, 13, tn(S, 1)); P.set(32, 13, tn(S, 1));
+  // 胴（16〜39 行）：肩、胸当て（紋）、ベルト、すそのひだ
+  for (let y = 16; y < 40; y++) for (let x = 0; x < 64; x++) { const front = x >= 20 && x <= 43, back = x < 10 || x > 53, lit = x > 6 && x < 30 ? 1 : 0; let c;
+    if (y < 19) c = tn(A, (y === 16 ? 5 : 3) - (lit ? 0 : 1)); else if (y < 29) c = front ? tn(A, x === 20 || x === 43 || y === 28 ? 1 : x < 24 ? 5 : x > 38 ? 2 : y === 19 ? 4 : 3) : tn(M, (lit ? 4 : 2) - (back && x % 6 === 0 ? 1 : 0));
+    else if (y < 31) c = x >= 30 && x <= 33 ? tn(Tm, 5) : tn(W, y === 29 ? 3 : 1); else c = y === 39 ? tn(M, 0) : y >= 37 ? tn(Tm, lit ? 4 : 2) : tn(M, (x % 5 === 0 ? 1 : x % 5 === 1 ? 4 : 3) - (lit ? 0 : 1)); P.set(x, y, c); }
+  if (p.crest === 'sun') { P.disc(32, 23.5, 2.6, tn(Tm, 5)); for (const [i, j] of [[32, 19], [32, 27], [27, 23], [36, 23]]) P.set(i, j, tn(Tm, 5)); } else if (p.crest === 'star') { P.rect(31, 20, 2, 7, tn(Tm, 5)); P.rect(28, 22, 8, 2, tn(Tm, 5)); P.set(31, 23, '#ffffff'); } else { P.rect(28, 21, 8, 2, tn(Tm, 5)); P.rect(28, 25, 8, 2, tn(Tm, 4)); }
+  // 足（左下 16×24）：ズボン、ひざ当て、長ぐつ
+  for (let y = 40; y < 64; y++) for (let x = 0; x < 16; x++) { const lit = x > 2 && x < 8 ? 1 : 0, j = y - 40; P.set(x, y, j < 12 ? tn(L, (j === 6 || j === 7 ? 4 : 2) + lit) : j === 12 ? tn(W, 5) : j > 21 ? D : tn(W, 2 + lit - (j === 17 ? 1 : 0))); }
+  // うで（16×24）：肩当て、そで、こて、手
+  for (let y = 40; y < 64; y++) for (let x = 16; x < 32; x++) { const lit = x > 18 && x < 24 ? 1 : 0, j = y - 40; P.set(x, y, j < 3 ? tn(A, 4 + lit) : j < 10 ? tn(M, 2 + lit * 2) : j === 10 ? D : j < 18 ? tn(A, (j === 14 ? 1 : 2) + lit) : tn(S, 2 + lit * 2)); }
+  // やりの柄、穂先、たて、はた
+  for (let y = 40; y < 64; y++) for (let x = 32; x < 36; x++) P.set(x, y, tn(W, [5, 3, 2, 3][x - 32] - (y % 7 === 0 ? 1 : 0)));
+  for (let y = 40; y < 52; y++) for (let x = 36; x < 44; x++) P.set(x, y, tn(ST, x === 39 || x === 40 ? 5 : x < 38 ? 3 : 2));
+  for (let y = 40; y < 64; y++) for (let x = 44; x < 64; x++) { const i = x - 44, j = y - 40, rim = i < 2 || i > 17 || j < 2 || j > 21, d = Math.hypot(i - 9.5, j - 11); P.set(x, y, rim ? tn(A, i < 2 || j < 2 ? 5 : 2) : d < 3.2 ? tn(Tm, d < 1.5 ? 5 : 4) : i === 9 || i === 10 || j === 11 ? tn(Tm, 3) : tn(M, i < 9 ? 4 : 3)); }
+  for (let y = 52; y < 64; y++) for (let x = 32; x < 44; x++) { const i = x - 32, j = y - 52; P.set(x, y, j === 0 || j === 11 ? tn(Tm, 4) : Math.hypot(i - 5.5, j - 5.5) < 2.6 ? tn(Tm, 5) : tn(M, i < 2 ? 5 : 4 - (i % 4 === 3 ? 1 : 0))); }
+  return T.from(P, { m: 1 });
+}
+// 兵の形。kind 0＝やり、1＝つるぎと たて、2＝せなかに はた。q＝動きの形（足・うでの角度、やりの向き、体のかたむき）
+function soldierGeo(kind, q) {
+  const G = R.geo().smooth(0), px = (x, y, w, h) => G.px(x, y, w, h, 64, 64), mul = (a, b) => new THREE.Matrix4().multiplyMatrices(a, b), Mb = mul(R.TR(0, .44, 0, 0, q.lean || 0), R.TR(0, -.44, 0));
+  px(0, 40, 16, 24); for (const [sx, rx] of [[1, q.lL], [-1, q.lR]]) G.at(R.TR(sx * .095, .46, 0, 0, rx, sx * .07)).loft(4, [[-.46, .09, .13, 0, .75, 0, .035], [-.34, .072, .08, .3, .9], [-.18, .066, .066, .6, 1], [0, .092, .092, 1, 1]], { cap: 'bot' });
+  px(0, 16, 64, 24); G.at(Mb).loft(6, [[.35, .21, .16, 0, .82], [.5, .165, .125, .36, 1], [.72, .19, .135, .8, 1], [.86, .2, .135, .96, 1.06], [.93, .08, .07, 1, 1]]);
+  px(0, 0, 64, 16); G.at(mul(Mb, R.TR(0, 0, 0, 0, q.head || 0))).loft(6, [[.9, .075, .075, 0, .85], [.97, .14, .14, .14, 1], [1.11, .155, .155, .56, 1], [1.17, .168, .168, .63, 1.05], [1.25, .11, .11, .84, 1.05], [1.32, .012, .012, 1, 1.1]]);
+  const arm = (sx, rx, rz) => mul(Mb, R.TR(sx * .225, .85, 0, 0, rx, rz)), aR = arm(-1, q.aR, q.aRz || -.12), aL = arm(1, q.aL, q.aLz || .12), ARM = [[-.41, .062, .062, 0, 1], [-.3, .05, .05, .26, 1], [-.12, .052, .052, .68, .95], [0, .08, .08, 1, 1]];
+  px(16, 40, 16, 24); G.at(aR).loft(4, ARM, { cap: 'bot' }); G.at(aL).loft(4, ARM, { cap: 'bot' });
+  const hand = mul(aR, R.TR(0, -.38, .03, 0, q.sp));
+  if (kind === 0) { px(32, 40, 4, 24); G.at(hand).loft(3, [[-.6, .021, .021, 0, .9], [1.02, .021, .021, 1, 1]]); px(36, 40, 8, 12); G.at(hand).loft(4, [[1.02, .03, .014, 0, .9], [1.11, .06, .016, .35, 1], [1.36, .004, .004, 1, 1.1]]); }
+  else { px(36, 40, 8, 12); G.at(hand).loft(4, [[-.05, .022, .022, 0, .7], [0, .075, .022, .1, .9], [.05, .034, .012, .2, 1], [.5, .03, .01, .88, 1], [.62, .004, .004, 1, 1.1]]); }
+  if (kind === 1) { px(44, 40, 20, 24); G.at(mul(Mb, R.TR(.2, .64, .21, .3, -.08))); for (const f of [1, -1]) { const a = [-.2, -.1, 0], b = [.2, -.1, 0], c = [.2, .27, 0], d = [-.2, .27, 0], e = [0, -.32, 0]; if (f > 0) { G.quad(a, b, c, d, [0, .3, 1, 1], 1); G.tri(a, b, e, [0, .3], [1, .3], [.5, 0], 1); } else { G.quad(b, a, d, c, [1, .3, 0, 1], .55); G.tri(b, a, e, [1, .3], [0, .3], [.5, 0], .55); } } }
+  if (kind === 2) { px(32, 40, 4, 24); G.at(mul(Mb, R.TR(0, .5, -.16, 0, -.1))).loft(3, [[0, .02, .02, 0, .9], [1.78, .02, .02, 1, 1]]); px(32, 52, 12, 12); for (const f of [1, -1]) { const a = [.02, 1.14, 0], b = [.52, 1.2, 0], c = [.52, 1.74, 0], d = [.02, 1.74, 0]; if (f > 0) G.quad(a, b, c, d, [0, 0, 1, 1], 1); else G.quad(b, a, d, c, [1, 0, 0, 1], .8); } }
+  return G.build();
+}
+// 動きの形は 4 つだけ：歩く 2 コマ、かまえ（やりを前へ）、ふきとび（手足をひろげる。味方の「かちどき」にも使う）
+const POSE = k => [{ lL: -.55, lR: .5, aL: .45, aR: -.35, sp: k ? 1.3 : .5 }, { lL: .5, lR: -.55, aL: -.45, aR: -.1, sp: k ? 1.1 : .28 }, { lL: -.65, lR: .5, aL: -.85, aR: k ? -1.9 : -.75, sp: k ? 1.5 : 2.05, lean: .24, head: -.15 }, { lL: -1, lR: .65, aL: -2.7, aR: -2.5, aLz: .65, aRz: -.65, sp: 1.2, lean: -.3, head: -.3 }];
+const GEO = [0, 1, 2].map(kind => POSE(kind).map(q => soldierGeo(kind, q)));
+const STEX = [soldierTex({ main: RED, metal: '#8c8c9c', trim: '#f0d060', crest: 'sun' }), soldierTex({ main: '#8a2440', metal: '#4c4660', trim: '#e8e0d0', crest: 'bar', leg: '#3a3040' }), soldierTex({ main: '#e07a28', metal: '#a87a3c', trim: '#fff0a0', crest: 'sun', leg: '#5a3a30' }), soldierTex({ main: BLUE, metal: '#b4c0d8', trim: '#fff0a0', crest: 'star', leg: '#3a4460' })];
+const NE = 96, NA = 14, UNIT = [];
+for (let team = 0; team < 2; team++) for (let kind = 0; kind < 3; kind++) for (let p = 0; p < 4; p++) { const im = new THREE.InstancedMesh(GEO[kind][p], R.mat(STEX[team ? 3 : kind], { vc: true, smooth: true }), team ? NA : NE); im.frustumCulled = false; im.castShadow = true; im.receiveShadow = false; im.count = 0; im.userData.dyn = true; scene.add(im); UNIT.push({ im, n: 0 }); }
+const S = [...Array(NE + NA)].map((_, i) => { const team = i < NE ? 0 : 1, j = team ? i - NE : i; return { i, team, j, kind: team ? (j % 3 === 2 ? 1 : 0) : (j % 8 < 5 ? 0 : j % 8 < 7 ? 1 : 2), sr: team ? 4.8 + (j % 5) * .9 : 2.3 + 6.6 * Math.pow((j + .5) / NE, .72), sa: team ? (j % 2 ? 1 : -1) * (1.22 + ((j >> 1) % 4) * .14) : ((j * .61803) % 1 - .5) * 3.6, ph: hash(i, 3) * 6.283, rk: 5, x: 0, y: 0, z: 0, yaw: 0, st: 0, t: 0, gen: 0, pose: 0, pitch: 0, roll: 0 }; });
+
+// ---- 画面の表示・効果 ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam), GOLD = B.PAL.gold, WIN = { c: '#283a7a', c2: '#101838', edge: '#f4f4ff' }, FACE = { skin: '#f4d0b0', hair: '#f4f0f4', eye: '#e04a3a' };
+const LOOP = 40, QS = new URLSearchParams(location.search), T0 = +(QS.get('t') || 0), KO0 = 48;
+let prev = 1e9, banner = null, shake = 0, ko = 0, koT = 9, combo = 0, comboT = 9, mile = null, gauge = 0, hp = 0, hpShow = 0, hurtT = 9, heroY = 0, clearR = 0, spin = 0, bossOn = false, bossHp = 1, bossHpShow = 1, bossSt = 0, bossT = 0, bossY = 0, capK = 0, frontZ = 0;
+const ctr = V(0, 0, 3), hpos = (h = .9) => V(hero.pos.x, heroY + h, hero.pos.z), front = (d, yaw = hero.yawB) => V(hero.pos.x + Math.sin(yaw) * d, 0, hero.pos.z + Math.cos(yaw) * d);
+// ふきとばす：中心・向き・とどく長さ・角度の半分・強さ。当たった兵は放物線で飛び、1 回はねて消える
+function launch(s, dx, dz, pow) { const h1 = hash(s.i, s.gen, 1), h2 = hash(s.i, s.gen, 2), h3 = hash(s.i, s.gen, 3), sp = (4.5 + h1 * 5.5) * pow, sd = (h3 - .5) * 3; s.st = 1; s.t = 0; s.b = 0; s.vx = dx * sp - dz * sd; s.vz = dz * sp + dx * sd; s.vy = (6 + h2 * 4.5) * Math.sqrt(pow); s.wp = (h3 - .5) * 16 - 5; s.wr = (h1 - .5) * 9; s.y = .05; }
+function blast(cx, cz, yaw, range, half, pow) { let n = 0; for (const s of S) { if (s.st !== 0 || s.team) continue; const dx = s.x - cx, dz = s.z - cz, d = Math.hypot(dx, dz); if (d > range) continue; if (half < 3) { const a = Math.atan2(dx, dz) - yaw; if (Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) > half) continue; }
+    launch(s, dx / (d || 1), dz / (d || 1), pow); if (n < 2) H.pop(V(s.x, 1.6, s.z), 40 + Math.floor(hash(s.i, s.gen, 9) * 58), { c: n ? '#ffffff' : '#ffe890', dx: (n - 1) * 6 }); if (n % 4 === 1) F.spark(V(s.x, .8, s.z), { c: '#fff0a0', s: .9 }); n++; }
+  if (n) { ko += n; koT = 0; combo += n; comboT = 0; if (!(spin > 0)) gauge = Math.min(1, gauge + n * .003); shake = Math.max(shake, Math.min(.75, .18 + n * .04)); const m = Math.floor(ko / 100); if (m > Math.floor((ko - n) / 100)) mile = { n: m * 100, age: 0 }; } return n; }
+const hitHero = n => { hp = Math.max(1, hp - n); hurtT = 0; H.pop(hpos(1.8), n, { c: '#ff9a80' }); F.spark(hpos(1), { c: '#ffb060' }); shake = Math.max(shake, .4); gauge = Math.min(1, gauge + .06); };
+const hitBoss = (v, n, o = {}) => { if (!bossOn || bossHp <= 0) return; bossHp = Math.max(0, bossHp - v); H.pop(V(boss.pos.x, 2.3, boss.pos.z), n, { c: '#ffe890', scale: o.scale || 1 }); F.spark(V(boss.pos.x, 1.2, boss.pos.z), { c: '#fff0a0', s: 1.3 }); bossSt = 3; bossT = 0; shake = Math.max(shake, .4); combo++; comboT = 0; };
+function reset() { F.clear(); banner = null; mile = null; ko = KO0; koT = 9; combo = 0; comboT = 9; gauge = .34; hp = hpShow = hero.hp0; hurtT = 9; clearR = 0; spin = 0; bossOn = false; bossHp = bossHpShow = 1; bossSt = 0; bossY = 0; boss.a.visible = false; capK = 0; hero.pos.set(0, 0, 11); hero.yawB = PI; ctr.set(0, 0, 3.5); frontZ = 6;
+  for (const s of S) { s.st = 0; s.gen = 0; s.rk = s.sr; s.y = 0; s.pitch = s.roll = 0; if (s.team) { s.x = Math.sin(PI + s.sa) * s.sr; s.z = 11 + Math.cos(PI + s.sa) * s.sr; s.yaw = PI; } else { s.x = ctr.x + Math.sin(PI + s.sa) * s.sr; s.z = ctr.z + Math.cos(PI + s.sa) * s.sr; s.yaw = Math.atan2(-s.x, 11 - s.z); } } }
+
+// ---- 起きること ----
+const EV = [], SWG = [], at = (t, f) => EV.push([t, f]);
+// ふり：kind 0＝右から左のなぎ、1＝左から右、2＝とんで たたきつける、3＝回転ぎり、4＝突進
+function sw(t0, kind) { SWG.push([t0, [.44, .44, .78, .9, .42][kind], kind]);
+  if (kind < 2) at(t0 + .2, () => { const ry = hero.yawB; F.slash(hpos(.95), { ry, tilt: kind ? -.16 : .16, s: 2.8, flip: kind === 1, c: '#fff4c0', life: .28 }); blast(hero.pos.x, hero.pos.z, ry, 3.7, 1.55, 1); F.dust(front(2), { n: 4, s: 1.5, c: DUSTC }); });
+  if (kind === 2) at(t0 + .54, () => { const p = front(1.3); F.ring(p, { c: '#fff0c0', s: 5, life: .5 }); F.ring(p, { c: '#ffffff', s: 2.6, life: .35 }); F.dust(p, { n: 10, s: 2.2, c: DUSTC }); F.slash(hpos(1.1), { ry: hero.yawB, tilt: 1.3, s: 2.8, c: '#fff4c0' }); blast(p.x, p.z, 0, 4.2, PI, 1.3); shake = .9; });
+  if (kind === 3) for (let j = 0; j < 3; j++) at(t0 + .14 + j * .27, () => { for (const a of [0, PI]) F.slash(hpos(.9), { ry: j * 2.1 + t0 + a, tilt: a ? -.07 : .07, s: 3.4, c: '#ffe8a0', life: .3 }); blast(hero.pos.x, hero.pos.z, 0, 3.5, PI, 1.1); F.dust(hero.pos, { n: 5, s: 1.6, c: DUSTC }); });
+  if (kind === 4) for (let j = 0; j < 3; j++) at(t0 + .08 + j * .12, () => { blast(hero.pos.x, hero.pos.z, hero.yawB, 2.8, 1.9, .95); F.dust(hero.pos, { n: 3, s: 1.4, c: DUSTC }); F.spark(front(1.6).setY(1), { c: '#fff4c0', s: 1.2 }); }); }
+[[1.25, 0], [1.75, 1], [2.3, 3], [3.3, 4], [3.9, 0], [4.4, 1], [4.9, 2], [6.6, 1], [7.1, 0], [7.6, 4], [8.1, 3], [10.45, 1], [10.95, 0], [11.45, 2], [22.2, 0], [22.7, 1], [23.2, 4], [23.75, 3], [24.75, 2], [29.5, 0], [30, 1], [30.5, 4], [31, 3], [32, 0], [32.5, 1], [33, 2], [34.1, 0], [34.6, 1], [35.1, 3]].forEach(([t, k]) => sw(t, k));
+const MSG = [[8.4, 10.6, 'てきしょう ゴウエン あらわる！', '#7a2a2a'], [18.5, 20.9, 'てきしょう ゴウエン うちとったり！', '#2a5ab0'], [25.7, 28, 'てきの きょてんを おとした！', '#2a5ab0'], [28.4, 30.4, 'てきの えんぐんが きた！', '#7a2a2a'], [36.2, 39.4, 'つぎは きたの とりでだ！', '#2a5ab0']];
+// 敵の武将ゴウエン：あらわれる → ふりおろしを はじく → 3 回当てる → なぎを もらう → つばぜりあい → 大技で うちとる
+at(7.8, () => { bossOn = true; bossHp = bossHpShow = 1; bossSt = 0; boss.a.visible = true; });
+at(8.6, () => { clearR = 4.7; });
+for (const tm of [9.25, 9.55, 12.1]) at(tm, () => F.ring(front(.6), { c: '#ff4a30', s: 2.2, life: .5 }));
+at(9.5, () => { bossSt = 1; bossT = 0; });
+at(10.02, () => { const p = front(1).setY(1.3); F.spark(p, { c: '#fff4c0', s: 1.2 }); F.ring(hero.pos, { c: '#a0d8ff', s: 1.6 }); H.pop(hpos(2), 'はじいた！', { text: true, c: '#a0e0ff' }); shake = .6; gauge = Math.min(1, gauge + .08); });
+at(10.65, () => hitBoss(.1, 96)); at(11.15, () => hitBoss(.1, 104)); at(12, () => hitBoss(.17, 188, { scale: 2 }));
+at(12.3, () => { bossSt = 2; bossT = 0; }); at(12.72, () => { F.slash(V(boss.pos.x, 1.2, boss.pos.z), { ry: boss.a.rotation.y, tilt: .2, s: 2.6, c: '#ff8a70' }); hitHero(64); });
+for (let j = 0; j < 8; j++) at(13.25 + j * .14, () => { const p = hpos(1.25).lerp(V(boss.pos.x, 1.4, boss.pos.z), .5); F.spark(p, { c: j % 2 ? '#fff4c0' : '#ffb060', s: 1 + (j % 3) * .3, n: 6 }); shake = Math.max(shake, .25); gauge = Math.min(1, gauge + .05); });
+at(14.4, () => { F.ring(front(1), { c: '#fff0c0', s: 2.4 }); hitBoss(.06, 72); gauge = 1; });
+// 大技「ぐれんせんぷう」：かかげる → 回りながら ほのおの輪が広がり、まわりの兵が ぜんぶ飛ぶ → とんで たたきつける
+at(14.8, t => { banner = { text: 'ぐれんせんぷう', t0: t, len: 2, sub: 'ライガの おうぎ', c: '#c8381a' }; F.charge(hpos(1.8), { life: .8, r: 1.6, c: '#ffb060' }); clearR = 0; });
+at(15.5, () => { spin = 2.6; });
+for (let j = 0; j < 5; j++) at(15.7 + j * .46, () => { const r = 4.2 + j * 1.1; F.ring(hero.pos, { c: j % 2 ? '#d8a060' : '#e07a30', s: r * 1.15, life: .45 }); for (let q = 0; q < 3; q++) { const a = q / 3 * PI * 2 + j * .9; F.fire(V(hero.pos.x + Math.sin(a) * r * .8, 0, hero.pos.z + Math.cos(a) * r * .8), { s: 1.05 + j * .08 }); } for (const a of [0, PI]) F.slash(hpos(1), { ry: a + j, tilt: .05, s: 3.2 + j * .3, c: '#ff9a50', life: .3 });
+  blast(hero.pos.x, hero.pos.z, 0, r + .6, PI, 1.25 + j * .1); hitBoss(.07, 120 + j * 14); gauge = Math.max(0, 1 - (j + 1) * .2); flash.position.copy(hpos(2)); flash.userData.t = 0; shake = .7; });
+SWG.push([17.75, .78, 2]);
+at(18.29, () => { const p = V(boss.pos.x, 0, boss.pos.z); F.bolt(p, { s: 1.7, h: 11, c: '#ffe0a0' }); F.ring(p, { c: '#ffd080', s: 7, life: .7 }); F.ring(p, { c: '#ffffff', s: 3.4, life: .45 }); F.dust(p, { n: 12, s: 2.6, c: DUSTC }); blast(p.x, p.z, 0, 6.5, PI, 1.6); bossHp = Math.min(bossHp, .09); hitBoss(.09, 480, { scale: 3 }); bossSt = 4; bossT = 0; ko++; flash.position.copy(p).setY(2.4); flash.userData.t = 0; shake = 1; });
+// 拠点をおとす：旗が赤から青へ。味方が かけこんで かちどき
+at(25.3, () => { capK = .001; F.heal(V(FLAGP.x, 4.6, FLAGP.z), { c: '#a0d0ff', h: 2.4 }); F.ring(FLAGP, { c: '#a0d0ff', s: 4, life: .8 }); });
+at(26, () => F.heal(V(FLAGP.x, 5, FLAGP.z), { c: '#fff0a0', h: 2 }));
+at(13.9, () => hitHero(18)); at(31.6, () => hitHero(22)); at(6.2, () => hitHero(14));
+
+// ---- 動き ----
+const key = (KS, tt, n) => { let i = 0; while (i < KS.length - 2 && tt >= KS[i + 1][0]) i++; const a = KS[i], b = KS[i + 1], k = ease(cl((tt - a[0]) / (b[0] - a[0]))); return [...Array(n)].map((_, j) => lerp(a[j + 1], b[j + 1], k)); };
+// 主役の通り道（時刻, x, z）
+const HK = [[0, 0, 11], [1.2, 0, 5.6], [3.3, 0, 5.2], [3.72, -1.4, -1.2], [5.7, -1.4, -1.6], [6.5, 1.8, -7], [7.6, 1.8, -7.2], [8.02, .6, -11.4], [9.7, .6, -11.4], [10.1, .6, -10.7], [10.4, .6, -11.1], [12.7, .6, -11.6], [12.9, .5, -10.6], [13.2, .5, -11.2], [14.4, .5, -11.4], [17.75, .5, -11.4], [18.3, .5, -12.6], [19.9, .5, -12.6], [22.1, 2.6, -24.6], [23.2, 2.6, -25], [23.62, 3, -30], [29.2, 3, -30.6], [29.45, 2.2, -36.6], [30.5, 2.2, -37], [30.92, 1.2, -42.6], [36, 1.2, -43.2], [40, 1.2, -43.2]];
+// 敵の武将の通り道
+const BK = [[0, 1.4, -26], [7.8, 1.4, -26], [9.4, .7, -15], [9.9, .7, -13.6], [10.6, .7, -14.4], [12, .8, -15.4], [12.35, .7, -14.8], [12.7, .7, -13.6], [13.2, .6, -13.3], [14.4, .6, -13.5], [14.75, .8, -15.6], [18.29, .9, -16], [40, .9, -16]];
+const ready = (p, t) => { const J = p.J; MO.play(p.a, 'stand', t); MO.squat(p.a, .2); J.torso.rotation.x = .12; J.legL.rotation.x -= .25; J.legR.rotation.x += .25; J.shinR.rotation.x += .14; J.armR.rotation.set(-.85, 0, -.2); J.foreR.rotation.x = -.7; J.armL.rotation.set(-.5, 0, .25); J.foreL.rotation.x = -.8; };
+function moveHero(tt, t, dt) {
+  const [x, z] = key(HK, tt, 2), J = hero.J, vx = x - hero.pos.x, vz = z - hero.pos.z, moving = Math.hypot(vx, vz) > dt * 1.4, duel = bossOn && bossHp > 0 && tt > 8.6;
+  if (moving) hero.yawB = turn(hero.yawB, Math.atan2(vx, vz), dt * 18); else hero.yawB = turn(hero.yawB, duel ? Math.atan2(boss.pos.x - x, boss.pos.z - z) : tt > 25.5 && tt < 28.2 ? 2.2 : PI, dt * 8);
+  hero.pos.set(x, 0, z); heroY = 0; let yawAdd = 0, lean = 0, wrx = PI / 2;
+  if (moving) { MO.play(hero.a, 'run', t * 1.2); if (Math.hypot(vx, vz) > dt * 3.5) blast(x, z, 0, 1.75, PI, .85); } else ready(hero, t);
+  const c = SWG.find(q => tt >= q[0] && tt < q[0] + q[1]);
+  if (c) { const k = (tt - c[0]) / c[1], kind = c[2]; MO.squat(hero.a, .26);
+    if (kind < 2) { const s = kind ? -1 : 1, a = s * (1 - 2 * ease(cl(k * 1.5))); J.legL.rotation.x = -.5; J.legR.rotation.x = .45; J.shinR.rotation.x = .3; J.torso.rotation.set(.2, a * .85, 0); yawAdd = a * 1.3; J.armR.rotation.set(-1.45, 0, -a * .35); J.foreR.rotation.x = -.1; J.armL.rotation.set(-1.2, 0, -.4); J.foreL.rotation.x = -.5; J.head.rotation.y = -a * .5; wrx = 2.7; }
+    else if (kind === 2) { const up = k < .58 ? ease(k / .58) : 1 - ease(cl((k - .58) / .12)); heroY = Math.sin(cl(k / .7) * PI) * 1.7; J.armR.rotation.set(-.5 - up * 2.4, 0, -.12); J.foreR.rotation.x = -.15; J.armL.rotation.set(-.5 - up * 2.2, 0, -.3); J.foreL.rotation.x = -.3; J.torso.rotation.set(.4 - up * .7, 0, 0); J.head.rotation.x = -.2 * up; if (k < .7) { J.legL.rotation.x = -.8; J.shinL.rotation.x = 1.2; J.legR.rotation.x = .3; J.shinR.rotation.x = .9; } else MO.squat(hero.a, .5); }
+    else if (kind === 3) { yawAdd = -ease(k) * PI * 4; J.armR.rotation.set(-1.5, 0, -.5); J.foreR.rotation.x = -.05; J.armL.rotation.set(-.2, 0, 1.2); J.torso.rotation.set(.18, -.3, 0); J.legL.rotation.x = -.4; J.legR.rotation.x = .4; wrx = 2.7; }
+    else { lean = .2; J.torso.rotation.set(.5, -.25, 0); J.armR.rotation.set(-1.55, 0, -.1); J.foreR.rotation.x = 0; J.armL.rotation.set(-1.2, 0, -.5); J.foreL.rotation.x = -.6; J.legL.rotation.x = -1; J.shinL.rotation.x = .5; J.legR.rotation.x = .8; J.shinR.rotation.x = .3; J.head.rotation.x = -.35; wrx = 2.95; } }
+  // はじく（9.7〜10.3）と つばぜりあい（13.1〜14.4）：刃を体の前で ななめに立てて ふんばる
+  const gd = Math.max(seg(tt, 9.7, 9.9) - seg(tt, 10.2, 10.4), seg(tt, 13, 13.2) - seg(tt, 14.35, 14.5));
+  if (gd > 0) { const push = tt > 13 ? Math.sin(t * 34) * .03 + seg(tt, 14.2, 14.4) * .5 : 0; MO.squat(hero.a, .34 * gd); J.torso.rotation.set(.3 * gd + push * .4, .5 * gd, 0); J.armR.rotation.set(-1.25 * gd - push, 0, .45 * gd); J.foreR.rotation.x = -.75 * gd; J.armL.rotation.set(-1.3 * gd - push, 0, -.5 * gd); J.foreL.rotation.x = -.5; J.legL.rotation.x = -.5 * gd; J.legR.rotation.x = .55 * gd; }
+  // 大技：かかげる → 回る
+  if (tt >= 14.8 && tt < 15.5) { const u = seg(tt, 14.8, 15.2); J.armR.rotation.set(-.85 - u * 2.1, 0, -.2); J.foreR.rotation.x = -.7 + u * .6; J.head.rotation.x = -.3 * u; J.armL.rotation.set(-.5 + u * .3, 0, .25 + u * .5); heroY = u * .12; wrx = PI / 2 + u * 1.5; }
+  if (spin > 0) { spin -= dt; const u = Math.min(1, (2.6 - spin) * 3, spin * 4 + .2); yawAdd = -(2.6 - spin) * (2.6 - spin) * 4.4 - (2.6 - spin) * 6; MO.squat(hero.a, .3); J.armR.rotation.set(-1.5, 0, -.6 * u); J.foreR.rotation.x = -.05; J.armL.rotation.set(-.3, 0, 1.25 * u); J.foreL.rotation.x = -.2; J.torso.rotation.set(.15, -.3, 0); J.legL.rotation.x = -.45; J.legR.rotation.x = .45; heroY = .1 + Math.sin(t * 9) * .05; wrx = 2.7; }
+  // かちどき：刃を高くかかげる
+  const ch = Math.max(seg(tt, 18.7, 19) - seg(tt, 19.6, 19.9), seg(tt, 25.6, 26) - seg(tt, 28, 28.4), seg(tt, 36.3, 36.8) - seg(tt, 39.6, 40));
+  if (ch > 0 && !moving) { J.armR.rotation.set(-.85 - ch * 2, 0, -.2 - ch * .15); J.foreR.rotation.x = -.7 + ch * .55; J.head.rotation.x = -.22 * ch; J.armL.rotation.set(-.5 + ch * .5, 0, .25 + ch * .3); J.foreL.rotation.x = -.8 + ch * .2; J.torso.rotation.x = .12 - ch * .2; J.hips.position.y += Math.abs(Math.sin(t * 6)) * .03 * ch; wrx = PI / 2 + ch * 1.45; }
+  hurtT += dt; { const k = cl(hurtT / .5); if (k < 1) { const a = Math.sin(k * PI); J.torso.rotation.x = -a * .4; J.head.rotation.x = -a * .3; J.armL.rotation.x = -a * .9; } }
+  blade.rotation.x += (wrx - blade.rotation.x) * Math.min(1, dt * 22); hero.a.position.set(x, heroY, z); hero.a.rotation.set(lean, hero.yawB + yawAdd, 0);
+  hpShow += (hp - hpShow) * Math.min(1, dt * 2.5); if (tt > 19 && tt < 25) hp = Math.min(hero.hpMax, hp + dt * 6); if (tt > 19 && spin <= 0) gauge = Math.min(1, gauge + dt * .012);
+}
+function moveBoss(tt, t, dt) { if (!bossOn) return; const [x, z] = key(BK, tt, 2), J = boss.J, mv = Math.hypot(x - boss.pos.x, z - boss.pos.z) > dt * .7; bossT += dt; bossHpShow += (bossHp - bossHpShow) * Math.min(1, dt * 2.5);
+  if (bossSt === 4) { const k = bossT; bossY = Math.max(0, 5.5 * k - 9 * k * k); boss.pos.z -= dt * (k < 1.2 ? 4 : 0); boss.pos.x += dt * (k < 1.2 ? 1.2 : 0); const lie = cl(k / .5); boss.a.position.set(boss.pos.x, bossY + lie * .25, boss.pos.z); boss.a.rotation.set(-lie * PI / 2 * .95, boss.a.rotation.y, 0); J.armL.rotation.set(-2.2, 0, .8); J.armR.rotation.set(-1.8, 0, -.8); J.legL.rotation.x = -.5; J.legR.rotation.x = .3; if (k > 1.3 && k - dt <= 1.3) F.dust(boss.pos, { n: 8, s: 2, c: DUSTC }); boss.a.visible = k < 2 || (k < 2.9 && Math.floor(t * 14) % 2 === 0); if (k >= 2.9) bossOn = false; return; }
+  boss.pos.set(x, 0, z); const want = Math.atan2(hero.pos.x - x, hero.pos.z - z); boss.a.rotation.set(0, turn(boss.a.rotation.y, want, dt * 7), 0);
+  if (mv) MO.play(boss.a, 'walk', t * 1.1); else { ready(boss, t + 2); J.armR.rotation.set(-1.1, 0, -.3); J.foreR.rotation.x = -.9; }
+  if (bossSt === 1) { const k = bossT / .9; if (k >= 1) bossSt = 0; else { const up = k < .55 ? ease(k / .55) : 1 - ease(cl((k - .55) / .1)); MO.squat(boss.a, .25); J.armR.rotation.set(-.6 - up * 2.3, 0, -.15); J.foreR.rotation.x = -.2; J.armL.rotation.set(-.6 - up * 2, 0, -.35); J.foreL.rotation.x = -.4; J.torso.rotation.x = .35 - up * .65; } }
+  if (bossSt === 2) { const k = bossT / .8; if (k >= 1) bossSt = 0; else { const a = 1 - 2 * ease(cl((k - .3) / .3)); MO.squat(boss.a, .3); J.torso.rotation.set(.2, a * .9, 0); J.armR.rotation.set(-1.45, 0, -a * .4); J.foreR.rotation.x = -.1; J.armL.rotation.set(-1.1, 0, -.4); boss.a.rotation.y += a * .5; } }
+  if (bossSt === 3) { const k = bossT / .45; if (k >= 1) bossSt = 0; else { const a = Math.sin(k * PI); J.torso.rotation.x = -a * .45; J.head.rotation.x = -a * .3; J.armL.rotation.set(-a * 1, 0, .5 * a); boss.pos.z -= a * dt * .8; } }
+  if (tt > 13 && tt < 14.4 && bossSt === 0) { const u = seg(tt, 13, 13.2), push = Math.sin(t * 31) * .03; MO.squat(boss.a, .3 * u); J.torso.rotation.set(.3 * u, -.4 * u, 0); J.armR.rotation.set(-1.3 * u - push, 0, .4 * u); J.foreR.rotation.x = -.7; J.armL.rotation.set(-1.25 * u, 0, -.5 * u); J.foreL.rotation.x = -.5; }
+  if (tt > 14.4 && tt < 15.6 && bossSt === 0) { const a = Math.sin(seg(tt, 14.4, 15.5) * PI); J.torso.rotation.x = -.35 * a; J.armL.rotation.set(-1 * a, 0, .7 * a); }
+  if (spin > 0) { J.torso.rotation.x = -.3; J.armL.rotation.set(-1.4, 0, .6); J.armR.rotation.set(-1.2, 0, -.6); J.head.rotation.x = -.2; boss.a.position.set(x + Math.sin(t * 40) * .04, 0, z); return; }
+  boss.a.position.set(boss.pos.x, 0, boss.pos.z); }
+// 兵の動き。敵は主役の前がわを半円にかこみ、味方は主役のななめうしろに付く。どれも位置と向きと「動きの形の番号」だけを持つ
+const RK = [], E3 = new THREE.Euler(0, 0, 0, 'YXZ'), Q4 = new THREE.Quaternion(), M4 = new THREE.Matrix4(), P3 = new THREE.Vector3(), S3 = new THREE.Vector3(), O3 = new THREE.Vector3();
+function moveSoldiers(tt, t, dt) {
+  const hx = hero.pos.x, hz = hero.pos.z, duel = clearR > 0, tx0 = duel ? (hx + boss.pos.x) / 2 : hx, tz0 = duel ? (hz + boss.pos.z) / 2 : hz - .5; ctr.x += (tx0 - ctr.x) * Math.min(1, dt * 3); ctr.z += (tz0 - ctr.z) * Math.min(1, dt * 3);
+  const mode = tt > 18.6 && tt < 25.3 ? 1 : tt >= 25.3 && tt < 28.6 ? 2 : 0, north = tt > 26.5 && tt < 31.5;
+  const cy0 = key(CK, Math.min(tt, 15.4), 1)[0], cy = tt < 15.4 ? cy0 : tt < 18.6 ? .3 : key(CK, tt, 1)[0] - TP, fx = -Math.sin(cy), fz = -Math.cos(cy), back = (seg(tt, 25.3, 26.3) - seg(tt, 28.3, 29.2)) * 6.5, cpx = cam.position.x, cpy = cam.position.y, cpz = cam.position.z;
+  for (const u of UNIT) u.n = 0;
+  RK.length = 0; for (const s of S) if (!s.team && s.st === 0) { s.dc = Math.hypot(s.x - ctr.x, s.z - ctr.z); RK.push(s); } RK.sort((a, b) => a.dc - b.dc || a.i - b.i); RK.forEach((s, k) => { s.rk += (2 + 5.8 * Math.pow((k + .5) / NE, .78) - s.rk) * Math.min(1, dt * 4); });
+  for (const s of S) {
+    if (s.st === 2) { s.t += dt; if (s.t < s.wait) continue; s.gen++; s.st = 0; s.y = 0; s.pitch = s.roll = 0; const a = PI + (hash(s.i, s.gen, 5) - .5) * (north ? 1.3 : 3.4), d = 17 + hash(s.i, s.gen, 6) * 6; s.x = hx + Math.sin(a) * d; s.z = hz + Math.cos(a) * d; s.yaw = a + PI; }
+    if (s.st === 1) { s.t += dt; s.x += s.vx * dt; s.z += s.vz * dt; s.y += s.vy * dt; s.vy -= 19 * dt; s.pitch += s.wp * dt; s.roll += s.wr * dt; s.pose = 3;
+      if (s.y <= 0 && s.vy < 0) { if (!s.b) { s.b = 1; s.y = 0; s.vy = 3.2; s.vx *= .35; s.vz *= .35; s.wp *= .5; if (s.i % 3 === 0) F.dust(V(s.x, 0, s.z), { n: 3, s: 1.2, c: DUSTC }); } else { s.st = 2; s.t = 0; s.wait = .5 + hash(s.i, s.gen, 4) * 1.5; continue; } }
+      if (s.b && Math.floor(t * 20) % 2) continue; }
+    else { let txx, tzz, lg = 0;
+      if (!s.team) { const r = (duel ? clearR + (s.rk - 2.3) * .72 : s.rk) + back + Math.sin(t * .7 + s.ph) * .22, a = PI + cy + s.sa + Math.sin(t * .23 + s.ph * 2) * .07; txx = ctr.x + Math.sin(a) * r; tzz = ctr.z + Math.cos(a) * r; lg = !duel && ((t * .32 + s.ph) % 1) < .13 ? 1 : 0; }
+      else if (mode === 2) { const a = s.j * 1.1, r = 2.6 + (s.j % 3) * 1.1; txx = FLAGP.x - 1.5 + Math.sin(a) * r; tzz = FLAGP.z + 2.4 + Math.cos(a) * r * .8; }
+      else { const fw = mode === 1 ? 4.5 + (s.j % 4) : 0, a = PI + s.sa * (mode === 1 ? .62 : 1); txx = hx + Math.sin(a) * (s.sr + fw * .3); tzz = hz + Math.cos(a) * (s.sr + fw * .3) - fw; }
+      for (const [ox, oz, or] of OBS) { const ax = txx - ox, az = tzz - oz, d = Math.hypot(ax, az); if (d < or) { txx = ox + ax / (d || 1) * or; tzz = oz + az / (d || 1) * or; } }
+      let dx = txx - s.x, dz = tzz - s.z; const d = Math.hypot(dx, dz), bk = -((s.x - hx) * fx + (s.z - hz) * fz), rear = !s.team && bk > Math.abs((s.x - hx) * fz - (s.z - hz) * fx) * .45 && bk < 9, sp = d > 7 ? 7.6 : rear && d > 1 ? 9 : s.team && d > 3.5 ? 8.5 : Math.min(s.team ? 6.4 : 4.4, d * 3), stp = Math.min(d, sp * dt); if (d > .01) { s.x += dx / d * stp; s.z += dz / d * stp; }
+      const hd = Math.hypot(s.x - hx, s.z - hz); if (hd < 1.15 && hd > .01) { s.x = hx + (s.x - hx) / hd * 1.15; s.z = hz + (s.z - hz) / hd * 1.15; }
+      const cheer = s.team && mode === 2 && d < 1.2, walking = sp > .7 && d > .15; s.yaw = turn(s.yaw, walking && d > 1.4 && (s.team || hd > 10) ? Math.atan2(dx, dz) : cheer ? Math.atan2(hx - s.x, hz - s.z) : s.team ? PI + Math.sin(s.ph) * .5 : Math.atan2(hx - s.x, hz - s.z), dt * 8);
+      s.pose = cheer ? (Math.floor(t * 4 + s.ph) % 2 ? 3 : 0) : walking ? Math.floor(t * (sp > 5 ? 8 : 5.5) + s.ph) & 1 : (hd < 5.2 || s.team) && (lg || Math.floor(t * .8 + s.ph) % 3) ? 2 : Math.floor(t * 1.6 + s.ph) & 1;
+      s.y = cheer ? Math.abs(Math.sin(t * 8 + s.ph)) * .28 : walking ? Math.abs(Math.sin(t * (sp > 5 ? 12.6 : 8.6) + s.ph)) * .05 : 0; s.pitch = lg && hd < 4.4 ? .18 : 0; s.roll = 0; }
+    if ((s.x - cpx) ** 2 + (s.y + .6 - cpy) ** 2 + (s.z - cpz) ** 2 < (s.st === 1 ? 9 : 10)) continue;
+    const u = UNIT[s.team * 12 + s.kind * 4 + s.pose]; E3.set(s.pitch, s.yaw, s.roll); Q4.setFromEuler(E3); O3.set(0, -.62, 0).applyQuaternion(Q4); P3.set(s.x + O3.x, s.y + .62 + O3.y, s.z + O3.z); M4.compose(P3, Q4, S3.setScalar(1)); u.im.setMatrixAt(u.n++, M4); }
+  for (const u of UNIT) { u.im.count = u.n; u.im.instanceMatrix.needsUpdate = true; }
+}
+
+// ---- 画面の表示 ----
+const BASES = [[0, 32, 1, 1], [-22, 14, 1, 0], [20, 10, 1, 0], [BX, BZ, 0, 0], [-31, -55, 0, 0], [33, -26, 0, 0], [-4, -100, 0, 1]];
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, top = tall ? 40 : 13, OL = '#080814', blink = Math.floor(t * 6) % 2 === 0;
+  // 敵の武将の名前と体力
+  if (bossOn && bossSt !== 4) { const s = H.project(V(boss.pos.x, 2.25, boss.pos.z)); if (s.on) { H.text('てきしょう', s.x, s.y - 26, { align: 'c', size: 8, c: '#ff9a80', outline: OL }); H.tag(s.x, s.y - 6, boss.name, bossHp, { w: 46, v2: bossHpShow, c: '#ff5a4a' }); } }
+  // 左上：主役の顔・名前・体力・「ほむら」のゲージ
+  { const w = tall ? 88 : 108, r = H.place('左上', w, 35, 0, top), full = gauge >= 1; H.win(r.x, r.y, r.w, r.h, WIN); H.face(r.x + 4, r.y + 4, { ...FACE, hurt: hurtT < .5, bg: '#2a5ae0' }); H.text(hero.name, r.x + 22, r.y + 3, { size: 8, c: GOLD });
+    H.num(String(Math.round(hp)), r.x + w - 5, r.y + 4, { align: 'r', small: true, c: hp / hero.hpMax < .3 ? '#ffe060' : '#ffffff' }); H.bar(r.x + 22, r.y + 12, w - 27, 6, hp / hero.hpMax, { v2: hpShow / hero.hpMax, c: hp / hero.hpMax < .3 ? '#ffb040' : B.PAL.hp });
+    H.text('ほむら', r.x + 4, r.y + 21, { size: 8, c: full && blink ? '#fff6a0' : '#ffb070' }); H.bar(r.x + 31, r.y + 23, w - 36, 7, gauge, { c: full ? (blink ? '#fff6a0' : '#ffb040') : '#ff7a30', back: '#3a2028', ticks: 5 });
+    if (full && spin <= 0 && blink) H.text('おうぎ いける！', r.x + 3, r.y + 38, { size: 8, c: '#fff6a0', outline: '#5a2800' }); }
+  // 右上：戦場の地図（青＝味方の陣、赤＝敵の陣、四角＝拠点、黄＝主役）
+  { const mw = tall ? 56 : 64, mh = tall ? 52 : 48, r = H.place('右上', mw, mh, 0, top), mx = r.x + 3, my = r.y + 3, iw = mw - 6, ih = mh - 6, X = x => mx + (x + 48) / 96 * iw, Z = z => my + (z + 108) / 152 * ih; H.win(r.x, r.y, r.w, r.h, { c: '#3a4a34', c2: '#1a2418', edge: '#f4f4e0' });
+    frontZ += (hero.pos.z + 3 - frontZ) * Math.min(1, dt * 1.5); for (let i = 0; i < iw; i++) { const wx = (i / iw) * 96 - 48, cap = capK > 0 ? cl(1.3 - Math.abs(wx - BX) / 14) * 9 * cl(capK * 2) : 0, fy = Math.round(cl(Z(frontZ + Math.sin(i * .7) * 5 + Math.abs(wx) * .35 - cap), my, my + ih)); H.rect(mx + i, my, 1, fy - my, (i + 1) % 2 ? '#a83a30' : '#8a2c2c', .85); H.rect(mx + i, fy, 1, my + ih - fy, (i + 1) % 2 ? '#3460c0' : '#2a50a8', .85); H.rect(mx + i, fy, 1, 1, '#f4f0d0'); }
+    BASES.forEach(([x, z, team, big], i) => { const mine = team || (i === 3 && capK >= .5), q = big ? 5 : 4, bx = Math.round(X(x) - q / 2), by = Math.round(Z(z) - q / 2); if (i === 3 && capK > 0 && capK < 1 && !blink) return; H.rect(bx - 1, by - 1, q + 2, q + 2, OL); H.rect(bx, by, q, q, mine ? '#7ac0ff' : '#ff6a50'); H.rect(bx, by, q - 1, 1, '#ffffff', .6); });
+    if (bossOn && bossSt !== 4 && blink) { const bx = Math.round(X(boss.pos.x)), by = Math.round(Z(boss.pos.z)); H.rect(bx - 2, by - 2, 4, 4, OL); H.rect(bx - 1, by - 1, 2, 2, '#ff40c0'); }
+    { const bx = Math.round(X(hero.pos.x)), by = Math.round(Z(hero.pos.z)); H.rect(bx - 2, by - 2, 5, 5, OL); H.rect(bx - 1, by - 1, 3, 3, blink ? '#ffffff' : '#ffe040'); }
+    H.text('せんじょう', r.x + 4, r.y + mh + 1, { size: 8, c: '#f4f0d0', outline: OL }); }
+  // 右下：たおした数（大きく数えあがる）と、つづけて当てた数
+  { const r = H.place('右下', 84, 40, 0, tall ? -6 : -2), pop = Math.max(0, 1 - koT * 7), big = mile && mile.age < .5; koT += dt; comboT += dt; if (comboT > 2.2) combo = 0;
+    H.num(String(ko), r.x + r.w - 2, r.y + 2 - Math.round(pop * 4), { align: 'r', scale: big ? 4 : 3, c: pop > .3 ? '#ffffff' : GOLD, outline: OL }); H.text('にん げきは！', r.x + r.w - 1, r.y + 28, { align: 'r', size: 10, c: '#ffffff', outline: OL });
+    if (combo > 1) { const p2 = Math.max(0, 1 - comboT * 6); H.num(String(combo), r.x + r.w - 32, r.y - 18 - Math.round(p2 * 3), { align: 'r', scale: 2, c: '#ff9a40', outline: OL }); H.text('れんさ', r.x + r.w - 29, r.y - 14, { size: 8, c: '#ffffff', outline: OL }); H.bar(r.x + r.w - 60, r.y - 2, 58, 3, 1 - comboT / 2.2, { c: '#ff9a40' }); } }
+  // 100 にんごとの大きな知らせ（金の札が右から入る）
+  if (mile) { if (!(banner && tt > banner.t0 && tt < banner.t0 + banner.len)) mile.age += dt; const k = mile.age / 2.2; if (k >= 1) mile = null; else if (mile.age > 0) { const str = mile.n + ' にん とっぱ！', sl = Math.round((1 - ease(cl(k / .12))) * 120 + ease(cl((k - .88) / .12)) * 160), w = Math.min(H.W - 12, H.textW(str) * 2 + 34), r = H.place('上', w, 30, 0, top + (tall ? 58 : 38)); r.x += sl;
+      if (r.x < H.W - 20) { H.win(r.x + sl * 0, r.y, r.w, r.h, { c: '#e0a020', c2: '#a04a10', edge: '#fffbe0' }); if (k < .25 && Math.floor(t * 20) % 2) H.rect(r.x + 2, r.y + 2, r.w - 4, r.h - 4, '#ffffff', .5); H.icon('star', r.x + 5, r.y + 11, { c: '#fffbe0' }); H.icon('star', r.x + r.w - 13, r.y + 11, { c: '#fffbe0' }); H.text(str, r.x + r.w / 2, r.y + 5, { align: 'c', scale: 2, c: '#ffffff', outline: '#5a2800' }); } } }
+  // 上の知らせ
+  for (const [a, b, str, c] of MSG) if (tt >= a && tt < b) { const k = Math.min(1, (tt - a) / .15, (b - tt) / .15); if (k > .5 || blink) H.msg(str, '上', { dy: top + (tall ? 58 : 38) + (mile ? 33 : 0), c, c2: R.mix(c, '#000010', .5), edge: '#fffbe0', w: Math.min(H.W - 12, H.textW(str) + 18) }); }
+  if (banner) H.banner(banner.text, (tt - banner.t0) / banner.len, { sub: banner.sub, c: banner.c, y: tall ? H.H * .3 : 76 });
+  H.end(dt);
+}
+
+// ---- カメラ：主役のうしろ少し高め。[時刻, 向き, きょり, 高さ, 見る高さ]。大技のあいだは ぐるりと 1 周する ----
+const TP = PI * 2, CK = [[0, 0.14, 5.92, 3.15, 1.1], [1.2, 0.1, 5.76, 3.06, 1.1], [3.2, -0.14, 5.84, 3.15, 1.1], [5.3, -0.25, 6.08, 2.88, 1.3], [6.6, 0.2, 5.84, 3.06, 1.1], [8.2, 0.1, 6, 3.15, 1.1], [9.5, 0.5, 5.6, 2.34, 1.4], [12, 0.62, 5.36, 2.16, 1.4], [13.3, 0.95, 4.32, 1.71, 1.4], [14.4, 0.7, 5.28, 2.16, 1.5], [15.4, 0.3, 6.24, 2.88, 1.4], [18.2, TP + 0.3, 7.04, 3.6, 1.3], [18.8, TP + 0.55, 5.6, 2.25, 1.4], [20, TP + 0.3, 5.76, 2.88, 1.2], [22.1, TP + 0.1, 5.84, 3.15, 1.1], [24.6, TP - 0.2, 6, 3.15, 1.2], [25.8, TP - 0.5, 6.24, 1.98, 2.5], [27.8, TP - 0.36, 6.08, 2.16, 2.3], [29, TP + 0, 5.84, 3.15, 1.1], [33, TP + 0.22, 6, 3.15, 1.2], [36, TP + 0.1, 6.08, 3.06, 1.3], [39.5, TP + 0, 8.4, 5.04, 2.6], [40, TP + 0, 8.4, 5.04, 2.6]];
+const cf = V(0, 0, 11), cp = V(0, 0, 0);
+function moveCam(tt, t, dt, snap) {
+  const tall = innerWidth < innerHeight, [yaw, dist, h, ly] = key(CK, tt, 4), D = dist * (tall ? .74 : 1);
+  const wB = bossOn ? (seg(tt, 8.8, 9.8) - seg(tt, 14.6, 15.4)) * .5 : 0; cp.set(lerp(hero.pos.x, boss.pos.x, wB), heroY * .5, lerp(hero.pos.z, boss.pos.z, wB)); if (snap) cf.copy(cp); else cf.lerp(cp, Math.min(1, dt * 6));
+  shake = Math.max(0, shake - dt * 1.8); const sx = Math.sin(t * 71) * shake * .09, sy = Math.sin(t * 93) * shake * .09;
+  cam.position.set(cf.x + Math.sin(yaw) * D + sx, cf.y * .6 + h * (tall ? .86 : 1) + sy, cf.z + Math.cos(yaw) * D); cam.lookAt(cf.x - Math.sin(yaw) * 2, cf.y + ly + (tall ? .25 : 0), cf.z - Math.cos(yaw) * 2);
+  sun.position.set(cf.x + 20, 34, cf.z + 22); sun.target.position.set(cf.x, 0, cf.z);
+}
+
+reset();
+const step = (tt, t, dt, snap) => { for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm); prev = tt; moveHero(tt, t, dt); moveBoss(tt, t, dt); moveSoldiers(tt, t, dt); moveCam(tt, t, dt, snap);
+  if (capK > 0 && capK < 1) capK = Math.min(1, capK + dt / 1.1); flagR.visible = capK < .5; flagB.visible = capK >= .5; { const f = capK < .5 ? flagR : flagB, k = capK < .5 ? 1 - capK * 2 : capK * 2 - 1; f.scale.set(1, 1, 1); f.children.forEach(c => { if (c.userData.dyn) c.position.y = -(1 - k) * 4.6; }); } };
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); if (prev > 1e8 && T0 > 0) { prev = -1; for (let s = 0; s < T0 % LOOP; s += 1 / 30) { step(s, s, 1 / 30, true); F.update(1 / 30); drawHud(s, s, 1 / 30); } } else prev = -1; }
+  step(tt, t, dt, false);
+  FT.tick(t); for (const b of fires) b.userData.tick(t);
+  for (const q of smoke) { const k = (t * .09 + q.j / 9 + q.k * .37) % 1, s = q.s; s.position.set(q.p.x + k * k * 9 + Math.sin(k * 9 + q.k) * .5, 1.4 + k * 17, q.p.z - k * 3); s.scale.setScalar(1.4 + k * 5.5); s.material.opacity = Math.min(1, k * 8) * (1 - k) * .85; }
+  if (flash.userData.t !== undefined) { flash.userData.t += dt; flash.intensity = Math.max(0, 1 - flash.userData.t / .35) * 12; }
+  crt.u.bright.value = Math.min(1, tt / .4, (LOOP - tt) / .5);
+  F.update(dt); drawHud(tt, t, dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
