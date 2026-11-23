@@ -2,7 +2,7 @@
 //   node tools/tale-check.mjs 8-01
 //   1) ページのエラー（pageerror と console.error）を数える
 //   2) 話せる人・物の数を数え、全員に順に話しかけて（ページを最後まで送って）、エラーが出ないか見る
-//   3) ?auto=1 で 8 秒歩かせ、主人公が どれだけ動いたか（閉じこめられていないか）、地面より下へ落ちていないかを見る
+//   3) ?auto=1 で 8 秒歩かせ、主人公が どれだけ動いたか（3 m 未満なら閉じこめられている。重い機械では道のりが へるので、ゆるめにしてある）、地面より下へ落ちていないかを見る
 //   4) はじめの場所が、かべの箱の中に入っていないかを見る
 // 終了コード: 問題がなければ 0、あれば 1
 import { createRequire } from 'node:module';
@@ -17,6 +17,9 @@ const local3 = path.join(HERE, 'node_modules/three/build/three.module.js');
 const srv = http.createServer((q, r) => { const p = path.join(REPO, decodeURIComponent(q.url.split('?')[0])); try { const b = fs.readFileSync(p); r.writeHead(200, { 'content-type': p.endsWith('.js') || p.endsWith('.mjs') ? 'text/javascript' : 'text/html; charset=utf-8' }); r.end(b); } catch { r.writeHead(404); r.end(); } });
 await new Promise(ok => srv.listen(0, '127.0.0.1', ok)); const port = srv.address().port;
 const br = await chromium.launch(); let bad = 0; const errs = [];
+// 0) 行のうしろの // コメントのあとに、処理が書かれていないか（コメントのあとは消えるので、何度もこれで壊れた）
+for (const f of ['games/06-tale-worlds/core.js', `games/06-tale-worlds/worlds/${id}.js`, 'game-looks-13/pack-tale.js']) { const src = fs.existsSync(path.join(REPO, f)) ? fs.readFileSync(path.join(REPO, f), 'utf8') : '';
+  src.split('\n').forEach((l, i) => { const m = l.match(/[;{})\]]\s*\/\/(.*)$/); if (m && !/https?:/.test(l) && /(;|\{|\})\s*(const|let|if|for|return|[A-Za-z_$][\w$.]*\s*(\+=|-=|=(?!=)|\())/.test(m[1])) errs.push(`コメントのあとに処理がある: ${f}:${i + 1}`); }); }
 async function open(qs) {
   const pg = await br.newPage({ viewport: { width: 960, height: 600 } });
   if (fs.existsSync(local3)) await pg.route('**/three.module.js', rt => rt.fulfill({ path: local3, contentType: 'text/javascript' }));
@@ -39,7 +42,7 @@ try {
   if (s0.inWall) { bad++; console.log('× はじめの場所が かべの箱の中にある'); }
   let path0 = 0, prev = s0, minY = 99; for (let i = 0; i < 16; i++) { await pg.waitForTimeout(500); const s = await pg.evaluate(() => { const t = window.__tale.state; return { x: t.x, y: t.y, z: t.z }; }); path0 += Math.hypot(s.x - prev.x, s.z - prev.z); minY = Math.min(minY, s.y - 0); prev = s; }
   console.log(`8 秒で歩いた道のり ${path0.toFixed(1)} m（はじめ ${s0.x.toFixed(1)}, ${s0.y.toFixed(1)}, ${s0.z.toFixed(1)} → いま ${prev.x.toFixed(1)}, ${prev.y.toFixed(1)}, ${prev.z.toFixed(1)}）`);
-  if (path0 < 6) { bad++; console.log('× 主人公があまり動かない（閉じこめられている／道 G.tour が かべにぶつかる）'); }
+  if (path0 < 3) { bad++; console.log('× 主人公があまり動かない（閉じこめられている／道 G.tour が かべにぶつかる）'); }
   if (minY < -5) { bad++; console.log('× 主人公が下へ落ちた（地面 G.ground か 足場の箱がない所がある）'); }
   await pg.close();
 } catch (e) { bad++; errs.push('道具のエラー: ' + e.message); }

@@ -78,7 +78,8 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   { const list = $('mlist'); for (const w of opts.list || []) { const a = document.createElement(w.ready ? 'a' : 'span'); a.className = 'w' + (w.ready ? '' : ' off') + (w.id === opts.id ? ' here' : ''); if (w.ready) a.href = '?w=' + w.id; a.innerHTML = `<b>${w.id}</b> ${w.name}${w.ready ? '' : '<small>じゅんび中</small>'}`; list.appendChild(a); } $('mclose').onclick = () => menu(); }
 
   // ---- 窓（吹き出し）：粗い絵の大きさの canvas に描き、ドットのまま引きのばす。灰色のグラデーションに、銀の 2 本線のふち、話す人へ向いた しっぽ ----
-  function wrap(text, w, font) { hx.font = font; const out = []; for (const para of text.split('\n')) { let line = ''; for (const ch of para) { if (hx.measureText(line + ch).width > w && line) { out.push(line); line = ch; } else line += ch; } out.push(line); } return out; }
+  // 折り返し。句読点や小さい字は 行の頭に来ないよう、前の行に残す
+  function wrap(text, w, font) { hx.font = font; const out = []; for (const para of text.split('\n')) { let line = ''; for (const ch of para) { if (hx.measureText(line + ch).width > w && line && !'、。，．！？!?」』）)…ーっゃゅょぁぃぅぇぉ'.includes(ch)) { out.push(line); line = ch; } else line += ch; } out.push(line); } return out; }
   function win(x, y, w, h, tail) { const g = hx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, '#9aa0ac'); g.addColorStop(.5, '#6c717e'); g.addColorStop(1, '#4a4e5a');
     const path = () => { hx.beginPath(); hx.moveTo(x + 3, y); hx.lineTo(x + w - 3, y); hx.lineTo(x + w, y + 3); hx.lineTo(x + w, y + h - 3); hx.lineTo(x + w - 3, y + h);
       if (tail) { hx.lineTo(tail[0] + 5, y + h); hx.lineTo(tail[0], tail[1]); hx.lineTo(tail[0] - 3, y + h); } hx.lineTo(x + 3, y + h); hx.lineTo(x, y + h - 3); hx.lineTo(x, y + 3); hx.closePath(); };
