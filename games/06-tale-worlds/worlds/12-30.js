@@ -1,7 +1,7 @@
 // ワールド 12-30「下層の屋上と上層の花火」。もとは game-looks-12/30-rooftop-upper-fireworks.html（見るだけの場面）。
 // 夜。下層の古い建物の屋上に、近所の人々が集まって空を見上げる。ずっと向こう、空にうかぶ上の都市の 白と金の塔の上で 花火があがり、光だけが ここまで とどく。
 // ゲームにするために足した物：らんかん・物置・水そう・植木の当たり判定（らんかんの上には乗れる）、うしろの らんかん、となりの少し低い屋上と わたり板、
-// となりの屋上の 木の見晴らし台（階段で のぼれる）、話せる人 10 人とねこ、しらべられる物 4 つ。花火を見上げる構図を保つため、カメラを少し上へ向ける。
+// となりの屋上の 木の見晴らし台（階段で のぼれる）、話せる人 10 人とねこ、しらべられる物 4 つ。花火を見上げる構図を保つため、カメラの見る点を少し上げる。
 TALE_WORLD('12-30', G => {
   const { THREE, K, R, T, TL, scene } = G, C = PACK_CITY(THREE, K, R), F = PACK_FTOWN(THREE, K, R), U = PACK_UNDER2(THREE, K, R), X = C.tex, { hash } = K, PI = Math.PI, HAZE = '#2a2444';
   G.cam.far = 1200; G.cam.updateProjectionMatrix();
@@ -100,12 +100,13 @@ TALE_WORLD('12-30', G => {
   G.sign(DXc + .8, DY + 1, DZc + 1, { name: '見晴らし台からの ながめ', lines: [['下町の屋根が、ちょうちんの光で 点々と ともっている。', '上の光と 下の光。どちらも きれいだ。']] });
 
   // ---- はじめの場所（人々の うしろ。塔と花火のほうを向く）と、自動で歩く道 ----
+  // 見上げる構図：カメラの見る点を少し上げる（主人公は画面の下へ、上の都市が画面に入る）
+  G.camera({ lookUp: .9 });
   G.spawn(1.2, 2.2, PI);
   G.tour([[1.2, -1.6], [-3, -2.6], [-5.2, -1], [-3.4, 1.6], [2, 1], [7, -1], [9.8, -1], [12, -1], [11, 2.6], [15, 2.6], [17, 2.6], [14.6, 2.6], [10.9, 2.6], [12, -1], [9.6, -1], [5, 2.4]]);
 
   // ---- 毎コマ：花火の光、すわる・はねる・肩車のポーズ、せんたく物 ----
   G.tick((t, dt, P) => {
-    G.cam.rotateX(innerWidth < innerHeight ? .2 : .24);
     const flash = fw.userData.flash || 0; pl.intensity = flash * 30; flashL.intensity = flash * 1.6;
     { const J = boy.o.userData.J; if (!boy.talk) { J.head.rotation.x = -.45; } J.legL.rotation.x = J.legR.rotation.x = -1.5; J.shinL.rotation.x = 1.2 + Math.sin(t * 2.4) * .25; J.shinR.rotation.x = 1.2 + Math.sin(t * 2.4 + 1.6) * .25; if (flash > .4 && !boy.talk) J.armR.rotation.set(-2.6, 0, -.3); }
     { const J = gramps.o.userData.J; J.legL.rotation.x = J.legR.rotation.x = -1.4; J.shinL.rotation.x = J.shinR.rotation.x = 1.4; if (!gramps.talk) J.head.rotation.x = -.4; }

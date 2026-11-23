@@ -1,7 +1,7 @@
 // ワールド 12-23「上層への貨物エレベーター」。もとは game-looks-12/23-freight-lift-to-upper.html（見るだけの場面）。
 // 昼。むき出しの鉄の貨物エレベーターが、鉄骨の塔にそって 下層から上へのぼる。下には けむりにかすむ つぎはぎの屋根の海、行く手の上には 白く光る上の都市。
 // ゲームにするために足した物：屋根の海から 28 m の高さにある 鉄の荷あげ場（ここを歩く）、乗ると のぼる・くだる かご（動く足場）と、30 m 上の 中つぎの踊り場、
-// かごが いない間に とじる しま模様の柵、荷あげ場の木箱の山、話せる人 9 人（かごに乗る係の人をふくむ）、しらべられる物 4 つ。見上げる構図を保つため、カメラを少し上へ向ける。
+// かごが いない間に とじる しま模様の柵、荷あげ場の木箱の山、話せる人 9 人（かごに乗る係の人をふくむ）、しらべられる物 4 つ。見上げる構図を保つため、カメラの見る点を少し上げる。
 TALE_WORLD('12-23', G => {
   const { THREE, K, R, T, TL, scene } = G, C = PACK_CITY(THREE, K, R), U = PACK_UNDER1(THREE, K, R, C), X = C.tex, { hash } = K, PI = Math.PI, HAZE = '#b8a07c';
   G.cam.far = 2000; G.cam.updateProjectionMatrix();
@@ -115,6 +115,8 @@ TALE_WORLD('12-23', G => {
   const doves = [[5.6, -9.6], [5.9, -8.8], [5.2, -9], [6.2, -10.1]].map(([x, z], i) => { const b = R.bird({ c: '#a8a8b8', belly: '#e8e4dc', neck: true }); b.position.set(x, 0, z); b.rotation.y = i * 1.7; scene.add(b); return b; });
 
   // ---- はじめの場所（かごの中。上の都市を見上げる）と、自動で歩く道（荷あげ場をめぐる） ----
+  // 見上げる構図：カメラの見る点を少し上げる（主人公は画面の下へ、上の都市が画面に入る）
+  G.camera({ lookUp: .7 });
   G.spawn(.2, 1.2, 0);
   G.tour([[.2, 4.6], [5.4, 5.6], [8, .6], [7.6, -5.4], [4.2, -10.2], [-4.2, -10.2], [-8.2, -3], [-8.6, 3.6], [-4, 5.2], [-1.4, 7.8], [3.6, 8.4], [5.4, 3.6]]);
 
@@ -122,7 +124,6 @@ TALE_WORLD('12-23', G => {
   // ?lift=秒 で かごの時計を進める（確かめる用）
   const L0 = +(new URLSearchParams(location.search).get('lift') || 0), WAIT = 7, MOVE = 11, PER = 2 * (WAIT + MOVE), ss = k => k * k * (3 - 2 * k), lift = t => { const s = t % PER; return s < WAIT ? 0 : s < WAIT + MOVE ? LH * ss((s - WAIT) / MOVE) : s < 2 * WAIT + MOVE ? LH : LH * (1 - ss((s - 2 * WAIT - MOVE) / MOVE)); };
   G.tick((t, dt, P) => {
-    G.cam.rotateX(innerWidth < innerHeight ? .12 : .18);
     const y = lift(t + L0); cage.position.y = y; weight.position.set(1.6, TH - 20 - LOW - (y + LOW) * .9, -6.2);
     for (const r of ride) { r.b.y0 = y + r.a; r.b.y1 = y + r.h; }
     op.o.position.y = y; panel.o.position.y = y + 1.1;

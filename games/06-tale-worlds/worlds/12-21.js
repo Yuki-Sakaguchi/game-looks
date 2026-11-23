@@ -1,7 +1,7 @@
 // ワールド 12-21「見上げる下層の市場」。もとは game-looks-12/21-under-market-looking-up.html（見るだけの場面）。
 // 夕方、人であふれる下層の市場。頭の上を 上の都市をのせた巨大な台の裏がおおい、その切れ目の向こうに 白と金の塔の都市と しずむ夕日がのぞく。
 // ゲームにするために足した物：店・屋台・荷物の当たり判定、通りの両はしの トタンのさく、通りをまたぐ 木の わたり橋（鉄の階段で のぼれる）、
-// 話せる市場の人 9 人とねこ、しらべられる物 4 つ、行き交う人ごみ（主人公と同じ作りの人）。見上げる構図を保つため、カメラを少し上へ向ける。
+// 話せる市場の人 9 人とねこ、しらべられる物 4 つ、行き交う人ごみ（主人公と同じ作りの人）。見上げる構図を保つため、カメラの見る点を少し上げる。
 TALE_WORLD('12-21', G => {
   const { THREE, K, R, T, TL, scene } = G, C = PACK_CITY(THREE, K, R), U = PACK_UNDER1(THREE, K, R, C), X = C.tex, L = C.LIGHT, { hash } = K, PI = Math.PI, HAZE = '#c07a7a';
   G.cam.far = 2000; G.cam.updateProjectionMatrix();
@@ -113,12 +113,13 @@ TALE_WORLD('12-21', G => {
   G.sign(0, 1, -76.6, { name: 'トタンのさく', lines: [['「この先 工事中」', 'すき間から、さらに 暗い 下の町が 見える。']] });
 
   // ---- はじめの場所と、自動で歩く道 ----
+  // 見上げる構図：カメラの見る点を少し上げる（主人公は画面の下へ、上の都市が画面に入る）
+  G.camera({ lookUp: 1.0 });
   G.spawn(.4, 14, PI);
   G.tour([[.4, 8], [-1.2, -8], [1.2, -24], [1.3, -36], [2.72, -38.4], [2.72, BZ], [-2.6, BZ], [-2.72, BZ - 4.6], [-.4, -58], [.2, -70], [-1.5, -50], [-1, -30], [0, -4], [.4, 14]]);
 
-  // ---- 毎コマ：人ごみ・カラス・ゴンドラ・ネオン。見上げる構図のため カメラを少し上へ ----
+  // ---- 毎コマ：人ごみ・カラス・ゴンドラ・ネオン。見上げる構図は G.camera の lookUp で ----
   G.tick((t, dt, P) => {
-    G.cam.rotateX(innerWidth < innerHeight ? .14 : .26);
     follow.position.set(P.x, P.y + 2.8, P.z + 1);
     crowd.forEach((c, i) => { const p = c.p, sp = c.sp * (c.kid ? 1.8 : 1), u = ((t * sp + c.ph) % 92), zz = c.dir > 0 ? 18 - u : -74 + u; let lx = c.lane; if (Math.abs(zz - P.z) < 2.5 && Math.abs(lx - P.x) < .9) lx += lx > P.x ? .9 : -.9;
       p.position.set(lx, 0, zz); p.rotation.y = c.dir > 0 ? PI : 0; R.walk(p, t * sp * 4.4 + i, c.kid ? 1.2 : .8); });
