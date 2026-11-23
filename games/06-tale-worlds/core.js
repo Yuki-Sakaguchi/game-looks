@@ -14,6 +14,7 @@
 //     G.spawn(x, z, ry)             はじめの場所
 //     G.tick(f)                     毎コマ f(t, dt, 主人公の位置)
 //     G.crt(o)                      ブラウン管の引数（省くと { noise: 0 }）
+//     G.camera({ pitch, dist, lookUp }) カメラの既定（pitch＝見下ろす角度。0.3 が既定、0 近くで水平、マイナスで見上げる。lookUp＝見る点を上げる m。塔やビルの谷間で高さを見せる）。ドラッグで −0.32〜0.9 まで動かせる
 window.TALE_WORLDS = window.TALE_WORLDS || {};
 window.TALE_WORLD = (id, build) => { window.TALE_WORLDS[id] = build; };
 
@@ -23,7 +24,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   const G = { THREE, K, R, T: R.tex, TL, MO, scene, cam, renderer, hash: K.hash };
   // ---- 当たり判定 ----
   const boxes = [], circles = [], npcs = [], ticks = []; let H = () => 0, BND = null, SPAWN = [0, 0, 0], crtO = { noise: 0 }, TOUR = null, tourI = 0;
-  G.ground = f => { H = f; }; G.bounds = (x0, x1, z0, z1) => { BND = [x0, x1, z0, z1]; }; G.spawn = (x, z, ry = 0) => { SPAWN = [x, z, ry]; }; G.tick = f => ticks.push(f); G.tour = pts => { TOUR = pts; }; G.crt = o => { crtO = { noise: 0, ...o }; };   // G.tour: ?auto=1 で歩く道（[[x, z], …] をくり返す）
+  G.ground = f => { H = f; }; G.bounds = (x0, x1, z0, z1) => { BND = [x0, x1, z0, z1]; }; G.spawn = (x, z, ry = 0) => { SPAWN = [x, z, ry]; }; G.tick = f => ticks.push(f); G.camera = o => { if (o.pitch !== undefined) cam0.pitch = o.pitch; if (o.dist) cam0.dist = o.dist; if (o.lookUp) cam0.lookUp = o.lookUp; }; G.tour = pts => { TOUR = pts; }; G.crt = o => { crtO = { noise: 0, ...o }; };   // G.tour: ?auto=1 で歩く道（[[x, z], …] をくり返す）
   G.box = (x, z, w, d, y0, y1, ry = 0, wall = false) => { const b = { x, z, hx: w / 2, hz: d / 2, y0, y1, c: Math.cos(ry), s: Math.sin(ry), wall }; boxes.push(b); return b; };
   G.circle = (x, z, r, y0 = -9, y1 = 99) => { circles.push({ x, z, r, y0, y1 }); };
   G.solid = (o, kind = 'box', op = {}) => { if (kind === 'none') return o; o.updateMatrixWorld(true); const p = new THREE.Vector3(), qu = new THREE.Quaternion(), sc = new THREE.Vector3(); o.matrixWorld.decompose(p, qu, sc); const ry = new THREE.Euler().setFromQuaternion(qu, 'YXZ').y;
@@ -60,7 +61,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); const left = e.pointerType === 'touch' && e.clientX < innerWidth * .45; pts.set(e.pointerId, { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, left }); if (left) { joy.on = true; joy.x = joy.y = 0; $('stick').style.display = 'block'; $('stick').style.left = e.clientX - 50 + 'px'; $('stick').style.top = e.clientY - 50 + 'px'; } });
     cv.addEventListener('pointermove', e => { const p = pts.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
       if (p.left) { const ax = (p.x - p.x0) / 50, ay = (p.y - p.y0) / 50, m = Math.hypot(ax, ay), k = m > 1 ? 1 / m : 1; joy.x = ax * k; joy.y = ay * k; joy.run = m > .85; $('knob').style.transform = `translate(${joy.x * 32}px,${joy.y * 32}px)`; }
-      else { cam0.yaw -= dx * .008; cam0.pitch = Math.max(.05, Math.min(.9, cam0.pitch + dy * .004)); cam0.drag = 2; } });
+      else { cam0.yaw -= dx * .008; cam0.pitch = Math.max(-.32, Math.min(.9, cam0.pitch + dy * .004)); cam0.drag = 2; } });
     const up = e => { const p = pts.get(e.pointerId); pts.delete(e.pointerId); if (p && p.left) { joy.on = false; joy.x = joy.y = 0; $('stick').style.display = 'none'; $('knob').style.transform = ''; } };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('wheel', e => { e.preventDefault(); cam0.dist = Math.max(2.4, Math.min(8, cam0.dist * Math.exp(e.deltaY * .001))); }, { passive: false }); }
@@ -162,7 +163,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       { let k = 1; for (let i = 1; i <= 10; i++) { const f = i / 10, x = tx + (camP.x - tx) * f, y = ty + 1 + (camP.y - ty - 1) * f, z = tz + (camP.z - tz) * f;   // カメラと主人公のあいだに かべがあれば、カメラを近づける
           if (boxes.some(b => { if (y < b.y0 || y > b.y1 + .2) return false; const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .15 && Math.abs(lz) < b.hz + .15; })) { k = Math.max(.3, (i - 1.5) / 10); break; } }
         if (k < 1) camP.set(tx + (camP.x - tx) * k, ty + 1 + (camP.y - ty - 1) * k, tz + (camP.z - tz) * k); }
-      const gc = H(camP.x, camP.z) + .4; if (camP.y < gc) camP.y = gc; cam.position.lerp(camP, Math.min(1, dt * 8)); look.set(tx, ty + .85, tz); cam.lookAt(look);
+      const gc = H(camP.x, camP.z) + .4; if (camP.y < gc) camP.y = gc; cam.position.lerp(camP, Math.min(1, dt * 8)); look.set(tx, ty + .85 + Math.max(0, -cam0.pitch) * 4 + (cam0.lookUp || 0), tz); cam.lookAt(look);
       if (lightSun) { lightSun.position.set(st.x + SUNV.x * 60, SUNV.y * 60 + st.y, st.z + SUNV.z * 60); lightSun.target.position.set(st.x, st.y, st.z); }
       npcTick(t, dt, st); for (const f of ticks) f(t, dt, st);
       if (st.talking) st.shown = Math.min(st.full.length, st.shown + dt * 28);
