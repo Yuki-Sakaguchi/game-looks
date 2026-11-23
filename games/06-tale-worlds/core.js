@@ -7,7 +7,7 @@
 //     G.ground(H)                   地面の高さ H(x, z)（省くと 0）
 //     G.solid(物, 形, o)            当たり判定。形 'box'（物の向きに合わせた箱。上に乗れる）/ 'wall'（箱だが上には乗れない：屋根の家・城）/ 'round'（円柱。o.r）/ 'trunk'（木の幹。r .35）/ 'none'
 //                                   o = { pad（箱を少し小さく/大きく）, top（上の高さを決める）, r }。物はもう置いてある位置で測る
-//     G.box(x, z, w, d, y0, y1, ry, wall) 見えない箱（かべ・段・台）。wall=true なら上に乗れない  G.circle(x, z, r, y0, y1)  見えない円柱
+//     G.box(x, z, w, d, y0, y1, ry, wall) 見えない箱（かべ・段・台）。wall=true なら上に乗れない。返した箱の x z y0 y1 を G.tick で書きかえると動く足場になる  G.circle(x, z, r, y0, y1)  見えない円柱
 //     G.bounds(x0, x1, z0, z1)      歩ける はんい（外は見えないかべ）
 //     G.npc(人, { name, lines: [ … ], face, wander, path, speed, r })   話せる人。lines は 1 回ごとに 1 つずつ進む文（配列の配列で、1 回の会話に何ページか）
 //     G.sign(x, y, z, { name, lines })  話せる物（看板・碑など。見えない）
@@ -24,7 +24,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   // ---- 当たり判定 ----
   const boxes = [], circles = [], npcs = [], ticks = []; let H = () => 0, BND = null, SPAWN = [0, 0, 0], crtO = { noise: 0 }, TOUR = null, tourI = 0;
   G.ground = f => { H = f; }; G.bounds = (x0, x1, z0, z1) => { BND = [x0, x1, z0, z1]; }; G.spawn = (x, z, ry = 0) => { SPAWN = [x, z, ry]; }; G.tick = f => ticks.push(f); G.tour = pts => { TOUR = pts; }; G.crt = o => { crtO = { noise: 0, ...o }; };   // G.tour: ?auto=1 で歩く道（[[x, z], …] をくり返す）
-  G.box = (x, z, w, d, y0, y1, ry = 0, wall = false) => { boxes.push({ x, z, hx: w / 2, hz: d / 2, y0, y1, c: Math.cos(ry), s: Math.sin(ry), wall }); };
+  G.box = (x, z, w, d, y0, y1, ry = 0, wall = false) => { const b = { x, z, hx: w / 2, hz: d / 2, y0, y1, c: Math.cos(ry), s: Math.sin(ry), wall }; boxes.push(b); return b; };
   G.circle = (x, z, r, y0 = -9, y1 = 99) => { circles.push({ x, z, r, y0, y1 }); };
   G.solid = (o, kind = 'box', op = {}) => { if (kind === 'none') return o; o.updateMatrixWorld(true); const p = new THREE.Vector3(), qu = new THREE.Quaternion(), sc = new THREE.Vector3(); o.matrixWorld.decompose(p, qu, sc); const ry = new THREE.Euler().setFromQuaternion(qu, 'YXZ').y;
     if (kind === 'trunk' || kind === 'round') { const bb = new THREE.Box3().setFromObject(o); G.circle(p.x, p.z, op.r ?? (kind === 'trunk' ? .35 : Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2 * (op.pad ?? .9)), bb.min.y - .1, op.top ?? bb.max.y); return o; }
