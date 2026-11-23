@@ -132,7 +132,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     const lightSun = scene.children.find(o => o.isDirectionalLight), SUNV = lightSun ? lightSun.position.clone().normalize() : new THREE.Vector3(.5, .7, .5);
     let ty = 0, lastHint = 0, runK = 0, dust = 0; const fx = K.fx(scene, 40);
     K.loop((dt, t) => {
-      // 入力 → カメラから見た向き。走る 7.4 m/s（全力のダッシュ）、歩く 2.2 m/s
+      // 入力 → カメラから見た向き。走る 7.4 m/s（全力のダッシュ）、歩く 3.0 m/s
       let ix = 0, iz = 0, running = false;
       if (!st.talking && $('menu').style.display !== 'block') { ix = (key.KeyD || key.ArrowRight ? 1 : 0) - (key.KeyA || key.ArrowLeft ? 1 : 0); iz = (key.KeyW || key.ArrowUp ? 1 : 0) - (key.KeyS || key.ArrowDown ? 1 : 0); running = !!(key.ShiftLeft || key.ShiftRight || joy.lock);
         if (joy.on) { ix = joy.x; iz = -joy.y; running = running || joy.run; }
@@ -140,7 +140,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
           const dx = wx - st.x, dz = wz - st.z, l = Math.hypot(dx, dz) || 1, fx = Math.sin(cam0.yaw), fz = Math.cos(cam0.yaw); iz = (dx * fx + dz * fz) / l; ix = (-dx * fz + dz * fx) / l; running = q.get('run') ? true : t % 9 > 5; if (!q.get('run') && Math.abs((t % 4) - 3) < dt) jump(); if (q.get('side')) { cam0.yaw = st.ry - Math.PI / 2; cam0.drag = 1; } } }   // ?run=1 ずっと走る、?side=1 横から見る（確かめる用）
       const m = Math.min(1, Math.hypot(ix, iz)), fwdX = Math.sin(cam0.yaw), fwdZ = Math.cos(cam0.yaw);   // カメラの前と右（右＝(−前z, 前x)）
       const dirX = fwdX * iz - fwdZ * ix, dirZ = fwdZ * iz + fwdX * ix;
-      const want = m * (running ? 7.4 : 2.2); st.speed += (want - st.speed) * Math.min(1, dt * (st.ground ? 10 : 3));
+      const want = m * (running ? 7.4 : 3.0); st.speed += (want - st.speed) * Math.min(1, dt * (st.ground ? 10 : 3));
       if (m > .05) { const a = Math.atan2(dirX, dirZ); st.ry += Math.atan2(Math.sin(a - st.ry), Math.cos(a - st.ry)) * Math.min(1, dt * 12); }
       const P = { x: st.x + Math.sin(st.ry) * st.speed * dt * (m > .05 ? 1 : 0), z: st.z + Math.cos(st.ry) * st.speed * dt * (m > .05 ? 1 : 0) };
       push(P, st.y, 1.1, .42, .3); const g = support(P.x, P.z, st.y, .42);

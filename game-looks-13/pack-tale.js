@@ -289,8 +289,8 @@ window.PACK_TALE = (THREE, K, R) => {
     J.shinL.rotation.x = .25 + (.6 + .9 * k) * Math.max(0, Math.sin(ph + 1.1)); J.shinR.rotation.x = .25 + (.6 + .9 * k) * Math.max(0, Math.sin(ph + 1.1 + Math.PI));
     J.armL.rotation.set(a * (.6 + .5 * k), 0, .14); J.armR.rotation.set(-a * (.6 + .5 * k), 0, -.14); J.foreL.rotation.x = -1.2 - .25 * Math.max(0, -a); J.foreR.rotation.x = -1.2 - .25 * Math.max(0, a);
     J.torso.rotation.set(.18 + .2 * k, a * .1, 0); J.head.rotation.set(-.12 - .12 * k, -a * .06, 0);
-    const B = g.userData.build || {}, L = (B.thigh || .3) + (B.shin || .3), drop = L * (1 - Math.cos(sw * .75 + .15 * k)) * .55;   // 腰の高さは 1 歩の中で ほぼ一定（上下にがたがた動かさない）
-    J.hips.position.y = g.userData.hipY - drop - .02 * k + Math.abs(Math.cos(ph)) * .012 * k; if (J.cape) J.cape.rotation.x = -(.5 + .3 * k) - .12 * Math.sin(ph * 2); }
+    const B = g.userData.build || {}, L = (B.thigh || .3) + (B.shin || .3), drop = L * (1 - Math.cos(sw * .75 + .15 * k)) * .55;   // 腰の高さは 1 歩の中で ほぼ一定にし、はずみは 3 cm（1.2 cm では 頭が止まって見えた。6 cm では がたがた）
+    J.hips.position.y = g.userData.hipY - drop - .02 * k + Math.abs(Math.cos(ph)) * .03 * k; if (J.cape) J.cape.rotation.x = -(.5 + .3 * k) - .12 * Math.sin(ph * 2); }
 
   return { person, hero, dash, cast, CAST, SIZES, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
 };
