@@ -22,7 +22,7 @@
 //   U.fireworks({ n: 4, center: [x, y, z], spread: [sx, sy, sz], per: 4.6, R0: 13, cs: [[色, 光る色], …], size: 3.2 }) → Group   花火（上る光のすじ → 開く点の輪 → 落ちながら消える）
 //   U.cascade({ w: 3, h: 30, c, a: .75, speed: 1.4 }) → Group   台のふちから落ちる水（原点が上のはし。-y へ落ちる。下のはしに しぶき）
 //   U.kite({ c, c2, s: 1, tail: 6 }) → Group   たこ（ひし形の紙と しっぽ）。毎コマ kite.userData.string(手の位置 Vector3) で糸を引く
-//   U.umbrella(人, { c, c2, patch（つぎの色）, hand: 'R'/'L', s }) → Group   こうもりがさ（人の手に付ける。うでを前へ上げて持たせる）
+//   U.umbrella(人, { c, c2, patch（つぎの色）, hand: 'R'/'L', s }) → Group   こうもりがさ（人の体に付ける。え は 手の高さから上へのびる。うでは armR.rotation.set(-1.25, 0, .25)、foreR.rotation.x = -1.05 ほどで前へ）
 //   U.update(t)
 window.PACK_UNDER2 = (THREE, K, R) => {
   const { hash } = K, PI = Math.PI, TAU = PI * 2, T = R.tex, U = {}, tx = {}, cache = new Map(), ramp = R.ramp, mix = (a, b, k) => { const p = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join(''); };
@@ -164,7 +164,7 @@ window.PACK_UNDER2 = (THREE, K, R) => {
   U.umbrella = (p, o = {}) => { const J = p.userData.J, hand = o.hand === 'L' ? J.foreL : J.foreR, b = p.userData.build || {}, k = (b.head || .26) / .26 * (o.s || 1), g = new THREE.Group(), B = R.parts();
     B.g(T.metal ? T.metal({ c: '#4a4a52' }) : tx.under()).loft(4, [[0, .02 * k, .02 * k, 0, 1], [1.05 * k, .015 * k, .015 * k, 1, 1]], {});
     const G = B.g(tx.canopy(o), { side: true }), R0 = .68 * k, top = 1.05 * k, n = 8; for (let i = 0; i < n; i++) { const a0 = i / n * TAU, a1 = (i + 1) / n * TAU, q = a => [Math.cos(a) * R0, top - .26 * k, Math.sin(a) * R0], uv = a => [.5 + Math.cos(a) * .48, .5 + Math.sin(a) * .48]; G.tri(q(a0), [0, top, 0], q(a1), uv(a0), [.5, .5], uv(a1), [.85, 1.1, .85]); }
-    g.add(B.group()); if (o.attach !== false) { g.position.set(0, -.28 * k, .04); g.rotation.x = -.45; hand.add(g); } return g; };
+    g.add(B.group()); if (o.attach !== false) { const H = p.userData.height || 1.4; g.position.set(o.hand === 'L' ? .2 : -.2, H * .5, .2); g.rotation.set(-.08, 0, o.hand === 'L' ? -.06 : .06); p.add(g); } return g; };
 
   U.update = t => { for (const o of U.live) o.userData.tick?.(t); };
   return U;

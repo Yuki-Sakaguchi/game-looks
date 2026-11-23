@@ -42,6 +42,8 @@ for (let k = 0; k < 60; k++) { const along = hash(k, 1) > .5, s = hash(k, 2) > .
   else { const z = (hash(k, 9) > .5 ? 1 : -1) * t, x = s * (RZ + 3 - w / 2 - .1); sg.position.set(x, y, z); if (y < 9) streaks.push({ x: x * .8, z, h: y, c, k: .7, w: .6 + w * .3 }); }
   fixed.push(sg); lights.push({ x: sg.position.x * .85, z: sg.position.z * .85, r: 4, c, k: .35 }); }
 
+for (let k = 0; k < 26; k++) { const x = (hash(k, 11) - .5) * 70, y = 3.2 + hash(k, 12) * 8, v = hash(k, 13) < .45, c = [CY, PN, '#ffc040', CY, PN][k % 5];   // 交差点の向こうのかべに はりついた看板（こちらを向く）
+  if (Math.abs(x) < RZ + 3.5) continue; const sg = N.sign({ kind: v ? 'v' : 'h', n: v ? 3 + (k % 3) : 2 + (k % 3), c, c2: c === CY ? PN : CY, w: v ? 1.4 + hash(k, 14) : 3 + hash(k, 14) * 2, seed: k + 700, depth: .3, flicker: k % 9 === 2 }); sg.position.set(x, y, RX + 3 - .3); fixed.push(sg); if (y < 10) streaks.push({ x, z: RX + 2, h: y, c, k: .6, w: 1 }); }
 // ---- 路面（ぬれたアスファルト）・歩道・横断歩道・水たまり・信号・街灯 ----
 const road = (x, z) => Math.abs(z) < RX || Math.abs(x) < RZ;
 const land = R.ground({ w: 140, d: 140, cell: 1.5, layers: [X.asphalt({ wet: 1, c: '#2e3866', wetC: '#5a78c8' }), X.tile({ c: '#5a6490', c2: '#4a5480' }), X.plate({ c: '#4a5488' })], mix: (x, z) => [road(x, z) ? 0 : 1, 0], shade: C.lightShade(lights, [.48, .54, .86]) }); scene.add(land.mesh);
