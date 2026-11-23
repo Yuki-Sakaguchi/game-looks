@@ -99,7 +99,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   // ---- 動き ----
   function heroPose(t, dt) { const J = hero.userData.J;
     if (!st.ground) { MO.reset(hero); const k = Math.min(1, st.air * 4); J.legL.rotation.x = -.7 * k; J.shinL.rotation.x = 1.1 * k; J.legR.rotation.x = .25 * k; J.shinR.rotation.x = .6 * k; J.armL.rotation.set(-.4 * k, 0, .5 * k); J.armR.rotation.set(.5 * k, 0, -.5 * k); J.foreL.rotation.x = J.foreR.rotation.x = -.6 * k; J.torso.rotation.x = .08; return; }
-    if (st.speed > 3.4) { st.ph += dt * (11 + st.speed * 1.5); TL.dash(hero, st.ph, Math.min(1, (st.speed - 3.4) / 2.5)); }
+    if (st.speed > 3.4) { st.ph += dt * (7 + st.speed); TL.dash(hero, st.ph, Math.min(1, (st.speed - 3.4) / 2.5)); }
     else if (st.speed > .2) { st.ph += dt * st.speed * 3.9; R.walk(hero, st.ph, 1); }
     else MO.play(hero, 'stand', t); }
   function npcTick(t, dt, P) { near = null; let best = 1e9;
@@ -145,7 +145,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       cam0.drag = Math.max(0, cam0.drag - dt); if (m > .05 && cam0.drag <= 0 && iz > -.3) cam0.yaw += Math.atan2(Math.sin(st.ry - cam0.yaw), Math.cos(st.ry - cam0.yaw)) * Math.min(1, dt * 1.6 * m);
       if (key.KeyQ) cam0.yaw += dt * 2; if (key.KeyC) cam0.yaw -= dt * 2;
       const fast = Math.max(0, Math.min(1, (st.speed - 3.4) / 3.5)); runK += (fast - runK) * Math.min(1, dt * 3); const tall = innerWidth < innerHeight, D = cam0.dist * (tall ? .9 : 1) * (1 + .18 * runK);
-      { const U = cam.userData; if (U.set === undefined || Math.abs(cam.fov - U.set) > .01) U.fov0 = cam.fov; const f = U.fov0 + 7 * runK; cam.fov = U.set = f; cam.updateProjectionMatrix(); }   // 走ると画角が少し広がる（画面の大きさが変わったら、もとの画角を取りなおす） ty += (st.y - ty) * Math.min(1, dt * 6);
+      { const U = cam.userData; if (U.set === undefined || Math.abs(cam.fov - U.set) > .01) U.fov0 = cam.fov; const f = U.fov0 + 7 * runK; cam.fov = U.set = f; cam.updateProjectionMatrix(); } ty += (st.y - ty) * Math.min(1, dt * 6);   // 走ると画角が少し広がる（画面の大きさが変わったら、もとの画角を取りなおす）。ty＝カメラが追う高さ
       const tx = st.x, tz = st.z; camP.set(tx - Math.sin(cam0.yaw) * Math.cos(cam0.pitch) * D, ty + 1.0 + Math.sin(cam0.pitch) * D, tz - Math.cos(cam0.yaw) * Math.cos(cam0.pitch) * D);
       { let k = 1; for (let i = 1; i <= 10; i++) { const f = i / 10, x = tx + (camP.x - tx) * f, y = ty + 1 + (camP.y - ty - 1) * f, z = tz + (camP.z - tz) * f;   // カメラと主人公のあいだに かべがあれば、カメラを近づける
           if (boxes.some(b => { if (y < b.y0 || y > b.y1 + .2) return false; const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .15 && Math.abs(lz) < b.hz + .15; })) { k = Math.max(.3, (i - 1.5) / 10); break; } }
@@ -160,5 +160,5 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       crt.render(scene, cam, t); drawHud(t);
     });
   }
-  G.run = run; G.hero = hero; G.state = st; G.npcs = npcs; G.act = act; G.H = (x, z) => H(x, z); G.dbg = (x, z) => [...boxes.filter(b => { const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .5 && Math.abs(lz) < b.hz + .5; }), ...circles.filter(c => Math.hypot(x - c.x, z - c.z) < c.r + .5)]; window.__tale = G; return G;   // __tale は確かめる用
+  G.run = run; G.cam = cam; G.hero = hero; G.state = st; G.npcs = npcs; G.act = act; G.H = (x, z) => H(x, z); G.dbg = (x, z) => [...boxes.filter(b => { const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .5 && Math.abs(lz) < b.hz + .5; }), ...circles.filter(c => Math.hypot(x - c.x, z - c.z) < c.r + .5)]; window.__tale = G; return G;   // __tale は確かめる用
 };

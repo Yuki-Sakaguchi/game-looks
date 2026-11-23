@@ -110,7 +110,7 @@ K.loop((dt, t) => {
     cam.position.set(cx, cy + Math.sin(pitch) * dist, Math.cos(pitch) * dist); cam.lookAt(cx, cy, 0); }
   for (const it of items) {
     if (it.side) { v.set(it.x, it.y, 0).project(cam); it.side.style.left = (it.side.classList.contains('grp') ? (v.x * .5 + .5) * innerWidth : Math.max(4, (v.x * .5 + .5) * innerWidth)) + 'px'; it.side.style.top = (-v.y * .5 + .5) * innerHeight + 'px'; continue; }
-    if (st.motion === 'dash') TL.dash(it.a, mt * 22, 1); else MO.play(it.a, st.motion, mt); it.a.rotation.y = it.rotY + (st.view === 'game' ? 0 : st.yaw);
+    if (st.motion === 'dash') TL.dash(it.a, mt * 14.4, 1); else MO.play(it.a, st.motion, mt); it.a.rotation.y = it.rotY + (st.view === 'game' ? 0 : st.yaw);
     if (it.el) { v.set(it.x, it.small ? it.y - .17 : it.labelY ? it.y + it.labelY : it.y + it.a.userData.height + .12, 0).project(cam); it.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; it.el.style.top = Math.max($('ui').offsetHeight + 2, (-v.y * .5 + .5) * innerHeight - (it.small ? 0 : 16)) + 'px'; } }
   (st.raw ? crtRaw : crtOn).render(scene, cam, t);
 });
