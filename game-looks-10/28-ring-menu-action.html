@@ -135,7 +135,7 @@ function mush(o = {}) { const s = o.s || 1, t = mushTex(o.c || '#e8563a'), root 
 function mushPose(e, name, t) { const J = e.userData.J, b = J.body, m = J.move; m.position.set(0, 0, 0); b.rotation.set(0, 0, 0); J.cap.rotation.set(0, 0, 0); let sy = 1;
   if (name === 'idle') { sy = 1 + Math.sin(t * 3.2) * .04; J.cap.rotation.x = Math.sin(t * 3.2 + 1) * .06; }
   else if (name === 'walk') { const ph = (t * 2.3) % 1, a = Math.sin(ph * PI); m.position.y = a * .2; sy = 1 + (a - .5) * .16; J.cap.rotation.x = -Math.cos(ph * TAU) * .14; b.rotation.x = .12; }
-  else if (name === 'attack') { const k = cl(t / .8), back = seg(k, 0, .4) - seg(k, .45, .6), fw = seg(k, .45, .6) - seg(k, .7, 1); b.rotation.x = -back * .5 + fw; m.position.z = fw * .55 - back * .12; m.position.y = fw * .12; J.cap.rotation.x = fw * .3; sy = 1 + back * .1; }
+  else if (name === 'attack') { const k = cl(t / .8), back = seg(k, 0, .4) - seg(k, .45, .6), fw = seg(k, .45, .6) - seg(k, .7, 1); b.rotation.x = -back * .5 + fw * .7; m.position.z = fw * .55 - back * .12; m.position.y = fw * .12; J.cap.rotation.x = fw * .3; sy = 1 + back * .1; }
   else if (name === 'hurt') { const k = cl(t / .4), a = Math.sin(k * PI); b.rotation.x = -a * .4; sy = 1 - a * .22; J.cap.rotation.z = Math.sin(k * 20) * .15 * (1 - k); m.position.z = -a * .1; }
   else if (name === 'down') { const k = cl(t / .8), e2 = ease(k); b.rotation.x = -e2 * 1.5; m.position.y = Math.sin(cl(k / .5) * PI) * .3 + e2 * .12; J.cap.rotation.x = -e2 * .4; sy = 1 - e2 * .15; }
   J.cap.rotation.x -= .46; b.scale.set(1 / Math.sqrt(sy), sy, 1 / Math.sqrt(sy)); J.feet.forEach((f, i) => { f.position.y = name === 'walk' ? Math.max(0, Math.sin(t * 2.3 * TAU + i * PI)) * .05 : 0; f.visible = name !== 'down' || t < .3; }); }
@@ -206,7 +206,7 @@ const EV = [
   [SP0, () => { yuna.mp -= 6; yuna.pw = 0; const p = V(-.3, 0, -1.3); F.ring(p, { c: '#ffb050', s: 1.1 }); F.spark(p.clone().setY(1), { c: '#ffd070', n: 12, s: 1.2 }); F.charge(p.clone().setY(1), { c: '#ff9a40', life: .7, r: 1 }); }],
   [SPF, () => { const from = spirit.position.clone().setY(spirit.position.y + .4); [[2, 58], [3, 52], [4, 64]].forEach(([i, n], k) => { const f = foes[i]; if (alive(f)) F.shot(from, eAt(f), { c: '#ff9a40', speed: 13 + k * 2, s: 1.7, onHit: () => { F.fire(f.pos, { s: f === big ? 2 : 1.4 }); hitE(f, n, { scale: 2, c: '#ffd0a0', sc: '#ff9a40', ss: 1.3 }); flash.color.set('#ffb060'); flash.position.copy(f.pos).setY(1.6); flash.userData.t = 0; shake = .5; } }); }); S.sxp = Math.min(1, S.sxp + .12); }],
   [15.95, () => { F.spark(spirit.position.clone().setY(spirit.position.y + .4), { c: '#ffd070', n: 10 }); }],
-  [15.6, () => { big.tgt.set(2, 0, -1.9); big.speed = 2.4; big.look = pom; }], [16, () => big.d.set('attack')], [16.45, () => hitP(pom, 21)],
+  [15.4, () => { big.tgt.set(2, 0, -1.9); big.speed = 3.4; big.look = pom; }], [15.6, () => big.d.set('attack')], [16.05, () => hitP(pom, 21)],
   // 輪のメニュー 2 のあと：リクが いやしのみ をポムに使う
   [17.3, () => { S.items[0]--; pom.hp = Math.min(pom.hpMax, pom.hp + 60); F.heal(pom.pos.clone(), {}); H.pop(hAt(pom, 1.2), '+60', { c: '#8affb0' }); }],
   // ためる：技の段が 1 → 2 → 3 と上がる
@@ -267,11 +267,11 @@ function moveFoes(w, dw) { for (const f of foes) { if (!f.on) continue; f.age +=
 // 火の精霊：ぽんと出る → くるりと回って 2 回はねる → 息をすいこんで ふくらむ → 火の玉をふく → 手をふって消える
 function moveSpirit(w) { const on = w >= SP0 && w < 16.1; spirit.visible = on; spL.intensity = 0; if (!on) return; const u = w - SP0, J = spirit.userData.J, pop = seg(u, 0, .3), out = seg(w, 15.9, 16.1), hop = u > .4 && u < 1.1 ? Math.abs(Math.sin((u - .4) / .7 * TAU)) * .35 : 0, puff = seg(w, SPF - .5, SPF - .1) - seg(w, SPF, SPF + .25), blow = seg(w, SPF, SPF + .12) - seg(w, SPF + .5, SPF + .8);
   spirit.position.set(-.3, .75 + hop + Math.sin(w * 4) * .05 + pop * .1, -1.3); spirit.rotation.y = PI + (1 - pop) * 6 + (u > .4 && u < 1.1 ? Math.sin((u - .4) / .7 * PI) * PI * 2 : 0) + .25;
-  const s = 1.35 * (pop + Math.sin(pop * PI) * .3) * (1 - out) * (1 + puff * .3); spirit.scale.set(s * (1 + puff * .12), s * (1 - blow * .15), s * (1 + puff * .12)); J.body.rotation.x = -puff * .35 + blow * .5;
+  const s = 1.7 * (pop + Math.sin(pop * PI) * .3) * (1 - out) * (1 + puff * .3); spirit.scale.set(s * (1 + puff * .12), s * (1 - blow * .15), s * (1 + puff * .12)); J.body.rotation.x = -puff * .35 + blow * .5;
   J.arms.forEach((a, i) => { const sx = i ? 1 : -1; a.rotation.z = -sx * (1.2 + Math.sin(w * 14 + i) * .35 + puff * .8); a.rotation.x = -blow * 1.2; }); spirit.userData.hl.material.opacity = .45 + puff * .3 + Math.sin(w * 9) * .06;
   spL.position.copy(spirit.position); spL.intensity = (7 + puff * 9) * pop * (1 - out); }
 function moveChest(w) { const on = w >= 24.4; chest.visible = on; if (!on) return; const k = cl((w - 24.4) / .5), b1 = w > 24.9 && w < 25.35 ? Math.sin((w - 24.9) / .45 * PI) * .8 : 0, b2 = w > 25.35 && w < 25.6 ? Math.sin((w - 25.35) / .25 * PI) * .28 : 0, land = Math.max(0, 1 - Math.abs(w - 24.9) / .09, 1 - Math.abs(w - 25.35) / .07);
-  chest.position.set(CHP[0], 9 * (1 - k * k) + b1 + b2, CHP[1]); chest.rotation.set(0, PI + .5, (1 - k) * Math.sin(w * 11) * .2 + (b1 > 0 ? Math.sin((w - 24.9) * 14) * .12 : 0)); chest.scale.set(1 + land * .18, 1 - land * .25, 1 + land * .18);
+  chest.position.set(CHP[0], 9 * (1 - k * k) + b1 + b2, CHP[1]); chest.rotation.set(0, .3, (1 - k) * Math.sin(w * 11) * .2 + (b1 > 0 ? Math.sin((w - 24.9) * 14) * .12 : 0)); chest.scale.set(1 + land * .18, 1 - land * .25, 1 + land * .18);
   const co = seg(w, 25.95, 26.5); chest.userData.lid.rotation.x = -co * 1.9; chestGlow.visible = chestIn.visible = co > .05; chestGlow.material.opacity = co * (.5 + Math.sin(w * 5) * .08); chestL.position.set(CHP[0], 1.2, CHP[1]); chestL.intensity = co * 9; }
 
 // ---- 画面の表示 ----
@@ -311,11 +311,11 @@ function drawHud(tt, w, t, dt, dw) { H.begin(); const tall = H.tall, m = MENUS.f
   if (S.tele && w - S.tele.t0 < S.tele.len) { const k = (w - S.tele.t0) / S.tele.len; for (let i = 0; i < 28; i++) { const a = i / 28 * TAU + w * 2, s = H.project(tmp.set(S.tele.p.x + Math.sin(a) * S.tele.r, .05, S.tele.p.z + Math.cos(a) * S.tele.r)); if (s.on && (i + Math.floor(k * 8)) % 2) H.rect(s.x - 1, s.y, 3, 2, '#ff5a4a', .9); } }
   for (const f of foes) { if (!alive(f) || f.showT <= 0) continue; const s = H.project(eAt(f, 2.7)); if (s.on) H.tag(s.x, s.y - 3, f.name, f.hp / f.hpMax, { w: f === big ? 40 : 26 }); }
   // 各人の足もと：ちからの小さなバーと数字
-  if (w > 1.5 && w < 24.2 && mk < .2) for (const p of P3) { const s = H.project(tmp.copy(p.a.position).setY(0)); if (!s.on || s.y + 16 > H.H - (tall ? 68 : 44)) continue; const c = pwCol(p); H.bar(Math.round(s.x) - 10, Math.round(s.y) + 3, 21, 4, p.tier ? 1 : p.pw / 100, { c, back: '#1a2c40' }); H.num(p.tier ? 'LV' + p.tier : Math.floor(p.pw) + '%', Math.round(s.x), Math.round(s.y) + 9, { small: true, align: 'c', c: p.pw >= 100 ? '#fff6a0' : '#bfe8ff', outline: '#080814' }); }
+  if (w > 1.5 && w < 22.2 && mk < .2) for (const p of P3) { const s = H.project(tmp.copy(p.a.position).setY(0)); if (!s.on || s.y + 16 > H.H - (tall ? 68 : 44)) continue; const c = pwCol(p); H.bar(Math.round(s.x) - 10, Math.round(s.y) + 3, 21, 4, p.tier ? 1 : p.pw / 100, { c, back: '#1a2c40' }); H.num(p.tier ? 'LV' + p.tier : Math.floor(p.pw) + '%', Math.round(s.x), Math.round(s.y) + 9, { small: true, align: 'c', c: p.pw >= 100 ? '#fff6a0' : '#bfe8ff', outline: '#080814' }); }
   // 精霊の名前の小さな札
-  if (spirit.visible && w > SP0 + .3 && w < 15.9) { const s = H.project(tmp.copy(spirit.position).setY(spirit.position.y + .95)), x = Math.round(cl(s.x - 36, 6, H.W - 78)), y = Math.round(s.y) - 17; H.win(x, y, 72, 15, { c: '#b8501a', c2: '#5a200a', edge: '#ffe8b0' }); bits(IC.fire, x + 3, y + 2); H.text('ヒノコロ', x + 16, y + 2, {}); H.num('LV3', x + 68, y + 5, { small: true, align: 'r', c: GOLD }); }
+  if (spirit.visible && w > SP0 + .3 && w < 15.9) { const s = H.project(tmp.copy(spirit.position).setY(spirit.position.y + 1.25)), x = Math.round(cl(s.x - 36, 6, H.W - 78)), y = Math.round(s.y) - 17; H.win(x, y, 72, 15, { c: '#b8501a', c2: '#5a200a', edge: '#ffe8b0' }); bits(IC.fire, x + 3, y + 2); H.text('ヒノコロ', x + 16, y + 2, {}); H.num('LV3', x + 68, y + 5, { small: true, align: 'r', c: GOLD }); }
   // 右上：武器と術の育ち
-  { const r = H.place('右上', 80, 33, 0, tall ? 38 : 12); S.wxpShow += (S.wxp - S.wxpShow) * Math.min(1, dt * 4); S.sxpShow += (S.sxp - S.sxpShow) * Math.min(1, dt * 4); const up = w - S.lvT < 2.6 && Math.floor(t * 8) % 2;
+  if (tall || !(w - S.lvT < 2.8)) { const r = H.place('右上', 80, 33, 0, tall ? 38 : 12); S.wxpShow += (S.wxp - S.wxpShow) * Math.min(1, dt * 4); S.sxpShow += (S.sxp - S.sxpShow) * Math.min(1, dt * 4); const up = w - S.lvT < 2.6 && Math.floor(t * 8) % 2;
     H.win(r.x, r.y, r.w, r.h, WIN); H.icon('sword', r.x + 4, r.y + 3, { c: up ? '#ffe060' : '#e8f4f0' }); H.text('はのつるぎ', r.x + 14, r.y + 2, { size: 8 }); H.num('LV' + S.wlv, r.x + r.w - 5, r.y + 4, { small: true, align: 'r', c: up ? '#ffffff' : GOLD }); H.bar(r.x + 4, r.y + 12, r.w - 8, 3, S.wxpShow, { c: '#ffd040' });
     bits(IC.fire, r.x + 3, r.y + 18); H.text('ヒノコロ', r.x + 16, r.y + 16, {}); H.num('LV' + S.slv, r.x + r.w - 5, r.y + 19, { small: true, align: 'r', c: GOLD }); H.bar(r.x + 4, r.y + 27, r.w - 8, 3, S.sxpShow, { c: '#ff9a40' }); }
   // 下：3 人ぶんの顔・HP・MP・ちから
@@ -329,7 +329,7 @@ function drawHud(tt, w, t, dt, dw) { H.begin(); const tall = H.tall, m = MENUS.f
 // ---- カメラ：少し高めのうしろから 3 人を入れる。[w, 向き, きょり, 高さ, 見る高さ, 戦いのまん中へ寄せる量] ----
 const CK = [[0, .1, 6, 2.2, 1.15, 0], [2.7, .1, 6, 2.2, 1.15, 0], [3.7, .26, 6.3, 3.4, .7, .35], [6, .3, 6.4, 3.5, .7, .4], [9, .12, 6.4, 3.5, .7, .4], [12.4, -.12, 6.6, 3.5, .7, .45], [13.6, -.18, 6.2, 3.3, .8, .3], [15.2, -.3, 6.6, 3.3, .8, .5], [17, .1, 6.4, 3.4, .7, .4], [18.2, .5, 5.4, 2.7, .9, .1], [20.5, .6, 5.2, 2.5, 1, .1], [21.1, .3, 6.8, 3.3, .9, .6], [22.3, .3, 6.4, 3.2, .8, .3], [22.31, 2.55, 4.8, 1.7, 1.05, .1], [24.3, 2.7, 4.8, 1.7, 1.05, .1], [24.31, .2, 6.4, 3.2, .8, .5], [27, .12, 6, 2.6, 1.05, .5], [30, .12, 6, 2.6, 1.05, .5]];
 const cf = V(.9, 0, 8.4), cp = V(), ct = V(), FOC = V(.3, 0, -.6);
-function moveCam(w, t, dw, snap, mk) { const tall = innerWidth < innerHeight, [yaw, dist, h, ly, fw] = key(CK, w, 5), D = dist * (tall ? 1.2 : 1) * (1 - mk * .07);
+function moveCam(w, t, dw, snap, mk) { const tall = innerWidth < innerHeight, [yaw, dist, h, ly, fw] = key(CK, w, 5), D = dist * (tall ? 1.36 : 1) * (1 - mk * .07);
   cp.set(lerp(hero.pos.x, FOC.x, fw), 0, lerp(hero.pos.z, FOC.z, fw)); if (snap) cf.copy(cp); else cf.lerp(cp, Math.min(1, dw * 5));
   shake = Math.max(0, shake - dw * 1.7); const sx = Math.sin(t * 71) * shake * .08, sy = Math.sin(t * 93) * shake * .08;
   cam.position.set(cf.x + Math.sin(yaw) * D + sx, h + (tall ? .5 : 0) + sy, cf.z + Math.cos(yaw) * D); ct.set(cf.x - Math.sin(yaw) * 1.6, ly + (tall ? .2 : 0), cf.z - Math.cos(yaw) * 1.6); ct.lerp(tmp.set(hero.pos.x, hero.ht * .55, hero.pos.z), mk); cam.lookAt(ct); }
