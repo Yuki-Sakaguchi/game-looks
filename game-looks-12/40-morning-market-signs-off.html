@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-40 朝のネオンが消える市場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2a3a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-40 ─ 朝のネオンが消える市場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-neon2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ネオンの港町の早朝。集合住宅にはさまれた坂の下の市場が ひらき、夜の看板が 1 つずつ消えていく。魚の たらい・野菜の箱・湯気、配達の三輪車。
+// 通りの先には港と、海の向こうの高層の町と山が朝もやの中に見える。色の組は「朝の あんず色（空と日）・青ねず（かげと海）・白い湯気」＋差し色の 消えかけのネオンのもも。
+// 主役は ゴムの長ぐつで箱をかかえた若い店の手伝い（R.actor の toon）。うしろの高い所から見下ろすカメラが追う。売り手・客・かもめ・湯気・三輪車が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), N = PACK_NEON2(THREE, K, R, C), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const PK = '#ff5aa8', SKYH = '#ffd8b0';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#6a8ac8'], [.5, '#b8b8d8'], [.85, '#f8c8a8'], [1, '#ffe8c0']], { r: 700 })); scene.fog = new THREE.Fog('#e8c8b8', 50, 520);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0d8f0, ground: 0x8a7a80, amb: 1.6, sun: 0xffd0a0, power: 2, range: 40 }), SUN = new THREE.Vector3(-.2, .3, -.9).normalize();
+
+// ---- 市場の通り：z の向き（-z が港）。|x|<4.5 が通り、両がわに屋台、|x|>6.5 から集合住宅。z<-46 は岸壁と海 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const QZ = -46;
+const land = R.ground({ w: 120, d: 140, cell: 2, cz: -20, layers: [X.asphalt({ wet: .6, c: '#7a7480', wetC: '#c8b0c0' }), X.conc({ c: '#a8a0a0' }), T.cobble({ kind: 'slab', c: '#9a9098' })], mix: (x, z) => [Math.abs(x) > 4.6 ? 1 : 0, z < QZ + 6 ? 1 : 0], H: (x, z) => z < QZ ? -30 : 0 });
+scene.add(land.mesh);
+// 海（コマ送りの水）と、向こう岸の町・山
+const seaT = T.water({ c: '#7a8aa8' }), sea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 700, 28, 14).rotateX(-PI / 2), R.mat(seaT[0], {})); sea.position.set(0, -.8, QZ - 350); scene.add(sea);
+{ const G = R.geo(); G.box(120, 1.2, 1.2, 0, -.8, QZ, { m: 3 }); fixed.push(G.mesh(X.conc({ c: '#a8a0a0' }))); }
+const WALLC = ['#a8a0a8', '#b8a898', '#a0a8b0', '#b0a0a0', '#98a0a8', '#c0b0a8'];
+for (let i = 0; i < 26; i++) { const x = -210 + i * 17 + hash(i, 1) * 6, h = 50 + hash(i, 2) * 90; put(N.tower({ w: 14, d: 14, h, c: WALLC[i % 6], seed: i + 90, lit: .06, roof: true }), x, -300 - hash(i, 3) * 30); }
+scene.add(R.backdrop({ c: '#8a8aa8', haze: '#f0d0c0', r: 600, h: 200, y: -8, seed: 5 }));
+// 港の船（ゆっくりゆれる）とかもめ
+const boats = [[-14, -62, 2.6, '#e8e4dc'], [10, -70, 3.2, '#c8453a'], [-30, -95, 4, '#4a6a9a'], [24, -110, 5, '#e8e4dc']].map(([x, z, s, c], k) => { const b = R.boat({ c, sail: false }); b.scale.setScalar(s); b.position.set(x, -.9, z); b.rotation.y = k % 2 ? .4 : -.3; scene.add(b); return b; });
+// 両がわの集合住宅と、夜の看板
+const signMats = [];
+for (const s of [-1, 1]) for (let z = 14, i = 0; z > QZ + 4; i++) { const w = 10 + hash(i, s, 1) * 5, h = 34 + hash(i, s, 2) * 40;
+  put(N.tower({ w, d: 12, h, c: WALLC[(i + (s > 0 ? 3 : 0)) % 6], seed: i * 2 + (s > 0 ? 1 : 0) + 120, lit: .08, shops: true, awning: ['#4f8f88', '#c8963a', '#a8443a'][i % 3] }), s * (6.5 + 6), z - w / 2, -s * PI / 2);
+  const g = N.signs({ x0: 0, x1: w, z: 0, y0: 3.8, y1: 18, n: 6, seed: i * 2 + (s > 0 ? 1 : 0) + 140, box: .35, horiz: .15, reach: 1.6, px: .06, flick: 0 }); g.position.set(s * 6.5, 0, s < 0 ? z : z - w); g.rotation.y = -s * PI / 2; fixed.push(g);
+  g.traverse(o => { if (o.isMesh && o.material.isMeshBasicMaterial && !signMats.includes(o.material)) signMats.push(o.material); });
+  z -= w + .3; }
+// 屋台：魚のたらい・野菜の箱・ほろ
+const tub = (c) => { const G = R.geo().smooth(1); G.loft(10, [[0, .42, .42, 0, .8], [.36, .5, .5, 1, 1]], { cap: 'bot', ur: 2 }); const m = G.mesh(T.metal({ c }), { side: true }), top = new THREE.Mesh(new THREE.CircleGeometry(.47, 10).rotateX(-PI / 2), R.mat(fishTex)); top.position.y = .3; const g = new THREE.Group(); g.add(m, top); return g; };
+const fishTex = (() => { const P = R.Px(32), W = R.ramp('#7aa8c8'), F = R.ramp('#c8c8d0'); P.each((x, y) => (x + y * 2) % 9 === 0 ? W[4] : W[2]); for (let k = 0; k < 7; k++) { const x = Math.floor(hash(k, 1) * 26) + 2, y = Math.floor(hash(k, 2) * 26) + 3; for (let i = 0; i < 6; i++) { P.set(x + i, y, F[i < 2 ? 5 : 3]); P.set(x + i, y + 1, F[2]); } P.set(x - 1, y - 1, F[2]); P.set(x - 1, y + 2, F[2]); P.set(x + 4, y, '#2a2a3a'); } return T.from(P, { m: 1 }); })();
+const vegTex = (c, c2) => { const P = R.Px(32), A = R.ramp(c), B = R.ramp(c2); P.each((x, y) => { const d = Math.hypot((x % 8) - 4, (y % 8) - 4), alt = ((x >> 3) + (y >> 3)) % 2; return d < 3.4 ? (alt ? A : B)[d < 1.5 ? 5 : 3] : (alt ? A : B)[1]; }); return T.from(P, { m: 1 }); };
+const VEG = [vegTex('#6aa04a', '#a8c84a'), vegTex('#e86a3a', '#e8c040'), vegTex('#c8403a', '#6aa04a'), vegTex('#e8e0c0', '#a8c84a')];
+const lights = [], stalls = [];
+for (const s of [-1, 1]) for (let z = 8, k = 0; z > QZ + 8; z -= 3.4, k++) { const fish = (k + (s > 0 ? 1 : 0)) % 2 === 0;
+  put(C.yatai({ c: ['#4f8f88', '#3a5a9a', '#c8963a', '#a8443a'][k % 4], c2: '#f4f0e4', kind: ['wave', 'ring', 'dots', 'bars'][k % 4], noren: false, steam: !fish && k % 3 === 0, seed: k + (s > 0 ? 20 : 0) }), s * 4.2, z, -s * PI / 2);
+  if (fish) { for (let j = 0; j < 2; j++) put(tub(['#4a7ac8', '#e8e4dc'][j]), s * 3.1, z - .7 + j * 1.3); }
+  else for (let j = 0; j < 3; j++) { const G = R.geo(); G.box(.6, .3, .45, 0, 0, 0, { m: 1 }); const cr = G.mesh(X.plate({ c: '#8a6a44', n: 1 })), v = new THREE.Mesh(new THREE.PlaneGeometry(.55, .4).rotateX(-PI / 2), R.mat(VEG[(k + j) % 4])); v.position.y = .31; const g = new THREE.Group(); g.add(cr, v); put(g, s * 3.2, z - .8 + j * .75, 0, 0); }
+  stalls.push([s, z]); }
+scene.add(R.merge(fixed));
+// 湯気（料理の屋台と、氷の上の魚の白い息）
+const steams = [[-4, 1], [4, -9.2], [-4, -19.4], [4, -26]].map(([x, z]) => { const st = C.steam({ r: .6, rise: 3.4, n: 9, c: '#ffffff', a: .55, speed: .3, wind: [.3, -.2] }); st.position.set(x * .8, 1.3, z); scene.add(st); return st; });
+
+// ---- 人 ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ build: 'toon', hairStyle: 'short', hair: '#2a1e1a', eyes: 'big', mouth: 'smile', cloth: 'tunic', sleeve: 'short', top: '#f0ece4', top2: '#4a8ac8', bottom: '#3a4a6a', lower: 'pants', shoes: 'boot', shoe: '#e8c040', hat: 'band', acc: '#4a8ac8', belt: '#3a3a4a' });
+{ const G = R.geo(); G.box(.5, .3, .36, 0, 0, 0, { m: 1 }); const box = G.mesh(X.plate({ c: '#e8e8f0', n: 1, rust: 0 })), ice = new THREE.Mesh(new THREE.PlaneGeometry(.46, .32).rotateX(-PI / 2), R.mat(fishTex)); ice.position.y = .31; const g = new THREE.Group(); g.add(box, ice); g.position.set(0, .78, .3); hero.add(g); }
+const sellers = stalls.filter((_, k) => k % 2 === 0).map(([s, z], k) => act(N.folk(k + 300, { cloth: 'tunic', top: ['#f0ece4', '#4f8f88', '#e8a0b0'][k % 3] }), s * 4.8, z, -s * PI / 2));
+const shoppers = [...Array(14)].map((_, k) => ({ p: act(N.folk(k + 330, k % 3 === 0 ? { back: 'bag' } : {})), k, sp: .5 + hash(k, 1) * .5, dir: k % 2 ? 1 : -1, x: (hash(k, 2) - .5) * 4.2, off: hash(k, 3) * 50 }));
+const trikes = [0, 1].map(k => { const tr = C.trike({ c: ['#4a6a9a', '#c8453a'][k], load: true }); scene.add(tr); const p = act(N.folk(360 + k, { cloth: 'jacket', hat: 'cap' })); return { tr, p, k }; });
+const gulls = [...Array(8)].map((_, k) => { const b = R.bird({ c: '#f4f4f4', belly: '#ffffff', s: 1.8 }); scene.add(b); return b; });
+const cat = R.cat({ c: '#e8a050', belly: '#fff4e0' }); cat.position.set(2.9, .3, -3.6); scene.add(cat);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = .9, Z0 = 6, LEN = 34;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % LEN, z = Z0 - d, x = .4 + Math.sin(z * .2) * .3, tall = innerWidth < innerHeight;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .2) * .06; R.walk(hero, t * SPEED * 6.2, .8); const J = hero.userData.J; J.armR.rotation.x = J.armL.rotation.x = -1.1; J.foreR.rotation.x = J.foreL.rotation.x = -.9;
+  // うしろの高い所から見下ろす。通りの先に港と、海の向こうの町
+  cam.position.set(x + .6, tall ? 4.4 : 3.9, z + (tall ? 5.6 : 5.2)); cam.lookAt(x, tall ? -.4 : .2, z - 9);
+  crt.u.bright.value = Math.min(1, d / .5, (LEN - d) / .5);
+  sun.position.set(x + SUN.x * 80, SUN.y * 80, z + SUN.z * 80); sun.target.position.set(x, 0, z - 8); land.follow(0, z - 20);
+  // 夜の看板が 1 つずつ消えていく（ちらついてから、うすく残る）
+  signMats.forEach((m, k) => { const off = 1.5 + hash(k, 7) * 26, e = t - off; m.color.setScalar(e < 0 ? 1 : e < .8 ? (hash(Math.floor(t * 14), k) > .5 ? .35 : 1) : .35); });
+  R.flip(sea.material, seaT, t, 3);
+  sellers.forEach((p, k) => { R.idle(p, t + k, Math.sin(t * .6 + k) * .4); p.userData.J.armR.rotation.x = -.6 + Math.sin(t * 2 + k) * .4; });
+  shoppers.forEach(({ p, k, sp, dir, x: px, off }) => { const L = 50, u = (t * sp + off) % L; p.position.set(px, 0, dir > 0 ? QZ + 6 + u : 10 - u); p.rotation.y = dir > 0 ? 0 : PI; R.walk(p, t * sp * 5 + k, .7); p.visible = Math.abs(p.position.z - (z + 2)) > 2.2 || Math.abs(p.position.x - x) > 1.3; });
+  trikes.forEach(({ tr, p, k }) => { const L = 50, u = (t * (1 + k * .3) + k * 20) % L, zz = k ? 10 - u : QZ + 6 + u, ry = k ? PI : 0; tr.position.set(k ? -1.6 : 1.9, 0, zz); tr.rotation.y = ry - PI / 2; p.position.set(tr.position.x, 0, zz + (k ? 1.3 : -1.3)); p.rotation.y = ry; R.walk(p, t * 6 + k); p.userData.J.armR.rotation.x = p.userData.J.armL.rotation.x = -1.2; });
+  gulls.forEach((b, k) => { const a = t * .3 + k * .8, r = 12 + k * 2; b.position.set(Math.cos(a) * r, 10 + k * 1.2 + Math.sin(t + k), QZ - 6 + Math.sin(a) * r * .5); b.rotation.y = -a; R.birdPose(b, 'fly', t * .8 + k); });
+  boats.forEach((b, k) => { b.position.y = -.9 + Math.sin(t * .8 + k) * .08; b.rotation.z = Math.sin(t * .6 + k) * .03; });
+  R.catPose(cat, 'sit', t);
+  N.tick(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
