@@ -43,8 +43,15 @@ button.on{background:#e8b44a;border-color:#e8b44a;color:#1e2026;font-weight:700}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, MO = RETRO_MOTIONS(THREE, R), TL = PACK_TALE(THREE, K, R), q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
 
+const OUTFITS = [   // 町の人の服と帽子の見本（pack-tale.js の outfit・hat）
+  [{ outfit: 'traveler', hair: 'swept' }, '旅人'], [{ outfit: 'guard', hat: 'helm', hold: 'spear', size: 'tall', hair: 'center' }, '衛兵'], [{ outfit: 'robe', hat: 'wizard', hold: 'staff', hair: 'center', head: { hair: '#d8d8e0' } }, 'ローブ＋とんがり帽子'],
+  [{ outfit: 'robe', hat: 'hood', colors: { tunic: '#5a6a4a', hat: '#4a5a3e', trim: '#c8b080' }, hair: 'wolf' }, 'ローブ＋フード'], [{ outfit: 'apron', hat: 'kerchief', hair: 'center', head: { hair: '#8a4a2a' } }, 'エプロン'], [{ outfit: 'worker', hat: 'cap', hair: 'wolf', size: 'tall' }, '作業着'],
+  [{ outfit: 'traveler', hat: 'straw', size: 'small', hair: 'center', colors: { tunic: '#6a9a5a', vest: '#8a6a3a' } }, 'むぎわら帽子'], [{ outfit: 'apron', hat: 'beret', colors: { tunic: '#3f72b0' }, hair: 'swept', head: { hair: '#2a2a34' } }, 'ベレー帽'],
+  [{ outfit: 'worker', size: 'child', hair: 'wolf', colors: { pants: '#a85a3a' } }, '子ども（作業着）'], [{ outfit: 'robe', size: 'small', hair: 'center', head: { hair: '#e8e8e8', beard: 'beard', eyes: 'closed' }, colors: { tunic: '#6a5a9a' } }, 'おじいさん'],
+  [{ outfit: 'guard', size: 'normal', hat: 'cap', colors: { metal: '#b8a070', tunic: '#7a3a3a' }, hair: 'swept' }, '金色のよろい'], [{ outfit: 'robe', hat: 'straw', colors: { tunic: '#c8a860', trim: '#8a5a3a' }, hair: 'center', head: { hair: '#4a2a1a' } }, '旅の巡礼'],
+];
 const HEADS = [3.5, 4, 4.5, 5], SHEET = [4, 4.5, 5], DIRS = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]];
-const VIEWS = [['sheet', '3 つの頭身 × 4 つの向き'], ['row', '1 つの頭身 × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ']];
+const VIEWS = [['sheet', '3 つの頭身 × 4 つの向き'], ['row', '1 つの頭身 × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ'], ['outfit', '服と帽子']];
 const MOS = ['stand', 'look', 'walk', 'run', 'dash', 'jump', 'wave'];   // dash は TL.dash（ゲーム 06 の走り）
 const HAIRSET = [['swept', '流し前がみ'], ['center', '長めのセンター分け'], ['wolf', 'ウルフ']];
 const st = { hair: HAIRSET.some(h => h[0] === q.get('hair')) ? q.get('hair') : 'swept', view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'sheet', heads: HEADS.includes(+q.get('heads')) ? +q.get('heads') : 4.5, face: q.get('face') === 'small' ? 'small' : 'anime',
@@ -79,6 +86,7 @@ function build() {
       h.traverse(o => { if (o.isMesh) o.visible = false; }); J.head.traverse(o => { if (o.isMesh) o.visible = true; });
       const y = (nr - 1 - r) * hh * 1.75, hy = u.height - hh; put(h, (k - 1.5) * hh * 1.9, y - hy, a, r ? '' : l, 0, true).labelY = hy + hh * 1.22; if (!k) items.push({ side: tag(name, 'side'), x: -hh * 5.4, y: y + hh * .5 }); }));
     box = { x0: -hh * 5.5, x1: hh * 3.7, y0: -.05 * hh, y1: hh * (1.35 + (nr - 1) * 1.75) }; }
+  if (st.view === 'outfit') { const L = OUTFITS; L.forEach(([o, label], k) => { const r = Math.floor(k / 6), c = k % 6; put(TL.person(o), (c - 2.5) * 1.0, (1 - r) * 1.75, st.yaw0 || 0, label); }); box = { x0: -3.2, x1: 3.2, y0: -.15, y1: 3.25 }; }
   if (st.view === 'game') { SHEET.forEach((n, k) => put(TL.hero({ heads: n, face: st.face, hair: st.hair }), (k - 1) * 1.1, 0, 0, `${n} 頭身${n === 4.5 ? '<small>ふつうの人</small>' : n === 5 ? '<small>背の高い人</small>' : '<small>小がらな人</small>'}`, 0));
     R.cfg.face = 'anime'; const ref = R.actor({ build: 'toon', ...TL.HERO.head, cloth: 'tunic', top: TL.HERO.colors.tunic, bottom: TL.HERO.colors.pants, neck: 'scarf', acc: TL.HERO.colors.scarf, gloves: 'glove', glove: TL.HERO.colors.glove, shoe: TL.HERO.colors.boot }); put(ref, 2.4, 0, 0, 'いまの R.actor<small>5 頭身の toon</small>', 0); }
   const u = items.find(i => i.a)?.a.userData;

@@ -18,6 +18,8 @@
 //     face  … 'anime'（R.actor のいまの顔）/ 'small'（目を小さめに打ちなおした顔。head.eyes: 'small' と書いてもよい）
 //     head  … R.actor の頭の引数（skin, hair＝かみの色, eye, eyes, brow, mouth, beard, blush）。かみ型は上の hair で決める
 //     colors … 服の色（tunic 上着, vest ベスト, linen そで, glove 手ぶくろ, pants ズボン, boot ブーツ, scarf スカーフ, belt, brass 金具, trim 刺しゅう）
+//     outfit … 'traveler'（旅人。既定）/ 'guard'（衛兵：むね当て・肩当て・革のたれ）/ 'robe'（足もとまでの衣）/ 'apron'（エプロン）/ 'worker'（つなぎの作業着）
+//     hat   … 'wizard' / 'hood' / 'straw' / 'cap' / 'beret' / 'helm' / 'kerchief'（帽子の色は hatC か colors.hat）。hold … 'spear' / 'staff'（右手）。sword … こしの剣（旅人・衛兵は既定であり）
 //     bulk  … 体のはばの倍率（がっしり 1.1、ほっそり .92）。tall は 1.06 が既定
 //     関節は R.actor と同じ名前（hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape）なので、R.walk / R.idle / retro-motions.js がそのまま使える
 //     userData: { J, hipY, height, heads, headH, tris, skirt, build: { thigh, shin }, kind: 'tale', id }
@@ -51,6 +53,10 @@ window.PACK_TALE = (THREE, K, R) => {
 
   // ---- 見本の人物。体つき・かみ・顔・服の色の組み合わせで 1 人を決める（オリジナルの人物） ----
   const SIZES = { normal: 4.5, tall: 5, small: 4, child: 3.5 };
+  // 服ごとの色の既定（colors で上書きできる）。tunic＝上着・ローブの色、metal＝金物、apron＝エプロン、hat＝帽子
+  const OUTFIT_COLORS = { guard: { tunic: '#4a5a8a', vest: '#6a4a34', metal: '#a0a8b8', scarf: '#c8453a', pants: '#3a3e52', boot: '#4a4a54', glove: '#6a7080', hat: '#a0a8b8' },
+    robe: { tunic: '#4a3e7a', trim: '#e0c070', belt: '#c8a040', scarf: '#4a3e7a', hat: '#3a3468' }, apron: { tunic: '#a8553a', apron: '#eee6d4', scarf: '#e6dcc0', hat: '#e8d8c0' },
+    worker: { linen: '#d8ccb0', pants: '#5a6a8a', scarf: '#c8853a', boot: '#5a3e2a', hat: '#8a6a4a' } };
   const BODY_COLORS = { tunic: '#a8894e', vest: '#6c4a34', linen: '#d6cbb0', glove: '#8a6646', pants: '#56637a', boot: '#74482e', scarf: '#b0392e', belt: '#4a3428', brass: '#c8a040', trim: '#e6dcc0' };
   const CAST = [
     { id: 'hero', name: 'ユウリ', role: '主人公。見習いの旅の剣士', o: { size: 'normal', hair: 'swept', face: 'anime',
@@ -148,7 +154,83 @@ window.PACK_TALE = (THREE, K, R) => {
       for (let x = 96; x < 112; x++) { const k = x - 96; px(x, y, Au[k < 4 ? 5 : k > 11 ? 1 : (y % 6 === 0 ? 2 : 3)]); }
       for (let x = 112; x < 128; x++) { const k = x - 112, j = y - 104; px(x, y, j < 6 ? V[j === 5 ? 0 : 4] : V[k < 3 ? 4 : k > 12 ? 1 : 3]); } }
     P.rect(118, 110, 4, 3, Au[3]);
+    if (c.outfit && c.outfit !== 'traveler') paintOutfit(P, c);
     return P; }
+
+
+  // ---- 役ごとの服（体のテクスチャの上から ぬりなおす）。区画は paintBody と同じ ----
+  //   guard（衛兵）: 胴は金物のむね当て（横の板・びょう・光）、すそは革の たれ、肩当ては むね当てと同じ金物
+  //   robe（ローブ）: 胴とすそは長い衣（まん中に縫いとりの帯、すそに刺しゅう）。そでも衣の色
+  //   apron（エプロン）: ベストなしの上着に、白いエプロン（むね当てと前かけ）
+  //   worker（作業着）: シャツに つなぎ（むねの当て布と肩ひも）。すそは短い
+  function paintOutfit(P, c) {
+    const px = P.set, hl = (x0, x1, y, col) => { for (let x = x0; x <= x1; x++) px(x, y, col); }, vl = (x, y0, y1, col) => { for (let y = y0; y <= y1; y++) px(x, y, col); };
+    const side = (x, w) => { const u = (x + .5) / w; return Math.abs(u - .25) < .07 || Math.abs(u - .75) < .07 ? -1 : Math.abs(u - .5) < .12 ? 1 : 0; };
+    const Tn = ramp(c.tunic), V = ramp(c.vest), L = ramp(c.linen), Pn = ramp(c.pants), Sc = ramp(c.scarf), Bl = ramp(c.belt), Au = ramp(c.brass), Cr = ramp(c.trim), M = ramp(c.metal || '#9aa2b0'), Ap = ramp(c.apron || '#eee6d4'), DIRT = '#5e4e3a';
+    const dirt = (x, y, k) => { const q = P.get(x, y); if (q) px(x, y, mix(q, DIRT, k)); };
+    if (c.outfit === 'guard') {
+      for (let y = 0; y < 27; y++) for (let x = 0; x < 128; x++) { const band = y % 7; let t = 3 + side(x, 128); if (band === 0) t = 1; else if (band === 1) t = 5; else if (band === 2) t = 4; if ((x % 16 === 8) && band === 3) t = 5; if ((x % 16 === 9) && band === 3) t = 1; px(x, y, M[Math.max(0, Math.min(5, t))]); }
+      for (let y = 2; y < 25; y++) { px(63, y, M[1]); px(64, y, M[5]); }                                                 // むねのまん中の折れ
+      for (let i = 0; i < 18; i++) px(Math.floor(hash(i, 1, 91) * 128), 3 + Math.floor(hash(i, 2, 91) * 22), M[2]);    // 小さなきず
+      P.rect(56, 6, 16, 10, Sc[3]); for (let x = 56; x < 72; x++) { px(x, 6, Sc[5]); px(x, 15, Sc[1]); } for (let y = 6; y < 16; y++) { px(56, y, Sc[1]); px(71, y, Sc[1]); } P.rect(62, 8, 4, 6, Au[4]); px(63, 9, Au[5]);   // むねの紋章
+      for (let y = 40; y < 56; y++) for (let x = 0; x < 128; x++) { const k = x % 10; px(x, y, k === 0 ? V[0] : y > 52 ? V[1] : V[k < 3 ? 4 : 3]); if (k === 5 && (y === 44 || y === 50)) px(x, y, Au[4]); }   // 革の たれ
+      for (let y = 56; y < 80; y++) for (let x = 0; x < 64; x++) if (y < 70) { const band = (y - 56) % 5; px(x, y, M[band === 0 ? 1 : band === 1 ? 5 : 3 + side(x, 64)]); }   // 肩当てと上うで（金物）
+      for (let y = 80; y < 104; y++) for (let x = 96; x < 128; x++) px(x, y, M[(y % 4 === 0) ? 1 : (x % 8 < 2 ? 5 : 3)]);   // えり（スカーフの区画）は金物
+    }
+    if (c.outfit === 'robe') {
+      const R2 = Tn; for (let y = 0; y < 56; y++) for (let x = 0; x < 128; x++) { if (y >= 40 && y < 56) continue; const k = (x + (y > 30 ? 1 : 0)) % 14; px(x, y, R2[k === 0 ? 2 : k < 4 ? 4 : 3 + side(x, 128)]); }
+      for (let y = 40; y < 56; y++) for (let x = 0; x < 128; x++) { const k = x % 14; px(x, y, R2[k === 0 ? 1 : k < 4 ? 4 : y > 50 ? 2 : 3]); }
+      for (let y = 0; y < 56; y++) for (let x = 59; x < 69; x++) px(x, y, x === 59 || x === 68 ? Cr[1] : Cr[(y + x) % 6 === 0 ? 5 : 3]);   // まん中の縫いとりの帯
+      for (let x = 0; x < 128; x++) { px(x, 0, Cr[4]); px(x, 1, Cr[3]); px(x, 2, Cr[1]); px(x, 51, Cr[1]); px(x, 52, Cr[4]); px(x, 53, Cr[3]); px(x, 54, Cr[4]); px(x, 55, Cr[1]); if (x % 6 === 3) px(x, 53, Sc[3]); }
+      for (let x = 0; x < 128; x++) { px(x, 27, Bl[0]); px(x, 28, Bl[3]); px(x, 29, Bl[3]); px(x, 30, Bl[0]); } for (let y = 31; y < 40; y++) { px(62, y, Bl[3]); px(65, y, Bl[2]); }   // こしひも
+      for (let y = 56; y < 80; y++) for (let x = 0; x < 128; x++) { const k = x % 8; px(x, y, R2[k === 0 ? 2 : k < 3 ? 4 : 3]); if (x >= 64 && y > 74) px(x, y, Cr[y === 75 ? 1 : 3]); }   // そでも衣の色。そで口に縫いとり
+      for (let x = 0; x < 64; x++) { px(x, 79, Cr[1]); }
+      for (let i = 0; i < 30; i++) dirt(Math.floor(hash(i, 1, 92) * 128), 46 + Math.floor(hash(i, 2, 92) * 5), .3);
+    }
+    if (c.outfit === 'apron' || c.outfit === 'worker') {
+      for (let y = 0; y < 27; y++) for (let x = 0; x < 128; x++) { const k = x % 9; px(x, y, (c.outfit === 'worker' ? L : Tn)[k === 0 ? 2 : k > 6 ? 4 : 3 + side(x, 128)]); }   // ベストをはずす
+      for (let x = 58; x < 70; x++) { px(x, 0, (c.outfit === 'worker' ? L : Tn)[5]); px(x, 1, Tn[1]); }
+    }
+    if (c.outfit === 'apron') {
+      for (let y = 6; y < 27; y++) for (let x = 52; x < 76; x++) px(x, y, x === 52 || x === 75 ? Ap[1] : Ap[(x + y) % 11 === 0 ? 2 : 4]);   // むね当て
+      for (const sx of [40, 86]) for (let y = 0; y < 8; y++) { px(sx + y, y, Ap[3]); px(sx + y + 1, y, Ap[3]); }
+      for (let y = 40; y < 56; y++) for (let x = 44; x < 84; x++) px(x, y, x === 44 || x === 83 ? Ap[1] : y === 55 ? Ap[1] : Ap[(x * 3 + y) % 13 === 0 ? 2 : 4]);   // 前かけ
+      for (let i = 0; i < 8; i++) dirt(50 + Math.floor(hash(i, 1, 93) * 28), 44 + Math.floor(hash(i, 2, 93) * 9), .25);
+      for (let x = 0; x < 128; x++) { px(x, 27, Ap[2]); px(x, 28, Ap[4]); px(x, 29, Ap[2]); }
+    }
+    if (c.outfit === 'worker') {
+      for (let y = 4; y < 40; y++) for (let x = 50; x < 78; x++) px(x, y, x === 50 || x === 77 ? Pn[1] : Pn[(x + y) % 9 === 0 ? 2 : 3]);   // つなぎのむね当て
+      for (const x0 of [52, 72, 116, 8]) for (let y = 0; y < 27; y++) for (let x = x0; x < x0 + 4; x++) px(x, y, x === x0 ? Pn[1] : Pn[3]);
+      P.rect(58, 12, 12, 7, Pn[2]); hl(58, 69, 12, Pn[1]); for (const x of [53, 74]) { px(x, 6, Au[5]); px(x, 7, Au[3]); }
+      for (let y = 27; y < 56; y++) for (let x = 0; x < 128; x++) px(x, y, Pn[(x % 12 === 0) ? 2 : (x % 12 < 3 ? 4 : 3 + side(x, 128))]);
+      for (let x = 0; x < 128; x++) { px(x, 27, Bl[0]); px(x, 28, Bl[3]); px(x, 29, Bl[0]); }
+      for (let i = 0; i < 24; i++) dirt(Math.floor(hash(i, 1, 94) * 128), 30 + Math.floor(hash(i, 2, 94) * 24), .35);
+    }
+  }
+
+  // ---- 帽子（頭の関節に付ける）。種類: wizard（大きなとんがり帽子。先が うしろへ折れる）/ hood（大きなフード。顔のまわりを かげにする）/
+  //      straw（むぎわら帽子）/ cap（つば付きの布の帽子）/ helm（金物のかぶと）/ kerchief（頭に巻いた布）/ beret（ベレー帽）
+  function paintHat(kind, col) { const P = Px(64, 64), H = ramp(col), sd = 7;
+    if (kind === 'straw') { P.each((x, y) => { const w = ((x >> 1) + (y >> 1)) % 2, k = (x + y * 3) % 7; return H[k === 0 ? 1 : w ? 4 : 3]; }); for (let x = 0; x < 64; x++) { for (let y = 40; y < 46; y++) P.set(x, y, ramp('#b0392e')[y === 40 || y === 45 ? 1 : 3]); } return P; }
+    if (kind === 'helm') { P.each((x, y) => { const k = x % 16; let t = k < 2 ? 5 : k < 5 ? 4 : k > 13 ? 2 : 3; if (y % 21 === 0) t = 1; if (y % 21 === 1) t = 5; if (y % 21 === 4 && x % 8 === 3) t = 5; if (y % 21 === 5 && x % 8 === 3) t = 1; return H[t]; }); return P; }
+    P.each((x, y) => { const k = (x + Math.floor(hash(x >> 3, 0, sd) * 3)) % 9; let t = k === 0 ? 1 : k < 3 ? 4 : 3; if (y > 56) t = Math.min(t, 2); if ((y + x * 2) % 23 === 0) t = 2; return H[t]; });
+    const B = ramp(kind === 'wizard' ? '#c8a040' : mix(col, '#1a1820', .45)); for (let x = 0; x < 64; x++) { for (let y = 46; y < 52; y++) P.set(x, y, B[y === 46 ? 5 : y === 51 ? 1 : 3]); if (x % 8 === 4) P.set(x, 48, B[5]); }   // 帯
+    for (let i = 0; i < 4; i++) { const x0 = Math.floor(hash(i, 3, sd) * 56), y0 = 8 + Math.floor(hash(i, 4, sd) * 30); P.rect(x0, y0, 6, 5, H[2]); for (let x = x0; x < x0 + 6; x++) { if (x % 2) { P.set(x, y0, H[0]); P.set(x, y0 + 4, H[0]); } } }   // つぎ当て
+    return P; }
+  const hatTexCache = new Map();
+  function hatMesh(kind, col, dim) { const key = kind + col; let t = hatTexCache.get(key); if (!t) { t = pixTex(paintHat(kind, col).canvas()); hatTexCache.set(key, t); }
+    const { hx, hy, zc, hd } = dim, G = R.geo().smooth(1), rg = (y, k, v, b = 1, oz = 0, kz = 1) => [y * hy, k * hx, k * hd * kz, v, b, 0, zc + oz * hd];
+    if (kind === 'wizard') { G.loft(R.ngon(12), [rg(.8, 1.95, 0, .7), rg(.86, 1.3, .25, .95)], { ur: 2 }).loft(R.ngon(12), [rg(.86, 1.3, .25, .55), rg(.8, 1.95, 0, .5)], { ur: 2 });
+      G.loft(R.ngon(10), [rg(.84, 1.2, .25, .9), rg(1.25, .92, .5, 1, -.05), rg(1.7, .55, .72, 1.04, -.2), rg(2.05, .22, .9, 1.06, -.55), rg(2.18, .02, 1, 1.08, -.95)], { ur: 2 }); }
+    if (kind === 'hood') { const HD = [rg(.12, 1.32, .1, .7, -.08), rg(.45, 1.36, .35, .85, -.04), rg(.8, 1.3, .6, .95), rg(1.08, 1.05, .85, 1.02), rg(1.22, .3, 1, 1.05, -.1)]; G.loft(R.ngon(12), HD, { seg: [7, 12] }).loft(R.ngon(12), HD, { seg: [0, 4] });   // 顔の前をあけて、頭をすっぽり
+      G.loft(R.ngon(12), [rg(-.25, 1.62, 0, .65, -.1), rg(.12, 1.34, .1, .85, -.08)], { ur: 1 }); }   // 肩へ広がるすそ
+    if (kind === 'straw') { G.loft(R.ngon(14), [rg(.8, 2.25, 0, .75), rg(.86, 1.2, .3, 1)], { ur: 3 }).loft(R.ngon(14), [rg(.86, 1.2, .3, .6), rg(.8, 2.25, 0, .55)], { ur: 3 }).loft(R.ngon(12), [rg(.84, 1.16, .3, .9), rg(1.12, 1.06, .7, 1), rg(1.22, .5, 1, 1.05)], { cap: 'top', ur: 2 }); }
+    if (kind === 'cap' || kind === 'beret') { const b = kind === 'beret'; G.loft(R.ngon(12), [rg(.74, 1.16, .3, .9), rg(1.0, b ? 1.3 : 1.12, .7, 1, b ? -.1 : 0), rg(1.14, b ? .9 : .55, 1, 1.05, b ? -.15 : 0)], { cap: 'top', ur: 2 });
+      if (!b) G.smooth(0).quad([-.62 * hx, .76 * hy, zc + .98 * hd], [.62 * hx, .76 * hy, zc + .98 * hd], [.5 * hx, .7 * hy, zc + 1.6 * hd], [-.5 * hx, .7 * hy, zc + 1.6 * hd], [0, .5, 1, .7], .9); }
+    if (kind === 'helm') { G.loft(R.ngon(12), [rg(.5, 1.22, .1, .8), rg(.62, 1.24, .25, .9), rg(.95, 1.12, .7, 1), rg(1.18, .5, 1, 1.06)], { cap: 'top', ur: 2 });
+      G.loft(R.ngon(12), [rg(.58, 1.34, 0, .9), rg(.64, 1.34, .1, 1)], { ur: 2 }); G.smooth(0).quad([-.06 * hx, .3 * hy, zc + 1.3 * hd], [.06 * hx, .3 * hy, zc + 1.3 * hd], [.06 * hx, .66 * hy, zc + 1.28 * hd], [-.06 * hx, .66 * hy, zc + 1.28 * hd], [.4, .1, .6, .9], 1.05); }
+    if (kind === 'kerchief') { G.loft(R.ngon(12), [rg(.7, 1.17, 0, .9), rg(.95, 1.1, .6, 1), rg(1.1, .6, 1, 1.04)], { cap: 'top', ur: 2 }); G.smooth(0).at(R.TR(0, .78 * hy, zc - 1.12 * hd, 0, .9)).loft(R.ngon(4, 0), [[-.38 * hy, .06 * hx, .02 * hx, 0, .8], [0, .14 * hx, .04 * hx, 1, 1]], { cap: 'both' }).at(null); }
+    const me = G.mesh(t, { side: true }); me.castShadow = true; return me; }
 
   // ---- 'small' の顔：R.actor の頭のテクスチャを写し、目のまわりを肌の色でぬりなおして、小さめの目を打つ ----
   //   anime の顔は 頭のテクスチャの上 48 行に、正面から平らにはってある（x=64 がまん中、目は まん中から 7〜20 ドット、行 12〜24）
@@ -217,12 +299,12 @@ window.PACK_TALE = (THREE, K, R) => {
   // ---- 体を組む ----
   const texCache = new Map();
   function person(o = {}) { const id = typeof o === 'string' ? o : o.id; if (typeof o === 'string') o = { ...cast(o), id };
-    const N = o.heads ?? SIZES[o.size || 'normal'] ?? 4.5, face = o.face || (o.head?.eyes === 'small' ? 'small' : 'anime'), c = { ...BODY_COLORS, ...(o.colors || {}) }, ho = { ...CAST[0].o.head, ...(o.head || {}), ...(o.head?.eyes === 'small' ? { eyes: 'big' } : {}) }, BK = o.bulk ?? (N >= 5 ? 1.06 : 1);
+    const OF = o.outfit || 'traveler', N = o.heads ?? SIZES[o.size || 'normal'] ?? 4.5, face = o.face || (o.head?.eyes === 'small' ? 'small' : 'anime'), c = { ...BODY_COLORS, ...(OUTFIT_COLORS[OF] || {}), ...(o.colors || {}), outfit: OF }, ho = { ...CAST[0].o.head, ...(o.head || {}), ...(o.head?.eyes === 'small' ? { eyes: 'big' } : {}) }, BK = o.bulk ?? (N >= 5 ? 1.06 : 1);
     // 頭：R.actor の anime の頭を借りる（帽子なし）。頭の関節（ピボット）ごと取り出す
     const src = R.actor({ build: 'toon', ...ho, hairStyle: 'bald', bangs: 'none', hat: 'none', cloth: 'tunic' }), head0 = src.userData.J.head; head0.parent.remove(head0); head0.position.set(0, 0, 0); head0.updateMatrixWorld(true);
     if (face === 'small') smallEyes(head0, ho.eye);
     const hb = new THREE.Box3().setFromObject(head0), dim = { hx: Math.max(-hb.min.x, hb.max.x) * 1.02, hy: hb.max.y, zc: (hb.max.z + hb.min.z) / 2, hd: (hb.max.z - hb.min.z) / 2 };
-    const hair = hairMesh(o.hair || 'swept', ho.hair, dim);
+    const hair = hairMesh(o.hair || 'swept', ho.hair, dim), hat = o.hat ? hatMesh(o.hat, o.hatC || (o.hat === 'straw' ? '#d4b260' : o.hat === 'helm' ? (c.metal || '#a0a8b8') : c.hat || '#4a5a8a'), dim) : null;
     const Ht = dim.hy * 1.1;                                                           // あごの先から、かみのかたまりのてっぺんまで（はねた束の先は数えない）
     const key = JSON.stringify(c); let t = texCache.get(key); if (!t) { t = pixTex(paintBody(c).canvas()); texCache.set(key, t); }
     const m = R.mat(t, { vc: true, smooth: true }), m2 = R.mat(t, { vc: true, smooth: true, side: true }), W = 128, Hh = 128, h = Ht;   // 長さは h（頭の高さ）を 1 とした数で書く
@@ -236,27 +318,30 @@ window.PACK_TALE = (THREE, K, R) => {
     // 胴：小さい。肩はばは頭のはばより せまい
     const Gt = geo().px(0, 0, 128, 40, W, Hh).loft(SB, [[0, .21 * h, .19 * h, 0, .85], [.18 * T, .25 * h, .22 * h, .2, .95], [.42 * T, .26 * h, .225 * h, .35, 1], [.75 * T, .31 * h, .26 * h, .8, 1, 0, .01 * h], [.93 * T, .33 * h, .24 * h, .95, 1], [T, .16 * h, .14 * h, 1, .95]], { cap: 'top', capUV: [.5, .99] });
     // すそ：腰から ももの半ばまで広がる上着（両面）
-    const Gk = geo().px(0, 40, 128, 16, W, Hh).loft(SB, [[-.44 * h, .47 * h, .4 * h, 0, .82], [-.1 * h, .37 * h, .31 * h, .45, .92], [.34 * T, .275 * h, .24 * h, 1, 1]]);
+    const HEM = OF === 'robe' ? [[-hipY + .04 * h, .62 * h, .55 * h, 0, .78], [-hipY * .45, .45 * h, .38 * h, .45, .9], [.34 * T, .275 * h, .24 * h, 1, 1]] : OF === 'worker' ? [[-.14 * h, .33 * h, .28 * h, 0, .85], [.34 * T, .275 * h, .24 * h, 1, 1]] : OF === 'guard' ? [[-.36 * h, .42 * h, .36 * h, 0, .82], [-.08 * h, .35 * h, .3 * h, .45, .92], [.34 * T, .275 * h, .24 * h, 1, 1]] : [[-.44 * h, .47 * h, .4 * h, 0, .82], [-.1 * h, .37 * h, .31 * h, .45, .92], [.34 * T, .275 * h, .24 * h, 1, 1]];   // すその長さ（ローブは足もとまで）
+    const Gk = geo().px(0, 40, 128, 16, W, Hh).loft(SB, HEM);
     // スカーフ：首に巻いた厚い輪（あごの下まで。首をかくす）
     const Gs = geo().px(96, 80, 32, 16, W, Hh).loft(S6, [[T - .05 * h, .26 * h, .21 * h, 0, .85], [T + .03 * h, .25 * h, .2 * h, .4, 1, 0, .01 * h], [T + neck + .06 * h, .19 * h, .17 * h, 1, 1, 0, .01 * h]], { cap: 'top', capUV: [.5, .5] });
     Gt.add(Gs);
     // ふくろ（右の腰）と さや（左の腰。ななめに下げる）
-    Gt.px(112, 104, 16, 24, W, Hh).at(R.TR(-.28 * h, .3 * T, .06 * h, -.5)).loft(S6, [[-.2 * h, .05 * h, .04 * h, 0, .8], [-.08 * h, .09 * h, .07 * h, .5, 1], [.04 * h, .075 * h, .06 * h, .8, 1], [.07 * h, .05 * h, .04 * h, 1, 1]], { cap: 'both' }).at(null);
+    if (OF === 'traveler' || OF === 'worker') Gt.px(112, 104, 16, 24, W, Hh).at(R.TR(-.28 * h, .3 * T, .06 * h, -.5)).loft(S6, [[-.2 * h, .05 * h, .04 * h, 0, .8], [-.08 * h, .09 * h, .07 * h, .5, 1], [.04 * h, .075 * h, .06 * h, .8, 1], [.07 * h, .05 * h, .04 * h, 1, 1]], { cap: 'both' }).at(null);
+    if (o.sword ?? (OF === 'traveler' || OF === 'guard')) {   // こしの剣
     Gt.at(R.TR(.3 * h, .36 * T, .02 * h, 0, .3, .12));
     Gt.px(64, 104, 16, 24, W, Hh).loft(R.ngon(4, 0), [[-.95 * h, .012 * h, .045 * h, 0, .8], [-.2 * h, .035 * h, .07 * h, .85, 1], [0, .035 * h, .07 * h, 1, 1]], { cap: 'bot' });
     Gt.px(96, 104, 16, 24, W, Hh).loft(R.ngon(4, 0), [[0, .04 * h, .1 * h, 0, .9], [.05 * h, .04 * h, .1 * h, 1, 1]], { cap: 'top' });
     Gt.px(80, 104, 16, 24, W, Hh).loft(S6, [[.05 * h, .035 * h, .035 * h, 0, .9], [.36 * h, .03 * h, .03 * h, 1, 1]]);
     Gt.px(96, 104, 16, 24, W, Hh).loft(S6, [[.36 * h, .05 * h, .05 * h, 0, 1], [.43 * h, .03 * h, .03 * h, 1, 1.1]], { cap: 'top' }).at(null);
+    }
     J.torso = part(Gt, J.hips, 0, 0, 0);
     const hemP = part(Gk, J.torso, 0, 0, 0, m2);
 
     // スカーフのはし（背中に 2 本。cape の関節で ゆれる）
-    { const hold = new THREE.Group(), Gc = R.geo().normal([0, .2, 1]).px(96, 80, 32, 24, W, Hh); hold.rotation.y = Math.PI; hold.position.set(-.05 * h, T + .02 * h, -.23 * h); J.torso.add(hold);
+    if (o.tails ?? OF === 'traveler') { const hold = new THREE.Group(), Gc = R.geo().normal([0, .2, 1]).px(96, 80, 32, 24, W, Hh); hold.rotation.y = Math.PI; hold.position.set(-.05 * h, T + .02 * h, -.23 * h); J.torso.add(hold);
       for (const [x0, L, w] of [[-.06, .66, .1], [.1, .48, .08]]) Gc.quad([(x0 - w) * h, -L * h, .06 * h], [(x0 + w) * h, -L * h, .06 * h], [(x0 + w * .8) * h, 0, 0], [(x0 - w * .8) * h, 0, 0], [x0 < 0 ? 0 : .5, 0, x0 < 0 ? .5 : 1, 1], [.8, .8, 1, 1]);
       J.cape = part(Gc, hold, 0, 0, 0, m2); }
 
     // 頭
-    J.head = new THREE.Group(); J.head.position.set(0, T + neck, .01 * h); J.head.add(head0, hair); J.torso.add(J.head);
+    J.head = new THREE.Group(); J.head.position.set(0, T + neck, .01 * h); J.head.add(head0, hair); if (hat) J.head.add(hat); J.torso.add(J.head);
 
     // うで：ふくらんだそで → 下に着たそで → 広い口の手ぶくろ → 大きな手
     const U = .3 * h + .15 * T, F = .27 * h + .15 * T, HL = .46 * h;
@@ -275,10 +360,14 @@ window.PACK_TALE = (THREE, K, R) => {
       Gn.px(0, 104, 64, 24, W, Hh).loft(SK, [[by, .17 * h, .38 * h, 0, .65, 0, .11 * h], [by + .11 * h, .18 * h, .39 * h, .2, .85, 0, .11 * h], [by + .21 * h, .16 * h, .25 * h, .42, 1, 0, .05 * h], [by + .36 * h, .15 * h, .16 * h, .65, 1], [by + .47 * h, .19 * h, .2 * h, .85, 1.02], [by + .55 * h, .23 * h, .24 * h, 1, 1.06]], { cap: 'bot', capUV: [.5, .02] });
       J['shin' + n] = part(Gn, J['leg' + n], Math.sin(ls) * TH, -Math.cos(ls) * TH, 0, m, ls); }
 
+    if (OF === 'guard') for (const n of ['armL', 'armR']) { const sx = n === 'armL' ? 1 : -1, Gp = geo().px(0, 2, 128, 22, W, Hh).loft(S6, [[-.2 * h, .25 * h, .24 * h, 0, .8], [-.02 * h, .26 * h, .25 * h, .5, 1], [.1 * h, .17 * h, .17 * h, .9, 1.05], [.14 * h, .05 * h, .05 * h, 1, 1.08]], { cap: 'both' }); const pv = part(Gp, J[n], sx * .03 * h, 0, 0, m, sx * .35); }   // 肩当て（うでといっしょに動く）
+    if (o.hold === 'spear' || o.hold === 'staff') { const Gw = R.geo().smooth(0), wt = R.tex.planks({ c: '#7a5a3c' }); const fR = J.foreR; Gw.loft(R.ngon(5), [[-1.1 * h, .035 * h, .035 * h, 0, .85], [2.3 * h, .035 * h, .035 * h, 3, 1]], { cap: 'both' });
+      if (o.hold === 'spear') Gw.loft(R.ngon(4, 0), [[2.3 * h, .02 * h, .1 * h, 0, 1.1], [2.75 * h, .005, .005, 1, 1.15]]); else Gw.loft(R.ngon(6), [[2.3 * h, .06 * h, .06 * h, 0, .9], [2.45 * h, .12 * h, .12 * h, .5, 1.1], [2.6 * h, .04 * h, .04 * h, 1, 1.15]], { cap: 'top' });
+      const me = Gw.mesh(o.hold === 'spear' ? R.tex.metal({ c: '#8a8e98' }) : wt); me.position.set(0, -F - HL * .45, .04 * h); me.rotation.x = .12; fR.add(me); }   // 右手に やり・つえ
     if (BK !== 1) { for (const pv of [J.torso, hemP, J.armL, J.armR, J.foreL, J.foreR, J.legL, J.legR, J.shinL, J.shinR]) pv.children[0].scale.set(BK, 1, BK);   // 体のはば（bulk）
       for (const n of ['armL', 'armR', 'legL', 'legR']) J[n].position.x *= BK; }
     const height = chinY + Ht;
-    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count + hair.geometry.attributes.position.count) / 3, skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale', id };
+    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count + hair.geometry.attributes.position.count + (hat ? hat.geometry.attributes.position.count : 0)) / 3, outfit: OF, skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale', id };
     return g; }
   const hero = (o = {}) => person({ ...cast('hero'), id: 'hero', ...o });
 

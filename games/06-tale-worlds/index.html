@@ -50,7 +50,7 @@ canvas{display:block}
 // ワールドは worlds/<id>.js。もとの場面をもとに、物をふやし、当たり判定・村人との会話・乗れる所を足した。土台（動き・カメラ・会話の窓）は core.js。
 // 引数: ?w=8-01（ワールド） ?auto=1（自動で歩く。撮影用） ?at=x,z,向き（度） ?talk=1（近くの人と話したままにする。確かめる用）
 import * as THREE from 'three';
-const q = new URLSearchParams(location.search), list = window.TALE_LIST, w = list.find(x => x.id === q.get('w') && x.ready) || list.find(x => x.ready);
+const q = new URLSearchParams(location.search), list = window.TALE_LIST, w = list.find(x => x.id === q.get('w') && (x.ready || q.get('dev'))) || list.find(x => x.ready);   // ?dev=1 なら じゅんび中のワールドも開ける
 if (!matchMedia('(pointer:coarse)').matches) document.body.classList.add('pc');
 const load = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); });
 for (const p of w.packs) await load('../../' + p);

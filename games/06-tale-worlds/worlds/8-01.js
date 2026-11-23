@@ -1,7 +1,7 @@
 // ワールド 8-01「城下町の大通り」。もとは game-looks-8/01-castle-town-avenue.html（見るだけの場面）。
 // 石だたみの大通りの先に、青いとんがり屋根の城。両がわに木組みの家と店、噴水の広場。
 // ゲームにするために足した物：家・城・小物の当たり判定、のぼれる木箱と見晴らし台への石段、話せる町の人 11 人とねこ、しらべられる看板。
-// 町の人は第 13 集の人（TL.person）で、主人公と同じ 4.5 頭身の作り。服の色・かみ型・背たけで見分ける。
+// 町の人は第 13 集の人（TL.person）で、主人公と同じ 4.5 頭身の作り。役ごとの服（衛兵・エプロン・ローブ・作業着）と帽子、かみ型・背たけで見分ける。
 TALE_WORLD('8-01', G => {
   const { THREE, K, R, T, TL, scene } = G, F = PACK_FTOWN(THREE, K, R), { hash } = K;
   scene.add(R.skyDome([[0, '#2a64c8'], [.45, '#5a9ce4'], [.8, '#a8d4f2'], [1, '#e4f2f8']], { r: 400 })); scene.fog = new THREE.Fog('#cfe4f2', 60, 260);
@@ -73,23 +73,23 @@ TALE_WORLD('8-01', G => {
   const C = (tunic, vest, pants, scarf, extra = {}) => ({ tunic, vest, pants, scarf, ...extra });
   const folk = (o, x, z, ry, d) => { const p = TL.person(o); p.position.set(x, H(x, z), z); p.rotation.y = ry; scene.add(p); return G.npc(p, d); };
   const loop = pts => new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
-  folk({ size: 'tall', hair: 'wolf', head: { hair: '#3a2e2a', skin: '#e0b088', eye: '#5a5a7a', brow: 'angry', mouth: 'line' }, colors: C('#4a5a8a', '#7a8494', '#3a3e52', '#c8a040', { glove: '#6a7080', boot: '#4a4a54' }) }, 0, 0, 0,
+  folk({ size: 'tall', outfit: 'guard', hat: 'helm', hold: 'spear', hair: 'wolf', head: { hair: '#3a2e2a', skin: '#e0b088', eye: '#5a5a7a', brow: 'angry', mouth: 'line' } }, 0, 0, 0,
     { name: '見回りの衛兵', path: loop([[-2, 20], [-2, -18], [2, -18], [2, 20]]), speed: 1.2, lines: [['今日も 大通りは へいわだ。', 'あやしい者を見たら、すぐ 知らせてくれ。'], '噴水の広場は、夕方になると 人でいっぱいになる。', ['城の門は、王のおふれが出るまで あかないぞ。']] });
-  for (const sx of [-1, 1]) folk({ size: 'tall', hair: 'center', head: { hair: sx < 0 ? '#4a3a2a' : '#7a5a3a', skin: sx < 0 ? '#f0c49c' : '#d8a070', eyes: 'big', brow: 'angry', mouth: 'line' }, colors: C('#4a5a8a', '#8a94a8', '#3a3e52', '#c8453a', { glove: '#6a7080', boot: '#4a4a54' }) }, sx * 3.4, CZ + 6.6, 0,
+  for (const sx of [-1, 1]) folk({ size: 'tall', outfit: 'guard', hat: 'helm', hold: 'spear', hair: 'center', head: { hair: sx < 0 ? '#4a3a2a' : '#7a5a3a', skin: sx < 0 ? '#f0c49c' : '#d8a070', eyes: 'big', brow: 'angry', mouth: 'line' }, colors: { metal: '#b8a070', tunic: '#7a3a3a' } }, sx * 3.4, CZ + 6.6, 0,
     { name: '門番', lines: sx < 0 ? [['ここから先は 城だ。', '用のない者は 通せない。']] : ['……となりの門番は まじめすぎて、つかれるよ。', ['城の中には 大きな図書室が あるらしい。', 'おれも 入ったことはないがね。']] });
-  folk({ size: 'normal', hair: 'center', head: { hair: '#9a9088', skin: '#e8b890', eyes: 'small', mouth: 'smile', beard: 'mustache' }, colors: C('#8a5a3a', '#5a4a3a', '#5a5a48', '#e0a83a') }, -4.9, -3.4, Math.PI / 2,
+  folk({ size: 'normal', outfit: 'apron', hat: 'kerchief', hatC: '#c8553a', hair: 'center', head: { hair: '#9a9088', skin: '#e8b890', eyes: 'small', mouth: 'smile', beard: 'mustache' }, colors: { tunic: '#8a6a3a' } }, -4.9, -3.4, Math.PI / 2,
     { name: '果物売りのおじさん', r: .3, lines: [['いらっしゃい！ 今朝もぎたての りんごだよ。', '旅の人には、ひとつ おまけだ。'], 'うちの りんごは、城の料理番も 買いに来るんだ。'] });
   folk({ size: 'normal', hair: 'swept', head: { hair: '#c8843a', eye: '#4a6a9a', mouth: 'smile', blush: true }, colors: C('#c2586a', '#7a4a5a', '#6a5a7a', '#f0e4c0', { linen: '#f4ecdc' }) }, 0, 0, 0,
     { name: '買い物の人', path: loop([[1.4, 12], [1.4, -16], [3.2, -24], [-3.2, -24], [-1.4, -16], [-1.4, 12]]), speed: .9, u: .5, lines: [['パン屋の 木の実パンが 売りきれちゃって……', 'あしたは もっと早く来なきゃ。'], '花の屋台の おねえさんとは、小さいころからの ともだちなの。'] });
-  folk({ size: 'child', hair: 'wolf', head: { hair: '#2a2a34', eye: '#3a7a5a', mouth: 'open' }, colors: C('#e0a83a', '#3a4a7a', '#3a4a7a', '#c8453a') }, 0, 0, 0,
+  folk({ size: 'child', outfit: 'worker', hat: 'cap', hatC: '#c8453a', hair: 'wolf', head: { hair: '#2a2a34', eye: '#3a7a5a', mouth: 'open' }, colors: { pants: '#3a4a7a', linen: '#f0e4c0' } }, 0, 0, 0,
     { name: '町の子', path: loop([[4.1, PZ], [0, PZ + 4.1], [-4.1, PZ], [0, PZ - 4.1]]), speed: 3, lines: [['つかまえてごらんよ！', '……あれ、おにごっこじゃ ないの？'], ['見晴らし台の上、のぼったことある？', '城へのぼる坂の 左の石だんから 行けるんだよ！'], '木箱の山の てっぺんは、ひみつの 見はり場なんだ。'] });
-  folk({ size: 'small', hair: 'center', head: { hair: '#e8e8e8', eyes: 'closed', brow: 'thick', mouth: 'line', beard: 'beard' }, colors: C('#6a5a9a', '#4a3e6a', '#4a4058', '#e8d8a0') }, -6.1, PZ + 2, Math.PI / 2 + .3,
+  folk({ size: 'small', outfit: 'robe', hold: 'staff', hair: 'center', head: { hair: '#e8e8e8', eyes: 'closed', brow: 'thick', mouth: 'line', beard: 'beard' }, colors: { tunic: '#6a5a9a', trim: '#e8d8a0' } }, -6.1, PZ + 2, Math.PI / 2 + .3,
     { name: '長老', lines: [['ふぉふぉ、旅のお方かな。', 'この噴水は、町ができたときから ずっと わいておる。'], ['むかし この町には、空を飛ぶ船が 毎日のように来ておった。', '今は 発着場も しずかになったのう。'], 'わしの若いころは、あの時計塔の上まで 走ってのぼったものじゃ。'] });
-  folk({ size: 'normal', hair: 'swept', head: { hair: '#d8b060', eye: '#3a7ac8', eyes: 'small', mouth: 'open' }, colors: C('#3a8a6a', '#a8553a', '#5a4a3c', '#e0c040') }, 2.6, PZ + 4.8, Math.PI * .8,
+  folk({ size: 'normal', hat: 'beret', hatC: '#a8553a', hair: 'swept', head: { hair: '#d8b060', eye: '#3a7ac8', eyes: 'small', mouth: 'open' }, colors: C('#3a8a6a', '#a8553a', '#5a4a3c', '#e0c040') }, 2.6, PZ + 4.8, Math.PI * .8,
     { name: '吟遊詩人', lines: [['♪ 青い屋根の 城の上 ／ 風がはこぶ 鐘の音 ♪', '……どうだい、新しい歌なんだ。'], ['遠くの国には、空を泳ぐ くじらの上に 町があるそうだ。', 'いつか 歌にしたいね。']] });
-  folk({ size: 'normal', hair: 'center', head: { hair: '#5a2a2a', eye: '#8a4a6a', mouth: 'smile', blush: true }, colors: C('#e8c8d8', '#c8453a', '#7a5a6a', '#f2d24a', { linen: '#fff4f0' }) }, 4.4, 18.5, -Math.PI / 2,
+  folk({ size: 'normal', outfit: 'apron', hat: 'straw', hair: 'center', head: { hair: '#5a2a2a', eye: '#8a4a6a', mouth: 'smile', blush: true }, colors: { tunic: '#c8607a', apron: '#fff4f0' } }, 4.4, 18.5, -Math.PI / 2,
     { name: '花の屋台の人', lines: [['いらっしゃいませ。', '今日は 赤いバラと、白いすずらんが きれいよ。'], '城の庭師さんが、たまに 苗を わけてくれるの。'] });
-  folk({ size: 'tall', hair: 'wolf', head: { hair: '#6a4a2a', skin: '#c8885a', eyes: 'small', brow: 'thick', mouth: 'smile', beard: 'stubble' }, colors: C('#7a6a4a', '#5a4030', '#4a4a3a', '#3f72b0') }, 1.6, 14.6, .6,
+  folk({ size: 'tall', outfit: 'worker', hat: 'cap', hair: 'wolf', bulk: 1.12, head: { hair: '#6a4a2a', skin: '#c8885a', eyes: 'small', brow: 'thick', mouth: 'smile', beard: 'stubble' }, colors: { pants: '#6a5a3a', scarf: '#3f72b0' } }, 1.6, 14.6, .6,
     { name: '荷車の商人', lines: [['たるの中は、南の村の ぶどう酒だ。', '宿屋に とどけるところさ。'], ['飛空艇の発着場まで 行くなら、北の門を出て 丘をこえるんだ。', '……今は ワールドの地図から 行けるんだっけ？']] });
   folk({ size: 'small', hair: 'swept', head: { hair: '#3a2a22', eye: '#6a4a2a', mouth: 'smile', blush: true }, colors: C('#f0c84a', '#c8553a', '#6a5a4a', '#3f72b0') }, -2.2, -2.6, -1.2,
     { name: 'おつかいの子', lines: [['りんごを 三つと、パンを ひとつ。', '……あと、なんだっけ？'], 'あ、ミルクだ！ ありがとう！'] });
