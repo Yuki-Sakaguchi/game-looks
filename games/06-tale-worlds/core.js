@@ -85,7 +85,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     path(); hx.fillStyle = g; hx.fill(); hx.lineWidth = 3; hx.strokeStyle = '#1c1e26'; hx.stroke(); hx.lineWidth = 1; hx.strokeStyle = '#e6e8ee'; hx.stroke();
     hx.fillStyle = 'rgba(255,255,255,.16)'; hx.fillRect(x + 3, y + 2, w - 6, 1); }
   // 文字：窓より少し粗い細かさで打ち、ふちのぼかしを切って（半分より濃い所だけ残す）ドットにする。右下に 1 ドットの影
-  let HS = 1, FS = 10; const glyphs = new Map(), FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif';
+  let HS = 1, FS = 10; const glyphs = new Map(), FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP","Noto Sans CJK JP","Source Han Sans JP","IPAGothic","IPAPGothic","TakaoGothic",sans-serif';   // どの端末でもゴシック体が選ばれるように、ゴシック体の名前をならべる
   function glyph(s, c) { const key = s + '|' + c + '|' + FS + '|' + HS; let g = glyphs.get(key); if (g) return g; if (glyphs.size > 400) glyphs.clear();
     const k = TK(), px = Math.round(FS * HS / k) + 1, sh = 1, m = document.createElement('canvas').getContext('2d', { willReadFrequently: true }); m.font = `500 ${px}px ${FONT}`; const w = Math.ceil(m.measureText(s).width) + sh + 2, h = Math.ceil(px * 1.35) + sh + 2;
     m.canvas.width = w; m.canvas.height = h; m.font = `500 ${px}px ${FONT}`; m.textBaseline = 'top'; m.fillStyle = '#fff'; m.fillText(s, 1, 1);
