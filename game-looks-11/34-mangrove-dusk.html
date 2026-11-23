@@ -33,8 +33,8 @@ const dMG = (x, z) => { let m = 9; for (const [mx, mz, r] of MG) m = Math.min(m,
 const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
 const H = (x, z) => -.55 + sstep(1.1, .7, dMG(x, z)) * .7;
 const land = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, H, layers: [T.dirt({ c: '#5a4234', pebbles: .3 }), T.grass({ c: '#5a7a3a' })], mix: (x, z) => [dMG(x, z) < .75 ? 1 : 0, 0] }); scene.add(land.mesh);
-const WF = J.tex.river({ c: '#d89474', hi: '#ffe8b8', m: 3 });
-const water = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, layers: [WF[0]], shade: (x, z) => { const k = sstep(1.6, .9, dMG(x, z)), g = sstep(-10, -60, z); return [1 - k * .5 + g * .12, .92 - k * .45 + g * .06, 1.02 - k * .3 - g * .1]; } });
+const WF = J.tex.river({ c: '#a894c4', hi: '#fff0c0', m: 3 });
+const water = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, layers: [WF[0]], shade: (x, z) => { const k = sstep(1.6, .9, dMG(x, z)), g = sstep(-10, -60, z); return [.95 - k * .5 + g * .25, .95 - k * .5 + g * .05, 1.05 - k * .35 - g * .25]; } });
 water.mesh.position.y = -.04; scene.add(water.mesh);
 // 水に映る夕日の光の道（加算の横線。日の方角へ）
 const glint = (() => { const P = R.Px(32, 64); P.clip = true; for (let y = 0; y < 64; y++) { const w = 3 + y * .2; for (let k = 0; k < 2; k++) { const x0 = Math.round(16 - w / 2 + (hash(y, k) - .5) * 8), L = Math.round(w * (.4 + hash(y, k + 2) * .6)); if ((y + k * 3) % 4) continue; for (let i = 0; i < L; i++) P.set(x0 + i, y, i % 3 ? '#ffd890' : '#fff4d0'); } } const t = T.from(P, { m: 1 });
