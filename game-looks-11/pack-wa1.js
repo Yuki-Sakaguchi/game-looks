@@ -122,7 +122,7 @@ window.PACK_WA1 = (THREE, K, R, F) => {
     const wingT = T.fabric({ c: '#f8f6f0', pattern: 'plain' }), wm = mat(wingT, { side: true }), wl = [];
     for (const sx of [-1, 1]) { const G = geo(); G.quad([0, 0, .1 * s], [sx * .55 * s, 0, .02 * s], [sx * .55 * s, 0, -.12 * s], [0, 0, -.18 * s], [0, 0, 1, 1], [1, .95, .9, 1]); const m = new THREE.Mesh(G.build(), wm), pv = new THREE.Group(); pv.position.set(sx * .06 * s, .6 * s, 0); pv.add(m); body.add(pv); wl.push(pv); }
     g.userData = { wings: wl, body, dyn: true }; return g; };
-  W.sagiPose = (b, kind, t) => { const [l, r] = b.userData.wings; if (kind === 'fly') { const f = Math.sin(t * 5) * .7; l.rotation.z = f; r.rotation.z = -f; b.userData.body.rotation.x = .9; } else { l.rotation.z = -1.2; r.rotation.z = 1.2; b.userData.body.rotation.x = 0; } };
+  W.sagiPose = (b, kind, t) => { const [l, r] = b.userData.wings; if (kind === 'fly') { const f = Math.sin(t * 5) * .7; l.rotation.z = f; r.rotation.z = -f; b.userData.body.rotation.x = .9; } else { l.rotation.z = 1.4; r.rotation.z = -1.4; b.userData.body.rotation.x = 0; } };
 
   return W;
 };

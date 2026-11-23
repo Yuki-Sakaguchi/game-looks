@@ -21,7 +21,7 @@ canvas{display:block}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), A = PACK_SAND1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
-scene.add(R.skyDome([[0, '#4a88d0'], [.5, '#8ec0e8'], [.82, '#d8e4e8'], [.94, '#f8dcc0'], [1, '#ffe8c8']], { r: 440 })); scene.fog = new THREE.Fog('#e8e4d8', 60, 420);
+scene.add(R.skyDome([[0, '#3274c4'], [.3, '#5294d8'], [.62, '#9cc8ea'], [.84, '#dce8ec'], [.95, '#f8e0c4'], [1, '#ffe8c8']], { r: 440 })); scene.fog = new THREE.Fog('#e8e4d8', 60, 420);
 const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0x9ab070, amb: 1.5, sun: 0xffe4b8, power: 2.5, range: 34, map: 2048 }), SUN = new THREE.Vector3(.8, .42, -.42).normalize();
 
 // ---- 地面：ゆるくうねる草原。テントのまわりは ふみ固めた土、細い道 ----
@@ -40,7 +40,7 @@ const roofT = (() => { const P = R.Px(64, 32), Wt = R.ramp('#ece6d8', 6, { contr
   P.each((x, y) => { let c = Wt[(x * 5 + y * 7) % 13 === 0 ? 2 : 3]; if (x % 8 === 0) c = Wd[3]; if (x % 8 === 1) c = Wd[1]; if (y > 27) c = (x >> 2) % 2 ? Rd[3] : '#f0e4c8'; if (y === 27) c = Rd[1]; if (y < 3) c = Wt[2]; return c; });
   return T.from(P, { m: 1 }); })();
 const doorT = (() => { const P = R.Px(32, 48), O = R.ramp('#e0602e'), Y = R.ramp('#f0c040'); P.each((x, y) => { let c = O[3]; if (x < 2 || x > 29 || y < 2 || y > 45) c = O[1]; if (x === 15 || x === 16) c = O[2]; const a = Math.abs(x - 7.5) + Math.abs(y % 16 - 8), b = Math.abs(x - 23.5) + Math.abs(y % 16 - 8); if (a === 4 || b === 4) c = Y[3]; if (a < 2 || b < 2) c = Y[4]; return c; }); return T.from(P, { m: 1 }); })();
-const snowT = (() => { const P = R.Px(64, 64), Rk = R.ramp('#6a7a98', 6), Sn = R.ramp('#eef2f8', 6, { cool: .6 });
+const snowT = (() => { const P = R.Px(64, 64), Rk = R.ramp('#8a9cc0', 6, { contrast: .7 }), Sn = R.ramp('#eef2f8', 6, { cool: .6 });
   P.each((x, y) => { const line = 26 + Math.sin(x * .3) * 4 + Math.sin(x * .9 + 1) * 2 + R.tn(x, y, 8, 8, 64, 64, 2) * 6, gully = Math.abs(((x + y * .3) % 11) - 5.5) < 1.2;
     if (y < line - (gully ? 6 : 0)) return gully ? Sn[2] : (x + y) % 9 === 0 ? Sn[3] : Sn[4]; if (y < line + 2) return (x + y) & 1 ? Sn[3] : Rk[3]; return gully ? Rk[1] : R.tn(x, y, 8, 4, 64, 64, 5) > .6 ? Rk[3] : Rk[2]; });
   return T.from(P, { m: 1 }); })();
@@ -66,10 +66,10 @@ scene.add(R.merge(fixed));
 [[-34, -40], [42, -28], [-8.5, 6.5], [10, 8.5]].forEach(([x, z], i) => { const f = F.flag({ kind: 'pennant', pole: i < 2 ? 4.4 : 3, c: ['#2e6ab0', '#d0482e', '#f0c040', '#2e9a6a'][i], c2: '#f4f0e0', crest: 'none' }); f.position.set(x, H(x, z) + (i < 2 ? 2 : 0), z); scene.add(f); });
 
 // ---- 雪の山なみ（遠く。とがった loft にもようの絵）と雲 ----
-{ const B = R.parts(), G = B.g(snowT, { fog: false }).smooth(0); for (let i = 0; i < 16; i++) { const a = -2.2 + i * .19 + (hash(i, 1) - .5) * .08, r = 330 + hash(i, 2) * 50, h = 55 + hash(i, 3) * 55 * (i % 3 ? .7 : 1.2), w = 40 + hash(i, 4) * 30, x = Math.cos(a) * r, z = Math.sin(a) * r;
-    G.at(R.TR(x, -6, z, hash(i, 5) * 6)).loft(7, [[0, w, w * .8, 0, .78], [h * .45, w * .52, w * .45, .55, .92, w * .05], [h * .8, w * .18, w * .16, .9, 1.05, w * .08], [h, w * .02, w * .02, 1, 1.12, w * .1]], { rot: hash(i, 6) }).at(null); }
-  const g = B.group(); g.traverse(q => { if (q.isMesh) { q.castShadow = false; q.material = q.material.clone(); q.material.fog = false; q.material.color = new THREE.Color('#c8d4e8'); } }); scene.add(g); }
-scene.add(R.backdrop({ c: '#7a98a0', haze: '#e4e4dc', r: 250, h: 22, y: -4, rep: 4 }));
+{ const B = R.parts(), G = B.g(snowT, { fog: false }).smooth(0); for (let i = 0; i < 30; i++) { const a = i * .2094 + (hash(i, 1) - .5) * .1, r = 340 + hash(i, 2) * 40, h = 38 + hash(i, 3) * 40 * (i % 3 ? .8 : 1.25), w = 60 + hash(i, 4) * 40, x = Math.cos(a) * r, z = Math.sin(a) * r;
+    G.at(R.TR(x, -12, z, hash(i, 5) * 6)).loft(7, [[0, w, w * .8, 0, .78], [h * .4, w * .58, w * .5, .5, .92, w * .08, -w * .05], [h * .75, w * .22, w * .26, .86, 1.05, w * .02, w * .06], [h, w * .03, w * .03, 1, 1.12, w * (hash(i, 7) - .5) * .3]], { rot: hash(i, 6) }).at(null); }
+  const g = B.group(); g.traverse(q => { if (q.isMesh) { q.castShadow = false; q.material = q.material.clone(); q.material.fog = false; q.material.color = new THREE.Color('#e4ecf6'); } }); scene.add(g); }
+scene.add(R.backdrop({ c: '#6a9070', haze: '#dce4e0', r: 250, h: 30, y: -6, rep: 4 }));
 for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 30 + hash(i, 8) * 26, c: '#ffffff', shade: '#c8d8ee', seed: i }), a = i * .8 + .2; c.position.set(Math.cos(a) * 300, 90 + hash(i, 9) * 60, Math.sin(a) * 300); c.lookAt(0, 60, 0); scene.add(c); }
 
 // ---- 生きもの：主役の馬、つながれた馬、ひつじの群れ、鳥 ----
@@ -96,7 +96,7 @@ K.loop((dt, t) => {
   ride.position.set(p.x, y, p.z); ride.rotation.y = Math.atan2(tg.x, tg.z); A.pose(ride, 'walk', dist * 2.6); hero.userData.J.head.rotation.y = Math.sin(t * .4) * .35; hero.userData.J.torso.rotation.x = Math.sin(dist * 5.2) * .04;
   if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1.4)).normalize();
   const tall = innerWidth < innerHeight, D = tall ? 5.4 : 6.2, il = Math.hypot(p.x, p.z), sx = -p.x / il, sz = -p.z / il;   // ななめ うしろ（道の外がわ）から、テントの方を見る
-  cam.position.set(p.x - cd.x * D - sx * 2.4, y + (tall ? 3 : 2.8), p.z - cd.z * D - sz * 2.4); cam.lookAt(p.x + cd.x * 4 + sx * (tall ? 2.5 : 4), y + 1.4, p.z + cd.z * 4 + sz * (tall ? 2.5 : 4));
+  cam.position.set(p.x - cd.x * D - sx * 2.4, y + (tall ? 3 : 2.8), p.z - cd.z * D - sz * 2.4); cam.lookAt(p.x + cd.x * 3 + sx * (tall ? 4 : 6.5), y + 1.4, p.z + cd.z * 3 + sz * (tall ? 4 : 6.5));
   sun.position.set(p.x + SUN.x * 70, y + SUN.y * 70, p.z + SUN.z * 70); sun.target.position.set(p.x, y, p.z);
   tied.forEach((h, i) => A.pose(h, i % 2 ? 'graze' : 'stand', t + i * 1.7));
   loose.forEach((h, i) => { const a = t * .05 + i * 1.4, x = 30 + Math.cos(a) * 8 + i * 4, z = -6 + Math.sin(a) * 6; h.position.set(x, H(x, z), z); h.rotation.y = a + PI; A.pose(h, Math.sin(t * .3 + i) > .2 ? 'graze' : 'walk', t * 2.4 + i); });
@@ -108,7 +108,7 @@ K.loop((dt, t) => {
   R.idle(elder, t + 2, -.3);
   const ka = t * .6, kx = 3 + Math.cos(ka) * 4, kz = 8 + Math.sin(ka) * 2.2; kid.position.set(kx, H(kx, kz), kz); kid.rotation.y = Math.atan2(-Math.sin(ka) * 4, Math.cos(ka) * 2.2); R.walk(kid, t * 9.5, 1);
   birds.forEach((b, i) => { const a = t * (.2 + i * .04) + i * 2, r = 18 + i * 5; b.position.set(Math.cos(a) * r, 18 + i * 2, Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .5 + i); });
-  if ((sm += dt) > .32) { sm = 0; for (const [x, z, g] of GERS.slice(0, 3)) { const tp = g.userData.top; fx.emit('smoke', x + tp[0], H(x, z) + tp[1], z, { size: .7, life: 5, vy: .55, vx: .35, vz: -.1, grow: 2.2, spread: .08, tint: '#f4f0f0' }); } }
+  if ((sm += dt) > .32) { sm = 0; for (const [x, z, g] of GERS.slice(0, 3)) { const tp = g.userData.top; fx.emit('puff', x + tp[0], H(x, z) + tp[1], z, { size: .6, life: 5, vy: .5, vx: .35, vz: -.1, grow: 2.4, spread: .08, tint: '#e0dcdc' }); } }
   F.tick(t); fx.update(dt); crt.render(scene, cam, t);
 });
 </script>

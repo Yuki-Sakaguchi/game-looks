@@ -16,7 +16,7 @@ canvas{display:block}
 <script type="module">
 // 氷河の中の洞くつ。天井の うすい氷を通った光で、かべも天井も青くすきとおって光る。かべには 年ごとに積もった氷の層のしま、天井から つらら、足もとに とけ水の小川。
 // 色の組は「氷の青・水色・天井の白い光」＋差し色の 主役の上着の こはく色。氷の層は手打ちのドット絵（層・あわ・ひび）で、高さにそって しまがならぶようにはった。洞くつの筒はページの中で作り、明るさは頂点の色に焼きこんだ。
-// 主役は こはく色の上着の 山歩きの少年（R.actor の toon）。たいまつなしで、曲がりくねった氷の通路を奥へ歩き、うしろからカメラが追う。光の粒・しずく・小川・白いきつね（pack-fantasy-wild.js の小さな獣）が動く
+// 主役は こはく色の上着の 山歩きの少年（R.actor の toon）。たいまつなしで、曲がりくねった氷の通路を奥へ歩き、うしろからカメラが追う。光の粒・しずく・小川・長い耳の白い小さな獣（pack-fantasy-wild.js）が動く
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), T = R.tex, X = W.tex, { hash } = K, PI = Math.PI;
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 300, aa: false, fitAspect: .9, maxFov: 78 });
@@ -65,7 +65,7 @@ const stream = W.flow([...Array(Math.ceil((LEN + 40) / 2))].map((_, i) => { cons
 // ---- 主役・きつね・光の粒 ----
 R.cfg.actorBuild = 'toon';
 const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2a2a', eye: '#3a6a9a', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#e8962a', top2: '#f4ecdc', lower: 'baggy', bottom: '#3a4a6a', gloves: 'glove', glove: '#5a3a2a', shoes: 'boot', shoe: '#6a3a2a', hat: 'band', acc: '#f4ecdc', back: 'pack', strap: true, belt: '#4a3a2a', hold: 'staff' }); scene.add(hero);
-const fox = W.critter({ c: '#f0f4fa', belly: '#ffffff', s: 1.25 }); scene.add(fox);
+const beast = W.critter({ c: '#f0f4fa', belly: '#ffffff', s: 1.25 }); scene.add(beast);
 const motes = W.motes({ n: 90, box: [16, 6, 24], c: '#e8f8ff', size: .1, rise: .1, drift: .4, y: .3 }); scene.add(motes);
 
 const crt = R.crt(renderer, { noise: 0, bloom: .25 }); onResize(crt.resize);
@@ -76,8 +76,8 @@ K.loop((dt, t) => {
   if (first) { cd.copy(dir); first = false; } cd.lerp(dir, 1 - Math.exp(-dt * 2)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.8;
   cam.position.set(x - cd.x * D + .4, hero.position.y + (tall ? 2.1 : 1.9), z - cd.z * D); cam.lookAt(x + cd.x * 4, hero.position.y + (tall ? 1.5 : 1.45), z + cd.z * 4);   // 少し見上げて、天井の光とつららを入れる
   sun.position.set(x + 4, 30, z - 6); sun.target.position.set(x, 0, z); land.follow(cx(sm + 20), z - 20);
-  // きつねは 主役の先を行ったり来たりして、ときどき すわってふりかえる
-  { const fs = sm + 5 + Math.sin(t * .35) * 2.2, fxp = cx(fs) - 2 + Math.sin(t * .5) * .5, fz = -fs, sit = Math.sin(t * .35 + 1.4) > .55; fox.position.set(fxp, HF(fxp, fz), fz); fox.rotation.y = sit ? .4 : (Math.cos(t * .35) > 0 ? PI : 0); W.critterPose(fox, sit ? 'sit' : 'walk', t * 9); }
+  // 白い小さな獣は 主役の先を行ったり来たりして、ときどき すわってふりかえる
+  { const fs = sm + 5 + Math.sin(t * .35) * 2.2, fxp = cx(fs) - 2 + Math.sin(t * .5) * .5, fz = -fs, sit = Math.sin(t * .35 + 1.4) > .55; beast.position.set(fxp, HF(fxp, fz), fz); beast.rotation.y = sit ? .4 : (Math.cos(t * .35) > 0 ? PI : 0); W.critterPose(beast, sit ? 'sit' : 'walk', t * 9); }
   // つららの しずく
   if ((dp += dt) > .18) { dp = 0; const d = DRIP[Math.floor(Math.random() * DRIP.length)], oz = Math.abs(d[2] - z) < 25 ? 0 : -LEN * Math.round((d[2] - z) / LEN); fx.emit('splash', d[0], d[1], d[2] + oz, { size: .12, life: .9, grav: -9, tint: '#e8f8ff' }); }
   for (const f of ticks) f(t); motes.userData.tick(t, x, z - 6); fx.update(dt); crt.render(scene, cam, t);

@@ -60,7 +60,7 @@ const pier = S.pier({ len: 14, w: 1.6, h: .5, depth: 2.6, c: '#6a5a50' }); put(p
 put(F.torii({ w: 5.4, h: 6.8, c: '#d0482e' }), 17, -66, -.35, -.6);   // 海の中に立つ鳥居
 // 浜の小物：流木、浜の草、小石、つないだ縄
 for (let k = 0; k < 70; k++) { const z = 20 - hash(k, 7) * 100, d = .6 + hash(k, 8) * 7.5, x = SX(z) - d; if (Math.abs(d - 2.4) < .9) continue; const q = k % 5;
-  if (q < 2) put(R.tuft({ kind: 'grass', s: .5 + hash(k, 9) * .5, c: '#6a7a6a', seed: k % 3 }), x, z, k); else if (q < 4) put(R.rock({ s: .14 + hash(k, 9) * .22, c: '#5a5a66', moss: 0, seed: k }), x, z, k, H(x, z) - .04); else put(R.geo().smooth(1).at(R.TR(0, .06, 0, k, 0, PI / 2)).loft(5, [[-.7, .07, .06, 0, .8], [.7, .05, .05, 1, 1]], { cap: 'both' }).mesh(T.bark({ c: '#8a7a68' })), x, z, k); }
+  if (q < 2) put(R.tuft({ kind: 'grass', s: .5 + hash(k, 9) * .5, c: '#8aa08a', seed: k % 3 }), x, z, k); else if (q < 4) put(R.rock({ s: .14 + hash(k, 9) * .22, c: '#5a5a66', moss: 0, seed: k }), x, z, k, H(x, z) - .04); else put(R.geo().smooth(1).at(R.TR(0, .06, 0, k, 0, PI / 2)).loft(5, [[-.7, .07, .06, 0, .8], [.7, .05, .05, 1, 1]], { cap: 'both' }).mesh(T.bark({ c: '#8a7a68' })), x, z, k); }
 // 入り江の両うでの岬（遠くのがけ）
 [[46, -40, 9], [52, -10, 7], [40, -120, 12], [-6, -135, 14], [26, -140, 10]].forEach(([x, z, s], i) => put(R.rock({ s, c: '#232842', moss: 0, seed: i + 20 }), x, z, i, -2.5));
 scene.add(R.merge(fixed));

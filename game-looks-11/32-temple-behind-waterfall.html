@@ -83,7 +83,7 @@ K.loop((dt, t) => { t += T0;
   if (stopped) R.idle(hero, t, Math.sin(t * .7) * .6); else R.walk(hero, t * SPEED * 3.7);
   const Jh = hero.userData.J; if (Jh.cape) { Jh.cape.rotation.x = -.35 - Math.sin(t * 4) * .12; Jh.cape.rotation.z = Math.sin(t * 2.6) * .15; }
   if (first) { cd.copy(tg); first = false; } if (!stopped) cd.lerp(tg, 1 - Math.exp(-dt * 1.2)).normalize();
-  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4, Sd = tall ? 1.2 : 2.2; cp.set(p.x - cd.x * D + Sd * .7, p.y + (tall ? 2.6 : 2.7), Math.max(p.z - cd.z * D + Sd * .6, CZ + 3.5)); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3 - 1.2, p.y + (tall ? 1.7 : 1.9), p.z + cd.z * 3);
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4, Sd = tall ? 1.2 : 2.2; cp.set(p.x - cd.x * D + Sd * .7, p.y + (tall ? 2.6 : 2.7), Math.max(p.z - cd.z * D + Sd * .6, CZ + 3.5)); const kc = sstep(-6.5, -9.6, p.z); cp.lerp(new THREE.Vector3(tall ? 5.4 : 6.6, 3.2, tall ? -4.8 : -5), kc); cam.position.copy(cp); cam.lookAt(p.x + (cd.x * 3 - 1.2) * (1 - kc) - kc * 1.4, p.y + (tall ? 1.7 : 1.9) - kc * .5, p.z + cd.z * 3 * (1 - kc));
   sun.position.set(p.x + SUN.x * 60, SUN.y * 60, p.z + SUN.z * 60); sun.target.position.copy(p);
   R.flip(water.mat, WF, t, 4); fall.userData.tick(t); fall2.userData.tick(t); for (const fl of fall.userData.fl) fl.userData.tick(t); spray.userData.tick(t);
   mists.forEach((m, i) => m.material.opacity = .26 + Math.sin(t * 1.3 + i) * .08); bow.material.opacity = .26 + Math.sin(t * .7) * .06;

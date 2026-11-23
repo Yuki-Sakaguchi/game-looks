@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-05 竹林の小道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1e2a1e;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f8fcf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-05 ─ 竹林の小道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-wa1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 霧の朝の竹林。見上げるほど高い竹が両がわに すきまなく立ち、風でゆれる。竹の さくに はさまれた細い土の小道が ゆるく曲がり、とちゅうに小さな ほこら。霧の中に光のすじ、道には すずめ。
+// 色の組は「竹の若緑・霧の白・落ち葉の土の黄土」＋差し色の 主役の着物の柿色。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は旅の むすめ（R.actor の toon）。カメラは低い位置から うしろを追い、少し見上げて竹の高さを見せる。竹・光のすじ・光の粒・すずめ・向こうから来る人・ほうきの人が動く。竹・ほこら・竹のさくは pack-wa1.js、光は pack-ruins.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), W = PACK_WA1(THREE, K, R, F), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 300, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#c8dcc8'], [.6, '#e4ece0'], [1, '#f4f6ec']], { r: 220 })); scene.fog = new THREE.Fog('#e2eadc', 9, 62);
+const SUN = new THREE.Vector3(-.45, .7, -.55).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xf0fff0, ground: 0x9aa880, amb: 1.6, sun: 0xfff6dc, power: 1.7, range: 24 });
+
+// ---- 道の形：ゆるく S 字に曲がる小道。z が小さいほど奥 ----
+const PX = z => 2.6 * Math.sin(z * .07) + 1.2 * Math.sin(z * .031 + 2), dPX = z => (PX(z + .1) - PX(z - .1)) / .2, PW = 1.1;
+const H = (x, z) => { const ax = Math.abs(x - PX(z)); return Math.sin(x * .21 + z * .13) * .25 * Math.min(1, ax / 3) + Math.max(0, ax - 2) * .06; };
+const land = R.ground({ w: 90, d: 120, cell: 1, cz: -30, H, layers: [T.dirt({ c: '#a89064', pebbles: .3, seed: 2 }), T.grass({ c: '#6a9a4a', flowers: .03, fc: ['#fff8e0'] }), PK.tex.moss({ c: '#5e8e44' })],
+  mix: (x, z) => { const ax = Math.abs(x - PX(z)); return [ax > PW + .5 ? .8 : 0, ax > 3.5 && Math.sin(x * .5) * Math.sin(z * .4) > .1 ? 1 : 0]; } }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 竹のさく（道の両がわ。柱と 2 本の横の竹） ----
+const CULM = W.tex.culm({ c: '#9ab85a' });
+{ const G = R.geo(); for (const s of [-1, 1]) for (let z = 16; z > -110; z -= 1.8) { const z1 = z - 1.8, x0 = PX(z) + s * (PW + .3), x1 = PX(z1) + s * (PW + .3), y0 = H(x0, z), y1 = H(x1, z1);
+    G.at(R.TR(x0, y0, z)).loft(5, [[0, .045, .045, 0, .9], [.85, .04, .04, .8, 1]], { cap: 'top' }).at(null);
+    for (const hy of [.38, .72]) { const len = Math.hypot(x1 - x0, z1 - z, y1 - y0), ry = Math.atan2(x1 - x0, z1 - z); G.at(R.TR(x0, y0 + hy, z, ry, PI / 2)).loft(5, [[0, .028, .028, 0, 1], [len, .028, .028, len * .5, 1]], {}).at(null); } }
+  fixed.push(G.mesh(CULM)); }
+
+// ---- ほこら（道がふくらむ所）と、石灯ろう・お地蔵さんの代わりの丸い石 ----
+const HZ = -22; put(W.hokora({ s: 1.15, c: '#7a5a3a' }), PX(HZ) - 2.4, HZ, PI / 2 - .2); put(F.stoneLantern({ h: 1.2, lit: true }), PX(HZ) - 1.9, HZ + 1.5, 0); put(R.rock({ s: .5, moss: .8, seed: 4 }), PX(HZ) - 2.1, HZ - 1.4, 1);
+put(F.flag({ kind: 'banner', w: .35, h: 1.4, pole: 2.2, c: '#f4f0e4', c2: '#c8402e', crest: 'none' }), PX(HZ) - 1.8, HZ - .8, PI / 2);
+
+// ---- 竹：道の近くは 1 本ずつ（ゆれる）、遠くは まとめて置く ----
+const sway = [];
+for (let i = 0; i < 520; i++) { const z = 18 - hash(i, 1) * 130, s = hash(i, 2) > .5 ? 1 : -1, off = PW + .7 + Math.pow(hash(i, 3), 1.25) * 26, x = PX(z) + s * off;
+  if (Math.abs(x - (PX(HZ) - 2.2)) < 1.6 && Math.abs(z - HZ) < 2.4) continue;
+  const b = W.bamboo({ h: 11 + hash(i, 4) * 8, r: .055 + hash(i, 5) * .05, c: ['#9ab85a', '#88aa52', '#a8c068'][i % 3], leaf: ['#6aa04a', '#5a9444'][i % 2], lean: [s * hash(i, 6) * .05, (hash(i, 7) - .5) * .04], seed: i });
+  if (off < 6 && z > -80) { b.position.set(x, H(x, z) - .05, z); b.userData.ph = hash(i, 8) * 6; scene.add(b); sway.push(b); } else put(b, x, z, 0, H(x, z) - .05); }
+for (let i = 0; i < 70; i++) { const z = 16 - hash(i, 21) * 120, s = i % 2 ? 1 : -1, x = PX(z) + s * (PW + .5 + hash(i, 22) * 4); put(R.tuft({ kind: i % 3 ? 'grass' : 'bush', s: .5 + hash(i, 23) * .5, c: '#6a9a4a', seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- 光：光のすじ・光の粒・まう竹の葉 ----
+const dyn = [];
+for (let i = 0; i < 12; i++) { const z = 8 - i * 7 - hash(i, 31) * 4, x = PX(z) + (hash(i, 32) - .5) * 7, h = 14, s = PK.shaft({ w: 1.4 + hash(i, 33) * 1.4, h, dx: SUN.x / SUN.y * h, dz: SUN.z / SUN.y * h, a: .26, seed: i, c: '#fffbe0' }); s.position.set(x, H(x, z) - .2, z); scene.add(s); dyn.push(s); }
+const motes = PK.motes({ n: 70, area: [8, 5, 14], c: '#fffce8' }); scene.add(motes); dyn.push(motes);
+const leafT = (() => { const P = R.Px(8), M = R.ramp('#b8c060'); P.rect(0, 3, 8, 2, M[3]); P.rect(1, 2, 5, 1, M[4]); P.rect(2, 5, 5, 1, M[2]); P.set(7, 4, M[1]); return T.from(P, { m: 1, cut: true }); })();
+const leaves = [...Array(24)].map((_, i) => { const o = new THREE.Mesh(new THREE.PlaneGeometry(.22, .22), R.mat(leafT, { cut: true, side: true })); o.userData.p = [(hash(i, 41) - .5) * 6, hash(i, 42) * 8, (hash(i, 43) - .5) * 12, i * 1.7, .35 + hash(i, 44) * .35]; scene.add(o); return o; });
+
+// ---- 人・すずめ（人は 5 頭身の toon。どれもこの場面のためのオリジナル） ----
+const act = o => { const p = R.actor({ build: 'toon', ...o }); scene.add(p); return p; };
+const hero = act({ sex: 'f', hairStyle: 'long', hair: '#2a2228', mouth: 'smile', cloth: 'robe', top: '#c8583a', top2: '#f4ecd8', skirt: .75, bottom: '#3e4a3a', shoes: 'shoe', shoe: '#c8a878', neck: 'collar', back: 'pack', acc: '#e8d8b0' });
+const monk = act({ hairStyle: 'bald', hair: '#4a4448', eyes: 'closed', mouth: 'smile', cloth: 'robe', top: '#5a5a62', top2: '#e8e4d8', skirt: .85, shoes: 'shoe', shoe: '#8a7a5a' }); F.wear(monk, 'staff', { len: 1.3, hand: 'R', c: '#9ab85a' });
+const elder = act({ hairStyle: 'short', hair: '#c8c4c0', beard: 'mustache', cloth: 'tunic', top: '#6a7a5a', top2: '#e8dcc0', bottom: '#4a4a54', shoe: '#5a4a3a' }); W.kasa(elder, { c: '#d0bc80' });
+{ const z = HZ + .6; monk.position.set(PX(z) - 1.3, H(PX(z) - 1.3, z), z); monk.rotation.y = -PI / 2 + .3; }
+const sparrows = [...Array(5)].map((_, i) => { const b = R.bird({ c: '#8a6a48', belly: '#ece0c8', neck: false, s: .9 }); b.userData.k = i; scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = 1.05, Z0 = 6, LOOP = 70;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LOOP, x = PX(z) + .15, y = H(x, z), hd = Math.atan2(-dPX(z), -1);
+  hero.position.set(x, y, z); hero.rotation.y = hd; R.walk(hero, t * SPEED * 3.6, .8);
+  const tall = innerWidth < innerHeight, D = tall ? 3.6 : 4.4, zc = z + D, xc = PX(zc) * .8 + x * .2 + .35;
+  cam.position.set(xc, H(xc, zc) + (tall ? 1.55 : 1.45), zc); cam.lookAt(PX(z - 6) * .6 + x * .4, y + (tall ? 2.1 : 1.9), z - 6);   // 低い位置から少し見上げる
+  sun.position.set(x + SUN.x * 50, y + SUN.y * 50, z + SUN.z * 50); sun.target.position.set(x, y, z - 4); land.follow(0, Math.round(z / 6) * 6 - 24);
+  // 竹がゆれる（上ほど大きく。風が奥から波のように来る）
+  for (const b of sway) { const w = Math.sin(t * .9 + b.userData.ph + b.position.z * .15); b.rotation.z = w * .022; b.rotation.x = Math.sin(t * .7 + b.userData.ph) * .012; }
+  // 向こうから来る老人（すれちがう）。ほこらの前の僧は掃く
+  const ez = z - 16 + ((t * 1.0) % 24), ex = PX(ez) - .4; elder.position.set(ex, H(ex, ez), ez); elder.rotation.y = Math.atan2(dPX(ez), 1); R.walk(elder, t * 3.4, .7);
+  R.idle(monk, t, Math.sin(t * .5) * .4); monk.userData.J.armR.rotation.x = -.6 + Math.sin(t * 2.4) * .3; monk.userData.J.torso.rotation.x = .2;
+  // すずめ：主役の少し先の道で ついばみ、近づくと飛びたって先へ下りる
+  sparrows.forEach((b, i) => { const base = Math.floor((-z + 4) / 12) * 12, bz = -base - 5 - i * .5, dz = z - bz, up = Math.max(0, Math.min(1, (3.2 - dz) / 1.5)), bx = PX(bz) + (hash(i, base) - .5) * 1.4 + up * (i - 2) * .8;
+    b.position.set(bx, H(bx, bz) + up * (2.5 + i * .4), bz - up * 4); b.rotation.y = up > 0 ? PI + (i - 2) * .3 : hash(i, 7) * 6 + Math.sin(t + i) * .5; R.birdPose(b, up > 0 ? 'fly' : 'peck', t * (up > 0 ? .7 : 1) + i); });
+  motes.position.set(x, y, z - 5);
+  leaves.forEach(o => { const [lx, ly, lz, ph, v] = o.userData.p, f = ((ly - t * v) % 8 + 8) % 8; o.position.set(x + lx + Math.sin(t * .8 + ph) * .8, y + f, z - 4 + lz + Math.cos(t * .6 + ph) * .5); o.rotation.set(t * 1.1 + ph, t * .8 + ph, ph); });
+  for (const o of dyn) o.userData.tick(t); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

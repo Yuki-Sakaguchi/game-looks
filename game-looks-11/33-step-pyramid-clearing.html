@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-33 階段ピラミッドの広場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1220;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f8e8d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-33 ─ 階段ピラミッドの広場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-jungle1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方。密林をぬけた草の広場に、こけと つたにおおわれた 5 段の階段ピラミッドが立つ。石だたみの参道の両がわに、顔を彫った石柱と石の頭。てっぺんと石段の下に かがり火。
+// 色の組は「夕空のだいだいと藤色・こけむした石の灰緑・密林の深い緑」＋差し色の 主役の青い上着。ピラミッドと石像・オウムのなかま・さるは pack-jungle1.js（J.〜）、かがり火は pack-fantasy-wild.js（F.〜）。
+// 主役は金のかみの探検家（R.actor の toon）。参道を歩いて石段の前で立ち止まり、見上げる。カメラは左うしろの低い所から、ピラミッドを見上げるように追う。オウム・さる・火とけむりが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), PK = PACK_RUINS(THREE, K, R), J = PACK_JUNGLE1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#34306e'], [.42, '#7a5a8e'], [.72, '#d8786a'], [.9, '#f4a868'], [1, '#ffd890']], { r: 400 })); scene.fog = new THREE.Fog('#d08a78', 50, 230);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8a8c8, ground: 0x6a5a48, amb: 1.4, sun: 0xffa868, power: 2.4, range: 40 }), SUN = new THREE.Vector3(-.8, .32, .3).normalize();
+
+// ---- 広場：まん中は草、参道は石だたみ。まわりはゆるく上がって密林 ----
+const PZ = -30, AW = 2.4, sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const rC = (x, z) => Math.hypot(x / 1.1, (z + 12) / 1.25), H = (x, z) => sstep(26, 44, rC(x, z)) * 3 + Math.sin(x * .2) * Math.cos(z * .17) * .25;
+const land = R.ground({ w: 140, d: 150, cell: 2, cz: -14, H, layers: [T.grass({ c: '#6a8a3a', flowers: .15, fc: ['#f8e070', '#ffffff', '#f09ab0'] }), T.cobble({ kind: 'slab', c: '#a8a088', moss: .5 }), T.dirt({ c: '#8a6a48' })],
+  mix: (x, z) => [Math.abs(x) < AW && z > PZ + 12 && z < 22 ? 1 : 0, rC(x, z) > 30 ? .6 : 0] }); scene.add(land.mesh);
+
+// ---- ピラミッド（つた・こけ・草・小さな木）と、てっぺんのお堂 ----
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const pyr = put(J.pyramid({ tiers: 5, w: 32, top: 10, th: 3.4, stair: 5, c: '#a8a48c', moss: .6 }), 0, PZ, 0, -.1), PH = pyr.userData.H, wi = i => 32 - 22 * i / 5, TH = 3.4;
+for (let i = 0; i < 5; i++) { const a = wi(i), y = i * TH;
+  for (const sx of [-1, 1]) { put(PK.ivy({ w: (a - 5) / 2 * .8, h: TH, from: 'top', amount: .55 + hash(i, sx) * .3, flowers: .3, seed: i + sx }), sx * (a / 4 + 1.3), PZ + a / 2 + .04 - .2, 0, y); put(PK.ivy({ w: a * .7, h: 2.6, from: i % 2 ? 'bottom' : 'top', amount: .5, seed: i * 3 + sx }), sx * (a / 2 + .04 - .2), PZ, sx * PI / 2, y); }
+  for (let k = 0; k < 7; k++) { const x = (hash(i, k) - .5) * (a - 3), side = hash(k, i, 2) < .5; if (Math.abs(x) < 3) continue; put(R.tuft({ kind: ['grass', 'bush', 'flower'][k % 3], s: .6 + hash(i, k, 3) * .5, c: '#6a9a3a', fc: ['#f8e070'], seed: k % 3 }), x, PZ + (side ? 1 : -1) * (a / 2 - .6 - (a - wi(i + 1)) * .1), k, y + TH); }
+  if (i < 4) for (let k = 0; k < 3; k++) { const x = (k - 1) * a * .32 + (hash(i, k, 5) - .5) * 2; if (Math.abs(x) < 3.2) continue; put(J.hang({ len: 1.8 + hash(i, k, 6) * 1.5, n: 3, w: 1.4, c: '#3f8a4a', flowers: k === 0, seed: i * 3 + k }), x, PZ + wi(i + 1) / 2 + .3, 0, y + TH - .05); } }
+for (const [x, z, i] of [[-8, PZ + 6, 1], [7, PZ - 5, 2], [-4, PZ - 3.5, 3]]) put(R.tree({ kind: 'bush', h: 1.6 + i * .3, c: '#4a8a3a', seed: i }), x, z, i, (i + 1) * TH);
+// 参道の石像（顔を彫った石柱と、石の頭）と、石段の下の かがり火
+for (let k = 0; k < 4; k++) for (const sx of [-1, 1]) { const z = 12 - k * 8.5, x = sx * (AW + 1.8); put(k % 2 ? J.idol({ kind: 'head', s: .75, moss: .5, seed: k * 2 + sx }) : J.idol({ kind: 'stele', s: 1.1, moss: .45, face: 'face', seed: k * 2 + sx }), x, z, sx > 0 ? -PI / 2 + .25 : PI / 2 - .25); }
+const fires = [[-4.2, PZ + 18.4, 0], [4.2, PZ + 18.4, 0], [-3, PZ + 4.4, PH], [3, PZ + 4.4, PH]].map(([x, z, y], i) => { const b = F.brazier({ s: 1, light: i < 2, seed: i }); b.position.set(x, y || H(x, z), z); scene.add(b); return b; });
+// 広場の石（たおれた柱・岩）と草
+put(PK.column({ h: 4, r: .45, broken: .5, seed: 2, ivy: .6 }), -11, -2, .4); { const f = put(PK.column({ h: 3.6, r: .42, seed: 3, ivy: .3 }), 10.5, -8, .9, .4); f.rotation.z = PI / 2; }
+for (let i = 0; i < 40; i++) { const x = (hash(i, 7) - .5) * 60, z = 20 - hash(i, 8) * 50; if (Math.abs(x) < AW + 3 || Math.abs(x) < 18 && z < PZ + 18) continue; put(R.tuft({ kind: ['grass', 'flower', 'bush', 'reed'][i % 4], s: .7 + hash(i, 9) * .6, c: '#6a9a3a', fc: ['#f8e070', '#ffffff'], seed: i % 3 }), x, z, i); }
+for (let i = 0; i < 10; i++) { const x = (hash(i, 10) - .5) * 44, z = 14 - hash(i, 11) * 40; if (Math.abs(x) < AW + 4 || Math.abs(x) < 18 && z < PZ + 18) continue; put(R.rock({ s: .5 + hash(i, 12) * .6, c: '#8a8a78', moss: .6, seed: i }), x, z, i); }
+// まわりの密林（大木＋やし＋大きな葉）
+for (let i = 0; i < 64; i++) { const a = i / 64 * PI * 2 + hash(i, 13) * .1, r = 34 + hash(i, 14) * 14, x = Math.sin(a) * r * 1.1, z = -12 + Math.cos(a) * r * 1.25; if (z > 30) continue; put(i % 5 === 0 ? J.palm({ h: 9 + hash(i, 15) * 4, seed: i }) : J.bigTree({ h: 15 + hash(i, 16) * 8, crown: 6, c: ['#3a6a3a', '#3f7a3a', '#2f6a40'][i % 3], seed: i, vines: 3 }), x, z, 0); }
+for (let i = 0; i < 40; i++) { const a = i / 40 * PI * 2 + 1, r = 46 + hash(i, 21) * 10, x = Math.sin(a) * r * 1.1, z = -12 + Math.cos(a) * r * 1.25; if (z > 30) continue; put(R.tree({ kind: i % 3 ? 'round' : 'tall', h: 12 + hash(i, 22) * 8, c: ['#3a6a3a', '#2f5a3a'][i % 2], seed: i }), x, z, i); }
+for (let i = 0; i < 80; i++) { const a = hash(i, 17) * PI * 2, r = 29 + hash(i, 18) * 7, x = Math.sin(a) * r * 1.1, z = -12 + Math.cos(a) * r * 1.25; if (z > 26) continue; const k = ['banana', 'monstera', 'fern'][i % 3]; put(J.plant({ kind: k, seed: i, h: k === 'banana' ? 1.6 : 0, c: k === 'monstera' ? '#2f6a34' : '#4a8a3a' }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#5a4a6a', haze: '#e0907a', r: 220, h: 40, y: -3, rep: 3 }));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(14, 20), new THREE.MeshBasicMaterial({ color: '#fff0b8', fog: false, transparent: true, opacity: .9 })); sunD.position.set(-320, 64, -40); sunD.lookAt(0, 0, 0); scene.add(sunD);
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 30 + hash(i, 19) * 24, c: '#f8b898', shade: '#8a5a8a', seed: i }), a = -1.6 + i * .5; c.position.set(Math.sin(a) * 260, 60 + hash(i, 20) * 50, Math.cos(a) * -260); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 生きもの：オウムのなかま（つがいで広場をまわる・石柱の上）、ピラミッドの段にすわる さる ----
+const PC = [['#e0302a', '#f0c030', '#2a6ad8'], ['#2a7ad8', '#f0d040', '#e8c030'], ['#2aa860', '#e8402a', '#2a5ad0']];
+const fliers = [...Array(6)].map((_, i) => { const c = PC[i % 3], p = J.parrot({ c: c[0], c2: c[1], c3: c[2], s: 3 }); p.userData.ph = Math.floor(i / 2) * 2.1 + (i % 2) * .25; scene.add(p); return p; });
+const sitters = [[-(AW + 1.8), 12, 1.1 * 2.6 + .12], [AW + 1.8, -5, 1.1 * 2.6 + .12]].map(([x, z, y], i) => { const c = PC[(i + 1) % 3], p = J.parrot({ c: c[0], c2: c[1], c3: c[2], s: 2 }); p.position.set(x, H(x, z) + y, z); p.rotation.y = i ? -2 : 2; scene.add(p); return p; });
+const monkeys = [[-7, 1, 1], [9, 2, -1], [-4, 3, 1]].map(([x, i, s], k) => { const m = J.monkey({ c: ['#6a4a30', '#8a6a44', '#5a4a3a'][k], s: 1.6 }); m.position.set(x, (i + 1) * TH - .1, PZ + wi(i + 1) / 2 + .5); m.rotation.y = s * .3; scene.add(m); return m; });
+
+// ---- 主役 ----
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', bangs: 'swept', hair: '#e8c060', eyes: 'big', brow: 'soft', mouth: 'smile', cloth: 'vest', sleeve: 'long', top: '#2f5aa8', top2: '#f4ecd8', lower: 'baggy', bottom: '#c8b088', belt: '#7a4a2a', gloves: 'glove', glove: '#8a5a3a', shoes: 'boot', shoe: '#6a4228', back: 'pack', strap: true }); scene.add(hero);
+const fx = K.fx(scene, 60), Z0 = 18, ZE = PZ + 18.6 + 1, SPEED = 1.4, WALK = (Z0 - ZE) / SPEED, CYC = WALK + 6;
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const T0 = +new URLSearchParams(location.search).get('t') || 0; let sm = 0;
+K.loop((dt, t) => { t += T0;
+  const tc = t % CYC, walking = tc < WALK, z = walking ? Z0 - tc * SPEED : ZE, x = -.4 + Math.sin(z * .12) * .3, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI; const Jh = hero.userData.J;
+  if (walking) R.walk(hero, t * SPEED * 3.7); else { R.idle(hero, t, Math.sin(t * .5) * .4); Jh.head.rotation.x = -.45; Jh.armR.rotation.set(-2.3, 0, -.3); Jh.foreR.rotation.x = -1.2; }   // 立ち止まって、手をかざして見上げる
+  const tall = innerWidth < innerHeight, D = tall ? 4.2 : 4.8; cam.position.set(x - (tall ? 1.2 : 1.8), y + (tall ? 1.5 : 1.35), z + D); cam.lookAt(x + .3, y + (tall ? 2.5 : 2.6), z - 6);
+  sun.position.set(x + SUN.x * 70, SUN.y * 70, z + SUN.z * 70); sun.target.position.set(x, 0, z - 8);
+  fliers.forEach((p, i) => { const ph = p.userData.ph, a = t * .32 + ph, r = 16 + (i % 2) * .8, X = Math.cos(a) * r, Z = -10 + Math.sin(a) * r * .8; p.position.set(X, 9 + Math.sin(t * .8 + ph) * 1.5 + (i % 2) * .5, Z); p.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .8); J.parrotPose(p, 'fly', t + i); });
+  sitters.forEach((p, i) => J.parrotPose(p, 'perch', t + i * 3)); monkeys.forEach((m, i) => J.monkeyPose(m, 'sit', t + i * 1.9));
+  for (const f of fires) f.userData.tick && f.userData.tick(t);
+  if ((sm += dt) > .35) { sm = 0; for (const f of fires) fx.emit('smoke', f.position.x, f.position.y + 1.3, f.position.z, { size: .35, life: 3, vy: .7, vx: .25, grow: 1.6, spread: .1, tint: '#a89098' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

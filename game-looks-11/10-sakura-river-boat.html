@@ -21,7 +21,7 @@ canvas{display:block}
 // 主役は舟のまん中にすわる、黄色い着物の少女（R.actor の toon）。へさきで船頭が さおをさす。カメラは舟の上、主役のすぐうしろ。運河と石の橋は pack-fantasy-town.js、花びらと あみがさは pack-wa2.js
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
-const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
 scene.add(R.skyDome([[0, '#4a92dc'], [.55, '#84c0ec'], [.88, '#c4e2f4'], [1, '#f6e4ec']], { r: 400 })); scene.fog = new THREE.Fog('#f0e0ea', 60, 240);
 const { sun } = K.lights(scene, renderer, { sky: 0xe0ecff, ground: 0xd8c0c8, amb: 1.5, sun: 0xfff2e0, power: 2.3, range: 32 }), SUN = new THREE.Vector3(.45, .78, .3).normalize();
 
@@ -61,7 +61,7 @@ const pole = R.geo().smooth(1).loft(5, [[0, .03, .03, 0, .8], [4.2, .025, .025, 
 
 // ---- 人：主役（すわる）、へさきの船頭（さお）、むこうから来る舟、岸を歩く人、橋の上の人、子ども、かも、鳥 ----
 const mk = o => R.actor({ build: 'toon', ...o }), act = (o, x, z, ry, y = 0) => { const p = mk(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
-const hero = mk({ sex: 'f', hairStyle: 'tail', bangs: 'straight', hair: '#3a2a2a', mouth: 'smile', blush: true, ...WA.yukata({ top: '#f0c040', top2: '#f8f0e0', obi: '#d8402e' }) }); hero.position.set(0, .12, .45); hero.rotation.y = PI; boat.add(hero);
+const hero = mk({ sex: 'f', hairStyle: 'tail', bangs: 'straight', hair: '#3a2a2a', mouth: 'smile', blush: true, ...WA.yukata({ top: '#f0c040', top2: '#f8f0e0', obi: '#d8402e' }) }); hero.position.set(0, .12, .2); hero.rotation.y = PI; boat.add(hero);
 const sendo = WA.kasa(mk({ hairStyle: 'short', hair: '#2a2228', beard: 'stubble', cloth: 'jacket', top: '#2e4a7a', top2: '#f4ecd8', lower: 'pants', bottom: '#3a3a4a', shoes: 'shoe', shoe: '#c8b890', gloves: 'wrap', glove: '#f4ecd8' }), { c: '#d0b878' }); sendo.position.set(.15, .12, -1.9); sendo.rotation.y = PI; boat.add(sendo); boat.add(pole);
 const boat2 = new THREE.Group(); { const b = R.boat({ c: '#7a5a3a', sail: false }); b.scale.set(1.2, 1.2, 1.5); boat2.add(b); const r2 = mk({ sex: 'f', hairStyle: 'bun', hair: '#2a2228', mouth: 'smile', ...WA.yukata({ top: '#8ac0e0', obi: '#f8f0e0' }) }); r2.position.set(0, .1, -.2); boat2.add(r2); boat2.userData.p = r2; const r3 = WA.kasa(mk({ hairStyle: 'bald', hair: '#a09890', beard: 'beard', eyes: 'closed', cloth: 'jacket', top: '#5a4a3a', top2: '#e8dcc0', bottom: '#4a4450' })); r3.position.set(0, .1, 1.5); boat2.add(r3); boat2.userData.q = r3; } scene.add(boat2);
 const walkers = [{ sex: 'f', hairStyle: 'long', hair: '#3a2a30', ...WA.yukata({ top: '#e88aa8', obi: '#f8f0e0' }) }, { hairStyle: 'short', hair: '#2a2228', cloth: 'jacket', top: '#5a7a5a', top2: '#f4f0e8', bottom: '#4a4a5a' }, { s: .72, hairStyle: 'bob', hair: '#2a2228', mouth: 'open', blush: true, ...WA.yukata({ sex: 'f', top: '#f8f0e0', obi: '#e8504a' }) }, { sex: 'f', hairStyle: 'bun', hair: '#5a3a30', ...WA.yukata({ top: '#6a5aa0', obi: '#f0c040' }) }].map(o => act(o, 0, 0, 0));
@@ -73,15 +73,15 @@ const ducks = [0, 1, 2].map(k => { const b = R.bird({ c: k ? '#8a6a4a' : '#4a7a5
 const petals = WA.petals(scene, { n: 220, box: [26, 9, 30], c: '#ffd2e2', size: 2.4, fall: .9, wind: [.4, .9] });
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
-const START = -6, RUN = START - (Z1 + 12), SPEED = 1.6, cp = new THREE.Vector3(), mod = (a, n) => ((a % n) + n) % n, fx = K.fx(scene, 40); let sp = 0;
+const UP = new THREE.Vector3(0, 1, 0), PV = new THREE.Vector3(), START = -6, RUN = START - (Z1 + 12), SPEED = 1.6, cp = new THREE.Vector3(), mod = (a, n) => ((a % n) + n) % n, fx = K.fx(scene, 40); let sp = 0;
 K.loop((dt, t) => {
   const z = START - mod(t * SPEED, RUN), x = .9 + Math.sin(z * .05) * .5, by = WY - .12 + Math.sin(t * 1.1) * .025;
   boat.position.set(x, by, z); boat.rotation.set(Math.sin(t * .9) * .012, Math.cos(z * .05) * .025, Math.sin(t * .8) * .02);
-  MO.play(hero, 'sit', t); { const J = hero.userData.J; J.head.rotation.y = Math.sin(t * .35) * .5; J.head.rotation.x = -.15 - Math.max(0, Math.sin(t * .23)) * .25; }   // あたりの桜を見まわし、ときどき見上げる
+  MO.play(hero, 'sit', t); { const J = hero.userData.J; J.head.rotation.y = Math.sin(t * .35) * .5; J.head.rotation.x = -.15 - Math.max(0, Math.sin(t * .23)) * .25; J.armL.rotation.set(-.45, 0, -.22); J.armR.rotation.set(-.45, 0, .22); J.foreL.rotation.x = J.foreR.rotation.x = -.7; }   // あたりの桜を見まわし、ときどき見上げる
   // 船頭：さおを水につき、うしろへ押す
   { const k = (t * .45) % 1, J = sendo.userData.J, push = Math.sin(k * PI * 2); R.idle(sendo, t, 0); J.torso.rotation.x = .25 + push * .15; J.armL.rotation.set(-.9 - push * .4, 0, .3); J.armR.rotation.set(-1.3 - push * .4, 0, -.2); J.foreL.rotation.x = J.foreR.rotation.x = -.5;
-    pole.position.set(.5, -.9, -1.2 + push * .5); pole.rotation.set(-.5 - push * .15, 0, -.18); }
-  const tall = innerWidth < innerHeight, D = tall ? 1.9 : 2.1; cp.set(x + .3, WY + (tall ? 2.0 : 1.95), z + .45 + D); cam.position.copy(cp); cam.lookAt(x - .05, WY + (tall ? 1.25 : 1.2), z - 6);   // 舟の上、主役のすぐうしろ
+    pole.position.set(.75, -1.1, -3.4 + push * .6); pole.quaternion.setFromUnitVectors(UP, PV.set(-.35, 3.2, 2.6 - push * .6).normalize()); J.armL.rotation.z = .1; J.armR.rotation.z = -.05; }
+  const tall = innerWidth < innerHeight, D = tall ? 2 : 2.2; cp.set(x + .3, WY + (tall ? 2.1 : 2.2), z + .3 + D); cam.position.copy(cp); cam.lookAt(x - .05, WY + (tall ? .9 : .6), z - 5);   // 舟の上、主役のすぐうしろ
   sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
   // むこうから来る舟、岸の人、橋の上の人、かも、かもめ
   const z2 = Z1 + 10 + mod(t * 1.2 + 70, 170); boat2.position.set(-2, WY - .15 + Math.sin(t * 1.2 + 2) * .03, z2); R.idle(boat2.userData.p, t + 1, Math.sin(t * .5) * .5); MO.play(boat2.userData.p, 'sit', t); MO.play(boat2.userData.q, 'sit', t + 3);

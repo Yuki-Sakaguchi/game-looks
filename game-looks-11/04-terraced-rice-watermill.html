@@ -31,7 +31,7 @@ const lv = (x, z) => { const g = U(x, z) / TD, k = Math.floor(g); return [k, (g 
 const AZE = .75, BANK = 1.0;
 const VAL = -6 * TD, H = (x, z) => { const u = U(x, z); if (u < VAL) return -6 * LH - .3 + sstep(VAL - 25, VAL - 90, u) * 14 + Math.sin(x * .1) * sstep(VAL - 20, VAL - 60, u) * 3; const [k, f] = lv(x, z), far = sstep(28, 60, u) * 10; if (f > TD - BANK) return k * LH + LH * sstep(TD - BANK, TD, f) + far; return k * LH + (f < AZE ? .06 : -.14) + far; };
 const VAL0 = -6 * TD, WH = (x, z) => { const [k, f] = lv(x, z); return f < AZE * .8 || f > TD - BANK * .8 || U(x, z) > 28 || U(x, z) < VAL0 ? k * LH - .5 : k * LH - .02; };
-const land = R.ground({ w: 104, d: 160, cell: .85, cz: 20, H, layers: [T.grass({ c: '#6a9a48', flowers: .1, fc: ['#fff4d0', '#f8d0e0'] }), T.dirt({ c: '#8a7254', pebbles: .2 }), T.grass({ c: '#5a8a40', seed: 3 })],
+const land = R.ground({ w: 170, d: 170, cell: 1, cz: 20, H, layers: [T.grass({ c: '#6a9a48', flowers: .1, fc: ['#fff4d0', '#f8d0e0'] }), T.dirt({ c: '#8a7254', pebbles: .2 }), T.grass({ c: '#5a8a40', seed: 3 })],
   mix: (x, z) => { const [, f] = lv(x, z); return [f < AZE * .9 && f > .1 ? .8 : 0, f > TD - BANK ? 1 : 0]; } }); scene.add(land.mesh);
 // 水面：空を映す水と、ならんだ苗（ドット絵）。地面と同じ やり方の細かい面で、段ごとの高さにする
 const paddy = (() => { const P = R.Px(64), A = R.ramp('#5e98cc', 6, { contrast: .8 }), S = R.ramp('#e8ccc0', 6, { contrast: .6 }), G = R.ramp('#6aa848');
@@ -72,7 +72,7 @@ const hero = act({ hairStyle: 'short', hair: '#2a2228', mouth: 'smile', blush: t
 const planters = [0, 1, 2].map(i => { const p = act({ sex: i === 1 ? 'f' : 'm', hairStyle: i === 1 ? 'bun' : 'short', hair: '#3a3030', cloth: 'robe', top: ['#4a6a8a', '#8a4a5a', '#6a7a5a'][i], top2: '#e8e0d0', skirt: .4, shoes: 'shoe', shoe: '#5a4a3a' }); F.wear(p, 'strawHat', { c: '#d8bc72', c2: '#5a4a3a' }); return p; });
 const PL = [[-3.5, 0, 3.2], [-1.8, 0, 2.4], [4, 0, 2.2]];
 const herons = [0, 1, 2].map(() => { const b = W.sagi({ s: 1.1 }); scene.add(b); return b; });
-const stand = W.sagi({ s: 1 }); stand.position.set(-8, -.14, zAt(-8, 0, 2.6)); stand.rotation.y = -.8; scene.add(stand);
+const stand = W.sagi({ s: 1 }); stand.position.set(5.5, -.14, zAt(5.5, 0, 3.4)); stand.rotation.y = -.8; scene.add(stand);
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const fx = K.fx(scene, 40), SPEED = 1.1, X0 = 8, LOOP = 36; let sm = 0;
