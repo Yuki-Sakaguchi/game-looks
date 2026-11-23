@@ -59,7 +59,7 @@ const perched = J.parrot({ c: '#2aa860', c2: '#e83a3a', c3: '#1a8a5a', face: '#2
 
 // ---- 主役：黄色い外とうの巡礼 ----
 const hero = R.actor({ build: 'toon', hairStyle: 'short', bangs: 'jag', hair: '#3a2a28', eyes: 'big', brow: 'soft', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#e8b830', top2: '#f4ecd8', lower: 'pants', bottom: '#5a6a5a', belt: '#6a4a30', gloves: 'wrap', glove: '#f4ecd8', shoes: 'boot', shoe: '#6a4a30', neck: 'scarf', acc: '#c84a3a', back: 'pack' }); scene.add(hero); FT.wear(hero, 'staff', { len: 1.5, c: '#7a5a3a' });
-const LEN = path.getLength(), SPEED = 1.15, S0 = .02, ZSTOP = (SI - 2) / 120, cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const LEN = path.getLength(), SPEED = 1.15, S0 = .34, ZSTOP = (SI - 2) / 120, cd = new THREE.Vector3(), cp = new THREE.Vector3();
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const T0 = +new URLSearchParams(location.search).get('t') || 0; let first = true, hy = 0;
 K.loop((dt, t) => { t += T0;
