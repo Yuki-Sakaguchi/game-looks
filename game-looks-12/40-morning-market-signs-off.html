@@ -24,12 +24,12 @@ R.cfg.actorBuild = 'toon';
 const PK = '#ff5aa8', SKYH = '#ffd8b0';
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
 scene.add(R.skyDome([[0, '#6a8ac8'], [.5, '#b8b8d8'], [.85, '#f8c8a8'], [1, '#ffe8c0']], { r: 700 })); scene.fog = new THREE.Fog('#f0d0c0', 70, 950);
-const { sun } = K.lights(scene, renderer, { sky: 0xe0d8f0, ground: 0x8a7a80, amb: 1.6, sun: 0xffd0a0, power: 2, range: 40 }), SUN = new THREE.Vector3(-.2, .3, -.9).normalize();
+const { sun } = K.lights(scene, renderer, { sky: 0xf0dcd8, ground: 0x9a7a70, amb: 1.7, sun: 0xffc890, power: 2.4, range: 40 }), SUN = new THREE.Vector3(-.2, .3, -.9).normalize();
 
 // ---- 市場の通り：z の向き（-z が港）。|x|<4.5 が通り、両がわに屋台、|x|>6.5 から集合住宅。z<-46 は岸壁と海 ----
 const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 const QZ = -32;
-const land = R.ground({ w: 120, d: 140, cell: 2, cz: -20, layers: [X.asphalt({ wet: .6, c: '#7a7480', wetC: '#c8b0c0' }), X.conc({ c: '#a8a0a0' }), T.cobble({ kind: 'slab', c: '#9a9098' })], mix: (x, z) => [Math.abs(x) > 4.6 ? 1 : 0, z < QZ + 6 ? 1 : 0], H: (x, z) => z < QZ ? -30 : 0 });
+const land = R.ground({ w: 120, d: 140, cell: 2, cz: -20, layers: [X.asphalt({ wet: .6, c: '#8a7c80', wetC: '#f0c8b0' }), X.conc({ c: '#a8a0a0' }), T.cobble({ kind: 'slab', c: '#9a9098' })], mix: (x, z) => [Math.abs(x) > 4.6 ? 1 : 0, z < QZ + 6 ? 1 : 0], H: (x, z) => z < QZ ? -30 : 0 });
 scene.add(land.mesh);
 // 海（コマ送りの水）と、向こう岸の町・山
 const seaT = T.water({ c: '#6a80b8' }), sea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 700, 28, 14).rotateX(-PI / 2), R.mat(seaT[0], {})); sea.position.set(0, -.8, QZ - 350); scene.add(sea);
@@ -77,7 +77,7 @@ K.loop((dt, t) => {
   const d = (t * SPEED) % LEN, z = Z0 - d, x = .4 + Math.sin(z * .2) * .3, tall = innerWidth < innerHeight;
   hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .2) * .06; R.walk(hero, t * SPEED * 6.2, .8); const J = hero.userData.J; J.armR.rotation.x = J.armL.rotation.x = -1.1; J.foreR.rotation.x = J.foreL.rotation.x = -.9;
   // うしろの高い所から見下ろす。通りの先に港と、海の向こうの町
-  cam.position.set(x + .5, tall ? 2.9 : 2.6, z + (tall ? 4.2 : 3.8)); cam.lookAt(x, tall ? .9 : 1.4, z - 10);
+  cam.position.set(x + .5, tall ? 2.6 : 2.3, z + (tall ? 4.4 : 4.1)); cam.lookAt(x, tall ? .5 : .9, z - 7);
   crt.u.bright.value = Math.min(1, d / .5, (LEN - d) / .5);
   sun.position.set(x + SUN.x * 80, SUN.y * 80, z + SUN.z * 80); sun.target.position.set(x, 0, z - 8); land.follow(0, z - 20);
   // 夜の看板が 1 つずつ消えていく（ちらついてから、うすく残る）
