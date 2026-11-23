@@ -15,7 +15,7 @@ canvas{display:block}
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 // 夕方の塩の湖。白い塩の大地にうすく水がはり、藤色とだいだいの夕空が足もとまでそっくり映る。塩の結晶のふちが、六角形の白い網になって水から顔を出す。
-// 色の組は「空の藤色・夕日のだいだい・塩の白」＋差し色の主役のマントの青緑。空は上下に折り返した丸天井、人と雲と山は上下さかさの写しを水の下に置いて鏡にする。面は少なく、ドット絵のテクスチャで描き、粗い絵に描いてブラウン管に映す。
+// 色の組は「空の藤色・夕日のだいだい・塩の白」＋差し色の主役の服の青緑。空は上下に折り返した丸天井、人と雲と山は上下さかさの写しを水の下に置いて鏡にする。面は少なく、ドット絵のテクスチャで描き、粗い絵に描いてブラウン管に映す。
 // 主役は旅の仲間 2 人と夕日へ向かって歩く（R.actor の toon）。足もとに波紋が広がる。カメラは低く、ななめうしろから追う。
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
@@ -24,10 +24,10 @@ scene.fog = new THREE.Fog('#c8a0b8', 120, 500);
 const { sun } = K.lights(scene, renderer, { sky: 0xd8b8e8, ground: 0xe8c0b0, amb: 1.55, sun: 0xffb080, power: 2.2, range: 22 }), SUN = new THREE.Vector3(-.12, .2, -.97).normalize();
 
 // ---- 空：上下に折り返した丸天井（地平線から上と下が同じ色の並び） ----
-const SKY = [[0, '#3a3270'], [.3, '#5e4c94'], [.52, '#9a6eb0'], [.72, '#d888ac'], [.88, '#f8a878'], [1, '#ffd49a']];
+let skyM = null; const SKY = [[0, '#3a3270'], [.3, '#5e4c94'], [.52, '#9a6eb0'], [.72, '#d888ac'], [.88, '#f8a878'], [1, '#ffd49a']];
 { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128); for (const [p, col] of SKY) g.addColorStop(p, col); x.fillStyle = g; x.fillRect(0, 0, 4, 128);
   const g2 = x.createLinearGradient(0, 256, 0, 128); for (const [p, col] of SKY) g2.addColorStop(p, col); x.fillStyle = g2; x.fillRect(0, 128, 4, 128);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const m = new THREE.Mesh(new THREE.SphereGeometry(440, 16, 16), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })); m.renderOrder = -10; m.frustumCulled = false; scene.add(m); window.__sky = m; }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const m = new THREE.Mesh(new THREE.SphereGeometry(440, 16, 16), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })); m.renderOrder = -10; m.frustumCulled = false; scene.add(m); skyM = m; }
 const world = new THREE.Group(), near = new THREE.Group(); scene.add(world, near);   // 水の上の物（遠くは主役について動く world、近くは止まった near。あとで さかさの写しを作る）
 // 夕日、遠くの山なみ、雲
 const sunD = new THREE.Mesh(new THREE.CircleGeometry(18, 24), new THREE.MeshBasicMaterial({ color: '#fff0c0', fog: false })); sunD.position.set(SUN.x * 400, 30, SUN.z * 400); sunD.lookAt(0, 0, 0); world.add(sunD);
@@ -72,18 +72,18 @@ const SP = 1.05, last = [0, 0, 0];
 K.loop((dt, t) => {
   const z = 10 - t * SP, x = Math.sin(t * .06) * 2;
   // 主役（まん中）と仲間 2 人。ゆっくり夕日へ。仲間はときどき横を向いて話す
-  const slots = [[0, 0, 0], [-1.5, -1.3, 1.7], [-3.1, -.4, 3.1]];
+  const slots = [[0, 0, 0], [-1.4, -1.4, 1.7], [-2.6, -1.1, 3.1]];
   people.forEach(([p, q], i) => { const [ox, oz, ph] = slots[i], px = x + ox + Math.sin(t * .3 + ph) * .15, pz = z + oz; p.position.set(px, 0, pz); p.rotation.y = PI + Math.sin(t * .2 + ph) * .06; R.walk(p, t * SP * 3.7 + ph, .7);
     if (i === 1) p.userData.J.head.rotation.y = Math.sin(t * .5) * .5 - .2; if (i === 2) p.userData.J.head.rotation.y = .4 + Math.sin(t * .45) * .2;
     sync(p, q); const st = Math.floor((t * SP * 3.7 + ph) / PI); if (st !== last[i]) { last[i] = st; ripple(px + (st % 2 ? .1 : -.1), pz, .9 + i * .1); } });
   RINGS.forEach(m => { const u = m.userData; u.age += dt; const k = u.age / 2.4; if (k > 1) { m.material.opacity = 0; return; } const s = (.3 + k * 1.9) * (u.s || 1); m.scale.set(s, s, 1); m.material.opacity = (1 - k) * .6; });
   // カメラ：低く、ななめうしろ。足もとの写しと夕日が両方入るように
   const tall = innerWidth < innerHeight, D = tall ? 4.2 : 4.6;
-  cam.position.set(x + (tall ? 1.4 : 2.4), tall ? 1.55 : 1.35, z + D); cam.lookAt(x - .3, tall ? .55 : .7, z - 6);
+  cam.position.set(x + (tall ? 1.4 : 2.4), tall ? 1.55 : 1.35, z + D); cam.lookAt(x - (tall ? .5 : 1.1), tall ? .55 : .7, z - 6);
   sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
   birds.forEach(([b, m], i) => { const bx = 40 - ((t * 3.2 + i * 2.2) % 90), by = 14 + i * .7 + Math.sin(t + i) * .3, bz = z - 30 - i * 1.6; b.position.set(x + bx, by, bz); b.rotation.y = -PI / 2; R.birdPose(b, 'fly', t * .9 + i); m.position.set(x + bx, -by, bz); m.rotation.copy(b.rotation); R.birdPose(m, 'fly', t * .9 + i); });
   // 写しの丸天井と水の面は、カメラについて動く
-  window.__sky.position.set(cam.position.x, 0, cam.position.z); tint.position.x = Math.round(x / 40) * 40; tint.position.z = Math.round(z / 40) * 40;
+  skyM.position.set(cam.position.x, 0, cam.position.z); tint.position.x = Math.round(x / 40) * 40; tint.position.z = Math.round(z / 40) * 40;
   world.position.x = mirror.position.x = x; world.position.z = mirror.position.z = z;
   crt.render(scene, cam, t);
 });

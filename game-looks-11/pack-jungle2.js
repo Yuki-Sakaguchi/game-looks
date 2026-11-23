@@ -4,7 +4,7 @@
 //
 // ■ テクスチャ  J.tex.名前({ c, c2, seed, … })   leaf { holes 0〜1（さけめ）, yellow }（はばの広い葉。抜き。下が付け根）   frond（シダの葉。抜き）
 //   petal { c2（付け根の色）, spots }（花びら。抜き）   heart { c2 }（花のまん中。花粉の点）   wing { c2（目玉もようの色）, edge }（ちょうの羽 1 枚。抜き。左はしが体）
-//   face { c, moss, look: 'calm'/'open' }（石の顔の正面。64×64）   monkey { c, face }（さるの毛と顔）   ring（波紋。抜き）
+//   face { c, moss, look: 'calm'/'open' }（石の顔の正面。64×64）   monkey { c, face }（さるの毛と顔）   stalk（花のくき）   eye { c }（光る目 1 つ。抜き）   ring（波紋。抜き）
 // ■ 植物
 //   J.tree({ h: 14, r: .5, c（幹）, leaf（葉）, seed, roots: 5（板根）, crown: 3（かさの数）, vines: 5, lean }) → Group   密林の高い木（板根・まがった幹・平たいかさ・たれたつる）。userData.crown = [[x, y, z, r], …]
 //   J.fern({ s: 1, c, n: 9, seed }) → Mesh   シダ（弓なりの葉が放射に）   J.bigLeaf({ s: 1, c, n: 5, seed, holes, upright }) → Mesh   大きな葉の草（クワズイモ・バショウのような）
@@ -123,7 +123,7 @@ window.PACK_JUNGLE2 = (THREE, K, R, F) => {
 
   // ---- 木の根にからまれた巨大な石の顔 ----
   J.stoneFace = (o = {}) => { const s = o.s || 1, sd = o.seed || 0, Hh = 6 * s, W = 2.3 * s, Dp = 2.1 * s, B = parts(), c = o.c || '#a8a088';
-    const side = F.tex ? (o.side || T.stone({ c, moss: .6, seed: sd })) : T.stone({ c }), Sd = B.g(side).smooth(0);
+    const side = o.side || T.stone({ c, moss: .6, seed: sd }), Sd = B.g(side).smooth(0);
     const SEC = { pts: [[-.62, -1], [-1, -.5], [-1, .55], [-.78, 1], [.78, 1], [1, .55], [1, -.5], [.62, -1]], u: [0, .12, .3, .45, .55, .7, .88, 1, 1] };
     Sd.loft(SEC, [[-.6, W * 1.02, Dp, 0, .7], [Hh * .3, W, Dp * .98, 1.5, .9], [Hh * .78, W * 1.04, Dp, 3.2, 1], [Hh * .9, W * .98, Dp * .94, 3.6, 1.05]], { ur: 4, cap: 'top' });
     const fz = Dp + .02 * s, fw = W * .78, Fc = B.g(tex.face({ c, moss: o.moss, look: o.look, seed: sd })), ridge = .32 * s, y0 = Hh * .02, y1 = Hh * .88;   // 顔の正面（まん中の すじが少し前へ出る）
