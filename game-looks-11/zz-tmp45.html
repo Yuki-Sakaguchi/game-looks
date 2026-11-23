@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-45 煙の工業地帯の夜 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0808;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4dccc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-45 ─ 煙の工業地帯の夜 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-steam1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の工業地帯。運河の上を まっすぐわたる長い鉄の橋。両岸には れんがの工場と 何十本もの煙突がならび、下から炉の火に赤くてらされた けむりが 空をおおう。工場のかべでは大きな歯車がゆっくり回る。
+// 色の組は「すすけた紺むらさき・れんがの赤茶・炉の赤だいだい」＋差し色の ランタンの黄色。D.mood の 'ember' で空と光を用意し、炉の口・窓・ランタンのあかりだけで強い明暗を作る。
+// 主役はランタンをさげた夜番の子（R.actor の toon）。橋の上を奥へ歩き、うしろからカメラが追う。けむり・火の粉・下の運河を行く蒸気船・すれちがう人・からすが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_STEAM1(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI, TR = R.TR;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ sex: 'f', hairStyle: 'bob', hair: '#2a2228', eyes: 'big', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#3a4a6a', top2: '#e8dcc8', bottom: '#3a3448', lower: 'pants', gloves: 'glove', glove: '#6a4a34', shoes: 'boot', shoe: '#2a2228', neck: 'scarf', acc: '#f0c040', hat: 'cap' }); scene.add(hero);
+const OR = '#ff7a2a', FIRE = '#ffb048', BY = 7;   // BY ＝ 橋の上の高さ
+const mood = D.mood(scene, renderer, 'ember', { follow: hero, hills: false, range: 30, dir: [-.25, .28, -.92], sky: ['#040306', '#0c0610', '#2a0e14', '#8a3018'], fog: ['#241014', 22, 170], hemi: ['#b88a8a', '#2e2236', 1.15], key: ['#ff8a48', 1.6, [-.25, .28, -.92]], fill: ['#5a5a8a', .5], base: [.84, .74, .8] });
+
+// ---- 地面：両岸の れんが敷きと灰の土。まん中は運河（水面 y=0） ----
+const FURN = [[-11, -14, 1], [11, -30, -1], [-11, -46, 1], [11, -4, -1], [-11, 12, 1]];   // 炉の口（x, z, 運河のほうの向き）
+const LIT = FURN.map(([x, z]) => ({ x: x * 1.05, z, r: 13, c: OR, k: 1.3 })).concat(FURN.map(([x, z]) => ({ x, z, r: 5, c: FIRE, k: .9 })));
+const H = (x, z) => Math.abs(x) < 8 ? -1.2 : 1.4;
+const land = R.ground({ w: 160, d: 200, cell: 2, cz: -30, H, layers: [D.tex.ash({ c: '#4a3e44' }), T.brickFloor({ c: '#6a4038' }), X.plate({ c: '#4a4450', n: 2 })], mix: (x, z) => { const ax = Math.abs(x); return [ax > 8 && ax < 14 ? 1 : 0, ax > 30 ? 1 : 0]; }, shade: mood.shade(LIT) }); scene.add(land.mesh);
+const WF = T.water({ c: '#2a2232' }), wm = R.mat(WF[0], { vc: true, smooth: true }).clone(); wm.onBeforeCompile = R.mat(WF[0], { vc: true, smooth: true }).onBeforeCompile;
+{ const W = R.geo().normal([0, 1, 0]); for (let z = 40; z > -120; z -= 4) for (let x = -8; x < 8; x += 4) W.quad([x, 0, z], [x + 4, 0, z], [x + 4, 0, z - 4], [x, 0, z - 4], [x / 3, z / 3, (x + 4) / 3, (z - 4) / 3]); const w = new THREE.Mesh(W.build(), wm); w.receiveShadow = true; scene.add(w); }
+const fixed = [], put = (o, x, z, ry = 0, y = 1.4) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// 岸の石がき
+{ const B = R.parts(), St = B.g(D.tex.stone({ c: '#5a4a50', stain: .5 })); for (const s of [-1, 1]) St.box(1, 2.8, 160, s * 8.4, -1.4, -40, { m: 3 }); fixed.push(B.group()); }
+
+// ---- 鉄の橋：鉄板の床、両がわのトラス、8 m ごとの門形のはり、れんがの橋脚 ----
+const IRON = X.plate({ c: '#4a4458', n: 2 }), BW = 2.2;
+{ const B = R.parts(), Dk = B.g(IRON), Gd = B.g(X.girder({ c: '#3e3a4e' }), { side: true }), Bk = B.g(T.brick({ c: '#5a3a36' })), Ir = B.g(T.metal({ c: '#4a4458' }));
+  for (let z = 20; z > -100; z -= 4) Dk.box(BW * 2, .3, 4, 0, BY - .3, z - 2, { m: 3, bottom: true });
+  for (const s of [-1, 1]) for (let z = 20; z > -100; z -= 8) { Gd.quad([s * BW, BY, z], [s * BW, BY, z - 8], [s * BW, BY + 2.4, z - 8], [s * BW, BY + 2.4, z], [0, 0, 4, 1.2]); Ir.box(.18, .18, 8, s * BW, BY + 2.4, z - 4, { m: 1 }).box(.2, z % 16 === 4 || z % 16 === -12 ? 7 : 2.6, .2, s * BW, BY, z, { m: 1 }); }
+  for (let z = 20; z > -100; z -= 8) { if (z % 16 === 12 || z % 16 === -4) Ir.box(BW * 2 + .2, .3, .3, 0, BY + 6.8, z - 8, { m: 1 }); }
+  for (let z = 16; z > -100; z -= 16) Bk.at(TR(0, -1.2, z)).loft(4, [[0, 2.4, 1.6, 0, .7], [BY - .3, 2, 1.3, 3, 1]], { ur: 2, rot: 0 }).at(null);
+  fixed.push(B.group()); }
+
+// ---- 両岸の工場：れんがの大きな建物（窓のあかり）、炉の口、何十本もの煙突 ----
+const BRK = [T.brick({ c: '#6a3a32' }), T.brick({ c: '#5a3632', seed: 2 }), T.brick({ c: '#7a4436', seed: 3 })], ROOF = [T.roof({ kind: 'wave', c: '#3a3442' }), X.tin({ c: '#4a3e4a', rust: .6 })];
+const winL = T.window({ bars: 'grid', lit: 1, curtain: false, frame: '#2a2228', glass: '#ffb060' }), winD = T.window({ bars: 'grid', curtain: false, frame: '#2a2228', glass: '#3a3040' });
+for (const s of [-1, 1]) for (let k = 0; k < 9; k++) { const z = 22 - k * 15 - (s > 0 ? 7 : 0), w = 12 + hash(k, s) * 4; put(R.house({ w, d: 10, h: 6 + (k % 3) * 2, wall: BRK[(k + (s > 0)) % 3], roof: ROOF[k % 2], roofKind: k % 3 ? 'gable' : 'flat', pitch: .5, win: winD, winLit: winL, lit: .7, door: T.door({ style: 'plank', c: '#3a2a28' }), seed: k * 3 + (s > 0), wins: { f: 4, b: 0, l: 3, r: 3 }, base: null }), s * 18, z, -s * PI / 2); }
+// 炉の口（運河に向いた大きな口。中の火は手打ちのドット絵で、光る材質）
+const fireP = R.Px(32); for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const dx = (x - 15.5) / 16, dy = (31 - y) / 32, k = 1 - Math.hypot(dx * 1.1, dy * .9) + hash(x >> 1, y >> 1) * .22; fireP.set(x, y, k > .86 ? '#fff4b0' : k > .7 ? '#ffd058' : k > .52 ? '#ff9a2c' : k > .34 ? '#f0601c' : k > .16 ? '#b83414' : '#6a1c14'); }
+for (let y = 0; y < 32; y += 9) fireP.rect(0, y, 32, 1, '#2a1418');
+const fireM = R.mat(T.from(fireP, { m: 1 }), { glow: true, fog: false });
+{ const G = R.geo(), B = R.parts(), Fr = B.g(IRON); for (const [x, z, s] of FURN) { const fx = x + s * .02; G.quad([fx, 1.6, z + s * 2], [fx, 1.6, z - s * 2], [fx, 5, z - s * 2], [fx, 5, z + s * 2]); Fr.box(.6, .5, 5, x + s * .2, 5, z, { m: 1.5 }); Fr.box(.6, 3.6, .5, x + s * .2, 1.4, z - 2.2, { m: 1.5 }).box(.6, 3.6, .5, x + s * .2, 1.4, z + 2.2, { m: 1.5 }); }
+  const fm = new THREE.Mesh(G.build(), fireM); fm.userData.dyn = true; scene.add(fm); fixed.push(B.group()); }
+const STK = []; for (let k = 0; k < 22; k++) { const s = k % 2 ? 1 : -1, z = 30 - k * 6.4 + hash(k, 3) * 3, x = s * (24 + hash(k, 1) * 22), h = 16 + hash(k, 2) * 18; STK.push([x, z, h]); put(S.chimney({ r: .9 + hash(k, 4) * .7, h, tex: BRK[k % 3], band: '#3a3040' }), x, z, 0, 0); }
+// 工場のかべで回る大きな歯車
+put(R.house({ w: 18, d: 10, h: 10, h2: 6, wall: BRK[0], roof: ROOF[1], roofKind: 'flat', win: winD, winLit: winL, lit: .5, base: null, wins: { f: 2, b: 0, l: 2, r: 2 }, wins2: { f: 2, b: 0, l: 2, r: 2 } }), -14, -76, 0);
+const wheel = S.gear({ r: 4.4, th: .6, speed: .12, c: '#a87838' }); wheel.position.set(-16, 9.5, -70.6); scene.add(wheel);
+const wheel2 = S.gear({ r: 2.2, th: .6, speed: -.24, phase: .15, c: '#c8963a' }); wheel2.position.set(-16 + 6.2, 9.5 + 1.2, -70.4); scene.add(wheel2);
+// 岸の小物：ドラムかん、つみ荷、鉄のさく
+for (let k = 0; k < 14; k++) { const s = k % 2 ? 1 : -1, z = 14 - k * 7.5; put(k % 3 ? C.drum({ c: ['#5a4a52', '#6a4a44'][k % 2], mark: 'band' }) : R.crate({ c: '#5a4a3a', s: 1.1 }), s * (9.5 + hash(k, 1) * 2), z, k); }
+for (const s of [-1, 1]) put(D.fence({ len: 150, h: 1.2, c: '#3a3440' }), s * 8.9, -40, PI / 2);
+scene.add(R.merge(fixed));
+scene.add(C.backdrop({ r: 260, h: 46, y: -3, c: '#120a0e', haze: '#5a2418' }));
+scene.add(D.pools(FURN.flatMap(([x, z, s]) => [{ p: [x + s * .1, 3.2, z], n: [s, 0, 0], r: 6, r2: 4, c: OR, k: .55 }, { p: [x * .6, .05, z], r: 6, r2: 5, c: OR, k: .5 }])));
+scene.add(D.streaks(FURN.map(([x, z]) => ({ x: x * .75, z, h: .02, c: OR, k: .9, w: 2.6, len: 12 })), { y: .02 }));
+// けむり：下から赤くてらされた重い けむり。煙突のてっぺんには火の照りかえし
+const smokes = STK.map(([x, z, h], i) => { const sm = C.steam({ n: 11, r: 2.4 + (i % 3) * .8, rise: 22, spread: 1.5, speed: .06 + (i % 4) * .01, c: ['#a84a34', '#7a3a34', '#c8603c'][i % 3], a: .8, wind: [-5, -2], phase: i * .21 }); sm.material.fog = false; sm.position.set(x, h + .4, z); scene.add(sm); if (i % 3 === 0) { const g = D.halo({ c: OR, r: 3.5, k: .5, flicker: true }); g.position.set(x, h + .3, z); scene.add(g); } return sm; });
+const furnSmoke = FURN.map(([x, z, s], i) => { const sm = C.steam({ n: 8, r: 1.4, rise: 8, spread: .8, speed: .14, c: '#3a2222', a: .55, wind: [-s * 2, -1], phase: i * .3 }); sm.position.set(x + s * .3, 5.4, z); scene.add(sm); return sm; });
+scene.add(D.flakes({ kind: 'ember', n: 260, box: [26, 14, 30], size: 2.2 }), D.flakes({ kind: 'ash', n: 140, box: [24, 10, 24], c: '#6a5a5a' }));
+const furnLights = FURN.slice(0, 3).map(([x, z, s]) => { const l = new THREE.PointLight(OR, 40, 22, 1.3); l.position.set(x + s * 3, 3.4, z); scene.add(l); return l; });
+// 橋の上の つりランプ（16 m ごと）
+const BULB = []; for (let z = 12; z > -100; z -= 16) { const b = D.bulb({ drop: 2, c: '#ffc070', flicker: true }); b.position.set(0, BY + 6.65, z - 8); scene.add(b); BULB.push(z); }
+
+// ---- 動く物：ランタン、すれちがう人（荷車）、運河の蒸気船、からす ----
+const lan = D.lantern(hero, { hand: 'L', c: '#ffcc66', power: 1.2 });
+const act = (o, x, z, ry = 0) => { const p = R.actor({ ...o }); p.position.set(x, BY, z); p.rotation.y = ry; scene.add(p); return p; };
+const walker = act({ hairStyle: 'short', hair: '#3a3038', beard: 'stubble', bulk: 1.1, cloth: 'overall', top: '#5a5a6a', top2: '#d8d0c0', gloves: 'glove', glove: '#8a6a3a', hat: 'cap', acc: '#5a5a6a' }, -1, 0); F.wear(walker, 'sack', { c: '#8a7a68' });
+const smoker = act({ hairStyle: 'bald', hair: '#7a7070', beard: 'beard', cloth: 'coat', top: '#4a3a3a', top2: '#c8b8a0', bottom: '#3a3440' }, 1.6, -38, -PI / 2 - .3);
+const barge = new THREE.Group(); { const b = R.boat({ c: '#3a3440' }); b.scale.set(1.8, 1.4, 2.6); barge.add(b); const ch = S.chimney({ r: .22, h: 2.6, tex: T.metal({ c: '#2a2630' }), band: '#8a3a2a' }); ch.position.set(0, .3, -1.2); barge.add(ch); const l = D.halo({ c: '#ffc070', r: .8, k: .9 }); l.position.set(0, 1.3, 3.6); barge.add(l); } scene.add(barge);
+const bargeSmoke = C.steam({ n: 9, r: .8, rise: 5, spread: .5, speed: .25, c: '#4a3030', a: .6, wind: [0, 3] }); scene.add(bargeSmoke);
+scene.add(D.flock({ kind: 'crow', n: 7, r: 12, h: 24, center: [0, 0, -40], speed: .5 }));
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = -36, SPAN = 44, SPEED = 1.3;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % SPAN, x = .5 + Math.sin(z * .15) * .2, tall = innerWidth < innerHeight, Dc = tall ? 4 : 4.6;
+  hero.position.set(x, BY, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.6, .8); D.lanternPose(hero);
+  cam.position.set(x - .7, BY + (tall ? 2.3 : 2.1), z + Dc); cam.lookAt(x + .4, BY + 1.9, z - 6);
+  const wz = z - 18 + ((t * 1.4) % 30); walker.position.set(-1, BY, wz); walker.rotation.y = 0; R.walk(walker, t * 4.2, .7);
+  R.idle(smoker, t, Math.sin(t * .3) * .5); smoker.userData.J.armR.rotation.set(-1.4, 0, .5);
+  const bz = 30 - ((t * 2.2) % 120); barge.position.set(-3.6, -.15, bz); barge.rotation.y = PI; bargeSmoke.position.set(-3.6, 2.9, bz + 1.2 * 2.6 / 2.6);
+  const f = .82 + Math.sin(t * 9) * .08 + Math.sin(t * 23.7) * .06 + Math.sin(t * 3.1) * .08; fireM.color.setScalar(f * 1.05); furnLights.forEach((l, i) => { l.intensity = 40 * (f + Math.sin(t * 5 + i) * .05); });
+  R.flip(wm, WF, t, 3); land.follow(0, z - 10); S.tick(t); D.tick(t, cam); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

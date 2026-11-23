@@ -43,8 +43,8 @@ const fixed = [], put = (o, x, z, ry = 0, y = 1.4) => { o.position.set(x, y, z);
 const IRON = X.plate({ c: '#4a4458', n: 2 }), BW = 2.2;
 { const B = R.parts(), Dk = B.g(IRON), Gd = B.g(X.girder({ c: '#3e3a4e' }), { side: true }), Bk = B.g(T.brick({ c: '#5a3a36' })), Ir = B.g(T.metal({ c: '#4a4458' }));
   for (let z = 20; z > -100; z -= 4) Dk.box(BW * 2, .3, 4, 0, BY - .3, z - 2, { m: 3, bottom: true });
-  for (const s of [-1, 1]) for (let z = 20; z > -100; z -= 8) { Gd.quad([s * BW, BY, z], [s * BW, BY, z - 8], [s * BW, BY + 2.4, z - 8], [s * BW, BY + 2.4, z], [0, 0, 4, 1.2]); Ir.box(.18, .18, 8, s * BW, BY + 2.4, z - 4, { m: 1 }).box(.2, 5.6, .2, s * BW, BY, z, { m: 1 }); }
-  for (let z = 20; z > -100; z -= 8) { Ir.box(BW * 2 + .2, .3, .3, 0, BY + 5.4, z, { m: 1 }); Ir.box(BW * 2, .14, .14, 0, BY + 2.4, z, { m: 1 }); }
+  for (const s of [-1, 1]) for (let z = 20; z > -100; z -= 8) { Gd.quad([s * BW, BY, z], [s * BW, BY, z - 8], [s * BW, BY + 2.4, z - 8], [s * BW, BY + 2.4, z], [0, 0, 4, 1.2]); Ir.box(.18, .18, 8, s * BW, BY + 2.4, z - 4, { m: 1 }).box(.2, z % 16 === 4 || z % 16 === -12 ? 7 : 2.6, .2, s * BW, BY, z, { m: 1 }); }
+  for (let z = 20; z > -100; z -= 8) { if (z % 16 === 12 || z % 16 === -4) Ir.box(BW * 2 + .2, .3, .3, 0, BY + 6.8, z - 8, { m: 1 }); }
   for (let z = 16; z > -100; z -= 16) Bk.at(TR(0, -1.2, z)).loft(4, [[0, 2.4, 1.6, 0, .7], [BY - .3, 2, 1.3, 3, 1]], { ur: 2, rot: 0 }).at(null);
   fixed.push(B.group()); }
 
@@ -60,8 +60,9 @@ const fireM = R.mat(T.from(fireP, { m: 1 }), { glow: true, fog: false });
   const fm = new THREE.Mesh(G.build(), fireM); fm.userData.dyn = true; scene.add(fm); fixed.push(B.group()); }
 const STK = []; for (let k = 0; k < 22; k++) { const s = k % 2 ? 1 : -1, z = 30 - k * 6.4 + hash(k, 3) * 3, x = s * (24 + hash(k, 1) * 22), h = 16 + hash(k, 2) * 18; STK.push([x, z, h]); put(S.chimney({ r: .9 + hash(k, 4) * .7, h, tex: BRK[k % 3], band: '#3a3040' }), x, z, 0, 0); }
 // 工場のかべで回る大きな歯車
-const wheel = S.gear({ r: 3.6, th: .5, speed: .12, c: '#a87838' }); wheel.position.set(-9.5, 6.5, -22); wheel.rotation.y = PI / 2; scene.add(wheel);
-const wheel2 = S.gear({ r: 1.9, th: .5, speed: -.22, phase: .15, c: '#c8963a' }); wheel2.position.set(-9.5, 11.2, -25.6); wheel2.rotation.y = PI / 2; scene.add(wheel2);
+put(R.house({ w: 18, d: 10, h: 10, h2: 6, wall: BRK[0], roof: ROOF[1], roofKind: 'flat', win: winD, winLit: winL, lit: .5, base: null, wins: { f: 2, b: 0, l: 2, r: 2 }, wins2: { f: 2, b: 0, l: 2, r: 2 } }), -14, -76, 0);
+const wheel = S.gear({ r: 4.4, th: .6, speed: .12, c: '#a87838' }); wheel.position.set(-16, 9.5, -70.6); scene.add(wheel);
+const wheel2 = S.gear({ r: 2.2, th: .6, speed: -.24, phase: .15, c: '#c8963a' }); wheel2.position.set(-16 + 6.2, 9.5 + 1.2, -70.4); scene.add(wheel2);
 // 岸の小物：ドラムかん、つみ荷、鉄のさく
 for (let k = 0; k < 14; k++) { const s = k % 2 ? 1 : -1, z = 14 - k * 7.5; put(k % 3 ? C.drum({ c: ['#5a4a52', '#6a4a44'][k % 2], mark: 'band' }) : R.crate({ c: '#5a4a3a', s: 1.1 }), s * (9.5 + hash(k, 1) * 2), z, k); }
 for (const s of [-1, 1]) put(D.fence({ len: 150, h: 1.2, c: '#3a3440' }), s * 8.9, -40, PI / 2);
@@ -75,7 +76,7 @@ const furnSmoke = FURN.map(([x, z, s], i) => { const sm = C.steam({ n: 8, r: 1.4
 scene.add(D.flakes({ kind: 'ember', n: 260, box: [26, 14, 30], size: 2.2 }), D.flakes({ kind: 'ash', n: 140, box: [24, 10, 24], c: '#6a5a5a' }));
 const furnLights = FURN.slice(0, 3).map(([x, z, s]) => { const l = new THREE.PointLight(OR, 40, 22, 1.3); l.position.set(x + s * 3, 3.4, z); scene.add(l); return l; });
 // 橋の上の つりランプ（16 m ごと）
-const BULB = []; for (let z = 12; z > -100; z -= 16) { const b = D.bulb({ drop: .9, c: '#ffc070', flicker: true }); b.position.set(0, BY + 5.25, z); scene.add(b); BULB.push(z); }
+const BULB = []; for (let z = 12; z > -100; z -= 16) { const b = D.bulb({ drop: 2, c: '#ffc070', flicker: true }); b.position.set(0, BY + 6.65, z - 8); scene.add(b); BULB.push(z); }
 
 // ---- 動く物：ランタン、すれちがう人（荷車）、運河の蒸気船、からす ----
 const lan = D.lantern(hero, { hand: 'L', c: '#ffcc66', power: 1.2 });

@@ -116,10 +116,10 @@ window.PACK_JUNGLE1 = (THREE, K, R) => {
     const nv = o.vines ?? 6; if (nv) { const Vg = B.g(vineT({ c: o.vineC || '#3f8a4a', flowers: o.vineFlowers, seed: sd % 3 }), { side: true }).normal([0, 1, 0]); for (let i = 0; i < nv; i++) { const p = perch[i % perch.length], k = .6 + hash(i, 11, sd) * .7, x = lx + (p[0] - lx) * k * 1.4, z = lz + (p[2] - lz) * k * 1.4; hangInto(Vg, x, p[1] + .2, z, (o.vineLen || h * .45) * (.6 + hash(i, 12, sd) * .5), 3, 1, sd + i); } }
     const g = B.group(); g.userData.perch = perch; g.userData.top = [lx, h, lz]; return g; }
   function mangrove(o = {}) { const h = o.h || 6, r = o.r || 2.6, sd = o.seed || 0, B = parts(), bt = T.bark({ c: o.barkC || '#7a6a5a' }), base = h * .28, Rg = B.g(bt).smooth(0), lo = { c: o.c || '#3a7040', seed: sd % 3 };
-    for (let i = 0; i < (o.roots || 9); i++) { const a = i / (o.roots || 9) * TAU + hash(i, 1, sd) * .5, rr = r * (.6 + hash(i, 2, sd) * .5), y0 = base * (.55 + hash(i, 3, sd) * .5), ca = Math.cos(a), sa = Math.sin(a);
-      tube(Rg, [[ca * .15, y0, sa * .15, .09], [ca * rr * .35, y0 + .35, sa * rr * .35, .08], [ca * rr * .75, y0 * .6, sa * rr * .75, .07], [ca * rr, -.4, sa * rr, .07]], 4, { m: 1 }); }
+    for (let i = 0; i < (o.roots || 14); i++) { const a = i / (o.roots || 14) * TAU + hash(i, 1, sd) * .5, rr = r * (.6 + hash(i, 2, sd) * .5), y0 = base * (.55 + hash(i, 3, sd) * .5), ca = Math.cos(a), sa = Math.sin(a);
+      tube(Rg, [[ca * .15, y0, sa * .15, .12], [ca * rr * .4, y0 + .25, sa * rr * .4, .11], [ca * rr * .78, y0 * .55, sa * rr * .78, .1], [ca * rr, -.4, sa * rr, .1]], 5, { m: 1 }); }
     const lean = (hash(sd, 4) - .5) * .8; B.g(bt).smooth(1).loft(6, [[base * .4, .22, .22, 0, .75], [h * .55, .17, .17, 1, .9, lean, 0], [h * .7, .12, .12, 1.5, 1, lean * 1.3, 0]], { ur: 1 });
-    for (let i = 0; i < 4; i++) { const a = i * 1.7 + sd, d = r * (.25 + hash(i, 5, sd) * .35); crownLump(B, lo, lean + Math.cos(a) * d, h * (.72 + hash(i, 6, sd) * .14), Math.sin(a) * d, r * (.55 + hash(i, 7, sd) * .2), h * .1, sd + i); }
+    for (let i = 0; i < 6; i++) { const a = i * 1.1 + sd, d = i ? r * (.45 + hash(i, 5, sd) * .3) : 0; crownLump(B, lo, lean + Math.cos(a) * d, h * (.7 + hash(i, 6, sd) * .16), Math.sin(a) * d, r * (.5 + hash(i, 7, sd) * .2), h * .12, sd + i); }
     return B.group(); }
   function liana(a, b, o = {}) { const G = geo().smooth(1), n = 8, pts = []; for (let i = 0; i <= n; i++) { const k = i / n; pts.push([a[0] + (b[0] - a[0]) * k + Math.sin(k * 9) * .08, a[1] + (b[1] - a[1]) * k - Math.sin(k * PI) * (o.sag ?? 2), a[2] + (b[2] - a[2]) * k, o.r || .07]); } tube(G, pts, 4, { m: 1 }); return G.mesh(T.bark({ c: o.c || '#6a6a4a' })); }
 
