@@ -29,7 +29,7 @@ const OR = '#ff7a2a', FIRE = '#ffb048', BY = 7;   // BY ＝ 橋の上の高さ
 const mood = D.mood(scene, renderer, 'ember', { follow: hero, hills: false, range: 30, dir: [-.25, .28, -.92], sky: ['#040306', '#0c0610', '#2a0e14', '#8a3018'], fog: ['#241014', 22, 170], hemi: ['#b88a8a', '#2e2236', 1.15], key: ['#ff8a48', 1.6, [-.25, .28, -.92]], fill: ['#5a5a8a', .5], base: [.84, .74, .8] });
 
 // ---- 地面：両岸の れんが敷きと灰の土。まん中は運河（水面 y=0） ----
-const FURN = [[-11, -14, 1], [11, -30, -1], [-11, -46, 1], [11, -4, -1], [-11, 12, 1]];   // 炉の口（x, z, 運河のほうの向き）
+const FURN = [[-11, -14, 1], [11, -30, -1], [-11, -46, 1], [11, -4, -1], [-11, 12, 1], [11, -64, -1]];   // 炉の口（x, z, 運河のほうの向き）
 const LIT = FURN.map(([x, z]) => ({ x: x * 1.05, z, r: 13, c: OR, k: 1.3 })).concat(FURN.map(([x, z]) => ({ x, z, r: 5, c: FIRE, k: .9 })));
 const H = (x, z) => Math.abs(x) < 8 ? -1.2 : 1.4;
 const land = R.ground({ w: 160, d: 200, cell: 2, cz: -30, H, layers: [D.tex.ash({ c: '#4a3e44' }), T.brickFloor({ c: '#6a4038' }), X.plate({ c: '#4a4450', n: 2 })], mix: (x, z) => { const ax = Math.abs(x); return [ax > 8 && ax < 14 ? 1 : 0, ax > 30 ? 1 : 0]; }, shade: mood.shade(LIT) }); scene.add(land.mesh);
@@ -60,9 +60,9 @@ const fireM = R.mat(T.from(fireP, { m: 1 }), { glow: true, fog: false });
   const fm = new THREE.Mesh(G.build(), fireM); fm.userData.dyn = true; scene.add(fm); fixed.push(B.group()); }
 const STK = []; for (let k = 0; k < 22; k++) { const s = k % 2 ? 1 : -1, z = 30 - k * 6.4 + hash(k, 3) * 3, x = s * (24 + hash(k, 1) * 22), h = 16 + hash(k, 2) * 18; STK.push([x, z, h]); put(S.chimney({ r: .9 + hash(k, 4) * .7, h, tex: BRK[k % 3], band: '#3a3040' }), x, z, 0, 0); }
 // 工場のかべで回る大きな歯車
-put(R.house({ w: 18, d: 10, h: 10, h2: 6, wall: BRK[0], roof: ROOF[1], roofKind: 'flat', win: winD, winLit: winL, lit: .5, base: null, wins: { f: 2, b: 0, l: 2, r: 2 }, wins2: { f: 2, b: 0, l: 2, r: 2 } }), -14, -76, 0);
-const wheel = S.gear({ r: 4.4, th: .6, speed: .12, c: '#a87838' }); wheel.position.set(-16, 9.5, -70.6); scene.add(wheel);
-const wheel2 = S.gear({ r: 2.2, th: .6, speed: -.24, phase: .15, c: '#c8963a' }); wheel2.position.set(-16 + 6.2, 9.5 + 1.2, -70.4); scene.add(wheel2);
+put(R.house({ w: 18, d: 10, h: 10, h2: 6, wall: BRK[0], roof: ROOF[1], roofKind: 'flat', win: winD, winLit: winL, lit: .5, base: null, wins: { f: 2, b: 0, l: 2, r: 2 }, wins2: { f: 2, b: 0, l: 2, r: 2 } }), -15, -62, 0);
+const wheel = S.gear({ r: 4.8, th: .6, speed: .12, c: '#a87838' }); wheel.position.set(-15, 10, -56.6); scene.add(wheel);
+const wheel2 = S.gear({ r: 2.4, th: .6, speed: -.24, phase: .15, c: '#c8963a' }); wheel2.position.set(-15 + 6.6, 10 + 1.4, -56.4); scene.add(wheel2);
 // 岸の小物：ドラムかん、つみ荷、鉄のさく
 for (let k = 0; k < 14; k++) { const s = k % 2 ? 1 : -1, z = 14 - k * 7.5; put(k % 3 ? C.drum({ c: ['#5a4a52', '#6a4a44'][k % 2], mark: 'band' }) : R.crate({ c: '#5a4a3a', s: 1.1 }), s * (9.5 + hash(k, 1) * 2), z, k); }
 for (const s of [-1, 1]) put(D.fence({ len: 150, h: 1.2, c: '#3a3440' }), s * 8.9, -40, PI / 2);
