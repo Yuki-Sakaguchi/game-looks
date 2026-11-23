@@ -74,7 +74,7 @@ K.loop((dt, t) => {
   // 花火の光で、屋上の人の顔がそまる
   const flash = fw.userData.flash || 0; pl.intensity = flash * 30; flashL.intensity = flash * 1.6;
   const tall = innerWidth < innerHeight, sw = Math.sin(t * .1);
-  cam.position.set(1.8 + sw * 1.4, tall ? 1.9 : 2, tall ? .6 : .9); tgt.set(-.2 + sw * .6, tall ? 7.4 : 6.6, -20); cam.lookAt(tgt);   // 屋上のうしろの高めから、集まった人々の背中ごしに、塔と花火を見上げる（ゆっくり横へゆれる）
+  cam.position.set(1.8 + sw * 1.4, tall ? 1.9 : 2, tall ? .6 : .9); tgt.set(-.2 + sw * .6, tall ? 6.2 : 4.8, -20); cam.lookAt(tgt);   // 屋上のうしろの高めから、集まった人々の背中ごしに、塔と花火を見上げる（ゆっくり横へゆれる）
   sun.position.set(SUN.x * 40, SUN.y * 40, SUN.z * 40);
   // 主役：らんかんに こしかけ、足をぶらぶら、空を見上げる
   { const J = hero.userData.J; hero.position.y = .52; R.idle(hero, t, Math.sin(t * .3) * .2); J.legL.rotation.x = J.legR.rotation.x = -1.5; J.shinL.rotation.x = 1.2 + Math.sin(t * 2.4) * .25; J.shinR.rotation.x = 1.2 + Math.sin(t * 2.4 + 1.6) * .25; J.head.rotation.x = -.45; J.armL.rotation.set(.3, 0, .5); J.armR.rotation.set(.3, 0, -.5); if (flash > .4) { J.armR.rotation.set(-2.6, 0, -.3); } }
