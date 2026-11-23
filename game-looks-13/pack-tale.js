@@ -1,7 +1,7 @@
 // 第 13 集の部品集「昔の家庭用ゲーム機のファンタジー RPG ふうの人」。kit.js と retro.js（第 7 集）のあとに読み、
 //   const K = KIT(THREE), R = RETRO(THREE, K), TL = PACK_TALE(THREE, K, R)  として使う。
 // retro.js は道具（R.geo の loft、R.Px で打つドット絵、R.mat、R.ramp、R.crt）として読むだけで、中は変えない。
-// 頭だけは、持ち主が決めた R.actor の anime の顔を そのまま借りる（R.actor を呼んで頭の関節を取り出す。R.actor 自体は変えない）。
+// 頭だけは、持ち主が決めた R.actor の anime の顔を そのまま借りる（R.actor を はげ頭で呼んで頭の関節を取り出す。R.actor 自体は変えない）。かみは この部品集で作る。
 //
 // ■ 考え方（docs/taste.md の「昔の家庭用ゲーム機のファンタジー RPG の人と敵」）
 //   ・3.5〜4.5 頭身。頭・手・足が大きく、胴は小さい。
@@ -9,9 +9,10 @@
 //   ・布のしわ・縫い目・つぎ当て・よごれは、128×128 の 1 枚に手で打つ。色はくすんだ中間色に、赤の差し色。
 //
 // ■ いまある物
-//   TL.hero({ heads: 3.5〜4.5, face: 'anime' | 'small', colors: { … } })  → Group（正面 +z、足もとが y=0）
+//   TL.hero({ heads: 3.5〜4.5, face: 'anime' | 'small', hair: 'swept' | 'center' | 'wolf', colors: { … } })  → Group（正面 +z、足もとが y=0）
 //     heads … 頭身（かみのてっぺんまでで数える）。頭の大きさは同じで、胴と足の長さを変える
 //     face  … 'anime' は R.actor のいまの顔のまま。'small' は目を小さめに打ちなおした顔
+//     hair  … 'swept'（流し前がみ。既定）/ 'center'（長めのセンター分け）/ 'wolf'（ウルフ）。R.actor のかみは使わず、ここで作る（HAIRS）
 //     関節は R.actor と同じ名前（hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape）なので、R.walk / R.idle / retro-motions.js がそのまま使える
 //     userData: { J, hipY, height, heads, headH, tris, skirt, build: { thigh, shin }, kind: 'tale' }
 //   TL.HERO … 主人公の色と頭の引数（見本の 1 人。オリジナルの人物）
@@ -150,16 +151,66 @@ window.PACK_TALE = (THREE, K, R) => {
     for (const sg of [-1, 1]) EYES_SMALL.forEach((row, j) => [...row].forEach((ch, i) => { if (!cmap[ch]) return; const dd = 8 + i; put(sg < 0 ? 63 - dd : 64 + dd, 15 + j, hex(cmap[ch])); }));
     g.putImageData(im, 0, 0); const t = pixTex(c), m = old.clone(); m.map = t; m.onBeforeCompile = old.onBeforeCompile; m.customProgramCacheKey = old.customProgramCacheKey; me.material = m; }
 
+  // ---- かみ（R.actor のとがった束はやめ、ここで作る）。頭は R.actor の はげ頭を借り、その上に「殻」と「束」をかぶせる ----
+  //   数は頭の大きさで割った値: x＝頭の半はば、y＝あご 0 〜 てっぺん 1、z＝顔の前 +1 〜 後頭部 −1。θ は頭のまわりの角度（0＝正面、＋が左手がわ＝+x）
+  //   束は 3 点（根もと・なか・先）の曲線にそって、平たいひし形の断面を先細りにつないだ物。先は とがらせず 小さく残す
+  const PROF = [[.25, .9], [.45, 1], [.6, .99], [.75, .94], [.9, .7], [1, .12]];   // 高さごとの頭の太さ
+  const prof = y => { if (y <= PROF[0][0]) return PROF[0][1]; for (let i = 0; i < PROF.length - 1; i++) { const [a, ra] = PROF[i], [b, rb] = PROF[i + 1]; if (y <= b) return ra + (rb - ra) * (y - a) / (b - a); } return .1; };
+  const D2R = Math.PI / 180, on = (th, y, k = 1.1) => { const a = th * D2R, r = prof(y) * k; return [Math.sin(a) * r, y, Math.cos(a) * r]; };   // 殻の上の点
+  // かみ型。かみは「頭にかぶせた 1 枚の殻」で、その下のふちを ぎざぎざに切って 前がみ・横がみ・えりあしにする（初期の 3D ゲーム機の人のかみの作り方）。
+  //   edge: [[θ, ふちの高さ], …]（θ は −180〜180。ふちの線）、jag: ぎざぎざの深さ、sweep: 先が流れる向きと量（度）、flare: えりあしが外へはねる量、vol: ふくらみ
+  //   locks: 殻の外に足す大きな束 [根もと, なか, 先, はば, あつみ]（シルエットを作る数本だけ）
+  const mirror = ([a, b, c, w, t]) => [[a, b, c, w, t], [[-a[0], a[1], a[2]], [-b[0], b[1], b[2]], [-c[0], c[1], c[2]], w, t]];   // 左右に 1 本ずつ
+  const HAIRS = {
+    // 流し前がみ：左の分け目から右へ流れる前がみ。ほおにかかる横がみ、短めのえりあし。頭のうしろが少しふくらむ
+    swept: { name: '流し前がみ', edge: [[-180, .24], [-120, .26], [-95, .3], [-78, .3], [-62, .5], [-35, .56], [-5, .6], [22, .66], [34, .72], [52, .6], [66, .46], [80, .32], [95, .3], [120, .26], [180, .24]], jag: .11, sweep: -30, flare: .08, vol: 1.04,
+      locks: [[[.1, 1.04, .3], [.2, 1.26, .12], [.1, 1.3, -.14], .06, .035], [[.3, 1.02, .55], [-.1, 1.12, .82], [-.55, .9, 1.0], .3, .1], [[-.5, .98, -.2], [-.86, .96, -.62], [-1.0, .72, -.9], .3, .1], [[.5, .98, -.2], [.86, .94, -.64], [1.0, .7, -.92], .28, .1]] },
+    // 長めのセンター分け：まん中で分けた前がみが、ほおを囲むように左右へ下りる。えりあしは首まで
+    center: { name: '長めのセンター分け', edge: [[-180, .1], [-120, .12], [-90, .14], [-72, .2], [-55, .42], [-28, .56], [-8, .74], [0, .86], [8, .74], [28, .56], [55, .42], [72, .2], [90, .14], [120, .12], [180, .1]], jag: .08, sweep: 'out', flare: .04, vol: 1.02, locks: [...mirror([[-.2, 1.03, .5], [-.55, 1.04, .62], [-.85, .78, .74], .26, .09]), ...mirror([[-.45, .98, -.3], [-.8, .9, -.7], [-.9, .55, -.98], .3, .1])] },
+    // ウルフ：上は うしろへ立ち上がり、前がみは ぎざぎざ、えりあしは長く外へはねる
+    wolf: { name: 'ウルフ', edge: [[-180, -.02], [-140, .06], [-105, .26], [-80, .36], [-55, .56], [-22, .6], [0, .56], [22, .62], [55, .56], [80, .36], [105, .26], [140, .06], [180, -.02]], jag: .15, sweep: 8, flare: .22, vol: 1.07,
+      locks: [[[0, 1.04, .45], [0, 1.14, -.15], [-.04, 1.0, -.9], .36, .12], ...mirror([[-.42, 1.0, .38], [-.68, 1.06, -.22], [-.86, .9, -.86], .3, .11])] },
+  };
+  const edgeY = (E, th) => { for (let i = 0; i < E.length - 1; i++) { const [a, ya] = E[i], [b, yb] = E[i + 1]; if (th <= b) return ya + (yb - ya) * (th - a) / (b - a || 1); } return E[E.length - 1][1]; };
+  function paintHair(col) { const P = Px(64, 64), H = ramp(col);   // かみのテクスチャ：よこ＝まわり、たて＝てっぺん(上)→毛先(下)。ふぞろいな すじ、上から 1/3 あたりの つやの帯（頭をぐるりと回る輪）（すじに沿ってとぎれる）、毛先は少し暗く
+    const cut = []; for (let x = 0, k = 0; x < 64; k++) { cut.push(x); x += 4 + Math.floor(hash(k, 1, 81) * 6); }
+    P.each((x, y) => { const s0 = cut.filter(c => c <= x).pop(), i = cut.indexOf(s0), w = (cut[i + 1] ?? 64) - s0, f = (x - s0) / w, lit = hash(i, 2, 81);
+      let t = f < .18 ? 2 : f > .7 && lit > .45 ? 4 : 3; if (lit < .2 && f < .4) t = 2;
+      const b0 = 22 + Math.floor(hash(i, 3, 81) * 5), b1 = b0 + 3 + Math.floor(hash(i, 4, 81) * 4); if (y >= b0 && y <= b1 && f > .2 && f < .85) t = (y === b0 || y === b1 || lit < .35) ? 4 : 5;
+      if (y > 50) t = Math.min(t, 3); if (y > 58 && f < .4) t = 2; if (y < 2) t = 2; return H[t]; }); return P; }
+  const hairTexCache = new Map();
+  function hairMesh(style, col, dim) {
+    const S = HAIRS[style] || HAIRS.swept, { hx, hy, zc, hd } = dim, M = p => [p[0] * hx, p[1] * hy, zc + p[2] * hd], cen = [0, .5 * hy, zc];
+    let t = hairTexCache.get(col); if (!t) { t = pixTex(paintHair(col).canvas()); hairTexCache.set(col, t); }
+    const G = R.geo().smooth(0), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k], cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], nz = a => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+    // 殻：36 本のたての線 × 7 段（上ほど ひと回り大きく、頭のてっぺんが つきぬけないように）。いちばん下の段が ふちの線（1 本おきに さらに下げて ぎざぎざの先にする）。先ほど sweep の向きへ流す
+    const NC = 36, rowsS = [0, .16, .36, .58, .76, .9, 1], kk = S.vol * 1.1, grid = [], JG = [1.25, .55, .95, .7];   // ぎざぎざは 4 本ごとに 長・短・中・短（そろえない）
+    for (let c = 0; c <= NC; c++) { const th = -180 + c * 360 / NC, tip = c % 2 === 0, y0 = edgeY(S.edge, th) - (tip ? S.jag * JG[(c / 2) % 4] * (.85 + .3 * hash(c, 3, 71)) : -S.jag * .15), col = [];
+      for (const r of rowsS) { const y = y0 + (.965 - y0) * r, sw = S.sweep === 'out' ? Math.sign(th) * Math.min(12, Math.abs(th) * .35) : S.sweep, back = Math.max(0, -Math.cos(th * D2R)), fl = (1 - r) ** 2 * (S.flare * back + (Math.abs(th) < 70 ? .05 : .02)),
+          p = on(th + sw * (1 - r) ** 1.5, y, kk * (1 + fl) * (1 + .1 * r * r) * (r > 0 && r < 1 ? 1 + (hash(c, r * 10, 72) - .5) * .06 : 1)); col.push({ p: M(p), v: .1 + r * .86 }); }
+      grid.push(col); }
+    G.smooth(1);
+    for (let c = 0; c < NC; c++) for (let r = 0; r < rowsS.length - 1; r++) { const a = grid[c][r], b = grid[c + 1][r], cc = grid[c + 1][r + 1], d = grid[c][r + 1], u0 = c / NC * 2, u1 = (c + 1) / NC * 2;
+      G.quad(a.p, b.p, cc.p, d.p, [u0, a.v, u1, d.v], [.84 + .04 * r, .84 + .04 * r, .88 + .04 * r, .88 + .04 * r]); }
+    const topP = M([0, 1.07 + .04 * (S.vol - 1), -.08]); for (let c = 0; c < NC; c++) { const a = grid[c][rowsS.length - 1], b = grid[c + 1][rowsS.length - 1]; G.tri(a.p, b.p, topP, [c / NC * 2, .98], [(c + 1) / NC * 2, .98], [(c + .5) / NC * 2, 1], 1.04); }
+    G.smooth(0);
+    // 束
+    for (const [p0, p1, p2, w, th] of S.locks) { const A = M(p0), B = M(p1), C = M(p2), n = 5, rings = [];
+      for (let i = 0; i <= n; i++) { const u = i / n, P = add(add([A[0] * (1 - u) ** 2, A[1] * (1 - u) ** 2, A[2] * (1 - u) ** 2], B, 2 * u * (1 - u)), C, u * u), T = nz(add(sub(B, A), sub(C, B), 2 * u - 0)), N0 = nz(sub(P, cen)), Sd = nz(cr(T, N0)), N = nz(cr(Sd, T)), ww = w * hx * (1 - Math.pow(u, 1.7) * .9) * (u < .15 ? .8 + u * 1.3 : 1), tt = th * hx * (1 - u * .7);
+        rings.push({ P: [add(P, Sd, ww), add(P, N, tt), add(P, Sd, -ww), add(P, N, -tt * .35)], v: 1 - u }); }
+      for (let i = 0; i < n; i++) { const a = rings[i], b = rings[i + 1]; for (let k = 0; k < 4; k++) { const k2 = (k + 1) % 4, br = k === 1 || k === 0 ? 1.04 : .82; G.quad(b.P[k], b.P[k2], a.P[k2], a.P[k], [k / 4, b.v, (k + 1) / 4, a.v], br); } } }
+    const me = G.mesh(t, { side: true }); me.castShadow = true; return me; }
+
   // ---- 体を組む ----
-  const texCache = new Map(), headHCache = new Map();
-  // 頭の高さ：同じ頭を みじかいかみ型で作って測る（とがった束の先まで数えると、頭身が多めに出て 体が長くなるため）
-  function headH(ho) { const k = ho.hairStyle === 'bald' ? 'bald' : 'hair'; if (!headHCache.has(k)) { const p = R.actor({ build: 'toon', ...ho, hairStyle: ho.hairStyle === 'bald' ? 'bald' : 'short', hat: 'none' }).userData.J.head; p.parent.remove(p); p.position.set(0, 0, 0); p.updateMatrixWorld(true); headHCache.set(k, new THREE.Box3().setFromObject(p).max.y); } return headHCache.get(k); }
+  const texCache = new Map();
   function hero(o = {}) {
     const N = o.heads ?? 4, face = o.face || 'anime', c = { ...HERO.colors, ...(o.colors || {}) }, ho = { ...HERO.head, ...(o.head || {}) };
     // 頭：R.actor の anime の頭を借りる（帽子なし）。頭の関節（ピボット）ごと取り出す
-    const src = R.actor({ build: 'toon', ...ho, hat: 'none', cloth: 'tunic' }), head0 = src.userData.J.head; head0.parent.remove(head0); head0.position.set(0, 0, 0); head0.updateMatrixWorld(true);
+    const src = R.actor({ build: 'toon', ...ho, hairStyle: 'bald', bangs: 'none', hat: 'none', cloth: 'tunic' }), head0 = src.userData.J.head; head0.parent.remove(head0); head0.position.set(0, 0, 0); head0.updateMatrixWorld(true);
     if (face === 'small') smallEyes(head0, ho.eye);
-    const Ht = headH(ho);                                                              // あごの先から、かみのかたまりのてっぺんまで（とげの先は数えない）
+    const hb = new THREE.Box3().setFromObject(head0), dim = { hx: Math.max(-hb.min.x, hb.max.x) * 1.02, hy: hb.max.y, zc: (hb.max.z + hb.min.z) / 2, hd: (hb.max.z - hb.min.z) / 2 };
+    const hairStyle = o.hair || 'swept', hair = hairMesh(hairStyle, ho.hair, dim);
+    const Ht = dim.hy * 1.1;                                                           // あごの先から、かみのかたまりのてっぺんまで（はねた束の先は数えない）
     const key = JSON.stringify(c); let t = texCache.get(key); if (!t) { t = pixTex(paintBody(c).canvas()); texCache.set(key, t); }
     const m = R.mat(t, { vc: true, smooth: true }), m2 = R.mat(t, { vc: true, smooth: true, side: true }), W = 128, Hh = 128, h = Ht;   // 長さは h（頭の高さ）を 1 とした数で書く
     // 頭身から長さを決める：あごの高さ = (N−1)h。そのうち足（また下）が 50〜58%
@@ -192,7 +243,7 @@ window.PACK_TALE = (THREE, K, R) => {
       J.cape = part(Gc, hold, 0, 0, 0, m2); }
 
     // 頭
-    J.head = new THREE.Group(); J.head.position.set(0, T + neck, .01 * h); J.head.add(head0); J.torso.add(J.head);
+    J.head = new THREE.Group(); J.head.position.set(0, T + neck, .01 * h); J.head.add(head0, hair); J.torso.add(J.head);
 
     // うで：ふくらんだそで → 下に着たそで → 広い口の手ぶくろ → 大きな手
     const U = .3 * h + .15 * T, F = .27 * h + .15 * T, HL = .46 * h;
@@ -212,8 +263,8 @@ window.PACK_TALE = (THREE, K, R) => {
       J['shin' + n] = part(Gn, J['leg' + n], Math.sin(ls) * TH, -Math.cos(ls) * TH, 0, m, ls); }
 
     const height = chinY + Ht;
-    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count / 3), skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale' };
+    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count + hair.geometry.attributes.position.count) / 3, skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale' };
     return g; }
 
-  return { hero, HERO, paintBody, pixTex, sec, SB, S6, SH, SK };
+  return { hero, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
 };
