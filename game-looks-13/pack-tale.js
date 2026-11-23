@@ -4,18 +4,26 @@
 // 頭だけは、持ち主が決めた R.actor の anime の顔を そのまま借りる（R.actor を はげ頭で呼んで頭の関節を取り出す。R.actor 自体は変えない）。かみは この部品集で作る。
 //
 // ■ 考え方（docs/taste.md の「昔の家庭用ゲーム機のファンタジー RPG の人と敵」）
-//   ・3.5〜4.5 頭身。頭・手・足が大きく、胴は小さい。
+//   ・ふつうの人は 4.5 頭身、背の高い人は 5 頭身（持ち主が決めた）。小がらな人・子どもは 4・3.5 頭身。頭・手・足が大きく、胴は小さい。
 //   ・形は体ではなく服で決める：ふくらんだ肩のそで、広がるそで口（手ぶくろの口）、広がる上着のすそ、だぶついたズボン、折り返しの大きなブーツ、首のスカーフ。
-//   ・布のしわ・縫い目・つぎ当て・よごれは、128×128 の 1 枚に手で打つ。色はくすんだ中間色に、赤の差し色。
+//   ・布のしわ・縫い目・つぎ当て・よごれは、128×128 の 1 枚に手で打つ。色はくすんだ中間色に、赤や青の差し色。
+//   ・かみは R.actor の物を使わず、ここで作る（頭にかぶせた殻の ふちを ぎざぎざに切る）。主人公は流し前がみ。ほかのかみ型は ほかの人に使う。
 //
-// ■ いまある物
-//   TL.hero({ heads: 3.5〜4.5, face: 'anime' | 'small', hair: 'swept' | 'center' | 'wolf', colors: { … } })  → Group（正面 +z、足もとが y=0）
-//     heads … 頭身（かみのてっぺんまでで数える）。頭の大きさは同じで、胴と足の長さを変える
-//     face  … 'anime' は R.actor のいまの顔のまま。'small' は目を小さめに打ちなおした顔
-//     hair  … 'swept'（流し前がみ。既定）/ 'center'（長めのセンター分け）/ 'wolf'（ウルフ）。R.actor のかみは使わず、ここで作る（HAIRS）
+// ■ 人を作る
+//   TL.person('hero')                 見本の人物（TL.CAST）を id で作る
+//   TL.person({ ...TL.cast('hero'), hair: 'wolf' })   見本の人物の一部だけ変える
+//   TL.person({ size, heads, hair, face, head: { …頭の引数 }, colors: { …服の色 }, bulk })  → Group（正面 +z、足もとが y=0）
+//     size  … 'normal'（4.5 頭身。既定）/ 'tall'（5 頭身。背の高い人）/ 'small'（4 頭身）/ 'child'（3.5 頭身）。heads で数を直接わたしてもよい（3.5〜5）
+//     hair  … 'swept'（流し前がみ）/ 'center'（長めのセンター分け）/ 'wolf'（ウルフ）。くわしくは HAIRS
+//     face  … 'anime'（R.actor のいまの顔）/ 'small'（目を小さめに打ちなおした顔）
+//     head  … R.actor の頭の引数（skin, hair＝かみの色, eye, eyes, brow, mouth, beard, blush）。かみ型は上の hair で決める
+//     colors … 服の色（tunic 上着, vest ベスト, linen そで, glove 手ぶくろ, pants ズボン, boot ブーツ, scarf スカーフ, belt, brass 金具, trim 刺しゅう）
+//     bulk  … 体のはばの倍率（がっしり 1.1、ほっそり .92）。tall は 1.06 が既定
 //     関節は R.actor と同じ名前（hips, torso, head, armL, foreL, armR, foreR, legL, shinL, legR, shinR, cape）なので、R.walk / R.idle / retro-motions.js がそのまま使える
-//     userData: { J, hipY, height, heads, headH, tris, skirt, build: { thigh, shin }, kind: 'tale' }
-//   TL.HERO … 主人公の色と頭の引数（見本の 1 人。オリジナルの人物）
+//     userData: { J, hipY, height, heads, headH, tris, skirt, build: { thigh, shin }, kind: 'tale', id }
+//   TL.CAST   見本の人物の一覧 [{ id, name, role, o }]。いまは主人公だけ（仲間は段階 3 で足す）
+//   TL.SIZES  { normal: 4.5, tall: 5, small: 4, child: 3.5 }
+//   TL.hero(o) は TL.person({ ...主人公, ...o }) の短い書き方（段階 1 の調整室のため）
 window.PACK_TALE = (THREE, K, R) => {
   const { hash, mix, ramp, Px } = R;
 
@@ -40,11 +48,15 @@ window.PACK_TALE = (THREE, K, R) => {
   const SH = sec([[0, -1], [-.8, -.6], [-1, .2], [-.5, 1], [.5, 1], [1, .2], [.8, -.6]]);                                       // 手（手の甲が前）
   const SK = sec([[-.55, -1], [-1, -.45], [-1, .4], [-.6, 1], [.6, 1], [1, .4], [1, -.45], [.55, -1]]);                         // ブーツ（つま先が丸く、かかとが平ら）
 
-  // ---- 主人公：見習いの旅の剣士（オリジナル）。くすんだからし色の上着に革のベスト、赤いスカーフ ----
-  const HERO = {
-    head: { hairStyle: 'spiky', bangs: 'jag', hair: '#6e3e26', skin: '#f0c49c', eye: '#4a7a5a', eyes: 'big', brow: 'flat', mouth: 'smile' },
-    colors: { tunic: '#a8894e', vest: '#6c4a34', linen: '#d6cbb0', glove: '#8a6646', pants: '#56637a', boot: '#74482e', scarf: '#b0392e', belt: '#4a3428', brass: '#c8a040', trim: '#e6dcc0' },
-  };
+  // ---- 見本の人物。体つき・かみ・顔・服の色の組み合わせで 1 人を決める（オリジナルの人物） ----
+  const SIZES = { normal: 4.5, tall: 5, small: 4, child: 3.5 };
+  const BODY_COLORS = { tunic: '#a8894e', vest: '#6c4a34', linen: '#d6cbb0', glove: '#8a6646', pants: '#56637a', boot: '#74482e', scarf: '#b0392e', belt: '#4a3428', brass: '#c8a040', trim: '#e6dcc0' };
+  const CAST = [
+    { id: 'hero', name: 'ユウリ', role: '主人公。見習いの旅の剣士', o: { size: 'normal', hair: 'swept', face: 'anime',
+      head: { hair: '#6e3e26', skin: '#f0c49c', eye: '#4a7a5a', eyes: 'big', brow: 'flat', mouth: 'smile' }, colors: { ...BODY_COLORS } } },
+  ];
+  const cast = id => (CAST.find(c => c.id === id) || CAST[0]).o;
+  const HERO = { head: CAST[0].o.head, colors: CAST[0].o.colors };   // 段階 1 の書き方のなごり（調整室が使う）
 
   // ---- 体のテクスチャ（128×128。上の行が 上・頭がわ）。区画:
   //   胴     0..127 ×   0..39   x=64 が正面。ベスト・ひも・ベルト・上着
@@ -203,18 +215,18 @@ window.PACK_TALE = (THREE, K, R) => {
 
   // ---- 体を組む ----
   const texCache = new Map();
-  function hero(o = {}) {
-    const N = o.heads ?? 4, face = o.face || 'anime', c = { ...HERO.colors, ...(o.colors || {}) }, ho = { ...HERO.head, ...(o.head || {}) };
+  function person(o = {}) { const id = typeof o === 'string' ? o : o.id; if (typeof o === 'string') o = { ...cast(o), id };
+    const N = o.heads ?? SIZES[o.size || 'normal'] ?? 4.5, face = o.face || 'anime', c = { ...BODY_COLORS, ...(o.colors || {}) }, ho = { ...CAST[0].o.head, ...(o.head || {}) }, BK = o.bulk ?? (N >= 5 ? 1.06 : 1);
     // 頭：R.actor の anime の頭を借りる（帽子なし）。頭の関節（ピボット）ごと取り出す
     const src = R.actor({ build: 'toon', ...ho, hairStyle: 'bald', bangs: 'none', hat: 'none', cloth: 'tunic' }), head0 = src.userData.J.head; head0.parent.remove(head0); head0.position.set(0, 0, 0); head0.updateMatrixWorld(true);
     if (face === 'small') smallEyes(head0, ho.eye);
     const hb = new THREE.Box3().setFromObject(head0), dim = { hx: Math.max(-hb.min.x, hb.max.x) * 1.02, hy: hb.max.y, zc: (hb.max.z + hb.min.z) / 2, hd: (hb.max.z - hb.min.z) / 2 };
-    const hairStyle = o.hair || 'swept', hair = hairMesh(hairStyle, ho.hair, dim);
+    const hair = hairMesh(o.hair || 'swept', ho.hair, dim);
     const Ht = dim.hy * 1.1;                                                           // あごの先から、かみのかたまりのてっぺんまで（はねた束の先は数えない）
     const key = JSON.stringify(c); let t = texCache.get(key); if (!t) { t = pixTex(paintBody(c).canvas()); texCache.set(key, t); }
     const m = R.mat(t, { vc: true, smooth: true }), m2 = R.mat(t, { vc: true, smooth: true, side: true }), W = 128, Hh = 128, h = Ht;   // 長さは h（頭の高さ）を 1 とした数で書く
-    // 頭身から長さを決める：あごの高さ = (N−1)h。そのうち足（また下）が 50〜58%
-    const chinY = (N - 1) * h, hipY = chinY * (.5 + (N - 3.5) * .08), neck = .06 * h, T = chinY - neck - hipY, ank = .22 * h, legL = hipY - ank, TH = legL * .47, SN = legL * .53;
+    // 頭身から長さを決める：あごの高さ = (N−1)h。そのうち足（また下）が 50〜60%（4.5 頭身で 58%、5 頭身で 60%）
+    const chinY = (N - 1) * h, hipY = chinY * (.5 + Math.min(1, N - 3.5) * .08 + Math.max(0, N - 4.5) * .04), neck = .06 * h, T = chinY - neck - hipY, ank = .22 * h, legL = hipY - ank, TH = legL * .47, SN = legL * .53;
     const g = new THREE.Group(), J = {}, v3 = new THREE.Vector3(); let tris = 0;
     const SOFT = .45, part = (G, parent, x, y, z, mm = m, rz = 0) => { const ge = G.build(), nr = ge.attributes.normal; for (let i = 0; i < nr.count; i++) { v3.set(nr.getX(i), nr.getY(i), nr.getZ(i)).multiplyScalar(1 - SOFT); v3.y += SOFT; v3.normalize(); nr.setXYZ(i, v3.x, v3.y, v3.z); } tris += G.count(); const me = new THREE.Mesh(ge, mm); me.castShadow = me.receiveShadow = true; me.rotation.z = rz; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
     const geo = () => R.geo().smooth(0);
@@ -235,7 +247,7 @@ window.PACK_TALE = (THREE, K, R) => {
     Gt.px(80, 104, 16, 24, W, Hh).loft(S6, [[.05 * h, .035 * h, .035 * h, 0, .9], [.36 * h, .03 * h, .03 * h, 1, 1]]);
     Gt.px(96, 104, 16, 24, W, Hh).loft(S6, [[.36 * h, .05 * h, .05 * h, 0, 1], [.43 * h, .03 * h, .03 * h, 1, 1.1]], { cap: 'top' }).at(null);
     J.torso = part(Gt, J.hips, 0, 0, 0);
-    part(Gk, J.torso, 0, 0, 0, m2);
+    const hemP = part(Gk, J.torso, 0, 0, 0, m2);
 
     // スカーフのはし（背中に 2 本。cape の関節で ゆれる）
     { const hold = new THREE.Group(), Gc = R.geo().normal([0, .2, 1]).px(96, 80, 32, 24, W, Hh); hold.rotation.y = Math.PI; hold.position.set(-.05 * h, T + .02 * h, -.23 * h); J.torso.add(hold);
@@ -262,9 +274,12 @@ window.PACK_TALE = (THREE, K, R) => {
       Gn.px(0, 104, 64, 24, W, Hh).loft(SK, [[by, .17 * h, .38 * h, 0, .65, 0, .11 * h], [by + .11 * h, .18 * h, .39 * h, .2, .85, 0, .11 * h], [by + .21 * h, .16 * h, .25 * h, .42, 1, 0, .05 * h], [by + .36 * h, .15 * h, .16 * h, .65, 1], [by + .47 * h, .19 * h, .2 * h, .85, 1.02], [by + .55 * h, .23 * h, .24 * h, 1, 1.06]], { cap: 'bot', capUV: [.5, .02] });
       J['shin' + n] = part(Gn, J['leg' + n], Math.sin(ls) * TH, -Math.cos(ls) * TH, 0, m, ls); }
 
+    if (BK !== 1) { for (const pv of [J.torso, hemP, J.armL, J.armR, J.foreL, J.foreR, J.legL, J.legR, J.shinL, J.shinR]) pv.children[0].scale.set(BK, 1, BK);   // 体のはば（bulk）
+      for (const n of ['armL', 'armR', 'legL', 'legR']) J[n].position.x *= BK; }
     const height = chinY + Ht;
-    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count + hair.geometry.attributes.position.count) / 3, skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale' };
+    g.userData = { J, hipY, height, heads: height / Ht, headH: Ht, tris: tris + (head0.children[0].geometry.attributes.position.count + hair.geometry.attributes.position.count) / 3, skirt: .15, build: { thigh: TH, shin: SN }, kind: 'tale', id };
     return g; }
+  const hero = (o = {}) => person({ ...cast('hero'), id: 'hero', ...o });
 
-  return { hero, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
+  return { person, hero, cast, CAST, SIZES, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
 };

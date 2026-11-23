@@ -23,7 +23,7 @@ button.on{background:#e8b44a;border-color:#e8b44a;color:#1e2026;font-weight:700}
 </style>
 <div id="ui">
   <div class="row" id="rView"><b>見かた</b></div>
-  <div class="row" id="rBody"><b>体つき</b></div>
+  <div class="row" id="rBody"><b>頭身・顔</b></div>
   <div class="row" id="rHair"><b>かみ型</b></div>
   <div class="row" id="rMo"><b>動き</b></div>
   <div class="row" id="rOpt"><b>表示</b></div>
@@ -43,11 +43,11 @@ button.on{background:#e8b44a;border-color:#e8b44a;color:#1e2026;font-weight:700}
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, MO = RETRO_MOTIONS(THREE, R), TL = PACK_TALE(THREE, K, R), q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
 
-const HEADS = [3.5, 4, 4.5], DIRS = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]];
-const VIEWS = [['sheet', '3 つの体つき × 4 つの向き'], ['row', '1 つの体つき × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ']];
+const HEADS = [3.5, 4, 4.5, 5], SHEET = [4, 4.5, 5], DIRS = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]];
+const VIEWS = [['sheet', '3 つの頭身 × 4 つの向き'], ['row', '1 つの頭身 × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ']];
 const MOS = ['stand', 'look', 'walk', 'run', 'jump', 'wave'];
 const HAIRSET = [['swept', '流し前がみ'], ['center', '長めのセンター分け'], ['wolf', 'ウルフ']];
-const st = { hair: HAIRSET.some(h => h[0] === q.get('hair')) ? q.get('hair') : 'swept', view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'sheet', heads: HEADS.includes(+q.get('heads')) ? +q.get('heads') : 4, face: q.get('face') === 'small' ? 'small' : 'anime',
+const st = { hair: HAIRSET.some(h => h[0] === q.get('hair')) ? q.get('hair') : 'swept', view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'sheet', heads: HEADS.includes(+q.get('heads')) ? +q.get('heads') : 4.5, face: q.get('face') === 'small' ? 'small' : 'anime',
   motion: MOS.includes(q.get('motion')) ? q.get('motion') : 'stand', raw: !!q.get('raw'), tex: !!q.get('tex'), yaw: (+q.get('rot') || 0) * Math.PI / 180, speed: q.get('stop') ? 0 : 1, zoom: +q.get('zoom') || 1 };
 
 // ---- 舞台：青空と、うすい雲の地平線。人は石の台にのせる（見本の一覧表のように）
@@ -67,11 +67,11 @@ function put(a, x, y, rotY, label, z = 0, bare = false) { const g = new THREE.Gr
   scene.add(g); const it = { g, a, rotY, label, x, y }; items.push(it); if (label) it.el = tag(label); return it; }
 function build() {
   clear(); field.mesh.visible = skyG.visible = st.view === 'game'; skyS.visible = !skyG.visible;
-  if (st.view === 'sheet') { const sp = .78, gap = 1.1, rowH = 2.02, gw = sp * 2 + gap;   // 上の段＝正面・ななめ前、下の段＝横・うしろ。1 つの向きに 3 つの体つきを同じ高さでならべる
+  if (st.view === 'sheet') { const sp = .82, gap = 1.1, rowH = 2.2, gw = sp * 2 + gap;   // 上の段＝正面・ななめ前、下の段＝横・うしろ。1 つの向きに 3 つの体つきを同じ高さでならべる
     [[DIRS[0], DIRS[1]], [DIRS[2], DIRS[3]]].forEach((pair, r) => pair.forEach(([l, a], gi) => { const y = (1 - r) * rowH, cx = (gi - .5) * gw;
-      HEADS.forEach((n, k) => { const it = put(TL.hero({ heads: n, face: st.face, hair: st.hair }), cx + (k - 1) * sp, y, a, ''); it.el = tag(`${n}`); it.small = 1; });
-      items.push({ side: tag(l, 'grp'), x: cx, y: y + 1.52 }); }));
-    box = { x0: -gw / 2 - sp * 1.6, x1: gw / 2 + sp * 1.6, y0: -.3, y1: rowH + 1.6 }; }
+      SHEET.forEach((n, k) => { const it = put(TL.hero({ heads: n, face: st.face, hair: st.hair }), cx + (k - 1) * sp, y, a, ''); it.el = tag(`${n}`); it.small = 1; });
+      items.push({ side: tag(l, 'grp'), x: cx, y: y + 1.68 }); }));
+    box = { x0: -gw / 2 - sp * 1.6, x1: gw / 2 + sp * 1.6, y0: -.3, y1: rowH + 1.78 }; }
   if (st.view === 'row') { const ref = TL.hero({ heads: st.heads, face: st.face, hair: st.hair }), H = ref.userData.height; DIRS.forEach(([l, a], k) => put(k ? TL.hero({ heads: st.heads, face: st.face, hair: st.hair }) : ref, (k - 1.5) * 1.05, 0, a, l)); box = { x0: -2.1, x1: 2.1, y0: -.15, y1: H + .25 }; }
   if (st.view === 'face') { const A = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]]; let hh = .27;   // 頭だけを見せる（体はかくす）。段＝かみ型
     const HS = q.get('hairs') ? HAIRSET.filter(h => q.get('hairs').split(',').includes(h[0])) : HAIRSET, nr = HS.length;   // ?hairs=swept,wolf で段をしぼる
@@ -79,10 +79,10 @@ function build() {
       h.traverse(o => { if (o.isMesh) o.visible = false; }); J.head.traverse(o => { if (o.isMesh) o.visible = true; });
       const y = (nr - 1 - r) * hh * 1.75, hy = u.height - hh; put(h, (k - 1.5) * hh * 1.9, y - hy, a, r ? '' : l, 0, true).labelY = hy + hh * 1.22; if (!k) items.push({ side: tag(name, 'side'), x: -hh * 5.4, y: y + hh * .5 }); }));
     box = { x0: -hh * 5.5, x1: hh * 3.7, y0: -.05 * hh, y1: hh * (1.35 + (nr - 1) * 1.75) }; }
-  if (st.view === 'game') { HEADS.forEach((n, k) => put(TL.hero({ heads: n, face: st.face, hair: st.hair }), (k - 1) * 1.1, 0, 0, `${n} 頭身`, 0));
+  if (st.view === 'game') { SHEET.forEach((n, k) => put(TL.hero({ heads: n, face: st.face, hair: st.hair }), (k - 1) * 1.1, 0, 0, `${n} 頭身${n === 4.5 ? '<small>ふつうの人</small>' : n === 5 ? '<small>背の高い人</small>' : '<small>小がらな人</small>'}`, 0));
     R.cfg.face = 'anime'; const ref = R.actor({ build: 'toon', ...TL.HERO.head, cloth: 'tunic', top: TL.HERO.colors.tunic, bottom: TL.HERO.colors.pants, neck: 'scarf', acc: TL.HERO.colors.scarf, gloves: 'glove', glove: TL.HERO.colors.glove, shoe: TL.HERO.colors.boot }); put(ref, 2.4, 0, 0, 'いまの R.actor<small>5 頭身の toon</small>', 0); }
   const u = items.find(i => i.a)?.a.userData;
-  $('info').innerHTML = st.view === 'sheet' ? `<span class="n">主人公（見習いの旅の剣士）</span>　数は頭身　顔：${st.face === 'small' ? '目を小さめにした顔' : 'いまの anime の顔'}` : st.view === 'game' ? '<span class="n">場面の中の大きさ</span>　左から 3.5・4・4.5 頭身、右はいまの R.actor（5 頭身）' : `<span class="n">${st.heads} 頭身</span>　${u.height.toFixed(2)} m ・ 頭 ${u.headH.toFixed(2)} m ・ 三角形 ${u.tris}`;
+  $('info').innerHTML = st.view === 'sheet' ? `<span class="n">ユウリ（主人公）</span>　数は頭身：4.5＝ふつう、5＝長身、4＝小がら` : st.view === 'game' ? '<span class="n">場面の中の大きさ</span>　左から 4・4.5・5 頭身、右はいまの R.actor（5 頭身の toon）' : `<span class="n">${st.heads} 頭身</span>　${u.height.toFixed(2)} m ・ 頭 ${u.headH.toFixed(2)} m ・ 三角形 ${u.tris}`;
   const old = $('atlas'); if (old) old.remove(); if (st.tex) { const im = document.createElement('img'); im.id = 'atlas'; im.src = TL.paintBody(TL.HERO.colors).canvas().toDataURL(); im.style.display = 'block'; document.body.appendChild(im); }
 }
 
@@ -90,7 +90,7 @@ function build() {
 function bar(el, list, get, set) { const bs = list.map(([id, name]) => { const b = document.createElement('button'); b.textContent = name; b.onclick = () => { set(id); refresh(); }; el.appendChild(b); return [id, b]; }); return () => bs.forEach(([id, b]) => b.classList.toggle('on', get(id))); }
 const upd = [
   bar($('rView'), VIEWS, id => st.view === id, id => { st.view = id; build(); }),
-  bar($('rBody'), HEADS.map(n => [n, n + ' 頭身']), id => st.heads === id, id => { st.heads = id; if (st.view === 'sheet') st.view = 'row'; build(); }),
+  bar($('rBody'), HEADS.map(n => [n, n + ' 頭身' + (n === 4.5 ? '（ふつう）' : n === 5 ? '（長身）' : '')]), id => st.heads === id, id => { st.heads = id; if (st.view === 'sheet') st.view = 'row'; build(); }),
   bar($('rBody'), [['anime', '顔：いまの anime'], ['small', '顔：目を小さめ']], id => st.face === id, id => { st.face = id; build(); }),
   bar($('rHair'), HAIRSET, id => st.hair === id, id => { st.hair = id; build(); }),
   bar($('rMo'), MO.list.filter(m => MOS.includes(m.id)).map(m => [m.id, m.name]), id => st.motion === id, id => { st.motion = id; }),
