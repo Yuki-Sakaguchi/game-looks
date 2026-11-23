@@ -28,7 +28,7 @@ const FOG = '#1e1c26', mood = D.mood(scene, renderer, 'abyss', { sky: [FOG, FOG,
 
 // ---- トンネルの形：左に石の通路（x -1.4〜1.1）、右に水の みぞ（x 1.1〜3.3、水面 y=-.45）。丸天井は y 2.7 から 3.9 ----
 const XL = -1.4, XW = 1.1, XR = 3.3, WY = -.45, WH = 2.7, VH = 1.2, CX = (XL + XR) / 2, HWD = (XR - XL) / 2, Z1 = 14, Z0 = -130, SP = 9, SHAFTS = []; for (let z = 4; z > Z0 + 10; z -= SP) SHAFTS.push(z);
-const STONE = '#8a705a', LIT = SHAFTS.map(z => ({ x: 1, y: .3, z: z - 1, c: '#fff0c8', r: 3.2, k: 1.6 }));
+const STONE = '#8a705a', LIT = SHAFTS.map(z => ({ x: .5, y: .3, z: z - 1, c: '#fff0c8', r: 3.2, k: 1.6 }));
 const bake = W.bake(LIT, mood.base), bakeC = W.bake(LIT.map(l => ({ ...l, y: WH + VH, r: 2.6, k: 1.2 })), [.4, .38, .55]);
 const Q = (G, col, ...q) => G.tint(col).quad(...q).tint(null), fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 const stoneT = D.tex.stone({ c: STONE, moss: .2, stain: .5 }), floorT = X.dungeon({ kind: 'floor', c: '#7a6a58', moss: .1 }), wetT = D.tex.wetCobble({ c: '#6a6070', wet: .6, shine: '#c8b8a0' });
@@ -45,8 +45,8 @@ const stoneT = D.tex.stone({ c: STONE, moss: .2, stain: .5 }), floorT = X.dungeo
 const WF = T.water({ c: '#3a5a8a' }); water.material.transparent = true; water.material.opacity = .9;
 
 // ---- 光のすじ（たて穴から）、床と水の光の輪、光の中のちり ----
-const beams = SHAFTS.map((z, i) => { const s = D.shaft({ w: 1.7, h: 5, c: '#fff0c0', a: .5, lean: [-.15, .1] }); s.position.set(CX - .3, WY, z - 1.1); scene.add(s); return s; });
-fixed.push(D.pools(SHAFTS.flatMap(z => [{ p: [-.1, .1, z - 1.2], r: 1.8, r2: 1.3, c: '#ffe8b0', k: 1.2 }, { p: [2.1, WY + .06, z - 1.2], r: 1.6, r2: 1.2, c: '#e8f4ff', k: 1 }])));
+const beams = SHAFTS.map((z, i) => { const s = D.shaft({ w: 1.7, h: 5, c: '#fff0c0', a: .5, lean: [-.15, .1] }); s.position.set(CX - .5, WY, z - 1.1); scene.add(s); return s; });
+fixed.push(D.pools(SHAFTS.flatMap(z => [{ p: [.2, .1, z - 1.2], r: 1.8, r2: 1.3, c: '#ffe8b0', k: 1.2 }, { p: [2.1, WY + .06, z - 1.2], r: 1.6, r2: 1.2, c: '#e8f4ff', k: 1 }])));
 const motes = SHAFTS.slice(0, 6).map(z => { const m = PK.motes({ n: 8, area: [1.4, 3.5, 1.4], c: '#fff4d0', size: 1, a: .45 }); m.position.set(CX, 0, z - 1); scene.add(m); return m; });
 // 通路の小物：かめ、木のおけ、水番の道具、石のふた。かべのくぼみに小さな油皿
 for (let i = 0; i < 14; i++) { const z = 6 - i * 8.6 - hash(i, 1) * 3, k = i % 4; put(k === 0 ? R.barrel({ h: .6, r: .24, c: '#7a5a3a' }) : k === 1 ? R.rock({ s: .4, c: '#6a5a50', seed: i }) : k === 2 ? R.crate({ s: .45, c: '#7a6048' }) : PK.rubble({ r: .6, h: .3, slabs: 2 }), XL + .4, z, i); }

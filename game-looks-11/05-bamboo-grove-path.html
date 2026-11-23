@@ -29,7 +29,7 @@ const SUN = new THREE.Vector3(-.45, .7, -.55).normalize(), { sun } = K.lights(sc
 const PX = z => 2.6 * Math.sin(z * .07) + 1.2 * Math.sin(z * .031 + 2), dPX = z => (PX(z + .1) - PX(z - .1)) / .2, PW = 1.1;
 const H = (x, z) => { const ax = Math.abs(x - PX(z)); return Math.sin(x * .21 + z * .13) * .25 * Math.min(1, ax / 3) + Math.max(0, ax - 2) * .06; };
 const land = R.ground({ w: 90, d: 120, cell: 1, cz: -30, H, layers: [T.dirt({ c: '#a89064', pebbles: .3, seed: 2 }), T.dirt({ c: '#9c8c56', pebbles: .1, seed: 5 }), PK.tex.moss({ c: '#5e8a44' })],
-  mix: (x, z) => { const ax = Math.abs(x - PX(z)); return [ax > PW + .5 ? .8 : 0, ax > 3.5 && Math.sin(x * .5) * Math.sin(z * .4) > .1 ? 1 : 0]; } }); scene.add(land.mesh);
+  mix: (x, z) => { const ax = Math.abs(x - PX(z)); return [ax > PW + .5 ? .8 : 0, ax > 2.2 && Math.sin(x * .5) * Math.sin(z * .4) > -.25 ? 1 : 0]; } }); scene.add(land.mesh);
 const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
 
 // ---- 竹のさく（道の両がわ。柱と 2 本の横の竹） ----
@@ -65,7 +65,7 @@ const hero = act({ sex: 'f', hairStyle: 'long', hair: '#2a2228', mouth: 'smile',
 const monk = act({ hairStyle: 'bald', hair: '#4a4448', eyes: 'closed', mouth: 'smile', cloth: 'robe', top: '#5a5a62', top2: '#e8e4d8', skirt: .85, shoes: 'shoe', shoe: '#8a7a5a' }); F.wear(monk, 'staff', { len: 1.3, hand: 'R', c: '#9ab85a' });
 const elder = act({ hairStyle: 'short', hair: '#c8c4c0', beard: 'mustache', cloth: 'tunic', top: '#6a7a5a', top2: '#e8dcc0', bottom: '#4a4a54', shoe: '#5a4a3a' }); W.kasa(elder, { c: '#d0bc80' });
 { const z = HZ + .6; monk.position.set(PX(z) - 1.3, H(PX(z) - 1.3, z), z); monk.rotation.y = -PI / 2 + .3; }
-const sparrows = [...Array(5)].map((_, i) => { const b = R.bird({ c: '#8a6a48', belly: '#ece0c8', neck: false, s: .9 }); b.userData.k = i; scene.add(b); return b; });
+const sparrows = [...Array(5)].map((_, i) => { const b = R.bird({ c: '#8a6a48', belly: '#ece0c8', neck: false, s: 1.15 }); b.userData.k = i; scene.add(b); return b; });
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const SPEED = 1.05, Z0 = 6, LOOP = 70;
@@ -81,7 +81,7 @@ K.loop((dt, t) => {
   const ez = z - 16 + ((t * 1.0) % 24), ex = PX(ez) - .4; elder.position.set(ex, H(ex, ez), ez); elder.rotation.y = Math.atan2(dPX(ez), 1); R.walk(elder, t * 3.4, .7);
   R.idle(monk, t, Math.sin(t * .5) * .4); monk.userData.J.armR.rotation.x = -.6 + Math.sin(t * 2.4) * .3; monk.userData.J.torso.rotation.x = .2;
   // すずめ：主役の少し先の道で ついばみ、近づくと飛びたって先へ下りる
-  sparrows.forEach((b, i) => { const base = Math.floor((-z + 4) / 12) * 12, bz = -base - 5 - i * .5, dz = z - bz, up = Math.max(0, Math.min(1, (3.2 - dz) / 1.5)), bx = PX(bz) + (hash(i, base) - .5) * 1.4 + up * (i - 2) * .8;
+  sparrows.forEach((b, i) => { const base = Math.floor((-z + 4) / 12) * 12, bz = -base - 5 - i * .5, dz = z - bz, up = Math.max(0, Math.min(1, (3.2 - dz) / 1.5)), bx = PX(bz) + .55 + hash(i, base) * .5 + up * (i - 2) * .8;
     b.position.set(bx, H(bx, bz) + up * (2.5 + i * .4), bz - up * 4); b.rotation.y = up > 0 ? PI + (i - 2) * .3 : hash(i, 7) * 6 + Math.sin(t + i) * .5; R.birdPose(b, up > 0 ? 'fly' : 'peck', t * (up > 0 ? .7 : 1) + i); });
   motes.position.set(x, y, z - 5);
   leaves.forEach(o => { const [lx, ly, lz, ph, v] = o.userData.p, f = ((ly - t * v) % 8 + 8) % 8; o.position.set(x + lx + Math.sin(t * .8 + ph) * .8, y + f, z - 4 + lz + Math.cos(t * .6 + ph) * .5); o.rotation.set(t * 1.1 + ph, t * .8 + ph, ph); });
