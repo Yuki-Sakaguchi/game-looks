@@ -84,13 +84,13 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       if (tail) { hx.lineTo(tail[0] + 5, y + h); hx.lineTo(tail[0], tail[1]); hx.lineTo(tail[0] - 3, y + h); } hx.lineTo(x + 3, y + h); hx.lineTo(x, y + h - 3); hx.lineTo(x, y + 3); hx.closePath(); };
     path(); hx.fillStyle = g; hx.fill(); hx.lineWidth = 3; hx.strokeStyle = '#1c1e26'; hx.stroke(); hx.lineWidth = 1; hx.strokeStyle = '#e6e8ee'; hx.stroke();
     hx.fillStyle = 'rgba(255,255,255,.16)'; hx.fillRect(x + 3, y + 2, w - 6, 1); }
-  // 文字：窓より少し粗い細かさで打ち、ふちのぼかしを切って（半分より濃い所だけ残す）ドットにする。右下に 1 ドットの影
+  // 文字：窓より少し粗い細かさで打ち、ふちのぼかしを切って（55% より濃い所だけ残す）ドットにする。太さはふつう（400。ヒラギノ角ゴなら W3。500 以上は太い字が選ばれる）。右下に 1 ドットの影
   let HS = 1, FS = 10; const glyphs = new Map(), FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP","Noto Sans CJK JP","Source Han Sans JP","IPAGothic","IPAPGothic","TakaoGothic",sans-serif';   // どの端末でもゴシック体が選ばれるように、ゴシック体の名前をならべる
   function glyph(s, c) { const key = s + '|' + c + '|' + FS + '|' + HS; let g = glyphs.get(key); if (g) return g; if (glyphs.size > 400) glyphs.clear();
-    const k = TK(), px = Math.round(FS * HS / k) + 1, sh = 1, m = document.createElement('canvas').getContext('2d', { willReadFrequently: true }); m.font = `500 ${px}px ${FONT}`; const w = Math.ceil(m.measureText(s).width) + sh + 2, h = Math.ceil(px * 1.35) + sh + 2;
-    m.canvas.width = w; m.canvas.height = h; m.font = `500 ${px}px ${FONT}`; m.textBaseline = 'top'; m.fillStyle = '#fff'; m.fillText(s, 1, 1);
+    const k = TK(), px = Math.round(FS * HS / k) + 1, sh = 1, m = document.createElement('canvas').getContext('2d', { willReadFrequently: true }); m.font = `400 ${px}px ${FONT}`; const w = Math.ceil(m.measureText(s).width) + sh + 2, h = Math.ceil(px * 1.35) + sh + 2;
+    m.canvas.width = w; m.canvas.height = h; m.font = `400 ${px}px ${FONT}`; m.textBaseline = 'top'; m.fillStyle = '#fff'; m.fillText(s, 1, 1);
     const im = m.getImageData(0, 0, w, h), d = im.data, out = new ImageData(w, h), o = out.data, hex = q => [parseInt(q.slice(1, 3), 16), parseInt(q.slice(3, 5), 16), parseInt(q.slice(5, 7), 16)], C = hex(c), D = hex('#14161e');
-    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = (y * w + x) * 4; if (d[i + 3] >= 120) { o[i] = C[0]; o[i + 1] = C[1]; o[i + 2] = C[2]; o[i + 3] = 255; } else if (x >= sh && y >= sh && d[((y - sh) * w + x - sh) * 4 + 3] >= 120) { o[i] = D[0]; o[i + 1] = D[1]; o[i + 2] = D[2]; o[i + 3] = 255; } }
+    for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = (y * w + x) * 4; if (d[i + 3] >= 140) { o[i] = C[0]; o[i + 1] = C[1]; o[i + 2] = C[2]; o[i + 3] = 255; } else if (x >= sh && y >= sh && d[((y - sh) * w + x - sh) * 4 + 3] >= 140) { o[i] = D[0]; o[i + 1] = D[1]; o[i + 2] = D[2]; o[i + 3] = 255; } }
     m.putImageData(out, 0, 0); g = m.canvas; glyphs.set(key, g); return g; }
   // 文字の 1 ドットは 窓の k ドット（窓が粗い絵の 3 倍なら 2）。きれいすぎず、ドットの感じが残る細かさ。文字の大きさは 1 ドットぶん大きめ
   const TK = () => Math.max(1, Math.round(HS / 1.5)), FE = () => (Math.round(FS * HS / TK()) + 1) * TK() / HS;   // FE＝粗い絵の単位での 文字の大きさ（折り返しの計算に使う）
@@ -98,7 +98,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
 
   const v = new THREE.Vector3(), camP = new THREE.Vector3(), look = new THREE.Vector3();
   function drawHud(t) { const L = crt.low, W = L.w, Hh = L.h; HS = L.scale % 2 === 0 && L.scale >= 4 ? L.scale / 2 : L.scale;   // 窓と文字は、景色より細かく描く（画面の 1〜2 ドットが 窓の 1 ドット）
-    if (hud.width !== W * HS || hud.height !== Hh * HS) { hud.width = W * HS; hud.height = Hh * HS; } hx.setTransform(HS, 0, 0, HS, 0, 0); hx.imageSmoothingEnabled = false; hx.clearRect(0, 0, W, Hh); const fs0 = W < 260 ? 9 : 10; FS = fs0; const fs = FE(), font = `500 ${fs}px ${FONT}`; hx.font = font; hx.textBaseline = 'top';
+    if (hud.width !== W * HS || hud.height !== Hh * HS) { hud.width = W * HS; hud.height = Hh * HS; } hx.setTransform(HS, 0, 0, HS, 0, 0); hx.imageSmoothingEnabled = false; hx.clearRect(0, 0, W, Hh); const fs0 = W < 260 ? 9 : 10; FS = fs0; const fs = FE(), font = `400 ${fs}px ${FONT}`; hx.font = font; hx.textBaseline = 'top';
     text(opts.title || '', 6, 5, '#ffe6a8');
     if (st.talking) { const n = st.talking; v.set(n.o.position.x, n.o.position.y + n.head + .15, n.o.position.z).project(cam); const sx = (v.x * .5 + .5) * W, sy = (-v.y * .5 + .5) * Hh;
       const ww = Math.min(W - 16, fs * 22), lines = wrap(st.full.slice(0, Math.floor(st.shown)), ww - 14, font), all = wrap(st.full, ww - 14, font), nh = n.name ? fs + 4 : 0, h = 10 + nh + all.length * (fs + 3);
