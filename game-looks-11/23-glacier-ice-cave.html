@@ -62,7 +62,7 @@ for (const L of SKY) for (const o of [0, LEN]) { const b = W.beam({ h: HC(L.s) +
   const g = W.halo('#ffffff', 4, .55); g.position.set(L.x, HC(L.s) - .3, -(L.s + o)); scene.add(g); }
 const stream = W.flow([...Array(Math.ceil((LEN + 40) / 2))].map((_, i) => { const s = i * 2 - 15; return [cx(s) + 1.6 + Math.sin(s * .3) * .25, .02, -s]; }), .9, { kind: 'water', c: '#4a9ae0', speed: 1.1 }); scene.add(stream); ticks.push(stream.userData.tick);
 
-// ---- 主役・きつね・光の粒 ----
+// ---- 主役・白い小さな獣・光の粒 ----
 R.cfg.actorBuild = 'toon';
 const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2a2a', eye: '#3a6a9a', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#e8962a', top2: '#f4ecdc', lower: 'baggy', bottom: '#3a4a6a', gloves: 'glove', glove: '#5a3a2a', shoes: 'boot', shoe: '#6a3a2a', hat: 'band', acc: '#f4ecdc', back: 'pack', strap: true, belt: '#4a3a2a', hold: 'staff' }); scene.add(hero);
 const beast = W.critter({ c: '#f0f4fa', belly: '#ffffff', s: 1.25 }); scene.add(beast);

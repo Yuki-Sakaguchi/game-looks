@@ -24,7 +24,7 @@ scene.fog = new THREE.Fog('#c8a0b8', 120, 500);
 const { sun } = K.lights(scene, renderer, { sky: 0xd8b8e8, ground: 0xe8c0b0, amb: 1.55, sun: 0xffb080, power: 2.2, range: 22 }), SUN = new THREE.Vector3(-.12, .2, -.97).normalize();
 
 // ---- 空：上下に折り返した丸天井（地平線から上と下が同じ色の並び） ----
-const SKY = [[0, '#3a3270'], [.3, '#6a5498'], [.58, '#b07ab0'], [.78, '#e898a0'], [.92, '#f8b878'], [1, '#ffd8a0']];
+const SKY = [[0, '#3a3270'], [.3, '#5e4c94'], [.52, '#9a6eb0'], [.72, '#d888ac'], [.88, '#f8a878'], [1, '#ffd49a']];
 { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128); for (const [p, col] of SKY) g.addColorStop(p, col); x.fillStyle = g; x.fillRect(0, 0, 4, 128);
   const g2 = x.createLinearGradient(0, 256, 0, 128); for (const [p, col] of SKY) g2.addColorStop(p, col); x.fillStyle = g2; x.fillRect(0, 128, 4, 128);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const m = new THREE.Mesh(new THREE.SphereGeometry(440, 16, 16), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })); m.renderOrder = -10; m.frustumCulled = false; scene.add(m); window.__sky = m; }
@@ -57,9 +57,9 @@ const mirror = world.clone(), mirrorN = near.clone(); mirror.scale.y = mirrorN.s
 const tint = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200, 30, 30), new THREE.MeshBasicMaterial({ color: '#8a6a9a', transparent: true, opacity: .22, depthWrite: false })); tint.rotation.x = -PI / 2; tint.position.y = .004; scene.add(tint);
 const crust = (() => { const P = R.Px(64), N = 5, cs = 64 / N, pt = (i, j) => { const wi = ((i % N) + N) % N, wj = ((j % N) + N) % N; return [(i + .5 + (hash(wi, wj, 3) - .5) * .7) * cs, (j + .5 + (hash(wi, wj, 9) - .5) * .7) * cs]; }, W = R.ramp('#f4f0ec', 6, { contrast: .6 });
   P.each((x, y) => { const gx = Math.floor(x / cs), gy = Math.floor(y / cs); let d1 = 1e9, d2 = 1e9, id = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const [px, py] = pt(gx + i, gy + j), d = Math.hypot(x + .5 - px, y + .5 - py); if (d < d1) { d2 = d1; d1 = d; id = (gx + i) * 7 + (gy + j) * 13; } else if (d < d2) d2 = d; }
-    const e = d2 - d1; if (e < .9) return W[4]; if (e < 1.8) return (x + y) & 1 ? W[3] : W[2]; if (hash(id, 1) > .9 && d1 < 3.5) return W[d1 < 2 ? 5 : 3]; return null; });
-  return T.from(P, { m: 4, cut: true }); })();
-{ const G = R.geo().normal([0, 1, 0]), S = 8, n = 40; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const x0 = (i - n / 2) * S, z0 = (j - n / 2) * S - 60, x1 = x0 + S, z1 = z0 + S; if (Math.hypot(x0 + S / 2, z0 + S / 2 + 20) > 150) continue; G.quad([x0, .01, z1], [x1, .01, z1], [x1, .01, z0], [x0, .01, z0], [x0 / 4, -z1 / 4, x1 / 4, -z0 / 4]); }
+    const e = d2 - d1; if (e < .8) return W[4]; if (e < 1.3 && (x + y) & 1) return W[2]; if (hash(id, 1) > .92 && d1 < 3) return W[d1 < 2 ? 5 : 3]; return null; });
+  return T.from(P, { m: 7, cut: true }); })();
+{ const G = R.geo().normal([0, 1, 0]), S = 8, n = 40; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const x0 = (i - n / 2) * S, z0 = (j - n / 2) * S - 60, x1 = x0 + S, z1 = z0 + S; if (Math.hypot(x0 + S / 2, z0 + S / 2 + 20) > 150) continue; G.quad([x0, .01, z1], [x1, .01, z1], [x1, .01, z0], [x0, .01, z0], [x0 / 7, -z1 / 7, x1 / 7, -z0 / 7]); }
   const m = G.mesh(crust); m.castShadow = false; scene.add(m); }
 
 // ---- 波紋：足もとに広がる、ドットの輪（半透明で消えていく） ----
@@ -72,13 +72,13 @@ const SP = 1.05, last = [0, 0, 0];
 K.loop((dt, t) => {
   const z = 10 - t * SP, x = Math.sin(t * .06) * 2;
   // 主役（まん中）と仲間 2 人。ゆっくり夕日へ。仲間はときどき横を向いて話す
-  const slots = [[0, 0, 0], [-1.5, 1.1, 1.7], [1.7, 1.6, 3.1]];
+  const slots = [[0, 0, 0], [-1.5, -1.3, 1.7], [-3.1, -.4, 3.1]];
   people.forEach(([p, q], i) => { const [ox, oz, ph] = slots[i], px = x + ox + Math.sin(t * .3 + ph) * .15, pz = z + oz; p.position.set(px, 0, pz); p.rotation.y = PI + Math.sin(t * .2 + ph) * .06; R.walk(p, t * SP * 3.7 + ph, .7);
     if (i === 1) p.userData.J.head.rotation.y = Math.sin(t * .5) * .5 - .2; if (i === 2) p.userData.J.head.rotation.y = .4 + Math.sin(t * .45) * .2;
     sync(p, q); const st = Math.floor((t * SP * 3.7 + ph) / PI); if (st !== last[i]) { last[i] = st; ripple(px + (st % 2 ? .1 : -.1), pz, .9 + i * .1); } });
-  RINGS.forEach(m => { const u = m.userData; u.age += dt; const k = u.age / 2.4; if (k > 1) { m.material.opacity = 0; return; } const s = (.3 + k * 2.4) * (u.s || 1); m.scale.set(s, s, 1); m.material.opacity = (1 - k) * .85; });
+  RINGS.forEach(m => { const u = m.userData; u.age += dt; const k = u.age / 2.4; if (k > 1) { m.material.opacity = 0; return; } const s = (.3 + k * 1.9) * (u.s || 1); m.scale.set(s, s, 1); m.material.opacity = (1 - k) * .6; });
   // カメラ：低く、ななめうしろ。足もとの写しと夕日が両方入るように
-  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4;
+  const tall = innerWidth < innerHeight, D = tall ? 4.2 : 4.6;
   cam.position.set(x + (tall ? 1.4 : 2.4), tall ? 1.55 : 1.35, z + D); cam.lookAt(x - .3, tall ? .55 : .7, z - 6);
   sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
   birds.forEach(([b, m], i) => { const bx = 40 - ((t * 3.2 + i * 2.2) % 90), by = 14 + i * .7 + Math.sin(t + i) * .3, bz = z - 30 - i * 1.6; b.position.set(x + bx, by, bz); b.rotation.y = -PI / 2; R.birdPose(b, 'fly', t * .9 + i); m.position.set(x + bx, -by, bz); m.rotation.copy(b.rotation); R.birdPose(m, 'fly', t * .9 + i); });

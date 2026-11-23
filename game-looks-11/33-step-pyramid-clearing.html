@@ -58,7 +58,7 @@ for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 30 + hash(i, 19) * 24, c: '
 // ---- 生きもの：オウムのなかま（つがいで広場をまわる・石柱の上）、ピラミッドの段にすわる さる ----
 const PC = [['#e0302a', '#f0c030', '#2a6ad8'], ['#2a7ad8', '#f0d040', '#e8c030'], ['#2aa860', '#e8402a', '#2a5ad0']];
 const fliers = [...Array(6)].map((_, i) => { const c = PC[i % 3], p = J.parrot({ c: c[0], c2: c[1], c3: c[2], s: 3 }); p.userData.ph = Math.floor(i / 2) * 2.1 + (i % 2) * .25; scene.add(p); return p; });
-const sitters = [[-(AW + 1.8), 12, 1.1 * 2.6 + .12], [AW + 1.8, -5, 1.1 * 2.6 + .12]].map(([x, z, y], i) => { const c = PC[(i + 1) % 3], p = J.parrot({ c: c[0], c2: c[1], c3: c[2], s: 2 }); p.position.set(x, H(x, z) + y, z); p.rotation.y = i ? -2 : 2; scene.add(p); return p; });
+const sitters = [[-(AW + 1.8), -5, 1.1 * 2.6 + .12], [AW + 1.8, -5, 1.1 * 2.6 + .12]].map(([x, z, y], i) => { const c = PC[(i + 1) % 3], p = J.parrot({ c: c[0], c2: c[1], c3: c[2], s: 2 }); p.position.set(x, H(x, z) + y, z); p.rotation.y = i ? -2 : 2; scene.add(p); return p; });
 const monkeys = [[-7, 1, 1], [9, 2, -1], [-4, 3, 1]].map(([x, i, s], k) => { const m = J.monkey({ c: ['#6a4a30', '#8a6a44', '#5a4a3a'][k], s: 1.6 }); m.position.set(x, (i + 1) * TH - .1, PZ + wi(i + 1) / 2 + .5); m.rotation.y = s * .3; scene.add(m); return m; });
 
 // ---- 主役 ----
