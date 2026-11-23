@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-35 雲霧林の霧 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#d8e2da;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f8f0;opacity:.95;text-shadow:0 1px 0 #2a3a30}
+</style>
+<div id="cap">11-35 ─ 雲霧林の霧 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-jungle1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 霧の朝の山の森（雲霧林）。こけにおおわれた木の えだに、着生植物（赤い葉さきのかぶ）と、たれ下がる灰緑の こけ。木生しだ が葉を広げ、古い石だたみの道が霧の中へのぼっていく。道の曲がりかどに、目を閉じてすわる石像が霧からあらわれる。
+// 色の組は「こけの緑・霧の白・石の灰緑」＋差し色の 主役の黄色い外とう（と着生植物の赤）。木・植物・石像・ハチドリ・長い尾の鳥は pack-jungle1.js（J.〜）、光のすじは pack-ruins.js、地をはう霧は pack-dark.js（明るい白で使う）。
+// 主役はつえを持った巡礼の若者（R.actor の toon）。石の道をのぼって石像の前へ。カメラは うしろの低い所から追う。ハチドリ・鳥・霧・光のすじが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), J = PACK_JUNGLE1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 400, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#b8d0d8'], [.6, '#d8e6e4'], [1, '#eef4ec']], { r: 300 })); scene.fog = new THREE.Fog('#e2ebe4', 7, 52);
+const { sun } = K.lights(scene, renderer, { sky: 0xf0f8f4, ground: 0x8aa088, amb: 1.9, sun: 0xfff6e0, power: 1.3, range: 26 }), SUN = new THREE.Vector3(.3, .7, -.65).normalize();
+
+// ---- 地形：道は くねりながら奥（−z）へのぼる。まわりは でこぼこの斜面 ----
+const path = new THREE.CatmullRomCurve3([[0, 18], [1.5, 10], [-1.5, 3], [-3.5, -4], [-1, -10], [3, -15], [4, -21], [1, -27], [-2.5, -32], [-2, -38]].map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
+const SP = path.getSpacedPoints(120), near = (x, z) => { let d = 1e9, k = 0; SP.forEach((p, i) => { const q = (p.x - x) ** 2 + (p.z - z) ** 2; if (q < d) { d = q; k = i; } }); return [Math.sqrt(d), k]; };
+const rise = z => Math.max(0, 18 - z) * .16, H = (x, z) => { const [d] = near(x, z); return rise(z) + Math.min(d, 6) * .18 + (Math.sin(x * .4) * Math.cos(z * .3) + Math.sin(x * .13 + z * .2)) * .35 * Math.min(1, d / 3); };
+const land = R.ground({ w: 80, d: 90, cell: 1.5, cz: -10, H, layers: [T.grass({ c: '#5a8a4a', flowers: .05, fc: ['#ffffff'] }), J.tex.stone({ c: '#9a9c8a', moss: .55, seed: 3 }), T.grass({ c: '#4a7a46' })],
+  mix: (x, z) => { const [d] = near(x, z); return [d < 1.1 ? 1 : 0, d > 4 ? .7 : 0]; } }); scene.add(land.mesh);
+// 道のふちの石と、のぼりの段（ところどころ横に石をならべる）
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const G = R.geo(), ST = T.cobble({ kind: 'slab', c: '#a8aa98', moss: .7 }); for (let i = 4; i < SP.length - 2; i += 6) { const a = SP[i], b = SP[i + 1], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz), ry = Math.atan2(dx, dz); G.at(R.TR(a.x, H(a.x, a.z) - .12, a.z, ry)).box(2.4, .2, .38, 0, 0, 0, { m: 1.5 }); } fixed.push(G.at(null).mesh(ST)); }
+for (let i = 0; i < SP.length; i += 3) for (const s of [-1, 1]) { const a = SP[i], b = SP[Math.min(SP.length - 1, i + 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, x = a.x - dz / l * s * 1.35, z = a.z + dx / l * s * 1.35; if (hash(i, s) < .35) continue; put(R.rock({ s: .25 + hash(i, s + 4) * .25, c: '#9a9c8a', moss: .8, seed: i }), x, z, i, H(x, z) - .1); }
+
+// ---- 雲霧林：こけむした木（えだに着生植物と、たれる こけ）、木生しだ、しだ ----
+const trees = []; for (let i = 0; i < 44; i++) { const x = (hash(i, 1) - .5) * 50, z = 20 - hash(i, 2) * 70, [d] = near(x, z); if (d < 3.6) continue;
+  const tr = put(J.bigTree({ h: 11 + hash(i, 3) * 6, r: .38 + hash(i, 4) * .14, crown: 4.5, c: ['#5a8a4a', '#4a7a44', '#6a9a50'][i % 3], barkC: '#7a8a68', moss: true, seed: i, vines: 6, vineC: '#a8b48a', vineLen: 4 }), x, z, 0); trees.push(tr);
+  for (const p of tr.userData.perch) { put(J.plant({ kind: 'strap', n: 9, len: .55, c: '#5a9a4a', tip: hash(i, p[3]) < .5 ? '#e0403a' : '#f0a030', seed: i }), x + p[0], z + p[2], 0, tr.position.y + p[1]); } }
+for (let i = 0; i < 26; i++) { const x = (hash(i, 5) - .5) * 30, z = 18 - hash(i, 6) * 60, [d] = near(x, z); if (d < 2.8) continue; put(J.palm({ h: 2.6 + hash(i, 7) * 2.4, n: 10, len: 2.2, c: '#5a9a48', lean: .25, seed: i + 7, bark: '#6a5a44' }), x, z, 0); }
+for (let i = 0; i < 90; i++) { const x = (hash(i, 8) - .5) * 34, z = 20 - hash(i, 9) * 62, [d] = near(x, z); if (d < 1.5) continue; const k = i % 4 === 0 ? 'monstera' : i % 5 === 0 ? 'strap' : 'fern'; put(J.plant({ kind: k, seed: i, c: k === 'fern' ? '#5a9a46' : '#3f7a3e', tip: k === 'strap' ? '#e0403a' : undefined, n: k === 'strap' ? 10 : undefined, len: k === 'strap' ? .7 : undefined }), x, z, hash(i, 10) * 6); }
+// 石像（道の曲がりかど。目を閉じてすわる）と、その先の石柱
+const SI = 78, sp = SP[SI], sq = SP[SI + 1], sdx = sq.x - sp.x, sdz = sq.z - sp.z, sl = Math.hypot(sdx, sdz), STX = sp.x + sdz / sl * 2.6, STZ = sp.z - sdx / sl * 2.6;
+const statue = put(J.idol({ kind: 'seated', s: 1.25, moss: .65, seed: 5 }), STX, STZ, Math.atan2(sp.x - STX, sp.z - STZ) + .5, H(STX, STZ) - .15);
+put(J.idol({ kind: 'stele', s: .9, moss: .7, seed: 8 }), SP[104].x - 2.2, SP[104].z, .4); put(J.idol({ kind: 'stele', s: .8, moss: .7, seed: 9 }), SP[106].x + 2.3, SP[106].z, -.4);
+scene.add(R.merge(fixed));
+scene.add(D.groundFog({ n: 60, box: [44, 60], H, c: '#ffffff', a: .3, h: 1.8, w: 9, wind: [.35, -.2] }));
+const shafts = [[5, -6, 2.6], [-6, -14, 2.2], [6, -24, 3]].map(([x, z, w], i) => { const s = PK.shaft({ w, h: 14, dx: -2, dz: 5, a: .2, c: '#fffbe8', seed: i }); s.position.set(x, H(x, z) - .5, z); scene.add(s); return s; });
+
+// ---- 生きもの：ハチドリ（着生植物の赤い花の前）、長い尾の緑の鳥、小鳥 ----
+const hums = [0, 1, 2].map(i => { const tr = trees[i * 3 + 1], p = tr.userData.perch[0], h = J.hummer({ c: ['#2ab87a', '#3aa0d8', '#2ab87a'][i], s: 1.8 }); h.userData.at = [tr.position.x + p[0] + .4, tr.position.y + p[1] + .3, tr.position.z + p[2] + .4]; scene.add(h); return h; });
+const hum0 = J.hummer({ c: '#3ac08a', s: 2.2 }); scene.add(hum0);
+const quetzal = J.parrot({ c: '#2aa860', c2: '#e83a3a', c3: '#1a8a5a', face: '#2aa860', s: 2.4 }); scene.add(quetzal);
+const perched = J.parrot({ c: '#2aa860', c2: '#e83a3a', c3: '#1a8a5a', face: '#2aa860', s: 2.2 }); { const tr = trees[5], p = tr.userData.perch[1]; perched.position.set(tr.position.x + p[0], tr.position.y + p[1] + .1, tr.position.z + p[2]); scene.add(perched); }
+
+// ---- 主役：黄色い外とうの巡礼 ----
+const hero = R.actor({ build: 'toon', hairStyle: 'short', bangs: 'jag', hair: '#3a2a28', eyes: 'big', brow: 'soft', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#e8b830', top2: '#f4ecd8', lower: 'pants', bottom: '#5a6a5a', belt: '#6a4a30', gloves: 'wrap', glove: '#f4ecd8', shoes: 'boot', shoe: '#6a4a30', neck: 'scarf', acc: '#c84a3a', back: 'pack' }); scene.add(hero); FT.wear(hero, 'staff', { len: 1.5, c: '#7a5a3a' });
+const LEN = path.getLength(), SPEED = 1.15, S0 = .02, ZSTOP = (SI - 2) / 120, cd = new THREE.Vector3(), cp = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const T0 = +new URLSearchParams(location.search).get('t') || 0; let first = true, hy = 0;
+K.loop((dt, t) => { t += T0;
+  const run = (S0 + t * SPEED / LEN), CY = ZSTOP + .12, uc = run % CY, stop = uc > ZSTOP && uc < ZSTOP + .06, u = uc < ZSTOP ? uc : uc < ZSTOP + .06 ? ZSTOP : ZSTOP + (uc - ZSTOP - .06) * 1, p = path.getPointAt(Math.min(.999, u)), tg = path.getTangentAt(Math.min(.999, u)), ty = H(p.x, p.z);
+  if (first) hy = ty; hy += (ty - hy) * (1 - Math.exp(-dt * 10)); p.y = hy; hero.position.copy(p);
+  if (stop) { hero.rotation.y = Math.atan2(STX - p.x, STZ - p.z); R.idle(hero, t, 0); const Jh = hero.userData.J; Jh.torso.rotation.x = .35; Jh.head.rotation.x = .3; Jh.armL.rotation.set(-1.2, 0, -.4); Jh.foreL.rotation.x = -1.2; }   // 石像の前で おじぎ
+  else { hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, t * SPEED * 3.7); }
+  if (first) { cd.copy(tg); first = false; } if (!stop) cd.lerp(tg, 1 - Math.exp(-dt * 1.3)).normalize();
+  const tall = innerWidth < innerHeight, Dd = tall ? 4 : 4.6; cp.set(p.x - cd.x * Dd, 0, p.z - cd.z * Dd); cp.y = Math.max(H(cp.x, cp.z) + 1.2, p.y + (tall ? 1.9 : 1.8)); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, p.y + (tall ? 1.4 : 1.5), p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 50, p.y + SUN.y * 50, p.z + SUN.z * 50); sun.target.position.copy(p);
+  hums.forEach((h, i) => { const [x, y, z] = h.userData.at; h.position.set(x + Math.sin(t * 2.3 + i) * .25, y + Math.sin(t * 3.1 + i) * .12, z + Math.cos(t * 1.7 + i) * .2); h.rotation.y = Math.sin(t * .8 + i) * 1.2; J.hummerPose(h, t); });
+  { const a = t * .6; hum0.position.set(p.x + cd.x * 2.6 + Math.cos(a) * 1.4, p.y + 1.5 + Math.sin(t * 2.2) * .3, p.z + cd.z * 2.6 + Math.sin(a) * 1.4); hum0.rotation.y = -a; J.hummerPose(hum0, t); }
+  { const a = (t * .06) % 1; quetzal.position.set(-18 + a * 36, p.y + 5 + Math.sin(a * 12) * .6, p.z - 9 + Math.sin(a * 5) * 2); quetzal.rotation.y = PI / 2; J.parrotPose(quetzal, 'fly', t); } J.parrotPose(perched, 'perch', t);
+  for (const s of shafts) s.userData.tick(t); D.tick(t, cam);
+  crt.render(scene, cam, t);
+});
+</script>
+</html>
