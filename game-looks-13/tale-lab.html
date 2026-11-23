@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>13 キャラクターの調整室（昔のファンタジー RPG ふうの人）</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden;font:12px/1.4 "Hiragino Sans","Yu Gothic",system-ui,sans-serif;color:#f0ead8;-webkit-user-select:none;user-select:none}
+canvas{display:block;touch-action:none}
+#ui{position:fixed;left:0;right:0;top:0;padding:6px 8px;background:linear-gradient(#0c0c10e6,#0c0c1000);display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;pointer-events:auto;overflow-x:auto;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.row b{flex:none;font-weight:700;color:#ffd27a;margin-right:2px;min-width:3.2em}
+button{flex:none;font:inherit;color:#f0ead8;background:#2a2c36;border:1px solid #4a4e5e;border-radius:4px;padding:3px 8px;cursor:pointer}
+button.on{background:#e8b44a;border-color:#e8b44a;color:#1e2026;font-weight:700}
+#info{position:fixed;left:8px;bottom:28px;max-width:min(60em,96vw);pointer-events:none;text-shadow:0 1px 3px #000,0 0 6px #000}
+#info .n{font-weight:700;font-size:14px}
+#cap{position:fixed;left:8px;bottom:8px;font:11px/1.4 ui-monospace,Menlo,monospace;color:#d8d0c0;opacity:.8;pointer-events:none}
+.tag{position:fixed;transform:translate(-50%,0);font-weight:700;color:#fff6dc;text-align:center;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
+.tag small{display:block;font-weight:400;font-size:10px;color:#ffd9a0}
+.tag.side{transform:translate(0,-50%);text-align:left}
+.tag.grp{transform:translate(-50%,-50%);color:#ffd27a;font-size:13px}
+#atlas{position:fixed;right:8px;bottom:8px;width:min(256px,40vw);image-rendering:pixelated;border:1px solid #fff;display:none}
+</style>
+<div id="ui">
+  <div class="row" id="rView"><b>見かた</b></div>
+  <div class="row" id="rBody"><b>頭身・顔</b></div>
+  <div class="row" id="rHair"><b>かみ型</b></div>
+  <div class="row" id="rMo"><b>動き</b></div>
+  <div class="row" id="rOpt"><b>表示</b></div>
+</div>
+<div id="info"></div>
+<div id="cap">13 ─ キャラクターの調整室 / 昔のファンタジー RPG ふうの人（少ない面・手で打ったテクスチャ・ブラウン管）　｜　ドラッグで回す、ホイールで寄る</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 第 13 集の人（pack-tale.js）を、等身・顔・向き・動きを切りかえて見くらべる確認用のページ（一覧には入れない）。
+// 段階 1：主人公 1 人を 3.5・4・4.5 頭身で作り、前・ななめ・横・うしろでならべる。顔は「いまの anime の顔」と「目を小さめにした顔」。
+// かみ型は pack-tale.js の HAIRS（流し前がみ・長めのセンター分け・ウルフ）。頭のアップは かみ型をならべる。
+// 引数でも決められる（撮影用）: ?hair=swept|center|wolf ?view=sheet|row|face|game ?heads=3.5|4|4.5 ?face=anime|small ?motion=walk など ?raw=1（ブラウン管なし） ?tex=1 ?rot=角度 ?stop=1
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, MO = RETRO_MOTIONS(THREE, R), TL = PACK_TALE(THREE, K, R), q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
+
+const OUTFITS = [   // 町の人の服と帽子の見本（pack-tale.js の outfit・hat）
+  [{ outfit: 'traveler', hair: 'swept' }, '旅人'], [{ outfit: 'guard', hat: 'helm', hold: 'spear', size: 'tall', hair: 'center' }, '衛兵'], [{ outfit: 'robe', hat: 'wizard', hold: 'staff', hair: 'center', head: { hair: '#d8d8e0' } }, 'ローブ＋とんがり帽子'],
+  [{ outfit: 'robe', hat: 'hood', colors: { tunic: '#5a6a4a', hat: '#4a5a3e', trim: '#c8b080' }, hair: 'wolf' }, 'ローブ＋フード'], [{ outfit: 'apron', hat: 'kerchief', hair: 'center', head: { hair: '#8a4a2a' } }, 'エプロン'], [{ outfit: 'worker', hat: 'cap', hair: 'wolf', size: 'tall' }, '作業着'],
+  [{ outfit: 'traveler', hat: 'straw', size: 'small', hair: 'center', colors: { tunic: '#6a9a5a', vest: '#8a6a3a' } }, 'むぎわら帽子'], [{ outfit: 'apron', hat: 'beret', colors: { tunic: '#3f72b0' }, hair: 'swept', head: { hair: '#2a2a34' } }, 'ベレー帽'],
+  [{ outfit: 'worker', size: 'child', hair: 'wolf', colors: { pants: '#a85a3a' } }, '子ども（作業着）'], [{ outfit: 'robe', size: 'small', hair: 'center', head: { hair: '#e8e8e8', beard: 'beard', eyes: 'closed' }, colors: { tunic: '#6a5a9a' } }, 'おじいさん'],
+  [{ outfit: 'guard', size: 'normal', hat: 'cap', colors: { metal: '#b8a070', tunic: '#7a3a3a' }, hair: 'swept' }, '金色のよろい'], [{ outfit: 'robe', hat: 'straw', colors: { tunic: '#c8a860', trim: '#8a5a3a' }, hair: 'center', head: { hair: '#4a2a1a' } }, '旅の巡礼'],
+];
+const HEADS = [3.5, 4, 4.5, 5], SHEET = [4, 4.5, 5], DIRS = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]];
+const VIEWS = [['sheet', '3 つの頭身 × 4 つの向き'], ['row', '1 つの頭身 × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ'], ['outfit', '服と帽子']];
+const MOS = ['stand', 'look', 'walk', 'run', 'dash', 'jump', 'wave'];   // dash は TL.dash（ゲーム 06 の走り）
+const HAIRSET = [['swept', '流し前がみ'], ['center', '長めのセンター分け'], ['wolf', 'ウルフ']];
+const st = { hair: HAIRSET.some(h => h[0] === q.get('hair')) ? q.get('hair') : 'swept', view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'sheet', heads: HEADS.includes(+q.get('heads')) ? +q.get('heads') : 4.5, face: q.get('face') === 'small' ? 'small' : 'anime',
+  motion: MOS.includes(q.get('motion')) ? q.get('motion') : 'stand', raw: !!q.get('raw'), tex: !!q.get('tex'), yaw: (+q.get('rot') || 0) * Math.PI / 180, speed: q.get('stop') ? 0 : 1, zoom: +q.get('zoom') || 1 };
+
+// ---- 舞台：青空と、うすい雲の地平線。人は石の台にのせる（見本の一覧表のように）
+const { scene, cam, renderer, onResize } = K.stage({ fov: 16, far: 400, aa: false, fitAspect: .2, maxFov: 16 });
+const skyG = R.skyDome([[0, '#3c5c96'], [.55, '#86a8cc'], [1, '#e8dcc0']], { r: 220 }), skyS = R.skyDome([[0, '#20242e'], [.5, '#3a4050'], [1, '#5a5a66']], { r: 220 }); scene.add(skyG, skyS);   // 場面＝青空、一覧＝うす暗い灰色の幕
+scene.fog = new THREE.Fog('#d8d2c0', 160, 260);
+const { sun } = K.lights(scene, renderer, { sun: 0xfff0d8, power: 2.2, amb: 1.55, pos: [-6, 12, 14], range: 9 });
+const field = R.ground({ w: 60, d: 40, cell: 2, layers: [T.grass({ c: '#6a8a48' }), T.dirt()], mix: (x, z) => [z < -1.5 && z > -5 ? 1 : 0, 0] }); scene.add(field.mesh);
+const crtOn = R.crt(renderer, { noise: 0, width: 360 }), crtRaw = R.crt(renderer, { blur: 0, bleed: 0, scan: 0, bloom: 0, curve: 0, vignette: 0, mask: 0, noise: 0, width: 720, levels: 255, dither: 0 }); onResize((w, h) => { crtOn.resize(w, h); crtRaw.resize(w, h); });
+const plinthT = T.stone({ c: '#9a948a' }), plinth = r => R.geo().smooth(1).loft(10, [[-.12, r * 1.04, r * 1.04, 0, .6], [-.02, r, r, .3, .85], [0, r * .97, r * .97, .4, 1]], { cap: 'top', ur: 3 }).mesh(plinthT);
+
+// ---- 人を置く。見かたごとに作りなおす
+let items = [], tags = [], box = { x0: 0, x1: 1, y0: 0, y1: 1 };
+function clear() { for (const it of items) scene.remove(it.g); for (const e of tags) e.remove(); items = []; tags = []; }
+function tag(html, cls) { const e = document.createElement('div'); e.className = 'tag' + (cls ? ' ' + cls : ''); e.innerHTML = html; document.body.appendChild(e); tags.push(e); return e; }
+function put(a, x, y, rotY, label, z = 0, bare = false) { const g = new THREE.Group(); g.position.set(x, y, z); g.add(a); if (bare) { } else if (st.view !== 'game') { const p = plinth(.3); g.add(p); } else { const sh = R.blob(.36); sh.position.y = .02; g.add(sh); }
+  scene.add(g); const it = { g, a, rotY, label, x, y }; items.push(it); if (label) it.el = tag(label); return it; }
+function build() {
+  clear(); field.mesh.visible = skyG.visible = st.view === 'game'; skyS.visible = !skyG.visible;
+  if (st.view === 'sheet') { const sp = .82, gap = 1.1, rowH = 2.2, gw = sp * 2 + gap;   // 上の段＝正面・ななめ前、下の段＝横・うしろ。1 つの向きに 3 つの体つきを同じ高さでならべる
+    [[DIRS[0], DIRS[1]], [DIRS[2], DIRS[3]]].forEach((pair, r) => pair.forEach(([l, a], gi) => { const y = (1 - r) * rowH, cx = (gi - .5) * gw;
+      SHEET.forEach((n, k) => { const it = put(TL.hero({ heads: n, face: st.face, hair: st.hair }), cx + (k - 1) * sp, y, a, ''); it.el = tag(`${n}`); it.small = 1; });
+      items.push({ side: tag(l, 'grp'), x: cx, y: y + 1.68 }); }));
+    box = { x0: -gw / 2 - sp * 1.6, x1: gw / 2 + sp * 1.6, y0: -.3, y1: rowH + 1.78 }; }
+  if (st.view === 'row') { const ref = TL.hero({ heads: st.heads, face: st.face, hair: st.hair }), H = ref.userData.height; DIRS.forEach(([l, a], k) => put(k ? TL.hero({ heads: st.heads, face: st.face, hair: st.hair }) : ref, (k - 1.5) * 1.05, 0, a, l)); box = { x0: -2.1, x1: 2.1, y0: -.15, y1: H + .25 }; }
+  if (st.view === 'face') { const A = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]]; let hh = .27;   // 頭だけを見せる（体はかくす）。段＝かみ型
+    const HS = q.get('hairs') ? HAIRSET.filter(h => q.get('hairs').split(',').includes(h[0])) : HAIRSET, nr = HS.length;   // ?hairs=swept,wolf で段をしぼる
+    HS.forEach(([hs, name], r) => A.forEach(([l, a], k) => { const h = TL.hero({ heads: st.heads, face: st.face, hair: hs }), u = h.userData, J = u.J; hh = u.headH;
+      h.traverse(o => { if (o.isMesh) o.visible = false; }); J.head.traverse(o => { if (o.isMesh) o.visible = true; });
+      const y = (nr - 1 - r) * hh * 1.75, hy = u.height - hh; put(h, (k - 1.5) * hh * 1.9, y - hy, a, r ? '' : l, 0, true).labelY = hy + hh * 1.22; if (!k) items.push({ side: tag(name, 'side'), x: -hh * 5.4, y: y + hh * .5 }); }));
+    box = { x0: -hh * 5.5, x1: hh * 3.7, y0: -.05 * hh, y1: hh * (1.35 + (nr - 1) * 1.75) }; }
+  if (st.view === 'outfit') { const L = OUTFITS; L.forEach(([o, label], k) => { const r = Math.floor(k / 6), c = k % 6; put(TL.person(o), (c - 2.5) * 1.0, (1 - r) * 1.75, st.yaw0 || 0, label); }); box = { x0: -3.2, x1: 3.2, y0: -.15, y1: 3.25 }; }
+  if (st.view === 'game') { SHEET.forEach((n, k) => put(TL.hero({ heads: n, face: st.face, hair: st.hair }), (k - 1) * 1.1, 0, 0, `${n} 頭身${n === 4.5 ? '<small>ふつうの人</small>' : n === 5 ? '<small>背の高い人</small>' : '<small>小がらな人</small>'}`, 0));
+    R.cfg.face = 'anime'; const ref = R.actor({ build: 'toon', ...TL.HERO.head, cloth: 'tunic', top: TL.HERO.colors.tunic, bottom: TL.HERO.colors.pants, neck: 'scarf', acc: TL.HERO.colors.scarf, gloves: 'glove', glove: TL.HERO.colors.glove, shoe: TL.HERO.colors.boot }); put(ref, 2.4, 0, 0, 'いまの R.actor<small>5 頭身の toon</small>', 0); }
+  const u = items.find(i => i.a)?.a.userData;
+  $('info').innerHTML = st.view === 'sheet' ? `<span class="n">ユウリ（主人公）</span>　数は頭身：4.5＝ふつう、5＝長身、4＝小がら` : st.view === 'game' ? '<span class="n">場面の中の大きさ</span>　左から 4・4.5・5 頭身、右はいまの R.actor（5 頭身の toon）' : `<span class="n">${st.heads} 頭身</span>　${u.height.toFixed(2)} m ・ 頭 ${u.headH.toFixed(2)} m ・ 三角形 ${u.tris}`;
+  const old = $('atlas'); if (old) old.remove(); if (st.tex) { const im = document.createElement('img'); im.id = 'atlas'; im.src = TL.paintBody(TL.HERO.colors).canvas().toDataURL(); im.style.display = 'block'; document.body.appendChild(im); }
+}
+
+// ---- ボタン
+function bar(el, list, get, set) { const bs = list.map(([id, name]) => { const b = document.createElement('button'); b.textContent = name; b.onclick = () => { set(id); refresh(); }; el.appendChild(b); return [id, b]; }); return () => bs.forEach(([id, b]) => b.classList.toggle('on', get(id))); }
+const upd = [
+  bar($('rView'), VIEWS, id => st.view === id, id => { st.view = id; build(); }),
+  bar($('rBody'), HEADS.map(n => [n, n + ' 頭身' + (n === 4.5 ? '（ふつう）' : n === 5 ? '（長身）' : '')]), id => st.heads === id, id => { st.heads = id; if (st.view === 'sheet') st.view = 'row'; build(); }),
+  bar($('rBody'), [['anime', '顔：いまの anime'], ['small', '顔：目を小さめ']], id => st.face === id, id => { st.face = id; build(); }),
+  bar($('rHair'), HAIRSET, id => st.hair === id, id => { st.hair = id; build(); }),
+  bar($('rMo'), [...MO.list.filter(m => MOS.includes(m.id)).map(m => [m.id, m.name]), ['dash', 'ダッシュ']], id => st.motion === id, id => { st.motion = id; }),
+  bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['stop', '止める']], id => id === 'crt' ? !st.raw : id === 'tex' ? st.tex : st.speed === 0, id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'stop') st.speed = st.speed ? 0 : 1; }),
+];
+const refresh = () => upd.forEach(f => f());
+{ const cv = renderer.domElement; let px = null; cv.addEventListener('pointerdown', e => { px = e.clientX; cv.setPointerCapture(e.pointerId); }); cv.addEventListener('pointermove', e => { if (px === null) return; st.yaw += (e.clientX - px) * .012; px = e.clientX; }); const up = () => { px = null; }; cv.addEventListener('wheel', e => { e.preventDefault(); st.zoom = Math.max(.6, Math.min(4, st.zoom * Math.exp(-e.deltaY * .0015))); }, { passive: false }); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); }
+
+build(); refresh();
+const v = new THREE.Vector3(); let mt = 0;
+K.loop((dt, t) => {
+  mt += dt * st.speed;
+  const top = ($('ui').offsetHeight + 18) / innerHeight, bot = 46 / innerHeight, free = Math.max(.35, 1 - top - bot), tanF = Math.tan(cam.fov * Math.PI / 360);
+  if (st.view === 'game') { const k = cam.aspect < 1 ? 1.5 : 1; cam.fov = 34; cam.updateProjectionMatrix(); cam.position.set(.6 + Math.sin(st.yaw) * 4.8 * k, 1.9 * k, Math.cos(st.yaw) * 4.8 * k); cam.lookAt(.6, .6, 0); }
+  else { if (cam.fov !== 16) { cam.fov = 16; cam.updateProjectionMatrix(); }
+    const bw = box.x1 - box.x0, bh = box.y1 - box.y0, fitH = Math.max(bh / free, bw / cam.aspect / .96) / st.zoom, dist = fitH / 2 / tanF, cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2 + fitH * (top - bot) / 2, pitch = .1;
+    cam.position.set(cx, cy + Math.sin(pitch) * dist, Math.cos(pitch) * dist); cam.lookAt(cx, cy, 0); }
+  for (const it of items) {
+    if (it.side) { v.set(it.x, it.y, 0).project(cam); it.side.style.left = (it.side.classList.contains('grp') ? (v.x * .5 + .5) * innerWidth : Math.max(4, (v.x * .5 + .5) * innerWidth)) + 'px'; it.side.style.top = (-v.y * .5 + .5) * innerHeight + 'px'; continue; }
+    if (st.motion === 'dash') TL.dash(it.a, mt * 14.4, 1); else MO.play(it.a, st.motion, mt); it.a.rotation.y = it.rotY + (st.view === 'game' ? 0 : st.yaw);
+    if (it.el) { v.set(it.x, it.small ? it.y - .17 : it.labelY ? it.y + it.labelY : it.y + it.a.userData.height + .12, 0).project(cam); it.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; it.el.style.top = Math.max($('ui').offsetHeight + 2, (-v.y * .5 + .5) * innerHeight - (it.small ? 0 : 16)) + 'px'; } }
+  (st.raw ? crtRaw : crtOn).render(scene, cam, t);
+});
+</script>
+</html>
