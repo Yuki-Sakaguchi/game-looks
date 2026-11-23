@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-34 マングローブの夕方 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1020;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f8e4d0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-34 ─ マングローブの夕方 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-jungle1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方の河口。根を張ったマングローブの島のあいだを、浅い水路が通り、くねった板の道（くいの上の木道）がつづく。だいだいの空が水に映り、日のしずむ方へ光の道がのびる。ほたるが出はじめ、白い さぎが魚をねらう。
+// 色の組は「夕やけの だいだいと桃色・マングローブの暗い緑・水の映りこみ」＋差し色の ほたるの黄緑。マングローブ・さぎは pack-jungle1.js（J.〜）、ほたるは pack-fantasy-wild.js の光の粒（F.motes）。
+// 主役はランタンをさげた少女（R.actor の toon）。板の道を歩き、カメラはななめ うしろの高い所から見下ろして追う。さぎ・ほたる・水・とぶ鳥の群れが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), F = PACK_FWILD(THREE, K, R), J = PACK_JUNGLE1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#2e2c6a'], [.45, '#8a5a8a'], [.75, '#e8806a'], [.92, '#f8b070'], [1, '#ffe0a0']], { r: 400 })); scene.fog = new THREE.Fog('#d88a70', 40, 190);
+const { sun } = K.lights(scene, renderer, { sky: 0xc8a0d0, ground: 0x6a4a48, amb: 1.15, sun: 0xffa060, power: 2, range: 34 }), SUN = new THREE.Vector3(-.35, .22, -.9).normalize();
+
+// ---- 板の道（くねった道。くいの上 .55 m）と、マングローブの島 ----
+const path = new THREE.CatmullRomCurve3([[2, 26], [1, 16], [-4, 9], [-5, 0], [1, -6], [3, -14], [-2, -21], [-4, -30], [1, -37], [3, -46], [0, -56]].map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
+const SP = path.getSpacedPoints(160), dPath = (x, z) => { let d = 1e9; for (const p of SP) d = Math.min(d, (p.x - x) ** 2 + (p.z - z) ** 2); return Math.sqrt(d); }, DY = .55;
+const MG = []; for (let i = 0; i < 70; i++) { const x = (hash(i, 1) - .5) * 70, z = 30 - hash(i, 2) * 100, d = dPath(x, z); if (d < 3.6 || (d > 22 && i % 2)) continue; MG.push([x, z, 2.2 + hash(i, 3) * 1.4, i]); }
+const dMG = (x, z) => { let m = 9; for (const [mx, mz, r] of MG) m = Math.min(m, Math.hypot(x - mx, z - mz) / r); return m; };
+const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => -.55 + sstep(1.1, .7, dMG(x, z)) * .7;
+const land = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, H, layers: [T.dirt({ c: '#5a4234', pebbles: .3 }), T.grass({ c: '#5a7a3a' })], mix: (x, z) => [dMG(x, z) < .75 ? 1 : 0, 0] }); scene.add(land.mesh);
+const WF = J.tex.river({ c: '#a894c4', hi: '#fff0c0', m: 3 });
+const water = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, layers: [WF[0]], shade: (x, z) => { const k = sstep(1.6, .9, dMG(x, z)), g = sstep(.35, .75, F.vn(x * .06, z * .045, 4)); return [.95 - k * .5 + g * .35, .95 - k * .5 + g * .02, 1.05 - k * .35 - g * .35]; } });
+water.mesh.position.y = -.04; scene.add(water.mesh);
+// 水に映る夕日の光の道（加算の横線。日の方角へ）
+const glint = (() => { const P = R.Px(32, 64); P.clip = true; for (let y = 0; y < 64; y++) { const w = 3 + y * .2; for (let k = 0; k < 2; k++) { const x0 = Math.round(16 - w / 2 + (hash(y, k) - .5) * 8), L = Math.round(w * (.4 + hash(y, k + 2) * .6)); if ((y + k * 3) % 4) continue; for (let i = 0; i < L; i++) P.set(x0 + i, y, i % 3 ? '#ffa850' : '#ffe0a0'); } } const t = T.from(P, { m: 1 });
+  const G = R.geo().normal([0, 1, 0]); G.quad([-3, 0, 0], [3, 0, 0], [9, 0, -70], [-9, 0, -70]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: t, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .75, fog: false })); m.renderOrder = 3; scene.add(m); return m; })();
+
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+for (const [x, z, r, i] of MG) put(J.mangrove({ h: 4.5 + hash(i, 4) * 3, r, c: ['#3a6a40', '#2f5a3a', '#44723e'][i % 3], seed: i }), x, z, hash(i, 5) * 6, -.05);
+{ const pts = SP.map(p => [p.x, DY, p.z]), deck = R.strip(pts, 1.5, T.planks({ c: '#9a7a58' }), { lift: 0 }); deck.castShadow = true; fixed.push(deck);
+  const B = R.parts(), Wd = B.g(T.bark({ c: '#5a4636' })).smooth(1), Rl = B.g(T.planks({ c: '#7a5a40' })).smooth(0);
+  for (let i = 0; i < SP.length; i += 4) { const a = SP[i], b = SP[Math.min(SP.length - 1, i + 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+    for (const s of [-1, 1]) { const x = a.x + nx * s * .78, z = a.z + nz * s * .78; Wd.loft(5, [[-1.2, .07, .07, 0, .6, x, z], [DY + (s > 0 ? .75 : .05), .06, .06, 1, 1, x, z]], { cap: 'top' }); } }
+  const rail = SP.map((p, i) => { const b = SP[Math.min(SP.length - 1, i + 1)], a = SP[Math.max(0, i - 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1; return [p.x - dz / l * .78, DY + .72, p.z + dx / l * .78, .035]; }); J.tube(Rl, rail, 4, { m: 2 });
+  fixed.push(B.group()); }
+for (let i = 0; i < 60; i++) { const x = (hash(i, 6) - .5) * 60, z = 26 - hash(i, 7) * 90; if (dMG(x, z) > 1.1 || dPath(x, z) < 2) continue; put(R.tuft({ kind: i % 2 ? 'reed' : 'grass', s: .8 + hash(i, 8) * .6, c: '#6a7a3a', seed: i % 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#4a3a5a', haze: '#e89a78', r: 200, h: 18, y: -2, rep: 4 }));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(18, 24), new THREE.MeshBasicMaterial({ color: '#fff0b0', fog: false, transparent: true, opacity: .95 })); sunD.position.set(SUN.x * 360, 26, SUN.z * 360); sunD.lookAt(0, 0, 0); scene.add(sunD);
+for (let i = 0; i < 8; i++) { const c = R.cloud({ s: 28 + hash(i, 9) * 26, c: '#f8a888', shade: '#7a4a7a', seed: i }), a = -.9 + i * .3; c.position.set(Math.sin(a) * 280, 34 + hash(i, 10) * 40, -Math.cos(a) * 280); c.lookAt(0, 20, 0); scene.add(c); }
+
+// ---- 生きもの：さぎ（浅い所で魚をねらう・歩く・とぶ）、ほたる、帰る鳥の群れ ----
+const herons = [[-6, 4, 1.2, 'fish'], [7, -9, -2, 'stand'], [-8, -26, .6, 'walk'], [6, -32, -1.6, 'fish'], [-1.5, 19, 2.6, 'stand']].map(([x, z, r, pose], i) => { const h = J.heron({ s: 1.3 }); h.position.set(x, -.5, z); h.rotation.y = r; h.userData.pose = pose; h.userData.home = [x, z, r]; scene.add(h); return h; });
+const flyer = J.heron({ s: 1.3 }); scene.add(flyer);
+const flock = [...Array(9)].map((_, i) => { const b = R.bird({ c: '#2a2030', belly: '#3a3040', neck: false, s: 1.4 }); scene.add(b); return b; });
+const flies = F.motes({ n: 90, box: [26, 3, 30], c: '#e8ff7a', size: .16, rise: .04, drift: .9, y: .2 }); scene.add(flies);
+const flies2 = F.motes({ n: 40, box: [40, 6, 50], c: '#d8ff6a', size: .14, rise: .03, drift: 1.2, y: .8, seed: 3 }); scene.add(flies2);
+
+// ---- 主役：ランタンの少女 ----
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bob', bangs: 'straight', hair: '#2e2438', eyes: 'round', brow: 'soft', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'short', top: '#f4ecd8', top2: '#3a8a8a', lower: 'skirt', skirt: .5, skirtC: '#3a8a8a', bottom: '#3a8a8a', shoes: 'shoe', shoe: '#7a4a30', neck: 'scarf', acc: '#f0c040' }); scene.add(hero);
+FT.wear(hero, 'lantern', { hand: 'L' }); const lamp = new THREE.PointLight('#ffc070', 5, 6, 1.6); scene.add(lamp); const lh = F.halo('#ffd080', 1.3, .55); scene.add(lh);
+const LEN = path.getLength(), SPEED = 1.3, S0 = .04, cd = new THREE.Vector3(), cp = new THREE.Vector3(), hv = new THREE.Vector3();
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const T0 = +new URLSearchParams(location.search).get('t') || 0; let first = true;
+K.loop((dt, t) => { t += T0;
+  const u = (S0 + t * SPEED / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u); p.y = DY + .03;
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, t * SPEED * 3.8); const Jh = hero.userData.J; Jh.armL.rotation.set(-.5, 0, .15); Jh.foreL.rotation.x = -.6;
+  hero.updateMatrixWorld(true); Jh.foreL.localToWorld(hv.set(0, -.42, .02)); lamp.position.copy(hv); lh.position.copy(hv); lh.material.opacity = .45 + Math.sin(t * 7) * .06;
+  if (first) { cd.copy(tg); first = false; } cd.lerp(tg, 1 - Math.exp(-dt * 1)).normalize();
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.6, Sd = tall ? 1 : 2; cp.set(p.x - cd.x * D + cd.z * Sd, p.y + (tall ? 3.6 : 3.9), p.z - cd.z * D - cd.x * Sd); cam.position.copy(cp); cam.lookAt(p.x + cd.x * 3, p.y + .7, p.z + cd.z * 3);
+  sun.position.set(p.x + SUN.x * 70, SUN.y * 70, p.z + SUN.z * 70); sun.target.position.copy(p);
+  glint.position.set(p.x + SUN.x * 9, .02, p.z + SUN.z * 9); glint.rotation.y = Math.atan2(-SUN.x, -SUN.z); R.flip(water.mat, WF, t, 3);
+  herons.forEach((h, i) => { const [hx, hz, hr] = h.userData.home; if (h.userData.pose === 'walk') { const w = Math.sin(t * .15 + i) * 3; h.position.set(hx + w * Math.sin(hr), -.5, hz + w * Math.cos(hr)); h.rotation.y = hr + (Math.cos(t * .15 + i) > 0 ? 0 : PI); } J.heronPose(h, h.userData.pose, t + i * 2); });
+  { const a = (t * .07) % 1, X = -30 + a * 60, Z = p.z - 14 + Math.sin(a * 6) * 3; flyer.position.set(X, 4 + Math.sin(a * 9) * .6, Z); flyer.rotation.y = PI / 2; J.heronPose(flyer, 'fly', t); }
+  flock.forEach((b, i) => { const a = (t * .05 + i * .012) % 1; b.position.set(40 - a * 90 + (i % 3) * 1.6, 14 + Math.floor(i / 3) * 1.1 + Math.sin(t + i) * .3, p.z - 40 + (i % 3) * 1.4 + Math.floor(i / 3) * 1.2); b.rotation.y = -PI / 2; R.birdPose(b, 'fly', t * .4 + i); });
+  flies.userData.tick(t, p.x, p.z - 8); flies2.userData.tick(t, p.x, p.z - 14);
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

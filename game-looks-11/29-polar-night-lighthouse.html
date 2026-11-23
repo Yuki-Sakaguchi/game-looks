@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-29 極夜の灯台 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c1224;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e4ecfa;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-29 ─ 極夜の灯台 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-snow2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 太陽ののぼらない冬の昼。紺色の空に月と星、南の地平線だけが うすく青むらさきに明るい。雪のみさきの先に赤白の灯台が立ち、光のおびが ぐるりと回って空と海をなでる。
+// 色の組は「空と海の紺・雪の青白・灯台の白」＋差し色は 灯台とランタンと番小屋の窓の黄。D.mood の 'moon' を紺に上書きし、あかりは地面に焼きこむ。
+// 主役は R.actor の toon（すもも色の外とうの人）。ランタンをさげ、さくの続く雪の道を灯台へ歩く。カメラは ななめ うしろの上から見下ろし、道の先の灯台と回る光を入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_SNOW2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'bob', hair: '#e8d4a0', mouth: 'small', blush: true, cloth: 'coat', top: '#8a3a62', top2: '#f0e8d8', bottom: '#3a3a52', gloves: 'glove', glove: '#c8a060', shoes: 'boot', shoe: '#4a3428', neck: 'cape', acc: '#c8a060' }); scene.add(hero);
+const moon = D.moon({ az: -26, el: 17, r: 18, halo: 3 }), mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 30, dir: moon.userData.dir.toArray(),
+  sky: ['#060c24', '#122050', '#2a3c7a', '#6a6aa8'], fog: ['#25305e', 30, 190], hemi: ['#a8bcf4', '#2a3256', 1.15], key: ['#cce0ff', 1.5, [.4, .6, -.6]], fill: ['#5a6aa8', .5], hills: '#141c3a', base: [.72, .8, .98], stars: 320 }); scene.add(moon);
+
+// ---- みさき：海へつき出た雪の丘。先に灯台、手前から道がのびる。両がわは紺の海（コマ送りの水）と流氷 ----
+const LH = [1.5, -44], sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const pathX = z => Math.sin(z * .09) * 2.2 + (z < -30 ? (LH[0] - Math.sin(z * .09) * 2.2) * sstep(-30, -40, z) : 0);
+const halfW = z => 11 + Math.sin(z * .07) * 2.5 - sstep(-20, -50, z) * 4;
+const H = (x, z) => { const e = Math.abs(x - pathX(z) * .5) / halfW(z), tip = z < -50 ? (z + 50) * .4 : 0; return 1.4 - sstep(.75, 1.15, e) * 3.2 + sstep(11, 4, Math.hypot(x - LH[0], z - LH[1])) * 1.6 + Math.sin(x * .4 + z * .3) * .15 + tip; };
+const LAMP = [[LH[0] - 3.8, LH[1] + 6.5]], LIT = [{ x: LH[0] - 3.8, z: LH[1] + 7.8, r: 5, c: '#ffc860', k: 1.2 }, { x: LH[0], z: LH[1] + 3.5, r: 6, c: '#ffe0a0', k: .7 }];
+const land = R.ground({ w: 120, d: 140, cell: 2, cz: -25, H, layers: [T.snow({ c: '#c8d4f0' }), T.snow({ c: '#8a9ad0', seed: 2 }), D.tex.stone({ c: '#5a6488' })],
+  mix: (x, z) => [Math.abs(x - pathX(z)) < .9 && z < 14 && z > LH[1] + 4 ? 1 : 0, H(x, z) < .3 ? 1 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+const wf = T.water({ c: '#1e3a78' }), sea = R.ground({ w: 260, d: 260, cell: 4, cz: -40, H: (x, z) => -.25, layers: [wf[0]], shade: (x, z) => .8 + Math.sin(x * .05 + z * .03) * .1 }); scene.add(sea.mesh);
+
+// ---- 灯台（赤白の帯）と番小屋、さくと道しるべ、岩、雪の針葉樹 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const LY0 = H(LH[0], LH[1]) - .2, lh = put(PK.lighthouse({ h: 17, r: 2.4, c: '#f0ecf4', c2: '#d04a4a', bands: 6, peel: .08, ivy: 0, base: 1.5 }), LH[0], LH[1], .4, LY0), LY = LY0 + lh.userData.lampY;
+put(R.house({ w: 5, d: 4, h: 2.6, wall: T.plaster({ c: '#e8e4ec', frame: 'none' }), roof: T.snow({ c: '#dce4f8', m: 2 }), pitch: .8, win: T.window({ shutters: 1 }), winLit: T.window({ shutters: 1, lit: 1, curtain: '#ffe0a0' }), lit: 1, chimney: true, door: T.door({ lit: 1, c: '#3a5a8a' }), seed: 3 }), LH[0] - 3.8, LH[1] + 4.2, .1);
+{ const Gp = R.geo(), Gr = R.geo(); let prev = null; for (let z = 12; z > LH[1] + 6; z -= 2.6) for (const s of [1]) { const x = pathX(z) + s * 1.6, y = H(x, z), p = [x, y + .9, z]; Gp.box(.14, 1.05, .14, x, y - .1, z, { m: 1 }); if (prev) { const d = Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]); Gr.at(R.TR(prev[0], prev[1], prev[2], Math.atan2(p[0] - prev[0], p[2] - prev[2]), Math.acos((p[1] - prev[1]) / d))).loft(4, [[0, .025, .025, 0], [d, .025, .025, 1]]).at(null); } prev = p; }
+  fixed.push(Gp.mesh(T.planks({ c: '#7a6050' })), Gr.mesh(T.bark({ c: '#b8a080' }))); }
+for (let k = 0; k < 40; k++) { const z = 14 - hash(k, 1) * 60, s = k % 2 ? 1 : -1, x = pathX(z) * .5 + s * halfW(z) * (.72 + hash(k, 2) * .3); put(R.rock({ s: .8 + hash(k, 3) * 1.6, c: '#5c6488', seed: k }), x, z, k, H(x, z) - .35); }
+for (let k = 0; k < 18; k++) { const z = 16 - hash(k, 4) * 40, s = k % 2 ? 1 : -1, x = pathX(z) + s * (4 + hash(k, 5) * 5); put(S.snowPine({ h: 3 + hash(k, 6) * 3.5, snow: .85, seed: k, c: '#1e3a44' }), x, z, k); }
+put(S.sled({ len: 1.8 }), LH[0] - 6.8, LH[1] + 6, 1.2);
+scene.add(R.merge(fixed));
+// 流氷：海にうかぶ白い板（雪のテクスチャのふちをぎざぎざに）
+{ const G = R.geo().normal([0, 1, 0]); for (let k = 0; k < 40; k++) { const a = hash(k, 7) * PI * 2, d = 18 + hash(k, 8) * 50, cx = Math.cos(a) * d, cz = -30 + Math.sin(a) * d * 1.2; if (H(cx, cz) > -1.2) continue; const r = 1 + hash(k, 9) * 2.5, n = 6;
+  for (let i = 0; i < n; i++) { const a0 = i / n * PI * 2, a1 = (i + 1) / n * PI * 2, r0 = r * (.75 + hash(k, i) * .4), r1 = r * (.75 + hash(k, (i + 1) % n) * .4); G.tri([cx, -.12, cz], [cx + Math.cos(a1) * r1, -.12, cz + Math.sin(a1) * r1], [cx + Math.cos(a0) * r0, -.12, cz + Math.sin(a0) * r0], [.5, .5], [.5 + Math.cos(a1) * .4, .5 + Math.sin(a1) * .4], [.5 + Math.cos(a0) * .4, .5 + Math.sin(a0) * .4]); } }
+  scene.add(G.mesh(T.snow({ c: '#b4c4ec' }))); }
+
+// ---- 灯台の光：回る 2 本の光のおび（加算。先へいくほど うすく）と、灯ろうのにじみ ----
+const beam = new THREE.Group(); beam.position.set(LH[0], LY, LH[1]); scene.add(beam);
+{ const G = R.geo(); for (const s of [1, -1]) for (const k of [1, .55]) { const c0 = .55 * k, c1 = 0; G.quad([0, -.3, -.4 * s], [0, .3, .4 * s], [s * 110, 8 * k, 12 * s * k], [s * 110, -6 * k, -12 * s * k], [0, 0, 1, 1], [c0, c0, c1, c1]); G.quad([-.4 * s, 0, 0], [.4 * s, 0, 0], [s * 110, 0, 10 * k], [s * 110, 0, -10 * k], [0, 0, 1, 1], [c0, c0, c1, c1]); }
+  const me = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: '#ffe8a8', vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false })); me.frustumCulled = false; beam.add(me); }
+const lhHalo = D.halo({ c: '#ffe8a0', r: 3.2, k: .9 }); lhHalo.position.set(LH[0], LY, LH[1]); scene.add(lhHalo);
+const lhLight = new THREE.PointLight('#ffe0a0', 40, 30, 1.2); lhLight.position.set(LH[0], LY, LH[1]); scene.add(lhLight);
+for (const [x, y, z] of [[LH[0] - 5.2, 1.5, LH[1] + 6.25], [LH[0] - 2.4, 1.5, LH[1] + 6.25]]) { const h = D.halo({ c: '#ffc060', r: 1.1, k: .55, flicker: true }); h.position.set(x, H(LH[0] - 3.8, LH[1] + 4.2) + y, z); scene.add(h); }
+
+// ---- 動く物：ちらつく雪、番小屋のけむり、白いきつね、海鳥 ----
+scene.add(D.flakes({ kind: 'snow', n: 260, box: [26, 12, 26], vy: -.8, wind: [.6, .2], size: 1.6, c: '#e4ecff', a: .8 }), D.groundFog({ n: 30, box: [50, 60], c: '#a8b8e8', a: .2, h: 1.2, w: 9, wind: [.4, .1], H }));
+const fox = R.cat({ c: '#e8ecf4', belly: '#ffffff', s: 1.25 }); scene.add(fox);
+const gulls = [0, 1, 2].map(k => { const b = R.bird({ c: '#d8dcec', belly: '#f4f4fa', s: 1.6 }); scene.add(b); return b; });
+const fx = K.fx(scene, 30), lamp = D.lantern(hero, { hand: 'R', c: '#ffc060', power: 9, range: 8, r: 3, k: .7 });
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 10, LEN = 40, SPEED = 1.3; let sm = 0;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.5, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 5 : 6.2; cam.position.set(x + 2, y + (tall ? 2.9 : 2.6), z + Dc); cam.lookAt(x - .2, y + (tall ? 2.6 : 1.5), z - 8);   // ななめ うしろの上から
+  beam.rotation.y = t * .5 + 1.2; lhLight.intensity = 34 + Math.max(0, Math.cos(t * .5 + 1.2 + PI / 2)) * 20;
+  const fz = z - 9 + Math.sin(t * .4) * 2, fxx = pathX(fz) - 4 + Math.sin(t * .7) * 1.2; fox.position.set(fxx, H(fxx, fz), fz); fox.rotation.y = .5 + Math.cos(t * .7) * .6; R.catPose(fox, 'walk', t * 6);
+  gulls.forEach((b, k) => { const a = t * (.3 + k * .05) + k * 2.1, r = 8 + k * 3; b.position.set(LH[0] + Math.cos(a) * r, LY + 2 + k * 1.5, LH[1] + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .5 + k); });
+  if ((sm += dt) > .4) { sm = 0; fx.emit('smoke', LH[0] - 2.2, H(LH[0] - 3.8, LH[1] + 4.2) + 4.6, LH[1] + 3.4, { size: .45, life: 4, vx: .4, vy: .6, grow: 2, spread: .1, tint: '#9aa8d0' }); }
+  R.flip(sea.mat, wf, t, 3); D.tick(t, cam); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

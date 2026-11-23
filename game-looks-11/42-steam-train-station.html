@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-42 蒸気機関車の駅 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#16141a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4e0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-42 ─ 蒸気機関車の駅 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-steam1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝の駅。鉄の骨とガラスのアーチ屋根の下に板ばりのホーム。ガラスのすきまから朝日が光のすじになって さしこみ、床に格子の影を落とす。ホームには深緑の蒸気機関車が止まり、えんとつから けむりをはく。
+// 色の組は「鉄の青ねずみ・朝の金色・機関車の深緑」＋差し色の 主役の赤いコート。機関車はこのページの中で、輪をつないだ筒（loft）と手で打ったドット絵（ボイラーの帯・動輪・運転室・炭水車）で作る。
+// 主役はトランクをさげた旅の人（R.actor の toon）。ホームを奥へ歩き、うしろからカメラが追う。荷物を運ぶ人・駅員・はと・けむり・蒸気が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), S = PACK_STEAM1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, TR = R.TR;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 600, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#7aa0c8'], [.5, '#c8c8c8'], [.85, '#f4d8a8'], [1, '#fff0c8']], { r: 360 })); scene.fog = new THREE.Fog('#e8d0a8', 30, 170);
+const { sun } = K.lights(scene, renderer, { sky: 0xc8d4ec, ground: 0x8a6a50, amb: 1.25, sun: 0xffd8a0, power: 2.6, range: 30 }), SUN = new THREE.Vector3(.62, .62, -.3).normalize();
+
+// ---- 手で打つテクスチャ（機関車・客車・ガラス屋根） ----
+const Px = R.Px, ramp = R.ramp, from = (P, m = 1, cut = false) => T.from(P, { m, cut });
+const GR = ramp('#2e5e4a'), BRS = ramp('#c8963a'), RD = ramp('#a83a30'), BK = ramp('#34343e'), CR = ramp('#e8dcc0');
+const boilerT = (() => { const P = Px(64, 32); P.each((x, y) => { const ly = y % 16; if (ly < 2) return ly ? BRS[2] : BRS[5]; if (ly === 2) return GR[1]; return x < 6 || x > 58 ? GR[2] : (x + y * 2) % 23 === 0 ? GR[4] : x > 20 && x < 30 ? GR[4] : GR[3]; }); for (let x = 2; x < 64; x += 6) { P.set(x, 4, GR[5]); P.set(x, 13, GR[1]); } return from(P); })();
+const doorT = (() => { const P = Px(32); P.each((x, y) => { const r = Math.hypot(x + .5 - 16, y + .5 - 16); if (r > 15) return BK[1]; if (r > 13.5) return x + y < 30 ? BK[4] : BK[0]; if (r < 2) return BRS[5]; return x + y < 26 ? BK[3] : BK[2]; }); for (let y = 10; y < 22; y += 6) P.rect(4, y, 9, 2, BK[1]); P.rect(11, 22, 10, 4, BRS[3]); P.rect(12, 23, 8, 2, BRS[1]); for (let k = 0; k < 8; k++) { const a = k / 8 * PI * 2; P.set(16 + Math.cos(a) * 12, 16 + Math.sin(a) * 12, BRS[4]); } return from(P); })();
+const wheelT = (() => { const P = Px(64); P.each((x, y) => { const dx = x + .5 - 32, dy = y + .5 - 32, r = Math.hypot(dx, dy) / 32, a = Math.atan2(dy, dx); if (r > 1) return BK[1]; if (r > .86) return dx + dy < 0 ? BK[4] : BK[2]; if (r > .78) return RD[1]; if (r > .7) return dx + dy < 0 ? RD[4] : RD[2];
+  if (r < .18) return r < .07 ? BRS[5] : dx + dy < 0 ? RD[4] : RD[2]; const s = ((a / (PI / 7)) % 1 + 1) % 1; if (dx < -6 && dy > 4 && r < .66 && r > .3) return RD[2]; return Math.abs(s - .5) * PI / 7 * r * 32 < 1.6 ? (s < .5 ? RD[4] : RD[2]) : BK[0]; }); return from(P); })();
+const cabT = (() => { const P = Px(64); P.fill(GR[3]); P.each((x, y) => (x < 3 || x > 60 || y > 60) ? GR[1] : (x === 4 || x === 59 || y === 58) ? BRS[4] : undefined); P.disc(22, 20, 9, BRS[3]); P.disc(22, 20, 7.5, '#8ab0c0'); P.disc(20, 18, 3, '#d8f0f4');
+  P.rect(38, 8, 18, 26, BK[1]); P.rect(39, 9, 16, 24, '#c8783a'); P.rect(39, 9, 16, 4, '#ffd080'); P.rect(12, 38, 40, 10, GR[2]); P.rect(13, 39, 38, 8, GR[4]); P.rect(24, 41, 16, 4, BRS[4]); return from(P, 2.2); })();
+const tendT = (() => { const P = Px(64, 32); P.fill(GR[3]); P.each((x, y) => (y < 2 || y > 29) ? GR[1] : (y === 3 || y === 27) ? BRS[4] : (x % 32 === 0 && y > 3 && y < 27) ? GR[2] : (x % 32 === 1) ? GR[4] : undefined); for (let x = 4; x < 64; x += 8) P.set(x, 5, GR[5]); return from(P, 3); })();
+const coalT = (() => { const P = Px(32); P.each((x, y) => { const v = R.tn(x, y, 4, 4, 32, 32, 3); return v > .7 ? BK[4] : v > .45 ? BK[2] : v > .25 ? BK[1] : BK[0]; }); return from(P, 1.4); })();
+const coachT = (() => { const P = Px(64, 32), M = ramp('#7a2e34'); P.each((x, y) => y < 2 ? BK[2] : y < 14 ? CR[3] : y < 16 ? BRS[4] : y < 30 ? (x % 16 === 0 ? M[1] : y === 16 || x % 16 === 1 ? M[4] : M[3]) : BK[1]);
+  for (let k = 0; k < 4; k++) { const x = k * 16 + 3; P.rect(x, 4, 10, 8, CR[0]); P.rect(x + 1, 5, 8, 6, k % 2 ? '#e8c880' : '#8aa8b8'); P.rect(x + 1, 5, 8, 1, '#f8f0d8'); } return from(P, 3); })();
+const glassT = (() => { const P = Px(32), I = ramp('#4a5060'); P.each((x, y) => { const lx = x & 15, ly = y & 15; if (lx < 2 || ly < 1) return lx === 1 || ly === 0 ? I[4] : I[1]; return null; }); return from(P, 1.6, true); })();
+// ガラスの板（光に関係なく明るい。朝の空がすける色。ところどころ くもり・よごれ・ぬけ）
+const paneT = (() => { const P = Px(32); P.each((x, y) => { const q = hash(x >> 4, y >> 4, 4), ly = y & 15, lx = x & 15; if (q > .86) return null; const base = q > .7 ? '#c8c4b4' : q > .4 ? '#f4ecd4' : '#e4ecec'; return ly < 3 && lx < 8 ? '#fffaf0' : (lx + ly * 3) % 13 === 0 ? '#d0ccbc' : base; }); return from(P, 1.6, true); })();
+const IRON = F.tex.iron({ c: '#4a5266', rust: .15 }), RIRON = F.tex.iron({ c: '#a83a30', rust: 0 });
+
+// ---- 地面とホーム。線路の面が y=0、ホームの上が y=1 ----
+const land = R.ground({ w: 60, d: 140, cell: 2, cz: -20, layers: [T.dirt({ c: '#6a5a50', pebbles: .9 }), T.cobble({ kind: 'slab', c: '#8a8278' })], mix: (x, z) => [Math.abs(x + 1) > 11 ? 1 : 0, 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const B = R.parts(), Top = B.g(T.planks({ c: '#9a7a56', w: 6 })), Sd = B.g(T.brick({ c: '#8e5a44' })), Ed = B.g(T.stone({ c: '#c8c0ac' }));
+  for (let z = 14; z > -50; z -= 4) { Top.box(6, .02, 4, -2, .98, z - 2, { m: 2.4, top: true }); Sd.box(6.4, .98, 4, -2, 0, z - 2, { m: 3, top: false }); Ed.box(.5, .08, 4, 1.15, .98, z - 2, { m: 2 }); Ed.box(.5, .08, 4, -5.15, .98, z - 2, { m: 2 }); }
+  fixed.push(B.group()); }
+for (const x of [3.4, -7.6]) fixed.push(R.strip([[x, .02, 20], [x, .02, -80]], 3, C.tex.track()));
+
+// ---- 鉄とガラスのアーチ屋根（骨は 6 m ごと）、鉄の柱、左の れんがのかべ ----
+{ const B = R.parts(), Gl = B.g(glassT, { side: true }), Pn = R.parts(), Pg = Pn.g(paneT, { glow: true, side: true }), Ir = B.g(IRON), N = 12, XC = -1.5, SP = 10.5, Y0 = 6.6, RISE = 4.2, ap = i => { const a = PI * i / N; return [XC - Math.cos(a) * SP, Y0 + Math.sin(a) * RISE]; };
+  for (let z0 = 16; z0 > -52; z0 -= 6) { const z1 = z0 - 6; for (let i = 0; i < N; i++) { const [xa, ya] = ap(i), [xb, yb] = ap(i + 1), u = i * 1.9; Gl.quad([xa, ya, z0], [xb, yb, z0], [xb, yb, z1], [xa, ya, z1], [u / 1.6, z0 / 1.6, (u + 1.9) / 1.6, z1 / 1.6]); Pg.quad([xa, ya + .03, z0], [xb, yb + .03, z0], [xb, yb + .03, z1], [xa, ya + .03, z1], [u / 1.6, z0 / 1.6, (u + 1.9) / 1.6, z1 / 1.6]);
+      Ir.quad([xa, ya - .45, z0 + .12], [xb, yb - .45, z0 + .12], [xb, yb, z0 + .12], [xa, ya, z0 + .12], [0, 0, 1, .3], .9); Ir.quad([xb, yb - .45, z0 - .12], [xa, ya - .45, z0 - .12], [xa, ya, z0 - .12], [xb, yb, z0 - .12], [0, 0, 1, .3], .9); Ir.quad([xa, ya - .45, z0 - .12], [xb, yb - .45, z0 - .12], [xb, yb - .45, z0 + .12], [xa, ya - .45, z0 + .12], [0, 0, 1, .1], .7); }
+    for (const x of [XC - SP, XC + SP]) { Ir.at(TR(x, 0, z0)).loft(8, [[0, .34, .34, 0, .7], [.5, .24, .24, .3, .9], [.7, .17, .17, .4, 1], [Y0 - .9, .17, .17, 2, 1], [Y0 - .4, .34, .34, 2.3, 1.1], [Y0, .4, .4, 2.5, 1]], { cap: 'top' }).at(null);
+      Ir.quad([x - .1, Y0 - .9, z0 + .1], [x + Math.sign(XC - x) * 1.6, Y0 + .4, z0 + .1], [x + Math.sign(XC - x) * 1.6, Y0 + .7, z0 + .1], [x - .1, Y0 - .5, z0 + .1], [0, 0, 1, .2], .9); } }
+  // 屋根の背骨（棟）と、左のかべ（アーチ窓）
+  Ir.box(.5, .4, 68, XC, Y0 + RISE, -18, { m: 2 }); const Wl = B.g(T.windowWall({ wall: 'brick', wallO: { c: '#9a5a44' }, arch: 1, bars: 'grid', curtain: false, glass: '#d8e4e8' }));
+  Wl.quad([XC - SP - .6, 0, -52], [XC - SP - .6, 0, 16], [XC - SP - .6, Y0, 16], [XC - SP - .6, Y0, -52], [0, 0, 68 / 3, Y0 / 3]);
+  const g = B.group(); g.traverse(q => { if (q.material && q.material.map === glassT) q.castShadow = true; }); fixed.push(g); const pg = Pn.group(); pg.traverse(q => { q.castShadow = false; }); scene.add(pg); }
+
+// ---- 蒸気機関車（前が +z。loft の筒と手打ちの絵）。ZF ＝ 前のはしの z ----
+const XL = 3.4, ZF = -9;
+const loco = (() => { const B = R.parts(), g = new THREE.Group(), Bo = B.g(boilerT), Bk = B.g(T.metal({ c: '#3a3a44' })), Br = B.g(S.tex.brass()), Rd = B.g(RIRON), Wh = B.g(wheelT), Cb = B.g(cabT, { side: true }), Tn = B.g(tendT, { side: true }), Co = B.g(coalT);
+  const along = (G, x, y, z, sec, rings, o = {}) => G.at(TR(x, y, z, 0, -PI / 2)).loft(sec, rings, o).at(null);   // z の負の向きへのびる筒
+  const by = 2.1;
+  along(Bk, 0, by, 0, 12, [[0, .9, .9, 0, .9], [1.1, .9, .9, .5, 1]], { cap: 'bot' }); Bk.at(TR(0, by, .01, 0, -PI / 2)).loft(12, [[0, .82, .82, 0, 1]], { cap: 'bot', capRect: true }).at(null);
+  B.g(doorT).at(TR(0, by, .02, 0, -PI / 2)).loft(12, [[0, .8, .8, 0, 1]], { cap: 'bot', capRect: true }).at(null);
+  along(Bo, 0, by, -1.1, 12, [[0, .84, .84, 0, 1], [4.4, .84, .84, 2.2, 1]], { ur: 2 });
+  Br.box(1.9, .05, .05, 0, by - .25, .1).box(.05, .05, .05, 0, by, .1);
+  Bk.at(TR(0, by + .75, -.55)).loft(8, [[0, .3, .3, 0, .8], [.5, .22, .22, .3, .9], [1.1, .25, .25, .6, 1], [1.3, .36, .36, .8, 1.1], [1.42, .36, .36, .9, 1.1], [1.42, .22, .22, 1, .3]], { ur: 1 }).at(null);
+  Br.at(TR(0, by + .7, -3)).loft(10, [[0, .46, .46, 0, .9], [.3, .42, .42, .3, 1], [.55, .3, .3, .6, 1.1], [.68, .08, .08, .9, 1.2]], { cap: 'top' }).at(null);
+  Br.at(TR(0, by + .7, -4.6)).loft(8, [[0, .2, .2, 0, .9], [.35, .17, .17, .5, 1.1], [.45, .06, .06, 1, 1.2]], { cap: 'top' }).at(null);
+  B.g('#ffe8a0', { glow: true }).at(TR(0, by + .55, .7)).loft(8, [[0, .18, .18, 0, 1]], { cap: 'top', capRect: true }).at(null); Bk.at(TR(0, by + .55, .5)).loft(8, [[0, .22, .22, 0, .8], [.25, .22, .22, 1, 1]]).at(null).at(TR(0, by + .55, .5, 0, PI / 2)).at(null);
+  // 足まわり：赤い台わく、シリンダー、動輪 3 つずつ、先輪 2 つずつ、バッファー
+  Rd.box(2.3, .12, 8.2, 0, 1.12, -3.9, { m: 1.5 }); Rd.box(1.7, .5, 8.2, 0, .62, -3.9, { m: 1.5 }); Rd.box(2.7, .5, .22, 0, .78, .25, { m: 1.5 });
+  for (const s of [-1, 1]) { along(Bk, s * 1.1, .95, -.6, 8, [[0, .34, .34, 0, .9], [1.3, .34, .34, .6, 1]], { cap: 'both' }); along(Bk, s * .95, 1.03, .38, 6, [[0, .12, .12, 0, .9], [.25, .12, .12, .2, 1]], { cap: 'bot' }); Bk.at(TR(s * .95, 1.03, .4, 0, PI / 2)).loft(8, [[0, .2, .2, 0, 1.1], [.06, .2, .2, .1, 1]], { cap: 'top' }).at(null);
+    const wheel = (z, r) => { Bk.at(TR(s * 1.02, r, z, 0, 0, -s * PI / 2)).loft(14, [[-.08, r, r, 0, .8], [.08, r, r, .3, 1]]).at(null); Wh.at(TR(s * 1.1, r, z, 0, 0, -s * PI / 2)).loft(14, [[0, r, r, 0, 1]], { cap: 'top', capRect: true }).at(null); };
+    [-3, -4.6, -6.2].forEach(z => wheel(z, .74)); [-1.3, -2.1].forEach(z => wheel(z, .4));
+    Br.box(.08, .1, 3.3, s * 1.22, .8, -4.6, { m: 1 }); }
+  // 運転室（両わきに丸窓、うしろは開いている）、屋根はゆるいアーチ
+  const cz0 = -5.5, cz1 = -7.6, cx = 1.2, cy0 = 1.18, cy1 = 3.35;
+  for (const s of [-1, 1]) Cb.quad([s * cx, cy0, s > 0 ? cz0 : cz1], [s * cx, cy0, s > 0 ? cz1 : cz0], [s * cx, cy1, s > 0 ? cz1 : cz0], [s * cx, cy1, s > 0 ? cz0 : cz1], s > 0 ? [0, 0, 1, 1] : [1, 0, 0, 1]);
+  Cb.quad([-cx, cy0, cz0], [cx, cy0, cz0], [cx, cy1, cz0], [-cx, cy1, cz0], [.1, .05, .9, .4]); Cb.quad([cx, cy0, cz0], [-cx, cy0, cz0], [-cx, cy1, cz0], [cx, cy1, cz0], [.6, .1, .95, .5]);
+  for (let i = 0; i < 4; i++) { const a0 = i / 4, a1 = (i + 1) / 4, X = a => -cx - .1 + (cx * 2 + .2) * a, Y = a => cy1 + Math.sin(a * PI) * .28; Bk.quad([X(a0), Y(a0), cz0 + .2], [X(a1), Y(a1), cz0 + .2], [X(a1), Y(a1), cz1 - .2], [X(a0), Y(a0), cz1 - .2], [0, 0, .5, 1]).quad([X(a1), Y(a1) - .04, cz0 + .2], [X(a0), Y(a0) - .04, cz0 + .2], [X(a0), Y(a0) - .04, cz1 - .2], [X(a1), Y(a1) - .04, cz1 - .2], [0, 0, .5, 1], .6); }
+  B.g('#ff9a40', { glow: true }).quad([-.4, 1.3, cz0 - .05], [.4, 1.3, cz0 - .05], [.4, 1.9, cz0 - .05], [-.4, 1.9, cz0 - .05]);
+  // 炭水車（緑の箱に石炭の山、小さな車輪 3 つ）
+  const tz0 = -7.9, tz1 = -11.8, tw = 1.2, th = 2.6;
+  for (const s of [-1, 1]) Tn.quad([s * tw, 1.1, s > 0 ? tz0 : tz1], [s * tw, 1.1, s > 0 ? tz1 : tz0], [s * tw, th, s > 0 ? tz1 : tz0], [s * tw, th, s > 0 ? tz0 : tz1], [0, 0, 1.3, 1]);
+  Tn.quad([tw, 1.1, tz1], [-tw, 1.1, tz1], [-tw, th, tz1], [tw, th, tz1], [0, 0, .8, 1]).quad([-tw, 1.1, tz0], [tw, 1.1, tz0], [tw, th, tz0], [-tw, th, tz0], [0, 0, .8, 1]);
+  for (let i = 0; i < 6; i++) { const z0 = tz0 - i * .65, z1 = z0 - .65, hh = k => th + .15 + Math.sin((i + k) / 6 * PI) * .35; Co.quad([-tw, th, z0], [0, hh(0), z0], [0, hh(1), z1], [-tw, th, z1], [0, 0, .6, .5]).quad([0, hh(0), z0], [tw, th, z0], [tw, th, z1], [0, hh(1), z1], [0, 0, .6, .5]); }
+  Rd.box(2.3, .3, 4.1, 0, .82, -9.85, { m: 1.5 }); for (const s of [-1, 1]) for (const z of [-8.5, -9.85, -11.2]) { Bk.at(TR(s * 1.02, .45, z, 0, 0, -s * PI / 2)).loft(10, [[-.06, .45, .45, 0, .8], [.06, .45, .45, .3, 1]]).at(null); Wh.at(TR(s * 1.08, .45, z, 0, 0, -s * PI / 2)).loft(10, [[0, .45, .45, 0, 1]], { cap: 'top', capRect: true }).at(null); }
+  g.add(B.group()); return g; })();
+loco.position.set(XL, 0, ZF); scene.add(loco);
+// 客車 2 両（機関車のうしろ）と、となりの線路の止まった客車
+const coach = (x, z0, len = 12) => { const B = R.parts(), Sd = B.g(coachT, { side: true }), Rf = B.g(T.metal({ c: '#5a5a64' })), Bk = B.g(T.metal({ c: '#2e2e36' })), w = 1.4, y0 = 1.05, y1 = 3.1, z1 = z0 - len;
+  for (const s of [-1, 1]) Sd.quad([x + s * w, y0, s > 0 ? z0 : z1], [x + s * w, y0, s > 0 ? z1 : z0], [x + s * w, y1, s > 0 ? z1 : z0], [x + s * w, y1, s > 0 ? z0 : z1], [0, 0, len / 3, 1]);
+  Sd.quad([x - w, y0, z0], [x + w, y0, z0], [x + w, y1, z0], [x - w, y1, z0], [0, 0, .9, 1]); for (let i = 0; i < 5; i++) { const a0 = i / 5, a1 = (i + 1) / 5, X = a => x - w - .08 + (w * 2 + .16) * a, Y = a => y1 + Math.sin(a * PI) * .45; Rf.quad([X(a0), Y(a0), z0 + .1], [X(a1), Y(a1), z0 + .1], [X(a1), Y(a1), z1 - .1], [X(a0), Y(a0), z1 - .1], [0, 0, .5, len / 2]); }
+  Bk.box(2.4, .35, len - 2, x, .55, z0 - len / 2, { m: 1.5 }); for (const z of [z0 - 1.8, z1 + 1.8]) for (const s of [-1, 1]) Bk.at(TR(x + s * 1.05, .42, z, 0, 0, -PI / 2)).loft(8, [[-.08, .42, .42, 0, .8], [.08, .42, .42, .3, 1]], { cap: 'both', capRect: true }).at(null);
+  fixed.push(B.group()); };
+coach(XL, ZF - 12.3); coach(XL, ZF - 25); for (let k = 0; k < 4; k++) coach(-7.6, 10 - k * 12.6);
+
+// ---- ホームの小物：つりさげ時計、ガス灯、ベンチ、トランクの山、荷車、花のかご ----
+{ const B = R.parts(), Cf = B.g(F.tex.clock(), { side: true }), Ir = B.g(IRON); for (const z of [-4, -28]) { Cf.quad([-2.6, 4.1, z], [-1.4, 4.1, z], [-1.4, 5.3, z], [-2.6, 5.3, z]); Ir.box(.05, 4, .05, -2.0, 5.3, z, { m: 1 }); } fixed.push(B.group()); }
+for (let z = 6; z > -46; z -= 8) put(R.lamp({ h: 3.2, c: '#3a4050' }), -4.4, z, 0, 1);
+[[-4.2, -1, 'bench'], [-4.3, -17, 'bench'], [-4.1, 3, 'crate'], [-3.6, 3.4, 'crate'], [-4.2, -9, 'barrel'], [-4.2, -24, 'crate'], [-3.8, -24.6, 'crate']].forEach(([x, z, k], j) => put(k === 'bench' ? R.bench({ c: '#5a4030' }) : k === 'crate' ? R.crate({ c: ['#8a5a3a', '#6a7a5a'][j % 2], s: .7, kind: 'plain' }) : R.barrel({ c: '#7a5a3a', h: .8 }), x, z, k === 'bench' ? PI / 2 : j, 1));
+put(R.cart({ load: 'crates' }), -3.4, -12, -PI / 2 + .1, 1);
+put(S.gauge({ r: .3 }), XL - 1.25, -15.4, -PI / 2, 2.4);
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#a8987a', haze: '#f4dcb0', r: 160, h: 30, y: -2, rep: 3 }));
+// 光のすじ（右上から、ガラスのすきまを ぬけて床へ）
+for (const [x, z, w] of [[-.5, 4, 3], [-1.2, -6, 2.4], [-.2, -16, 3.2], [-1.6, -27, 2.6], [.4, -38, 3]]) { const s = C.shaft({ w, h: 11, c: '#ffe0a0', a: .2, lean: -.32, n: 2 }); s.position.set(x, 1, z); scene.add(s); }
+// けむりと蒸気
+const smoke = C.steam({ n: 14, r: 1.4, rise: 7, a: .9, speed: .2, c: '#7a7480', spread: .9, wind: [-2.2, -1.4] }); smoke.position.set(XL, 3.7, ZF - .55); scene.add(smoke);
+for (const s of [-1, 1]) { const st = C.steam({ n: 7, r: .4, rise: 1.6, a: .6, speed: .5, jet: .7, dir: [s, .15, .3], phase: s * .3 }); st.position.set(XL + s * 1.3, .9, ZF - .3); scene.add(st); }
+const dome = C.steam({ n: 6, r: .35, rise: 1.4, a: .5, speed: .45, jet: .5 }); dome.position.set(XL, 3.5, ZF - 4.6); scene.add(dome);
+
+// ---- 人（5 頭身の toon。どれもこの場面のためのオリジナル） ----
+const act = (o, x = 0, z = 0, ry = 0, y = 1) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ sex: 'f', hairStyle: 'tail', hair: '#3a2a28', eyes: 'big', mouth: 'small', cloth: 'coat', top: '#b8423a', top2: '#f0e4cc', bottom: '#3a3a48', lower: 'skirt', skirt: .55, tights: '#3a3a48', gloves: 'glove', glove: '#5a3a2a', shoes: 'boot', shoe: '#4a3428', neck: 'scarf', acc: '#e8c060', hold: 'case' });
+const porter = act({ hairStyle: 'short', hair: '#2a2228', beard: 'stubble', cloth: 'overall', top: '#4a5a78', top2: '#e8dcc0', shoe: '#2a2228', hat: 'cap', acc: '#4a5a78' }); F.wear(porter, 'box', { c: '#8a5a3a' }); F.carryPose(porter);
+const conductor = act({ hairStyle: 'short', hair: '#6a6060', beard: 'mustache', cloth: 'coat', top: '#2e3a5a', top2: '#c8963a', bottom: '#2e3a5a', shoe: '#1e1e24', hat: 'cap', acc: '#2e3a5a' }, .6, ZF + 2.6, PI * .8);
+const pass = [act({ sex: 'f', hairStyle: 'bun', hair: '#c88a4a', cloth: 'coat', top: '#4f8f80', top2: '#f0e8d8', lower: 'skirt', skirt: .9, shoes: 'shoe', shoe: '#3a2a28', hold: 'case' }),
+  act({ hairStyle: 'spiky', hair: '#4a3a30', cloth: 'jacket', top: '#8a6a3a', top2: '#e8dcc0', bottom: '#4a4450', shoe: '#2a2228', back: 'pack' }),
+  act({ s: .72, hairStyle: 'twin', hair: '#2a2228', mouth: 'open', blush: true, cloth: 'tunic', top: '#e8c060', top2: '#fff0d8', lower: 'skirt', skirt: .5, shoes: 'shoe', shoe: '#a8443a' })];
+const driver = act({ hairStyle: 'short', hair: '#2a2228', beard: 'beard', cloth: 'overall', top: '#3a4a6a', top2: '#d8c8a8', hat: 'cap', acc: '#3a3a44' }, XL - .3, ZF - 6.4, -PI / 2, 1.18);
+const pig = [...Array(7)].map((_, k) => { const b = R.bird({ c: '#8a8c9c', belly: '#b8b8c8', neck: true, s: 1.5 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 9, LEN = 34, SPEED = 1.25;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = -1.1 + Math.sin(z * .12) * .25;
+  hero.position.set(x, 1, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.6, .8); hero.userData.J.armR.rotation.x = .05;
+  const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.8; cam.position.set(x - .9, 1 + (tall ? 2.2 : 2.1), z + D); cam.lookAt(x + .9, 2.1, z - 6);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 1, z - 6); land.follow(x, z - 10);
+  // 荷物を運ぶ人は手前へ、親子づれは奥へ、旅の人は ホームの はしで待つ
+  const pz = -38 + ((t * 1.1) % 50); porter.position.set(-2.8, 1, pz); porter.rotation.y = 0; R.walk(porter, t * 4, .6); F.carryPose(porter);
+  const qz = z - 5 - ((t * .3) % 4); pass[0].position.set(-2.6, 1, qz); pass[0].rotation.y = PI; R.walk(pass[0], t * 4.3, .75);
+  pass[2].position.set(-2.1 + Math.sin(t * 2) * .2, 1, qz + .6); pass[2].rotation.y = PI + Math.sin(t * 2) * .3; R.walk(pass[2], t * 7, 1);
+  pass[1].position.set(-1.9, 1, -20); pass[1].rotation.y = PI / 2 + Math.sin(t * .4) * .4; R.idle(pass[1], t, Math.sin(t * .5) * .6);
+  R.idle(conductor, t, Math.sin(t * .4) * .4); conductor.userData.J.armR.rotation.set(-2.4 + Math.sin(t * 4) * .3, 0, .3);
+  R.idle(driver, t, .3); driver.userData.J.armL.rotation.x = -.8;
+  pig.forEach((b, k) => { const hx = -3.6 + hash(k, 1) * 3.2, hz = -2 - k * 3.1, d = Math.hypot(hx - x, hz - z), up = Math.max(0, 2.8 - d); b.position.set(hx - up * .6, 1 + up * 1.7, hz - up * .5); b.rotation.y = up > 0 ? PI / 2 + .4 : hash(k, 2) * 6 + Math.sin(t * .6 + k); R.birdPose(b, up > .05 ? 'fly' : 'peck', t + k); });
+  S.tick(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

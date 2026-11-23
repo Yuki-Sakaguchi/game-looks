@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-50 ガス灯の夜霧の通り 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e8d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-50 ─ ガス灯の夜霧の通り / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-steam2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜霧の町。ゆるく右へ曲がる石だたみの通りに、ガス灯の光の輪が点々と続く。ぬれた路面に あかりが たてに映り、霧の奥の十字路を、音のない馬車の影がよこぎる。
+// 色の組は「霧の灰青・れんがの暗い赤茶・ガス灯の黄」＋差し色は主役の外套のえりの赤。暗いが、ガス灯のあかりを路面に焼きこみ、霧で奥を明るく抜く（D.mood の 'fog'）。
+// 主役は外套を着てランタンをさげた旅人（R.actor の toon）。通りを奥へ歩き、カメラは左うしろの少し高い所から、曲がりの先を見せて追う。ぬれた石・映りこみ・霧は pack-dark.js（D.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_STEAM2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 600, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2e2a', mouth: 'line', brow: 'flat', cloth: 'coat', top: '#3a4a5a', top2: '#c83a34', bottom: '#2e3440', shoes: 'boot', shoe: '#3a2e2a', gloves: 'glove', glove: '#5a4034', neck: 'collar', acc: '#c83a34', hat: 'cap' }); scene.add(hero);
+const GAS = '#ffd070', mood = D.mood(scene, renderer, 'fog', { follow: hero, range: 30, fog: ['#4a5260', 6, 66], sky: ['#141a26', '#262e3c', '#3e4654', '#566070'], hemi: ['#9aa8c0', '#3a3a44', 1.0], key: ['#c0cce0', .55, [-.4, .8, -.45]], base: [.62, .66, .74], hills: false });
+
+// ---- 通り：右へゆるく曲がる。中心線 pathX(z)。両がわに歩道、まん中はぬれた石だたみ ----
+const CZ = -23, pathX = z => z < -6 ? Math.pow((-6 - z) / 30, 2) * 11 : 0, ang = z => Math.atan2(pathX(z - .5) - pathX(z + .5), 1);
+const LAMPS = []; for (let k = 0; k < 14; k++) { const z = 10 - k * 7, s = k % 2 ? 1 : -1; LAMPS.push([pathX(z) + s * 3.6 * Math.cos(ang(z)), z]); }
+const LIT = [...LAMPS.map(([x, z]) => ({ x, z, r: 4.6, c: GAS, k: 1.15 }))];
+const off = (x, z) => x - pathX(z);
+const land = R.ground({ w: 120, d: 150, cell: 2, cz: -35, layers: [D.tex.wetCobble({ c: '#5a6270', wet: .55, shine: '#c8d0d8' }), T.cobble({ kind: 'slab', c: '#6a6a70', seed: 3 }), T.dirt({ c: '#4a4a50' })],
+  mix: (x, z) => { const o = Math.abs(off(x, z)); return [o > 3.1 && o < 5.2 ? 1 : 0, o > 5.2 ? 1 : 0]; }, shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 家なみ：れんがと しっくいの 3 階建て。窓の いくつかに あかり ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const BR = [T.brick({ c: '#7a4a44' }), T.brick({ c: '#6a4a4e', seed: 2 }), T.brick({ c: '#84564a', seed: 3 })], PL = T.plaster({ c: '#a8a098', frame: 'none' }), RF = T.roof({ kind: 'slate', c: '#3a3e4e' });
+const WIN = T.window({ bars: 'grid', curtain: false, frame: '#2a2a34' }), WINL = T.window({ bars: 'grid', lit: 1, curtain: '#ffd890', frame: '#2a2a34' }), DOOR = T.door({ style: 'panel', c: '#3a2e34' });
+for (const s of [-1, 1]) { let z = 14, i = s > 0 ? 1 : 0; while (z > -70) { const w = 5.5 + hash(i, s) * 1.5, d = 6, cz = z - w / 2, a = ang(cz), cx = pathX(cz) + s * (5.4 + d / 2) * Math.cos(a);
+    if (Math.abs((cx - pathX(CZ)) * Math.sin(ang(CZ)) - (cz - CZ) * Math.cos(ang(CZ))) > 4.8) put(R.house({ w, d, h: 3.2, h2: 3, wall: BR[i % 3], wall2: i % 3 === 1 ? PL : BR[(i + 1) % 3], roof: RF, pitch: .8, win: WIN, winLit: WINL, lit: .3, door: DOOR, seed: i + (s > 0 ? 20 : 0), chimney: { h: 1.2 }, wins: { f: 2, b: 0, l: 1, r: 1 }, wins2: { f: 3, b: 0, l: 1, r: 1 } }), cx, cz, (s > 0 ? -PI / 2 : PI / 2) + a);
+    z -= w + .15; i++; } }
+// ガス灯（光る ほや）と、その下の光の輪・映りこみ・にじみ
+LAMPS.forEach(([x, z], i) => { const s = i % 2 ? 1 : -1, l = R.lamp({ h: 3.4, c: '#2e3240' }); put(l, x, z, 0); });
+scene.add(D.pools(LAMPS.map(([x, z]) => ({ p: [x, .03, z], r: 2.4, c: GAS, k: .35 }))), D.streaks(LAMPS.map(([x, z]) => ({ x, z, h: 3.4, c: GAS, k: .75, w: .8 })), { y: .04, far: 40 }));
+LAMPS.forEach(([x, z]) => { const h = D.halo({ c: GAS, r: 1.1, k: .7 }); h.position.set(x, 3.15, z); scene.add(h); });
+// 小物：ベンチ、たる、木箱、マンホール（湯気）、ポスト柱
+[[-4.6, 3, 'bench'], [4.6, -9, 'barrel'], [-4.5, -22, 'crate'], [4.8, -33, 'bench']].forEach(([o, z, k], j) => { const x = pathX(z) + o; put(k === 'bench' ? R.bench({ c: '#3a3434' }) : k === 'barrel' ? R.barrel({ c: '#4a3a34' }) : R.crate({ c: '#5a4a3e' }), x, z, ang(z) + (o > 0 ? -PI / 2 : PI / 2)); });
+const MAN = [[.8, -4], [-1, -26]]; MAN.forEach(([o, z]) => put(C.manhole({ r: .45, kind: 'round', c: '#3a3c44' }), pathX(z) + o, z, 0, .02));
+scene.add(R.merge(fixed));
+MAN.forEach(([o, z], i) => { const s = C.steam({ n: 7, r: .4, rise: 1.6, spread: .4, speed: .3, c: '#d8dce4', a: .4, phase: i * .4 }); s.position.set(pathX(z) + o, .05, z); scene.add(s); });
+
+// ---- 霧の奥の十字路を よこぎる、音のない馬車の影（切りぬきの影絵。ランプだけが光る） ----
+const carriage = (() => { const P = R.Px(96, 48), Kc = '#1c2028', Kd = '#262a34'; P.clip = true; P.fill(null);
+  // 馬（左向き）
+  P.rect(6, 14, 4, 10, Kc); P.rect(8, 10, 6, 6, Kc); P.rect(10, 16, 22, 10, Kc); P.rect(4, 13, 4, 4, Kc); P.set(3, 15, Kc); P.rect(30, 18, 4, 6, Kc); P.line(31, 18, 36, 24, Kc);
+  for (const [x, k] of [[12, 0], [16, 1], [26, 1], [30, 0]]) { P.rect(x, 26, 2, 8 + k, Kc); P.rect(x - 1 + k, 33 + k, 3, 2, Kc); } P.rect(11, 8, 2, 3, Kc);
+  // 車体と車輪
+  P.line(32, 22, 44, 26, Kd); P.rect(44, 8, 34, 22, Kc); P.rect(46, 4, 30, 5, Kc); P.rect(42, 3, 38, 2, Kd); P.rect(50, 12, 10, 8, '#3a3848'); P.rect(64, 12, 10, 8, '#3a3848');
+  P.disc(50, 36, 8, Kc); P.disc(50, 36, 5.5, null); P.disc(74, 36, 8, Kc); P.disc(74, 36, 5.5, null); for (const cx of [50, 74]) { P.line(cx - 6, 36, cx + 6, 36, Kc); P.line(cx, 30, cx, 42, Kc); P.disc(cx, 36, 1.6, Kc); }
+  P.rect(40, 6, 4, 6, Kc); P.rect(41, 7, 2, 3, '#ffd070'); P.rect(38, 22, 6, 4, Kc); P.rect(39, 18, 4, 4, '#262a34');
+  const m = R.geo().quad([-3.6, 0, 0], [3.6, 0, 0], [3.6, 3.6, 0], [-3.6, 3.6, 0], [0, 0, 1, 1]).mesh(T.from(P, { m: 1, cut: true }), { side: true }); m.castShadow = false; return m; })();
+carriage.scale.setScalar(1.25); carriage.material = carriage.material.clone(); carriage.material.fog = false; carriage.material.color.set('#9aa4b8'); scene.add(carriage);   /* 霧にとけず、影として浮かぶ */ const cLamp = D.halo({ c: GAS, r: .5, k: .8 }); scene.add(cLamp);
+
+// ---- 生きもの・人：黒ねこ、からす、反対から来る夜回り（ランタン）、地をはう霧 ----
+const cat = D.cat({ s: 1.1 }); scene.add(cat);
+const watch = R.actor({ hairStyle: 'short', hair: '#5a5a5a', beard: 'mustache', mouth: 'line', cloth: 'coat', top: '#3a3a44', top2: '#a89a7a', bottom: '#2e2e36', hat: 'cap', acc: '#2e2e36', hold: 'staff' }); scene.add(watch); D.lantern(watch, { hand: 'L', c: GAS, light: false, r: 1.6, k: .4 });
+scene.add(D.groundFog({ n: 60, box: [40, 60], c: '#9aa4b4', a: .3, h: 1.4, w: 7, wind: [.4, .1] }), D.perched([[LAMPS[3][0], 3.55, LAMPS[3][1], 1], [LAMPS[6][0], 3.55, LAMPS[6][1], 2]], { watch: hero, near: 3 }));
+
+const lamp = D.lantern(hero, { hand: 'L', c: GAS, power: 9, range: 7, r: 2.6, k: .6 });
+const pls = [0, 1].map(() => { const l = new THREE.PointLight(GAS, 9, 9, 1.5); scene.add(l); return l; });
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const ZS = 10, LEN = 46, SPEED = 1.4;
+K.loop((dt, t) => {
+  const z = ZS - (t * SPEED) % LEN, a = ang(z), x = pathX(z) - .6 * Math.cos(a);
+  hero.position.set(x, 0, z); hero.rotation.y = PI - a; R.walk(hero, t * SPEED * 3.6, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4 : 4.8, za = z + 6, xa = pathX(za) - .6;
+  cam.position.set(x - (tall ? .9 : 1.6), tall ? 2.5 : 2.45, z + Dc); cam.lookAt(pathX(z - 7) * .9 + (tall ? 0 : .3), 1.35, z - 7);
+  LAMPS.slice().sort((p, q) => Math.abs(p[1] - z + 3) - Math.abs(q[1] - z + 3)).slice(0, 2).forEach(([lx, lz], k) => pls[k].position.set(lx, 3, lz));
+  // 夜回り：奥から手前へ
+  const wz = z - 14 + ((t * .9) % 10), wx = pathX(wz) + 1.6; watch.position.set(wx, 0, wz); watch.rotation.y = -ang(wz); R.walk(watch, t * 3.6, .7); D.lanternPose(watch);
+  // 馬車の影：十字路（曲がりの先）を よこぎる。z は CZ、x は左右へ
+  const ac = ang(CZ), nx = Math.cos(ac), nz = Math.sin(ac), u = -26 + ((t * 3 + 14.5) % 52), bob = Math.abs(Math.sin(t * 5)) * .06; carriage.position.set(pathX(CZ) + nx * u, bob, CZ + nz * u); carriage.rotation.y = PI - ac; cLamp.position.set(pathX(CZ) + nx * (u + 2.5), 3.75 + bob, CZ + nz * (u + 2));
+  const ca = t * .25; cat.position.set(pathX(z - 5) - 3.6 + Math.sin(ca) * .4, 0, z - 5 - ((t * .3) % 3)); cat.rotation.y = PI; R.catPose(cat, 'walk', t * 1.2);
+  D.tick(t, cam); C.update(t, cam); S.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

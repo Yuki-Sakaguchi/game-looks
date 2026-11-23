@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-40 嵐の密林の祭壇 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e4dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-40 ─ 嵐の密林の祭壇 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-jungle2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 嵐の夜の密林。風に大木がしなる中、丘の上の古い祭壇へ石段をのぼる。祭壇の両わきに かがり火、まん中に赤く光る石。いなずまが光ると、密林の向こうに 山のような大きな影が浮かぶ。
+// 色の組は「嵐の青黒・ぬれた密林の深い緑」＋かがり火の だいだい、差し色は 光る石の赤 1 つ。暗い所は青むらさき寄りにして、火と いなずまと ふちの光で読ませる（D.mood 'storm'）。こわさは影まで。
+// 主役は やりを持つ旅人（R.actor の toon。生成りの上着と青いマント）。カメラは ななめ うしろの左下から追い、石段・祭壇・空を見上げる。しなる木・雨・火・いなずま・こうもり・ゆれる つる が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), J = PACK_JUNGLE2(THREE, K, R, F), T = R.tex, PT = PK.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 800, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#3a2c2a', eyes: 'sharp', cloth: 'coat', top: '#e0d0aa', top2: '#7a5a3a', lower: 'baggy', bottom: '#4a4a5a', belt: '#5a3a28', shoes: 'boot', shoe: '#4a3428', gloves: 'glove', glove: '#6a4a34', neck: 'cape', acc: '#3a6ab0', hold: 'spear' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 30, level: .9, sky: ['#0a1020', '#18243a', '#2c4058', '#4c6680'], fog: ['#1c2a38', 18, 130], hills: '#101c24', base: [.74, .84, .96] });
+
+// ---- 丘：上は平らな祭壇の台。正面に石段（-z へのぼる）。まわりは ぬれた密林の土 ----
+const TOP = 4.2, STZ = 8.4, sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const dOut = (x, z) => Math.hypot(Math.max(0, Math.abs(x) - 7.5), Math.max(0, z, -16 - z)), H = (x, z) => Math.max(0, TOP - dOut(x, z) * .55) + (F.vn(x * .14, z * .14, 3) - .5) * sm(6, 14, dOut(x, z)) * 1.4;
+const onStep = (x, z) => Math.abs(x) < 2.3 && z > 0 && z < STZ, Y = (x, z) => onStep(x, z) ? (Math.floor((STZ - z) / .6) + 1) * .3 : H(x, z);
+const FIRE = [[-3.4, -5.5], [3.4, -5.5]], RED = [0, TOP + 1.55, -8.5];
+const LIT = [...FIRE.map(([x, z]) => ({ x, z, r: 7, c: '#ffa050', k: 1.3 })), { x: 0, z: -8.5, r: 6, c: '#ff4030', k: 1 }];
+const land = R.ground({ w: 120, d: 120, cell: 1.5, cz: -10, H, layers: [D.tex.deadGrass({ c: '#3a5a44' }), PT.ancient({ kind: 'block', c: '#6a7080', moss: .5 }), D.tex.wetCobble({ c: '#4a5a56', wet: .6 })],
+  mix: (x, z) => [.5 + (.4 - dOut(x, z)) * .8, dOut(x, z) > .6 && Math.abs(x) < 2.2 && z > 8 ? 1 : F.vn(x * .3, z * .3, 2) > .6 ? .6 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 祭壇：石段、台の上の柱、石の祭壇と赤い光の石、かがり火、像 ----
+const fixed = [], put = (o, x, z, ry = 0, y = Y(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const STONE = '#7a8090';
+put(PK.steps({ w: 4.6, n: 14, rise: .3, run: .6, c: STONE, moss: .6, base: .4 }), 0, STZ, 0, 0);
+{ const G = R.geo(), CT = PT.ancient({ kind: 'carve', c: STONE, moss: .3 });   // 祭壇（2 段の石の台）
+  G.box(4.2, .7, 2.6, 0, TOP, -8.5, { m: 3 }).box(3, .55, 1.6, 0, TOP + .7, -8.5, { m: 3 }).box(.9, .25, .9, 0, TOP + 1.25, -8.5, { m: 3 }); fixed.push(G.mesh(CT)); }
+[[-6, -2, 0], [6, -2, .5], [-6, -8, .6], [6, -8, 0], [-6, -14, 0], [6, -14, .7], [-2.6, -14.5, .4], [2.6, -14.5, 0]].forEach(([x, z, br], i) => put(PK.column({ h: 6.5, r: .5, c: STONE, broken: br, seed: i, ivy: .7 }), x, z, i, TOP));
+for (const s of [-1, 1]) put(D.statue({ kind: 'knight', s: 1.4, c: '#727888', seed: s + 5 }), s * 2.9, 9.5, -s * .3, 0);
+for (const [x, z] of FIRE) put(D.brazier({ s: 1.3, light: true }), x, z, 0, TOP);
+fixed.push(D.pools(FIRE.map(([x, z]) => ({ p: [x, TOP + .04, z], r: 3.2, r2: 2.6, c: '#ff9a48', k: .7 }))));
+const red = F.crystal({ h: 1.3, n: 4, c: '#ff3a34', glow: true, halo: true, light: true, seed: 2 }); red.position.set(RED[0], RED[1] - .3, RED[2]); scene.add(red);
+const redHalo = D.halo({ c: '#ff3020', r: 3, k: .7, flicker: true }); redHalo.position.set(RED[0], RED[1] + .4, RED[2] + .4); scene.add(redHalo);
+// 密林：板根の大木（風でしなるので、ばらばらに置く）、シダ、大きな葉
+const LEAF = ['#24483c', '#2a5040', '#1f4438'], trees = [];
+for (let i = 0; i < 26; i++) { const a = -2.9 + i * .23 + hash(i, 1) * .1, r = 17 + hash(i, 2) * 14, x = Math.sin(a) * r, z = -8 - Math.cos(a) * r * .9; if (z > 14 || (Math.abs(x) < 11 && z < -18)) continue; const t = J.tree({ h: 15 + hash(i, 3) * 9, c: '#4a4a50', leaf: LEAF[i % 3], seed: i, vines: 4, vineC: '#2a5240', lean: .06 }); t.position.set(x, H(x, z) - .2, z); t.rotation.y = i; t.userData.ph = hash(i, 4) * 6; scene.add(t); trees.push(t); }
+for (let i = 0; i < 12; i++) { const x = (i - 5.5) * 7 + hash(i, 51) * 3, z = -34 - hash(i, 52) * 14, t = J.tree({ h: 11 + hash(i, 53) * 5, c: '#3a3e48', leaf: LEAF[i % 3], seed: i + 40, vines: 2, roots: 3 }); t.position.set(x, H(x, z) - .2, z); t.rotation.y = i; t.userData.ph = hash(i, 54) * 6; scene.add(t); trees.push(t); }   // 祭壇のうしろの低い森（影の前のシルエット）
+for (let i = 0; i < 70; i++) { const x = (hash(i, 6) - .5) * 50, z = 18 - hash(i, 7) * 50, d = dOut(x, z); if (d < .8 || (Math.abs(x) < 3.4 && z > 6)) continue; put(i % 3 ? J.fern({ s: 1 + hash(i, 8) * .8, c: ['#2e6a44', '#356e48'][i % 2], seed: i }) : J.bigLeaf({ s: 1.2 + hash(i, 9) * .8, c: '#2a6040', seed: i, holes: .4 }), x, z, i, H(x, z)); }
+scene.add(R.merge(fixed));
+
+// ---- 空と天気：流れる雲、強い雨、いなずま、遠くの大きな影、こうもり ----
+scene.add(D.clouds({ n: 12, r: 250, y: 80, s: 110, c: '#3e4e6c', shade: '#1a2440', speed: .035 }), D.rain({ n: 1100, box: [24, 13, 24], speed: 25, slant: [.45, .1], a: .45 }), D.lightning(mood, { first: 2.4, every: 6.5, az: 10, spread: 40, dist: 180 }));
+scene.add(D.loomer({ w: 110, h: 72, c: '#1a2438', eye: '#ffc048', gap: .1 }).translateX(6).translateZ(-170).translateY(24));
+scene.add(D.flock({ kind: 'bat', n: 9, r: 8, h: 3, center: [0, TOP + 12, -10] }));
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const Z0 = 15, LEN = 19.5, SPEED = 1.15; let hy = null;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = .3 + Math.sin(z * .2) * .25, ty = Y(x, z); if (hy === null || Math.abs(ty - hy) > 1) hy = ty; hy += (ty - hy) * (1 - Math.exp(-dt * 12));
+  hero.position.set(x, hy, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.6, .9); hero.userData.J.head.rotation.x = -.15;
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5; cam.position.set(x - (tall ? 1.1 : 2), hy + (tall ? 1.4 : 1.1), z + Dc); cam.lookAt(x + .3, hy + (tall ? 3 : 2.9), z - 6);   // 低い所から見上げて、石段・祭壇・空の影を入れる
+  for (const tr of trees) { const w = Math.sin(t * 1.6 + tr.userData.ph) * .5 + Math.sin(t * 2.9 + tr.userData.ph * 2) * .25 + (mood.fl > .2 ? .3 : 0); tr.rotation.z = .05 + w * .05; tr.rotation.x = w * .02; }   // 風でしなる
+  red.userData.tick && red.userData.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

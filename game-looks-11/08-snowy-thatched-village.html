@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-08 雪の合掌の里 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2a44;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4ea;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-08 ─ 雪の合掌の里 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-wa2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 山あいの雪の里の夕方。手を合わせたような急な かやぶき屋根の家が、同じ向きにならぶ。屋根は雪をかぶり、妻（つま）の面の窓に あかり。雪の田んぼのあいだを小川が流れ、雪がしずかにふる。
+// 色の組は「雪の白と青むらさきの影・夕空のもも色・かやの金茶」＋差し色は窓の だいだい。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は みの（わらのマント）に あみがさの旅人（R.actor の toon）。雪の道を里の奥へ歩き、右ななめうしろの高い所から見下ろすカメラが追う。あみがさ・雪は pack-wa2.js（WA.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 800, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#34406e'], [.45, '#6a6a9a'], [.75, '#c88aa0'], [.92, '#f0b090'], [1, '#f8d8a8']], { r: 380 })); scene.fog = new THREE.Fog('#b8a4bc', 30, 190); renderer.setClearColor('#b8a4bc');
+const { sun } = K.lights(scene, renderer, { sky: 0xb8c0f0, ground: 0xe0c0c8, amb: 1.0, sun: 0xffa080, power: 1.3, range: 34 }), SUN = new THREE.Vector3(-.35, .28, -.9).normalize();
+
+// ---- 地面：雪。道（ふみかためた灰青の雪）、田のあぜ（少し影の線）、小川 ----
+const PX = z => Math.sin(z * .055) * 3 + Math.sin(z * .13) * .6, RX = z => PX(z) + 6 + Math.sin(z * .09 + 1) * 1.5;
+const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => -.8 * (1 - sstep(.9, 2.2, Math.abs(x - RX(z)))) + sstep(-60, -110, z) * 6 + sstep(30, 60, Math.abs(x)) * 10;
+const fr = v => v - Math.floor(v);
+const land = R.ground({ w: 130, d: 170, cell: 2, cz: -40, H, layers: [T.snow({ c: '#f4f0f4' }), T.snow({ c: '#c4c0d8', seed: 3 }), T.dirt({ c: '#6a5a58', pebbles: .5 })],
+  mix: (x, z) => { const dp = Math.abs(x - PX(z)), dr = Math.abs(x - RX(z)); return [dp < 1.3 ? .9 : (fr(x / 7) < .06 || fr(z / 5.5) < .07) && dp > 2.5 && dr > 2.6 ? .55 : 0, dr < 1.9 ? 1 : 0]; } });
+scene.add(land.mesh);
+const WF = T.water({ c: '#3a5a8a' }), riv = []; for (let z = 30; z >= -100; z -= 2) riv.push([RX(z), -.42, z]); const river = R.strip(riv, 2.2, WF[0], { lift: 0 }); scene.add(river);
+
+// ---- 合掌の家：急な かやぶき（上の面は雪）、妻の面は板と あかりの窓。棟の向きは z（妻が道のほうを向く） ----
+const SNOW = T.snow({ c: '#f8f4f8', seed: 2 }), THATCH = T.thatch({ c: '#a08050' }), BOARD = T.boards({ c: '#5a4234' }), BOARD2 = T.boards({ c: '#4a3a34', seed: 2 }), PLAS = T.plaster({ frame: 'beam', c: '#e8dcc8', wood: '#4a3428' });
+const WINL = T.window({ bars: 'grid', lit: 1, curtain: '#ffd890', frame: '#3a2a24' }), WIND = T.window({ bars: 'grid', curtain: '#d8d0c0', frame: '#3a2a24' }), DOOR = T.door({ style: 'plank', c: '#4a3428' });
+const POOLS = [], SMOKE = [];
+function gassho(o = {}) { const W = o.W || 8, L = o.L || 11, h0 = 1.6, pt = 1.7, ov = .65, th = .6, zE = L / 2 + .7, rY = h0 + W / 2 * pt, xE = W / 2 + ov, yE = h0 - ov * pt, sd = o.seed || 0;
+  const B = R.parts(), Sn = B.g(SNOW), Th = B.g(THATCH, { side: true }), Bd = B.g(sd % 2 ? BOARD : BOARD2), Pl = B.g(PLAS), Wl = B.g(WINL, { glow: true }), Wd = B.g(WIND), Dr = B.g(DOOR);
+  for (const s of [1, -1]) { const e0 = [s * xE, yE + th, s * zE], e1 = [s * xE, yE + th, -s * zE], r1 = [0, rY + th, -s * zE], r0 = [0, rY + th, s * zE];
+    const lf = (p, q, k) => p.map((v, i) => v + (q[i] - v) * k), m0 = lf(e0, r0, .2), m1 = lf(e1, r1, .2);
+    Th.quad(e0, e1, m1, m0, [0, 0, L / 1.5, 1]);                                                                      // 下の帯は かや（雪がすべり落ちた所）
+    Sn.quad(m0, m1, r1, r0, [0, 0, L / 3, (W / 2 + ov) * 2 / 3 * .8]);                                               // 上は雪
+    Th.quad([s * xE, yE, s * zE], [s * xE, yE, -s * zE], [s * xE, yE + th, -s * zE], [s * xE, yE + th, s * zE], [0, 0, L / 1.5, .3]);   // のきの かやの厚み
+    for (const ze of [zE, -zE]) Th.quad([s * xE, yE, ze], [0, rY, ze], [0, rY + th, ze], [s * xE, yE + th, ze], [0, 0, 4, .3]);          // 妻がわの かやの厚み
+    Th.quad([s * xE, yE, -s * zE], [s * xE, yE, s * zE], [0, rY, s * zE], [0, rY, -s * zE], [0, 0, L / 2, 3], .55); }                    // のきの うら
+  for (const s of [1, -1]) { const z = s * L / 2;   // 妻の かべ（下は しっくいと木組み、上は板）と窓
+    Pl.quad([-s * W / 2, 0, z], [s * W / 2, 0, z], [s * W / 2, h0, z], [-s * W / 2, h0, z], [0, 0, W / 3, h0 / 3]);
+    Bd.quad([-s * W / 2, h0, z], [s * W / 2, h0, z], [0, rY, z], [0, rY, z], [0, 0, W / 3, (rY - h0) / 3]);
+    for (const [y, n] of [[2.3, 4], [4.1, 3], [5.8, 2], [7.2, 1]]) for (let k = 0; k < n; k++) { const x = (k - (n - 1) / 2) * 1.1, lit = hash(k + y, sd + s) > .3, G = lit ? Wl : Wd; G.quad([x - .38 * s, y, z + s * .02], [x + .38 * s, y, z + s * .02], [x + .38 * s, y + .62, z + s * .02], [x - .38 * s, y + .62, z + s * .02]); }
+    if (s > 0) { Dr.quad([-.6, 0, z + .02], [.6, 0, z + .02], [.6, 1.5, z + .02], [-.6, 1.5, z + .02]); Wl.quad([1.4, .5, z + .02], [2.6, .5, z + .02], [2.6, 1.3, z + .02], [1.4, 1.3, z + .02]); Wl.quad([-2.6, .5, z + .02], [-1.4, .5, z + .02], [-1.4, 1.3, z + .02], [-2.6, 1.3, z + .02]); } }
+  for (const s of [1, -1]) Bd.quad([s * W / 2, 0, s * L / 2], [s * W / 2, 0, -s * L / 2], [s * W / 2, h0, -s * L / 2], [s * W / 2, h0, s * L / 2], [0, 0, L / 3, h0 / 3]);   // 長い かべ（のきの下）
+  const g = B.group(); g.userData.ridge = rY; return g; }
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const HOUSES = [[-12, 10, 7, 10], [-12.5, -14, 8, 11], [15, -4, 7.5, 10], [-11.5, -36, 7, 10], [16, -28, 8, 11], [-13, -56, 8, 11], [15, -50, 7, 10], [-2, -82, 9, 12], [18, -74, 8, 11], [-26, -24, 8, 10], [28, -12, 7, 9], [-27, -2, 7, 9], [-25, -46, 7, 9]];
+HOUSES.forEach(([dx, z, W, L], i) => { const x = PX(z) + dx, y = H(x, z) - .05; put(gassho({ W, L, seed: i }), x, z, (hash(i, 3) - .5) * .12, y); POOLS.push({ p: [x, y, z + L / 2 + 1.6], r: 2.6, r2: 1.6, c: '#ffb860', k: .45 }); SMOKE.push([x, y + 1.6 + W / 2 * 1.7 + .5, z]); });
+// 雪をかぶった木（すぎ）、はさ（稲を干す木の さお）、小さな木の橋、石の地蔵の ほこら、雪にうまった田の切りかぶ
+for (let k = 0; k < 70; k++) { const z = 30 - hash(k, 2) * 140, x = (hash(k, 1) - .5) * 110; if (Math.abs(x - PX(z)) < 7 || HOUSES.some(([dx, hz, W, L]) => Math.abs(x - PX(hz) - dx) < W / 2 + 2 && Math.abs(z - hz) < L / 2 + 2) || Math.abs(x - RX(z)) < 3) continue;
+  put(R.tree({ kind: 'pine', h: 7 + hash(k, 3) * 7, c: ['#3a5a5a', '#2e4e54'][k % 2], seed: k }), x, z, k); }
+{ const G = R.geo().smooth(1), Sg = R.geo();
+  for (const [z0, dx] of [[2, -4.5], [-20, -5], [-40, 4], [-62, -4.6]]) { const x0 = PX(z0) + dx; for (let k = 0; k < 4; k++) G.at(R.TR(x0, H(x0, z0 + k * 2.2), z0 + k * 2.2)).loft(5, [[-.2, .07, .07, 0, .8], [2.4, .06, .06, 1.5, 1]], { cap: 'top' });
+    for (const y of [1.2, 1.8, 2.3]) { G.at(R.TR(x0, H(x0, z0) + y, z0 - .2, 0, PI / 2)).loft(4, [[0, .035, .035, 0, .9], [7, .035, .035, 3, 1]], { cap: 'both' }); Sg.at(R.TR(x0, H(x0, z0) + y + .05, z0 + 3.2)).box(.14, .07, 6.9, 0, 0, 0, { m: 2 }); } }
+  fixed.push(G.at(null).mesh(T.bark({ c: '#5a4a40' })), Sg.at(null).mesh(SNOW)); }
+for (const z of [-17, -58]) { const x = RX(z), B = R.parts(), Pk = B.g(T.planks({ c: '#7a6050' })), Sn = B.g(SNOW); Pk.box(4.4, .12, 1.3, 0, .05, 0, { m: 1.5, bottom: true }); for (const s of [-1, 1]) Pk.box(4.4, .5, .08, 0, .17, s * .62, { m: 1.5 }); Sn.box(4.3, .05, 1.1, 0, .17, 0, { m: 2 }); put(B.group(), x, z, 0, .25); }
+put(F.stoneLantern({ h: 1.4, lit: true }), PX(-6) - 2.4, -6, PI / 2); put(F.stoneLantern({ h: 1.4, lit: true }), PX(-44) + 2.4, -44, -PI / 2);
+for (let k = 0; k < 120; k++) { const z = 25 - hash(k, 5) * 90, x = PX(z) + (hash(k, 6) > .5 ? 1 : -1) * (3 + hash(k, 7) * 18); if (Math.abs(x - RX(z)) < 2.5 || HOUSES.some(([dx, hz, W, L]) => Math.abs(x - PX(hz) - dx) < W / 2 + 1.5 && Math.abs(z - hz) < L / 2 + 1.5)) continue; put(R.tuft({ kind: 'wheat', s: .35 + hash(k, 8) * .2, c: '#8a7050', seed: k % 3 }), Math.round(x / 1.2) * 1.2, Math.round(z / 1.4) * 1.4, 0); }
+scene.add(R.merge(fixed));
+scene.add(D.pools(POOLS));
+scene.add(R.backdrop({ c: '#7a7aa8', haze: '#d8b0b8', r: 200, h: 60, y: -4, rep: 2 }), R.backdrop({ c: '#9a90b8', haze: '#f0c0b0', r: 300, h: 110, y: -6, seed: 3 }));
+
+// ---- 人・動物：主役（みのと あみがさ）、雪かきをする人、雪の上をかける子ども、手をひく親子、ねこ、鳥 ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, H(x, z), z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = WA.kasa(act({ hairStyle: 'short', hair: '#2a2228', mouth: 'small', cloth: 'coat', top: '#3a4a7a', top2: '#e8dcc0', bottom: '#4a4450', shoes: 'boot', shoe: '#8a6a40', gloves: 'wrap', glove: '#e8dcc0', neck: 'cape', acc: '#a08a50', back: 'pack' }), { c: '#c8a868' }); F.wear(hero, 'staff', { len: 1.45, c: '#6a4a30' });
+const shovel = act({ hairStyle: 'bald', hair: '#a09890', beard: 'mustache', cloth: 'coat', top: '#6a4a3a', top2: '#e8dcc0', bottom: '#4a4a58', shoes: 'boot', shoe: '#4a3a30', hat: 'band', acc: '#e8e0d0' }, 0, 0, 0);
+const kids = [0, 1].map(i => act({ s: .7, sex: i ? 'f' : 'm', hairStyle: i ? 'bob' : 'short', hair: '#2a2228', mouth: 'open', blush: true, cloth: 'coat', top: i ? '#d84a4a' : '#e8a83a', top2: '#f8f0e0', bottom: '#4a4a6a', shoes: 'boot', shoe: '#6a4a3a', neck: 'scarf', acc: i ? '#f8f0e0' : '#4a7ab0' }));
+const mom = act({ sex: 'f', hairStyle: 'bun', hair: '#2a2228', mouth: 'smile', cloth: 'robe', top: '#5a6a8a', top2: '#f0e8d8', skirt: .85, shoes: 'shoe', shoe: '#5a4a3a', neck: 'scarf', acc: '#c84a5a' }); F.wear(mom, 'basket', { hand: 'R' });
+const cat = R.cat({ c: '#3a3a44', belly: '#f0ece4' }); scene.add(cat);
+const birds = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#4a4a5a', belly: '#e8e0d8', neck: false, s: 1.3 }); scene.add(b); return b; });
+const snow = WA.petals(scene, { n: 360, box: [34, 14, 34], c: '#ffffff', size: 2.2, fall: 1.4, wind: [.35, .15] });
+const wl = [0, 1].map(() => { const l = new THREE.PointLight('#ffb070', 7, 9, 1.5); scene.add(l); return l; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 60), Z0 = 18, LEN = 64, SPEED = 1.15; let sm = 0;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = PX(z), y = H(x, z), tx = PX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.7, .75);
+  const tall = innerWidth < innerHeight, cx = x + (tall ? 1.8 : 2.6), cz = z + (tall ? 4.6 : 5.6); cam.position.set(cx, y + (tall ? 3.6 : 3.4), cz); cam.lookAt(x - .5, y + 1.2, z - 7);   // 右うしろの高い所から見下ろす
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 4);
+  HOUSES.map(([dx, hz, W, L]) => [Math.abs(hz - z + 6), PX(hz) + dx, hz + L / 2 + 1.2]).sort((a, b) => a[0] - b[0]).slice(0, 2).forEach(([, lx, lz], k) => wl[k].position.set(lx, H(lx, lz) + 1.4, lz));
+  // 雪かき：家の前で、すくって横へ投げる
+  { const sx = PX(-14) - 5, sz = -14 + 7; shovel.position.set(sx, H(sx, sz), sz); shovel.rotation.y = 1.9; const k = (t * .7) % 1, J = shovel.userData.J; R.idle(shovel, t, 0); J.torso.rotation.x = .35 + Math.sin(k * PI * 2) * .25; J.armL.rotation.x = J.armR.rotation.x = -.9 + Math.sin(k * PI * 2) * .6; J.armL.rotation.z = .2; J.armR.rotation.z = -.2; J.foreL.rotation.x = J.foreR.rotation.x = -.5;
+    if (k > .45 && k < .47) fx.emit('puff', sx + .8, H(sx, sz) + .9, sz - .6, { size: .5, life: .9, vy: .5, vx: .8, grow: 1.2, spread: .3 }); }
+  // 子ども：道のわきの雪の上を かけまわる
+  kids.forEach((p, i) => { const a = t * (.9 + i * .2) + i * 2, px = PX(z - 10) - 4 + Math.cos(a) * 2.2, pz = z - 10 + Math.sin(a) * 2.2; p.position.set(px, H(px, pz), pz); p.rotation.y = -a; MO.play(p, 'run', t * 1.1 + i, { amp: .8 }); });
+  { const mz = ((-60 + t * 1.0) % 80 + 80) % 80 - 60, mx = PX(mz) - .9; mom.position.set(mx, H(mx, mz), mz); mom.rotation.y = 0; R.walk(mom, t * 3.6, .6); }
+  cat.position.set(PX(-30) + 2.2, H(PX(-30) + 2.2, -30), -30); cat.rotation.y = -.8; R.catPose(cat, 'sit', t);
+  birds.forEach((b, k) => { const a = t * (.22 + k * .03) + k * 1.6, r = 10 + k * 2.5; b.position.set(x + Math.cos(a) * r, y + 9 + k, z - 16 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .5 + k); });
+  if ((sm += dt) > .5) { sm = 0; for (const [sx, sy, sz] of SMOKE) if (Math.abs(sz - z) < 45) fx.emit('smoke', sx, sy, sz + (Math.random() - .5) * 3, { size: .7, life: 4, vy: .7, vx: .25, grow: 2, spread: .15, tint: '#e8e0f0' }); }
+  R.flip(river.material, WF, t, 3); snow.tick(t, x, z - 6, y - 2); fx.update(dt); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

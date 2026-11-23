@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-07 夏祭りの参道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0e0c22;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-07 ─ 夏祭りの参道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-wa2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夏祭りの夜の参道。石だたみの両がわに屋台がならび、頭の上には ちょうちんの列。つきあたりの広場には やぐらが立ち、まわりを ゆかたの人が輪になっておどる。空には花火。
+// 色の組は「夜空の紺・ちょうちんと屋台の あかりの だいだい・石と木の茶」＋差し色は花火の もも色と水色。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は はっぴに はちまきの少年（R.actor の toon）。参道を やぐらへ歩き、右ななめうしろの低い所からカメラが追って、ちょうちんの列と花火を見上げる。ちょうちん・ゆかたは pack-wa2.js（WA.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#0a0c2a'], [.45, '#1c2058'], [.8, '#3a2e6a'], [1, '#7a4a7a']], { r: 400 })); scene.fog = new THREE.Fog('#3a2c5a', 40, 200); renderer.setClearColor('#3a2c5a');
+const { sun } = K.lights(scene, renderer, { sky: 0x8a8ad0, ground: 0x6a4a40, amb: 1.25, sun: 0x9aa4e0, power: .8, range: 30 });
+scene.add(K.stars(160, 380, 1.2));
+
+// ---- 参道（z の向き）と広場。石だたみ、わきは砂利。屋台とちょうちんの下を明るく焼きこむ ----
+const PZ = -44, PR = 11, LIT = [];
+for (let z = 14; z > -32; z -= 3) for (const s of [-1, 1]) LIT.push({ x: s * 4.6, z, r: 4.6, c: '#ffb060', k: .75 });
+for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; LIT.push({ x: Math.cos(a) * 7, z: PZ + Math.sin(a) * 7, r: 5, c: '#ffb060', k: .6 }); } LIT.push({ x: 0, z: PZ, r: 6, c: '#ffc070', k: .8 });
+const land = R.ground({ w: 100, d: 150, cell: 2, cz: -30, layers: [T.dirt({ c: '#8a7a6a', pebbles: .7 }), T.cobble({ kind: 'slab', c: '#9a9088', moss: .1 }), T.grass({ c: '#3a5a4a' })],
+  mix: (x, z) => [Math.abs(x) < 2.2 && z > PZ + PR - 2 ? 1 : 0, Math.abs(x) > 10 && Math.hypot(x, z - PZ) > PR + 4 ? 1 : 0], shade: D.lightShade(LIT, [.56, .56, .8]) });
+scene.add(land.mesh);
+
+// ---- 屋台：木の台に のき布、ならべた品物。のき先に ちょうちん、前に たれ幕 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const AW = [['#d84a3a', '#f8f0e0'], ['#3a6ab0', '#f8f0e0'], ['#e8a83a', '#f8f0e0'], ['#4a9a6a', '#f8f0e0'], ['#d86a9a', '#f8f0e0']], FC = [['#f04a4a', '#f8d040', '#ffffff'], ['#f8a0c0', '#ffffff', '#80c0f0'], ['#f0d060', '#e07030', '#ffffff']];
+const SELL = [], LANP = [];
+for (const s of [-1, 1]) { let i = s > 0 ? 2 : 0; for (let z = 13; z > -30; z -= 3.4 + hash(i, s) * .6) { const [c, c2] = AW[i % 5], w = 2.6 + hash(i, s + 2) * .5;
+  put(R.stall({ w, c, c2, fc: FC[i % 3], seed: i }), s * 5.1, z, s > 0 ? -PI / 2 : PI / 2);
+  put(F.flag({ kind: 'drape', w: w * .7, h: .45, c: c, c2: '#f8f0e0', crest: ['wave', 'sun', 'diamond', 'moon', 'star'][i % 5], cc: '#f8f0e0' }), s * 4.12, z, s > 0 ? -PI / 2 : PI / 2, 2.05);
+  for (const dz of [-w / 2 - .1, w / 2 + .1]) LANP.push([s * 4.15, 1.95, z + dz, i]);
+  if (i % 2 === 0) SELL.push([s * 5.65, z + (hash(i, 5) - .5), s > 0 ? -PI / 2 : PI / 2, i]); i++; } }
+// うしろの林と、つきあたりの石段・鳥居・お堂。広場のまわりの石灯ろう
+for (let k = 0; k < 70; k++) { const z = 24 - hash(k, 2) * 120, x = (hash(k, 1) > .5 ? 1 : -1) * (8 + hash(k, 3) * 30); if (Math.hypot(x, z - PZ) < PR + 3 || (Math.abs(x) < 15 && z > PZ)) continue; put(R.tree({ kind: k % 4 ? 'tall' : 'pine', h: 9 + hash(k, 4) * 7, c: ['#1e3a3a', '#24403c', '#1c3440'][k % 3], seed: k }), x, z, k); }
+put(F.stairs({ w: 6, h: 2.4, d: 5, n: 8, tex: F.tex.ashlar({ c: '#8a8480' }), side: true }), 0, PZ - PR - 4.5);
+put(F.torii({ w: 6, h: 6.4, c: '#d0402e' }), 0, PZ - PR - 1.2);
+put(F.eastHall({ w: 10, d: 7, h: 3.6, tiers: 2, c: '#c8402e', roof: F.tex.kawara({ c: '#4a5268' }), lit: true }), 0, PZ - PR - 12, 0, 2.4);
+for (const s of [-1, 1]) for (const dz of [2, -6]) put(F.stoneLantern({ h: 1.6, lit: true }), s * 3, PZ + PR + dz - 2);
+
+// ---- やぐら：4 本の柱、紅白のまく、上の台に太鼓。屋根のてっぺんから広場のはしへ ちょうちんのつな ----
+const YH = 3, YT = 6.2;
+{ const B = R.parts(), Wd = B.g(T.bark({ c: '#6a4a34' })).smooth(1), Pl = B.g(T.planks({ c: '#7a5a3a' })), Cl = B.g(T.fabric({ pattern: 'stripe', c: '#d8402e', c2: '#f8f0e8', w: 6, m: 1.2 }), { side: true });
+  for (const [x, z] of [[-1.8, -1.8], [1.8, -1.8], [1.8, 1.8], [-1.8, 1.8]]) Wd.loft(5, [[0, .13, .13, 0, .8, x, z], [YT, .11, .11, 4, 1, x, z]], { cap: 'top' });
+  Wd.loft(5, [[0, .08, .08, 0, .9, 0, 0], [YT + 1.3, .06, .06, 3, 1, 0, 0]], { cap: 'top' });
+  Pl.box(4.2, .16, 4.2, 0, YH, 0, { m: 2, bottom: true }); Pl.box(4.4, .1, 4.4, 0, YT, 0, { m: 2, bottom: true });
+  for (let k = 0; k < 4; k++) { const a = k * PI / 2, c = Math.cos(a), s = Math.sin(a), q = (u, y) => [c * 2.02 - s * u, y, s * 2.02 + c * u]; Cl.quad(q(-2.02, .2), q(2.02, .2), q(2.02, YH), q(-2.02, YH), [0, 0, 4, 2.2]); Cl.quad(q(-2.02, YH + .2), q(2.02, YH + .2), q(2.02, YH + .9), q(-2.02, YH + .9), [0, 0, 4, .6]); }
+  const g = B.group(); g.position.set(0, 0, PZ); fixed.push(g);
+  put(F.eastRoof({ w: 5, d: 5, h: 1.2, eave: .6, roof: F.tex.kawara({ c: '#5a5a6a' }) }), 0, PZ, 0, YT + .1); }
+// 太鼓（たる形の胴に 白い皮）
+{ const B = R.parts(), Dr = B.g(T.barrel({ c: '#9a3a2a' })).smooth(1), Sk = B.g(T.plaster({ frame: 'none', c: '#f0e8d4' }));
+  B.g(T.planks({ c: '#5a3a2a' })).box(.9, .35, .5, 0, 0, 0, { m: 1 });
+  Dr.at(R.TR(0, 1.0, 0, 0, PI / 2)).loft(10, [[-.38, .48, .48, 0, .9], [0, .56, .56, .5, 1.1], [.38, .48, .48, 1, .9]], {}).at(null);
+  Sk.at(R.TR(0, 1.0, 0, 0, PI / 2)).loft(10, [[.38, .48, .48, 0, 1], [.385, 0, 0, 1, 1]], {}).loft(10, [[-.385, 0, 0, 0, 1], [-.38, .48, .48, 1, 1]], {}).at(null);
+  put(B.group(), .2, PZ - .6, PI / 2, YH + .08); }
+// ちょうちんのつな：やぐらから 10 本、参道の両がわに 2 本
+const ROPES = [];
+for (let k = 0; k < 10; k++) { const a = k / 10 * TAU + .3, ex = Math.cos(a) * (PR - .5), ez = PZ + Math.sin(a) * (PR - .5); ROPES.push([[0, YT + 1.2, PZ], [ex, 3.6, ez], 7]); put(R.geo().smooth(1).loft(5, [[0, .08, .08, 0, .8], [3.9, .07, .07, 3, 1]], { cap: 'top' }).mesh(T.bark({ c: '#5a4a3a' })), ex, ez); }
+for (const s of [-1, 1]) ROPES.push([[s * 4.1, 3.5, 15], [s * 4.1, 3.5, PZ + PR - 1], 26]);
+const LANT = [];
+{ const B = R.parts(), Rp = B.g(T.planks({ c: '#2a2228' })).smooth(1);
+  for (const [a, b, n] of ROPES) { const sag = (u) => -Math.sin(u * PI) * (n > 10 ? .25 : .7), pt = u => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u + sag(u), a[2] + (b[2] - a[2]) * u];
+    for (let i = 0; i < n; i++) { const p0 = pt(i / n), p1 = pt((i + 1) / n), dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2], L = Math.hypot(dx, dy, dz);
+      Rp.at(R.TR(p0[0], p0[1], p0[2], Math.atan2(dx, dz), Math.acos(Math.max(-1, Math.min(1, dy / L))))).loft(3, [[0, .012, .012, 0, 1], [L, .012, .012, 1, 1]], {}).at(null);
+      if (i > 0 || n > 10) LANT.push([...pt((i + .5) / n), LANT.length]); } }
+  fixed.push(B.group()); }
+const LCOL = ['#e8402a', '#f8f0e0', '#e8402a', '#f0c040'];
+for (const [x, y, z, i] of LANT) { put(WA.chochin({ c: LCOL[i % 4], mark: i % 4 === 1 ? 'wave' : 'ring', mc: i % 4 === 1 ? '#c83a2a' : '#2a2228', r: .17, h: .34, cord: .06 }), x, z, 0, y); }
+for (const [x, y, z, i] of LANP) put(WA.chochin({ c: ['#f8f0e0', '#e8402a'][i % 2], mark: 'wave', mc: '#c83a2a', r: .16, h: .36, cord: .05 }), x, z, 0, y);
+scene.add(R.merge(fixed));
+// ちょうちんの光のにじみ（遠くの物は小さく）
+for (const [x, y, z, i] of [...LANT, ...LANP]) { const h = D.halo({ c: '#ffb060', r: .5, k: .5 }); h.position.set(x, y - .3, z); scene.add(h); }
+scene.add(D.pools([...LANT.filter((_, i) => i % 3 === 0).map(([x, , z]) => ({ p: [x, 0, z], r: 2.4, c: '#ffa850', k: .35 }))]));
+scene.add(R.backdrop({ c: '#1c1a3e', haze: '#4a3a6a', r: 240, h: 34, y: -4 }));
+
+// ---- 花火：沖の空に、ときどき開く。上る光のすじ → 開く点の輪 → 落ちながら消える ----
+const FW = [{ c: '#ff7aa8', c2: '#ffe0f0' }, { c: '#7ae0ff', c2: '#e0fbff' }, { c: '#ffd060', c2: '#fff4c0' }, { c: '#a8ff90', c2: '#f0ffe0' }].map((col, k) => {
+  const n = 90, pos = new Float32Array(n * 3), g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: col.c, size: 3.2, sizeAttenuation: false, fog: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p);
+  const dirs = [...Array(n)].map((_, i) => { const u = hash(i, k + 1) * 2 - 1, a = hash(i, k + 7) * TAU, r = Math.sqrt(1 - u * u); return [r * Math.cos(a), u, r * Math.sin(a), .85 + hash(i, k + 3) * .2]; });
+  const hl = D.halo({ c: col.c, r: 14, k: 0 }); scene.add(hl); return { p, m, g, pos, dirs, hl, n, col }; });
+const fwAt = (f, k, t) => { const per = 4.6, off = k * 1.15 + .6, tt = t - off, cyc = Math.floor(tt / per), lt = tt - cyc * per, cx = (hash(cyc, k + 11) - .5) * 70 + (k - 1.5) * 18, cy = 46 + hash(cyc, k + 13) * 18, cz = -150 - hash(cyc, k + 17) * 30, R0 = 13 + hash(cyc, k + 19) * 6;
+  if (tt < 0) { f.p.visible = false; f.hl.material.opacity = 0; return; } f.p.visible = true;
+  if (lt < 1) { const y = 4 + (cy - 4) * (1 - (1 - lt) ** 2); for (let i = 0; i < f.n; i++) { const j = i % 8; f.pos[i * 3] = cx + Math.sin(lt * 20 + j) * .2; f.pos[i * 3 + 1] = y - j * 1.2; f.pos[i * 3 + 2] = cz; } f.m.color.set(f.col.c2); f.m.opacity = .7; f.hl.material.opacity = 0; }
+  else { const e = lt - 1, r = R0 * (1 - Math.exp(-e * 3.2)), fall = e * e * 2.2, a = Math.max(0, 1 - e / 2.6); for (let i = 0; i < f.n; i++) { const d = f.dirs[i], tw = (hash(i, Math.floor(t * 12)) > .25 || e < 1.4) ? 1 : 0; f.pos[i * 3] = cx + d[0] * r * d[3]; f.pos[i * 3 + 1] = cy + d[1] * r * d[3] - fall - (1 - tw) * 999; f.pos[i * 3 + 2] = cz + d[2] * r * d[3]; }
+    f.m.color.set(e < .25 ? f.col.c2 : f.col.c); f.m.opacity = a; f.hl.position.set(cx, cy, cz); f.hl.material.opacity = Math.max(0, .5 - e * .45); }
+  f.g.attributes.position.needsUpdate = true; };
+
+// ---- 人（5 頭身の toon。どれもこの場面のためのオリジナル）。主役は はっぴの少年 ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ s: .9, hairStyle: 'spiky', hair: '#2a2228', mouth: 'open', blush: true, cloth: 'jacket', sleeve: 'short', top: '#2a4a8a', top2: '#f8f0e0', lower: 'shorts', bottom: '#2a2a3a', shoes: 'shoe', shoe: '#c8a070', hat: 'band', acc: '#e8402a', belt: '#e8402a' });
+const YK = [['#f0e8f0', '#d84a6a'], ['#3a4a8a', '#f0c040'], ['#e8a0b8', '#f8f0e0'], ['#f8f4e8', '#3a6ab0'], ['#2a5a5a', '#f0a040'], ['#c8402e', '#f8e8c0'], ['#e8d880', '#4a5aa0'], ['#5a3a6a', '#f0d8f0']];
+const HS = [['bun', 'f'], ['short', 'm'], ['long', 'f'], ['tail', 'f'], ['short', 'm'], ['bob', 'f'], ['bun', 'f'], ['tufts', 'm']];
+const dancers = [...Array(10)].map((_, i) => act({ sex: HS[i % 8][1], hairStyle: HS[i % 8][0], hair: '#2a2228', mouth: 'smile', ...WA.yukata({ top: YK[i % 8][0], obi: YK[i % 8][1] }) }));
+const walkers = [...Array(12)].map((_, i) => act({ s: i % 4 === 3 ? .72 : 1, sex: HS[(i + 3) % 8][1], hairStyle: HS[(i + 3) % 8][0], hair: ['#2a2228', '#4a3a30'][i % 2], mouth: 'smile', blush: i % 2 === 0, ...WA.yukata({ top: YK[(i + 4) % 8][0], obi: YK[(i + 4) % 8][1] }) }));
+const sellers = SELL.map(([x, z, ry, i]) => act({ hairStyle: ['short', 'bald', 'bun', 'tufts'][i % 4], hair: '#3a3030', sex: i % 4 === 2 ? 'f' : 'm', beard: i % 4 === 1 ? 'mustache' : undefined, mouth: 'smile', cloth: 'jacket', top: ['#f8f0e0', '#3a4a6a', '#e8c060', '#4a7a5a'][i % 4], top2: '#f8f0e0', bottom: '#3a3a4a', hat: 'band', acc: '#f8f0e0' }, x, z, ry));
+const guests = SELL.filter((_, i) => i % 2 === 0).map(([x, z, ry, i], k) => act({ s: k % 3 === 2 ? .74 : 1, sex: HS[(k + 5) % 8][1], hairStyle: HS[(k + 5) % 8][0], hair: '#2a2228', mouth: 'smile', ...WA.yukata({ top: YK[(k + 2) % 8][0], obi: YK[(k + 2) % 8][1] }) }, x * .62, z + .4, ry + PI));   // 屋台の前で品物を見る客
+const drummer = act({ hairStyle: 'short', hair: '#2a2228', cloth: 'vest', top: '#f8f0e0', top2: '#2a2228', bottom: '#2a2a3a', hat: 'band', acc: '#e8402a', mouth: 'open' }, -.65, PZ - .6, PI / 2); drummer.position.y = YH + .08;
+const cat = R.cat({ c: '#3a3a44', belly: '#e8e4dc' }); scene.add(cat);
+const pl = [0, 1, 2, 3].map(() => { const l = new THREE.PointLight('#ffb070', 6, 8, 1.5); scene.add(l); return l; }), yl = new THREE.PointLight('#ffc080', 18, 16, 1.4); yl.position.set(0, YH + 2, PZ); scene.add(yl);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 8, LEN = 30, SPEED = 1.3;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = .2 + Math.sin(z * .15) * .35;
+  hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 4.2, .9); hero.userData.J.head.rotation.y = Math.sin(t * .7) * .35;
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.8 : 4.3; cam.position.set(x + (tall ? .9 : 1.4), tall ? 1.6 : 1.4, z + Dc); cam.lookAt(x - .4, tall ? 2.3 : 2.15, z - 6);   // 右うしろの低い所から、ちょうちんの列と空を見上げる
+  sun.position.set(x - 20, 40, z - 30); sun.target.position.set(x, 0, z);
+  // 主役に近い ちょうちんの下に光
+  LANP.slice().sort((a, b) => Math.abs(a[2] - z + 3) - Math.abs(b[2] - z + 3)).slice(0, 4).forEach(([lx, ly, lz], k) => pl[k].position.set(lx * .8, ly - .4, lz));
+  // 盆おどり：やぐらのまわりを輪になって、手をふりながら
+  dancers.forEach((p, i) => { const a = t * .16 + i / dancers.length * TAU, r = 6.2; p.position.set(Math.cos(a) * r, 0, PZ + Math.sin(a) * r); p.rotation.y = -a + PI; const J = p.userData.J, ph = t * 2.6 + i * .4; R.walk(p, ph, .45); J.armL.rotation.set(-1.2 - Math.sin(ph) * .9, 0, .4 + Math.sin(ph) * .3); J.armR.rotation.set(-1.2 + Math.sin(ph) * .9, 0, -.4 - Math.sin(ph) * .3); J.foreL.rotation.x = J.foreR.rotation.x = -.9; });
+  walkers.forEach((p, i) => { const back = i % 2, v = [.9, 1, 1.1, 1.6][i % 4], wz = back ? -32 + ((t * v + i * 9) % 46) : 14 - ((t * v + i * 7 + 5) % 46), wx = [-1.6, 1.8, -.9, 2.4, -2.2, 1.2, -1.2, 2.8, -2.8, 1.6, -.4, 3][i]; p.position.set(wx, 0, wz); p.rotation.y = back ? 0 : PI; if (i % 4 === 3) MO.play(p, 'run', t + i, { amp: .7 }); else R.walk(p, t * v * 4 + i, .7); });
+  guests.forEach((p, i) => { R.idle(p, t * .8 + i, Math.sin(t * .4 + i * 2) * .5); p.userData.J.armR.rotation.x = -.6; p.userData.J.foreR.rotation.x = -1 + Math.sin(t * 1.5 + i) * .2; });
+  sellers.forEach((p, i) => { R.idle(p, t + i, Math.sin(t * .6 + i) * .4); p.userData.J.armR.rotation.x = -.9 + Math.sin(t * 3 + i) * .4; });
+  { const J = drummer.userData.J, b = Math.abs(Math.sin(t * 4.2)); R.idle(drummer, t, 0); J.armL.rotation.set(-1.6 + b * .9, 0, .2); J.armR.rotation.set(-1.6 + Math.abs(Math.sin(t * 4.2 + 1.5)) * .9, 0, -.2); J.foreL.rotation.x = J.foreR.rotation.x = -.6; }
+  cat.position.set(-3.4, 0, -8); cat.rotation.y = .9; R.catPose(cat, 'sit', t);
+  FW.forEach((f, k) => fwAt(f, k, t));
+  D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

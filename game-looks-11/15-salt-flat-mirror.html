@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-15 塩の湖の鏡 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2038;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-15 ─ 塩の湖の鏡 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方の塩の湖。白い塩の大地にうすく水がはり、藤色とだいだいの夕空が足もとまでそっくり映る。塩の結晶のふちが、六角形の白い網になって水から顔を出す。
+// 色の組は「空の藤色・夕日のだいだい・塩の白」＋差し色の主役の服の青緑。空は上下に折り返した丸天井、人と雲と山は上下さかさの写しを水の下に置いて鏡にする。面は少なく、ドット絵のテクスチャで描き、粗い絵に描いてブラウン管に映す。
+// 主役は旅の仲間 2 人と夕日へ向かって歩く（R.actor の toon）。足もとに波紋が広がる。カメラは低く、ななめうしろから追う。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.fog = new THREE.Fog('#c8a0b8', 120, 500);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8b8e8, ground: 0xe8c0b0, amb: 1.55, sun: 0xffb080, power: 2.2, range: 22 }), SUN = new THREE.Vector3(-.12, .2, -.97).normalize();
+
+// ---- 空：上下に折り返した丸天井（地平線から上と下が同じ色の並び） ----
+let skyM = null; const SKY = [[0, '#3a3270'], [.3, '#5e4c94'], [.52, '#9a6eb0'], [.72, '#d888ac'], [.88, '#f8a878'], [1, '#ffd49a']];
+{ const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), g = x.createLinearGradient(0, 0, 0, 128); for (const [p, col] of SKY) g.addColorStop(p, col); x.fillStyle = g; x.fillRect(0, 0, 4, 128);
+  const g2 = x.createLinearGradient(0, 256, 0, 128); for (const [p, col] of SKY) g2.addColorStop(p, col); x.fillStyle = g2; x.fillRect(0, 128, 4, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; const m = new THREE.Mesh(new THREE.SphereGeometry(440, 16, 16), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })); m.renderOrder = -10; m.frustumCulled = false; scene.add(m); skyM = m; }
+const world = new THREE.Group(), near = new THREE.Group(); scene.add(world, near);   // 水の上の物（遠くは主役について動く world、近くは止まった near。あとで さかさの写しを作る）
+// 夕日、遠くの山なみ、雲
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(18, 24), new THREE.MeshBasicMaterial({ color: '#fff0c0', fog: false })); sunD.position.set(SUN.x * 400, 30, SUN.z * 400); sunD.lookAt(0, 0, 0); world.add(sunD);
+world.add(R.backdrop({ c: '#7a5a8a', haze: '#f0a8a0', r: 360, h: 26, y: -1, rep: 3 }), R.backdrop({ c: '#9a6a98', haze: '#f8c0a0', r: 400, h: 40, y: -1, rep: 2, seed: 5 }));
+const clouds = []; for (let i = 0; i < 12; i++) { const c = R.cloud({ s: 40 + hash(i, 8) * 40, c: i % 3 ? '#f8b8a0' : '#ffd0a8', shade: '#9a70a8', seed: i }), a = -PI / 2 + (i - 6) * .28 + (hash(i, 2) - .5) * .2, r = 300 + hash(i, 3) * 60; c.position.set(Math.cos(a) * r, 40 + hash(i, 4) * 70, Math.sin(a) * r); c.lookAt(0, 40, 0); world.add(c); clouds.push(c); }
+// 塩の小山（まるい白い盛り土）と、遠くの岩の島
+const saltT = T.snow({ c: '#f4eee8' }), fixed = [];
+for (let i = 0; i < 26; i++) { const a = hash(i, 1) * 6.28, r = 18 + hash(i, 2) * 120, s = .6 + hash(i, 3) * 1.2; const m = R.geo().smooth(1).loft(7, [[-.1, 1.4 * s, 1.2 * s, 0, .9], [.25 * s, 1.05 * s, .9 * s, .5, 1], [.55 * s, .3 * s, .28 * s, 1, 1.06]], { cap: 'top', rot: i }).mesh(saltT); m.position.set(Math.cos(a) * r, 0, Math.sin(a) * r - 40); fixed.push(m); }
+[[-70, -170, 9, 12], [95, -210, 14, 9], [-160, -120, 8, 16]].forEach(([x, z, h, r], i) => { const m = R.rock({ s: r, c: '#7a5a7a', seed: i + 3 }); m.scale.y = h / r; m.position.set(x, -.5, z); fixed.push(m); });
+near.add(R.merge(fixed));
+
+// ---- 人（5 頭身の toon。この場面のためのオリジナル）と、水の下の さかさの写し ----
+const O = [
+  { skin: '#f0c8a8', hairStyle: 'tufts', hair: '#3a2a3a', eye: '#3a7a8a', cloth: 'tunic', top: '#f0e8e0', top2: '#2e9a9a', bottom: '#5a4a6a', belt: '#8a5a3a', gloves: 'glove', glove: '#6a4a3a', shoes: 'boot', shoe: '#5a3a2a', neck: 'cape', acc: '#2e9a9a', back: 'bag' },
+  { sex: 'f', s: .95, skin: '#e8b898', hairStyle: 'long', hair: '#e8a060', eyes: 'round', blush: true, cloth: 'robe', top: '#8a6ab0', top2: '#f0e0d0', skirt: .7, bottom: '#f0e0d0', shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#f0a040', hold: 'staff' },
+  { skin: '#c8906a', hairStyle: 'short', hair: '#2a2024', beard: 'stubble', bulk: 1.15, cloth: 'jacket', top: '#c86a3a', top2: '#f0e0c8', bottom: '#4a4058', gloves: 'gauntlet', glove: '#8a7a70', shoes: 'boot', shoe: '#4a3a30', shoulder: 'both', gear: '#b0a8a0', back: 'pack', acc: '#6a5a8a' }];
+const people = O.map(o => { const p = R.actor({ build: 'toon', ...o }), q = R.actor({ build: 'toon', ...o }); q.scale.y = -1; scene.add(p, q); return [p, q]; });
+const NAMES = ['hips', 'torso', 'head', 'armL', 'armR', 'foreL', 'foreR', 'legL', 'legR', 'shinL', 'shinR', 'cape'];
+const sync = (p, q) => { q.position.set(p.position.x, -p.position.y, p.position.z); q.rotation.copy(p.rotation); for (const n of NAMES) { const a = p.userData.J[n], b = q.userData.J[n]; if (a && b) { b.rotation.copy(a.rotation); b.position.copy(a.position); } } };
+// 鳥の群れ（ななめに横切る）と、その写し
+const birds = [0, 1, 2, 3, 4].map(i => { const b = R.bird({ c: '#3a2a4a', belly: '#5a4060', neck: false, s: 1.8 }), m = R.bird({ c: '#3a2a4a', belly: '#5a4060', neck: false, s: 1.8 }); m.scale.y = -1; scene.add(b, m); return [b, m]; });
+
+// 水の上の物（空・夕日・山・雲・塩の小山）の、さかさの写し。world を まるごと複製して上下を返す
+const mirror = world.clone(), mirrorN = near.clone(); mirror.scale.y = mirrorN.scale.y = -1; scene.add(mirror, mirrorN);
+
+// ---- 水面：うすい藤色の半透明の面（下の写しを少し染める）と、水から出た塩のふちの網（六角形のドット絵） ----
+const tint = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200, 30, 30), new THREE.MeshBasicMaterial({ color: '#8a6a9a', transparent: true, opacity: .22, depthWrite: false })); tint.rotation.x = -PI / 2; tint.position.y = .004; scene.add(tint);
+const crust = (() => { const P = R.Px(64), N = 5, cs = 64 / N, pt = (i, j) => { const wi = ((i % N) + N) % N, wj = ((j % N) + N) % N; return [(i + .5 + (hash(wi, wj, 3) - .5) * .7) * cs, (j + .5 + (hash(wi, wj, 9) - .5) * .7) * cs]; }, W = R.ramp('#f4f0ec', 6, { contrast: .6 });
+  P.each((x, y) => { const gx = Math.floor(x / cs), gy = Math.floor(y / cs); let d1 = 1e9, d2 = 1e9, id = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const [px, py] = pt(gx + i, gy + j), d = Math.hypot(x + .5 - px, y + .5 - py); if (d < d1) { d2 = d1; d1 = d; id = (gx + i) * 7 + (gy + j) * 13; } else if (d < d2) d2 = d; }
+    const e = d2 - d1; if (e < .8) return W[4]; if (e < 1.3 && (x + y) & 1) return W[2]; if (hash(id, 1) > .92 && d1 < 3) return W[d1 < 2 ? 5 : 3]; return null; });
+  return T.from(P, { m: 7, cut: true }); })();
+{ const G = R.geo().normal([0, 1, 0]), S = 8, n = 40; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const x0 = (i - n / 2) * S, z0 = (j - n / 2) * S - 60, x1 = x0 + S, z1 = z0 + S; if (Math.hypot(x0 + S / 2, z0 + S / 2 + 20) > 150) continue; G.quad([x0, .01, z1], [x1, .01, z1], [x1, .01, z0], [x0, .01, z0], [x0 / 7, -z1 / 7, x1 / 7, -z0 / 7]); }
+  const m = G.mesh(crust); m.castShadow = false; scene.add(m); }
+
+// ---- 波紋：足もとに広がる、ドットの輪（半透明で消えていく） ----
+const ringT = (() => { const P = R.Px(32); P.clip = true; P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); return Math.abs(d - 14) < 1 ? '#ffffff' : Math.abs(d - 11) < .7 && (x + y) % 3 ? '#f8e8f0' : null; }); return T.from(P, { m: 1, cut: true }); })();
+const RINGS = [...Array(30)].map(() => { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: ringT, transparent: true, depthWrite: false, opacity: 0, color: '#fff4f0' })); m.rotation.x = -PI / 2; m.position.y = .03; m.userData.age = 9; scene.add(m); return m; });
+let ri = 0; const ripple = (x, z, s = 1) => { const m = RINGS[ri++ % RINGS.length]; m.position.set(x, .03, z); m.userData.age = 0; m.userData.s = s; };
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.05, last = [0, 0, 0];
+K.loop((dt, t) => {
+  const z = 10 - t * SP, x = Math.sin(t * .06) * 2;
+  // 主役（まん中）と仲間 2 人。ゆっくり夕日へ。仲間はときどき横を向いて話す
+  const slots = [[0, 0, 0], [-1.4, -1.4, 1.7], [-2.6, -1.1, 3.1]];
+  people.forEach(([p, q], i) => { const [ox, oz, ph] = slots[i], px = x + ox + Math.sin(t * .3 + ph) * .15, pz = z + oz; p.position.set(px, 0, pz); p.rotation.y = PI + Math.sin(t * .2 + ph) * .06; R.walk(p, t * SP * 3.7 + ph, .7);
+    if (i === 1) p.userData.J.head.rotation.y = Math.sin(t * .5) * .5 - .2; if (i === 2) p.userData.J.head.rotation.y = .4 + Math.sin(t * .45) * .2;
+    sync(p, q); const st = Math.floor((t * SP * 3.7 + ph) / PI); if (st !== last[i]) { last[i] = st; ripple(px + (st % 2 ? .1 : -.1), pz, .9 + i * .1); } });
+  RINGS.forEach(m => { const u = m.userData; u.age += dt; const k = u.age / 2.4; if (k > 1) { m.material.opacity = 0; return; } const s = (.3 + k * 1.9) * (u.s || 1); m.scale.set(s, s, 1); m.material.opacity = (1 - k) * .6; });
+  // カメラ：低く、ななめうしろ。足もとの写しと夕日が両方入るように
+  const tall = innerWidth < innerHeight, D = tall ? 4.2 : 4.6;
+  cam.position.set(x + (tall ? 1.4 : 2.4), tall ? 1.55 : 1.35, z + D); cam.lookAt(x - (tall ? .5 : 1.1), tall ? .55 : .7, z - 6);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  birds.forEach(([b, m], i) => { const bx = 40 - ((t * 3.2 + i * 2.2) % 90), by = 14 + i * .7 + Math.sin(t + i) * .3, bz = z - 30 - i * 1.6; b.position.set(x + bx, by, bz); b.rotation.y = -PI / 2; R.birdPose(b, 'fly', t * .9 + i); m.position.set(x + bx, -by, bz); m.rotation.copy(b.rotation); R.birdPose(m, 'fly', t * .9 + i); });
+  // 写しの丸天井と水の面は、カメラについて動く
+  skyM.position.set(cam.position.x, 0, cam.position.z); tint.position.x = Math.round(x / 40) * 40; tint.position.z = Math.round(z / 40) * 40;
+  world.position.x = mirror.position.x = x; world.position.z = mirror.position.z = z;
+  crt.render(scene, cam, t);
+});
+</script>
+</html>

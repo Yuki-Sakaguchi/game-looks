@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-13 峡谷のつり橋 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1010;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-13 ─ 峡谷のつり橋 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動でわたる）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の峡谷。赤い地層のがけが深く切れこみ、底を青緑の川がうねる。その上にかかる長いつり橋を、主役がゆれながらわたる。谷には岩の柱が立ち、鳥が橋より下を回る。
+// 色の組は「地層の赤とだいだい・空の青」＋差し色の川の青緑と、主役のマフラーの黄。地層は手で打ったしまの絵（ページの中で打つ）、がけは R.geo の面に はり、粗い絵に描いてブラウン管に映す。
+// 主役は旅の剣士（R.actor の toon）。カメラは橋の上、うしろから追う。峡谷は橋に対してななめに走るので、右前へ谷が遠くまで続いて見える。つり橋と岩の柱は pack-fantasy-wild.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#1c58b8'], [.5, '#4a94dc'], [.86, '#a8d0ec'], [1, '#f0dcc0']], { r: 420 })); scene.fog = new THREE.Fog('#e8c8a8', 80, 360);
+const { sun } = K.lights(scene, renderer, { sky: 0xc8dcff, ground: 0xc07858, amb: 1.45, sun: 0xfff0d8, power: 2.6, range: 40, map: 2048 }), SUN = new THREE.Vector3(-.5, .78, .38).normalize();
+
+// ---- 地層の絵（64×64 で 9 m。だいだい・赤・クリームの帯、帯ごとの小さな段と ひび、上から流れたしみ） ----
+const strata = (() => { const P = R.Px(64), bands = ['#c8583a', '#d8784a', '#b84a34', '#e8a46a', '#c0603e', '#a84432', '#dc8a58', '#f0c890', '#c4583c', '#b04a36'], Rs = bands.map(c => R.ramp(c, 6, { contrast: .8 }));
+  P.each((x, y) => { const w = y + Math.sin(x / 64 * PI * 2) * 1.5 + Math.sin(x / 64 * PI * 6 + 1) * .6, b = Math.floor(((w % 64) + 64) % 64 / 6.4), k = (((w % 6.4) + 6.4) % 6.4), Rb = Rs[b % 10];
+    let c = k < 1 ? Rb[4] : k > 5.4 ? Rb[1] : (R.tn(x, y, 8, 4, 64, 64, b) > .62 ? Rb[4] : R.tn(x, y, 8, 4, 64, 64, b + 5) < .3 ? Rb[2] : Rb[3]);
+    if (hash(x >> 2, b, 3) > .86 && k > 1.5) c = Rb[1];                                                // 帯の中の ひび
+    if (R.tn(x, y, 4, 64, 64, 64, 7) > .74) c = R.mix(c, '#5a2a2a', .25);                              // 上から流れた雨のしみ
+    return c; });
+  return T.from(P, { m: 9 }); })();
+const rimT = T.dirt({ c: '#c07850', pebbles: .5 });
+
+// ---- 峡谷（峡谷の向きの座標で作り、橋に対してななめに回す）。がけは格子の面、底に川と砂 ----
+const TH = .78, CANYON = new THREE.Group(); CANYON.rotation.y = TH; scene.add(CANYON);
+const DEPTH = 46, wallZ = (x, y, sg) => { const d = -y / DEPTH, j = Math.floor(-y / 4.6);   // 下ほど谷は せまい。帯ごとに少し出っぱる
+  return sg * (27 + Math.sin(x * .045 + sg) * 4 + Math.sin(x * .13 + sg * 2) * 1.6 - d * 8.5 + (j % 3 === 1 ? -1.1 : 0) + (hash(Math.round(x / 5), j, sg + 2) - .5) * 1.4); };
+{ const B = R.parts(), G = B.g(strata, { side: true }).smooth(0), Tp = B.g(rimT, { side: true }), sx = 5, sy = 4.6, nx = 80, ny = Math.ceil(DEPTH / sy);
+  for (const sg of [-1, 1]) { const V = (i, j) => { const x = -200 + i * sx, y = Math.max(-DEPTH - 2, -j * sy); return [x, y, wallZ(x, y, sg)]; };
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) { const a = V(i, j), b = V(i + 1, j), c = V(i + 1, j + 1), d = V(i, j + 1), c0 = .62 + .4 * (1 + a[1] / DEPTH), c1 = .62 + .4 * (1 + c[1] / DEPTH);
+      G.quad(d, c, b, a, [a[0] / 9, c[1] / 9, b[0] / 9, a[1] / 9], [c1, c1, c0, c0]); }
+    for (let i = 0; i < nx; i++) { const a = V(i, 0), b = V(i + 1, 0); Tp.quad([a[0], 0, a[2]], [b[0], 0, b[2]], [b[0], 0, sg * 37], [a[0], 0, sg * 37], [a[0] / 3, 0, b[0] / 3, 3], 1); } }
+  CANYON.add(B.group()); }
+// 台地（両がわ）と、谷の底
+const P0 = (x, z) => Math.max(0, (Math.abs(z) - 40) * .05) * (1.4 + Math.sin(x * .05 + z * .07)) * 1.6;
+for (const sg of [-1, 1]) { const g = R.ground({ w: 420, d: 120, cell: 4, cz: sg * 96, H: P0, layers: [rimT, T.sand({ c: '#d89a68' }), T.grass({ c: '#8a9a52', flowers: 0 })], mix: (x, z) => [Math.sin(x * .08 + z * .1) > .3 ? 1 : 0, Math.sin(x * .05 - z * .13) > .7 ? 1 : 0] }); CANYON.add(g.mesh); }
+const RIV = x => Math.sin(x * .03) * 6 + Math.sin(x * .011 + 2) * 4;
+const floor = R.ground({ w: 420, d: 60, cell: 3, H: (x, z) => -DEPTH - 1.6 + Math.min(1.6, Math.abs(z - RIV(x)) * .25), layers: [T.sand({ c: '#d09a70' }), T.grass({ c: '#6a9048', flowers: .05 }), T.dirt({ c: '#a86a4a' })], mix: (x, z) => { const d = Math.abs(z - RIV(x)); return [d > 6 && d < 9 ? 1 : 0, d > 11 ? 1 : 0]; } });
+CANYON.add(floor.mesh);
+const WF = T.water({ c: '#3aa8a8' }), river = R.strip([...Array(85)].map((_, i) => { const x = -210 + i * 5; return [x, -DEPTH - 1.2, RIV(x)]; }), 9, WF[0], { lift: 0 }); river.material = river.material.clone(); CANYON.add(river);
+// 谷に立つ岩の柱と、底の岩・草
+{ const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+  [[-60, 9, 13], [-34, -12, 20], [8, 11, 24], [44, -10, 30], [80, 8, 18], [120, -9, 26], [-100, -8, 22], [160, 6, 30]].forEach(([x, z, h], i) => put(W.pillar({ h, r: 2.4 + hash(i, 2) * 1.4, seed: i, tex: strata, spire: i % 3 === 0 }), x, -DEPTH - 1, z + RIV(x) * .3, i));
+  for (let i = 0; i < 60; i++) { const x = -200 + hash(i, 4) * 400, z = RIV(x) + (hash(i, 5) > .5 ? 1 : -1) * (6 + hash(i, 6) * 6); put(i % 2 ? R.rock({ s: .8 + hash(i, 7) * 1.6, c: '#b0583c', seed: i }) : R.tuft({ kind: 'bush', s: 1.4, c: '#6a8a42', seed: i % 3 }), x, -DEPTH - 1.2, z, i); }
+  for (let i = 0; i < 40; i++) { const x = -200 + hash(i, 8) * 400, sg = i % 2 ? 1 : -1, z = sg * (40 + hash(i, 9) * 40); put(i % 3 ? R.tuft({ kind: 'bush', s: 1 + hash(i, 1), c: '#7a8a4a', seed: i % 3 }) : R.rock({ s: 1 + hash(i, 3) * 2, c: '#b86a48', seed: i }), x, P0(x, z), z, i); }
+  CANYON.add(R.merge(fixed)); }
+// 遠くの台地（メサ）と雲
+scene.add(R.backdrop({ c: '#b86a50', haze: '#f0d0b0', r: 330, h: 50, y: -8, rep: 3 }), R.backdrop({ c: '#a85a48', haze: '#f0d8b8', r: 300, h: 30, y: -6, rep: 5, seed: 6 }));
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 36 + hash(i, 8) * 30, c: '#ffffff', shade: '#b8d0ec', seed: i }), a = i * .9 + .4; c.position.set(Math.cos(a) * 280, 70 + hash(i, 9) * 50, Math.sin(a) * 280); c.lookAt(0, 40, 0); scene.add(c); }
+
+// ---- つり橋（世界の z 方向。両はしは台地の上）。ゆれる親の中に主役も入れる ----
+const rim = sg => { let zw = 0; while (zw < 90) { const xl = -sg * zw * Math.sin(TH), zl = sg * zw * Math.cos(TH); if (Math.abs(zl) > Math.abs(wallZ(xl, 0, sg)) + .5) return zw; zw += .25; } return zw; };
+const LB = Math.max(rim(1), rim(-1)) + 1.2, BR = new THREE.Group(); scene.add(BR);
+const bridge = W.ropeBridge({ len: LB * 2, w: 1.5, sag: 4.2, h: 1.1, gaps: .03, c: '#8a6440' }); bridge.rotation.y = PI / 2; BR.add(bridge);
+const deck = zw => bridge.userData.deckY(-zw);
+// 橋のたもとの柱と、のぼり（旗の布）
+{ const B = R.parts(), Wd = B.g(T.bark({ c: '#6a4a30' })); for (const s of [-1, 1]) for (const x of [-1.1, 1.1]) Wd.loft(5, [[0, .2, .2, 0, .8, x, s * (LB + .4)], [2.6, .15, .15, 1, 1, x, s * (LB + .4)]], { cap: 'top' }); scene.add(B.group()); }
+// ---- 人と鳥（5 頭身の toon。この場面のためのオリジナル） ----
+const act = o => { const p = R.actor({ build: 'toon', ...o }); BR.add(p); return p; };
+const hero = act({ skin: '#f0c8a0', hairStyle: 'spiky', hair: '#4a2a22', eye: '#3a6a9a', cloth: 'jacket', top: '#3a5a8a', top2: '#f0e0c0', bottom: '#5a4a3a', belt: '#8a5a34', gloves: 'glove', glove: '#7a4a2c', shoes: 'boot', shoe: '#6a4028', shoulder: 'left', gear: '#c8c0b0', neck: 'scarf', acc: '#f0c040', back: 'sword' });
+const guide = act({ sex: 'f', skin: '#d8a070', hairStyle: 'tail', hair: '#2a2024', eyes: 'round', blush: true, cloth: 'tunic', top: '#4a8a5a', top2: '#f0e0c0', lower: 'pants', bottom: '#6a5040', gloves: 'wrap', glove: '#e0d0b0', shoes: 'boot', shoe: '#6a4028', back: 'pack', acc: '#c8583a', hold: 'staff' });
+const hawks = [0, 1, 2, 3].map(i => { const b = R.bird({ c: i % 2 ? '#7a5a42' : '#f0ece4', belly: '#f4e8d8', neck: false, s: 2.2 }); scene.add(b); return b; });
+const small = [0, 1, 2, 3, 4].map(i => { const b = R.bird({ c: '#3a3a4a', neck: false, s: 1.2 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 30), LOOP = 2 * LB - 24; let sp = 0;
+K.loop((dt, t) => {
+  const zh = LB - 11 - (t * 1.25) % LOOP, sway = Math.sin(t * .9) * .012 * (1 - (zh / LB) ** 2);
+  BR.rotation.z = sway; const y = deck(zh);
+  hero.position.set(.15, y, zh); hero.rotation.y = PI; R.walk(hero, t * 4.6, .75); hero.userData.J.armL.rotation.z = .28 + Math.sin(t * 1.3) * .04;   // 左手で手すりにふれる
+  const zg = zh - 6.5 - Math.sin(t * .4) * .8; guide.position.set(-.2, deck(zg), zg); guide.rotation.y = PI + Math.sin(t * .7) * .1; R.walk(guide, t * 4.6 + 1.7, .7);
+  const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.6, cy = y + (tall ? 2.2 : 2.1);
+  cam.position.set(.05, y + (tall ? 2.3 : 2.25), zh + D); cam.lookAt(-.15, y + (tall ? -.5 : -.3), zh - 8);
+  sun.position.set(SUN.x * 80, y + SUN.y * 80, zh + SUN.z * 80); sun.target.position.set(0, y - 10, zh - 10);
+  hawks.forEach((b, i) => { const a = t * (.2 + i * .03) + i * 1.6, r = 16 + i * 5; b.position.set(Math.cos(a) * r - 4, -10 - i * 4, zh - 20 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, i % 2 ? 'fly' : 'fly', t * .35 + i); });
+  small.forEach((b, i) => { const a = -t * .4 + i * .35, r = 30; b.position.set(Math.cos(a) * r + 20, 12 + Math.sin(t + i) * 1.5, Math.sin(a) * r - 40); b.rotation.y = Math.atan2(Math.sin(a), -Math.cos(a)); R.birdPose(b, 'fly', t * .9 + i); });
+  R.flip(river.material, WF, t, 4);
+  if ((sp += dt) > .4) { sp = 0; const x = (Math.random() - .5) * 120, v = new THREE.Vector3(x, -DEPTH - .9, RIV(x) + (Math.random() - .5) * 5).applyMatrix4(CANYON.matrixWorld); fx.emit('splash', v.x, v.y, v.z, { size: 1.4, life: .8, vy: .3, grow: .6 }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-49 発明家の屋根裏 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8c8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-49 ─ 発明家の屋根裏 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-steam2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方の屋根裏の工房。斜めの天井と はりの下に、作業台・小さな蒸気機関・光る液のガラス管・かべの歯車じかけ。奥の丸窓から夕日がさしこみ、床に丸い光を落とす。窓の外は町の屋根と煙突。
+// 色の組は「板の茶・夕日のだいだい・真ちゅうの金」＋差し色はガラス管の青みどり。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は工具を持った若い発明家（R.actor の toon）。部屋をぐるりと歩き、カメラは手前の高い所から追う。ねこ・ぜんまいの小鳥・歯車・湯気が動く。家具は pack-fantasy-town.js（F.〜）、歯車・管・機関は pack-steam2.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), S = PACK_STEAM2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 400, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#4a3a6a'], [.45, '#a8607a'], [.75, '#f0905a'], [1, '#ffd090']], { r: 300 })); scene.fog = new THREE.Fog('#e89070', 40, 200);
+const { sun } = K.lights(scene, renderer, { sky: 0xffc8a0, ground: 0x6a4030, amb: 1.2, sun: 0xffa060, power: 2.8, range: 10, map: 2048 }); sun.position.set(-3, 13, -30); sun.target.position.set(0, 0, 1);
+
+// ---- 屋根裏：板の床、ひくい かべ、斜めの天井、はり。奥のかべに丸窓（手前はあけてある） ----
+const RW = 5.2, ZB = -5.5, ZF = 5.6, KH = 1.2, RH = 4.6, CY = 2.6, CR = 1.05;   // はばの半分・奥・手前・ひくいかべ・むねの高さ・丸窓の中心と半径
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const Fl = R.geo(), Wl = R.geo(), Cl = R.geo(), Bm = R.geo(), Gb = R.geo();
+  Fl.quad([-RW, 0, ZF], [RW, 0, ZF], [RW, 0, ZB], [-RW, 0, ZB], [0, 0, 2 * RW / 2.4, (ZF - ZB) / 2.4]);
+  for (const s of [-1, 1]) { Wl.quad([s * RW, 0, s > 0 ? ZF : ZB], [s * RW, 0, s > 0 ? ZB : ZF], [s * RW, KH, s > 0 ? ZB : ZF], [s * RW, KH, s > 0 ? ZF : ZB], [0, 0, (ZF - ZB) / 2, KH / 2], .85);
+    Cl.quad([s * RW, KH, s > 0 ? ZB : ZF], [s * RW, KH, s > 0 ? ZF : ZB], [0, RH, s > 0 ? ZF : ZB], [0, RH, s > 0 ? ZB : ZF], [0, 0, (ZF - ZB) / 2, Math.hypot(RW, RH - KH) / 2], [.7, .7, .55, .55]);
+    for (let z = ZF - .6; z > ZB; z -= 1.5) Bm.at(R.TR(s * RW / 2, (KH + RH) / 2 - .12, z, 0, 0, -s * Math.atan2(RH - KH, RW))).box(Math.hypot(RW, RH - KH) + .1, .2, .16, 0, 0, 0, { m: 2 }).at(null); }
+  for (let z = ZF - .6; z > ZB; z -= 3) Bm.box(2 * RW * (RH - 3.7) / (RH - KH), .2, .16, 0, 3.6, z, { m: 2 });   // よこの はり（頭の上の高い所）
+  Bm.box(.24, .24, ZF - ZB, 0, RH - .3, (ZF + ZB) / 2, { m: 2 });
+  // 奥のかべ（五角形）に丸い穴：中心から外へ光線をのばし、かべのふちとの交点まで輪をはる
+  const edge = [[-RW, 0], [RW, 0], [RW, KH], [0, RH], [-RW, KH]], hit = a => { const dx = Math.cos(a), dy = Math.sin(a); let best = 1e9; for (let i = 0; i < 5; i++) { const [x1, y1] = edge[i], [x2, y2] = edge[(i + 1) % 5], ex = x2 - x1, ey = y2 - y1, den = dx * ey - dy * ex; if (Math.abs(den) < 1e-6) continue; const tt = ((x1) * ey - (y1 - CY) * ex) / den, u = ((x1) * dy - (y1 - CY) * dx) / den; if (tt > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, tt); } return [dx * best, CY + dy * best]; };
+  const N = 40, uv = (x, y) => [x / 2, y / 2]; for (let k = 0; k < N; k++) { const a0 = k / N * 2 * PI, a1 = (k + 1) / N * 2 * PI, i0 = [Math.cos(a0) * CR, CY + Math.sin(a0) * CR], i1 = [Math.cos(a1) * CR, CY + Math.sin(a1) * CR], o0 = hit(a0), o1 = hit(a1);
+    Gb.tri([i0[0], i0[1], ZB], [i1[0], i1[1], ZB], [o1[0], o1[1], ZB], uv(...i0), uv(...i1), uv(...o1), .9); Gb.tri([i0[0], i0[1], ZB], [o1[0], o1[1], ZB], [o0[0], o0[1], ZB], uv(...i0), uv(...o1), uv(...o0), .9); }
+  fixed.push(Fl.mesh(T.planks({ c: '#8a6044', w: 7 })), Wl.mesh(T.boards({ c: '#7a5a44' }), { side: true }), Cl.mesh(T.boards({ c: '#6a4a3a', seed: 3 }), { side: true }), Bm.mesh(T.planks({ c: '#5a3a2a', seed: 5 })), Gb.mesh(T.brick({ c: '#9a5a48' }), { side: true })); }
+// 丸窓のわく（真ちゅうの輪と十字のさん）
+{ const G = R.geo(), N = 24; for (let k = 0; k < N; k++) { const a0 = k / N * 2 * PI, a1 = (k + 1) / N * 2 * PI, p = (a, r, z) => [Math.cos(a) * r, CY + Math.sin(a) * r, z]; G.quad(p(a0, CR + .12, ZB + .06), p(a1, CR + .12, ZB + .06), p(a1, CR - .05, ZB + .06), p(a0, CR - .05, ZB + .06), [0, 0, .3, .1]); G.quad(p(a0, CR - .02, ZB + .06), p(a1, CR - .02, ZB + .06), p(a1, CR - .02, ZB - .2), p(a0, CR - .02, ZB - .2), [0, 0, .3, .1], .7); }
+  G.box(.07, 2 * CR, .06, 0, CY - CR, ZB, { m: 1 }); G.at(R.TR(0, CY, ZB, 0, 0, PI / 2)).box(.07, 2 * CR, .06, 0, -CR, 0, { m: 1 }).at(null); fixed.push(G.mesh(S.tex.brass({ c: '#c89a48', rivets: false }), { side: true })); }
+
+// ---- 窓の外：夕日の町の屋根と煙突（下に見える） ----
+{ const RF = [T.roof({ kind: 'slate', c: '#5a5a74' }), T.roof({ kind: 'scale', c: '#8a4a3a' }), T.shingle({ c: '#6a5a5a' })], BR = T.brick({ c: '#9a5a48' });
+  for (let k = 0; k < 16; k++) { const x = (hash(k, 1) - .5) * 40, z = -14 - hash(k, 2) * 40; put(R.house({ w: 6 + hash(k, 3) * 3, d: 5, h: 3, h2: 3, wall: BR, wall2: T.plaster({ c: '#e0c8a8' }), roof: RF[k % 3], lit: .5, chimney: { h: 1.5 }, seed: k }), x, z, hash(k, 4) * .4 - .2, -4 - hash(k, 5) * 2); } }
+put(F.clockTower({ w: 3.4, h: 14, stone: T.brick({ c: '#8a5040' }), roof: '#3a4a5a' }), 7, -44, -.2, -6);
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(9, 18), new THREE.MeshBasicMaterial({ color: '#ffe8b0', fog: false })); sunD.position.set(-14, 16, -180); sunD.lookAt(0, 3, 0); scene.add(sunD);
+
+// ---- 作業台・機械・たな・管・歯車じかけ ----
+put(F.table({ w: 2.8, d: 1 }), -RW + .75, -1.2, PI / 2); put(F.table({ w: 2, d: .9 }), 2.6, -4.6, 0); put(F.chair(), -3.3, -1, -PI / 2); put(F.stool(), 2.2, -3.5);
+put(F.shelf({ w: 2.2, h: 1.1, kind: 'mix', seed: 4 }), RW - .2, 1.8, -PI / 2); put(F.shelf({ w: 1.6, h: 1.05, kind: 'books', seed: 2 }), -RW + .2, 3.4, PI / 2);
+put(R.crate({ s: .7, c: '#8a6a44' }), 4.2, 4.4, .3); put(R.crate({ s: .5, c: '#9a7a4a', kind: 'x' }), 4.4, 3.6, .9, .7); put(R.barrel({ h: .8, r: .3, c: '#7a5a3a' }), -4.5, -4.6);
+{ const B = R.parts(); B.g(F.tex.carpet({ c: '#8a3a4a', c2: '#d8a048', c3: '#3a4a6a' }), { offset: true }).quad([-1.5, .02, 1.9], [1.5, .02, 1.9], [1.5, .02, -1.6], [-1.5, .02, -1.6], [0, 0, 1, 1]);
+  const bp = (() => { const P = R.Px(48, 32), Bc = R.ramp('#3a5a9a'); P.fill(Bc[2]); for (let i = 0; i < 48; i += 6) for (let j = 0; j < 32; j++) P.set(i, j, Bc[3]); for (let j = 0; j < 32; j += 6) for (let i = 0; i < 48; i++) P.set(i, j, Bc[3]); P.disc(16, 16, 9, Bc[5]); P.disc(16, 16, 7.5, Bc[2]); for (let k = 0; k < 10; k++) { const a = k / 10 * 2 * PI; P.rect(16 + Math.cos(a) * 9.5 - .5, 16 + Math.sin(a) * 9.5 - .5, 2, 2, Bc[5]); } P.disc(16, 16, 2, Bc[5]); P.disc(34, 20, 5, Bc[5]); P.disc(34, 20, 4, Bc[2]); P.line(26, 8, 44, 8, Bc[5]); P.line(26, 28, 44, 28, Bc[4]); P.line(44, 8, 44, 28, Bc[4]); return T.from(P, { m: 1 }); })();
+  B.g(bp, { offset: true }).quad([-RW + .02, .6, -.2], [-RW + .02, .6, -2.2], [-RW + .02, 1.1, -2.2], [-RW + .02, 1.1, -.2], [0, 0, 1, 1]);   // ひくいかべの設計図
+  fixed.push(B.group()); }
+// 作業台の上：小さな蒸気機関、ガラス管、小さな歯車
+const eng = S.engine({ h: .9, r: .22, c: '#d0a048', speed: 2.2, gearR: .26 }); eng.position.set(-RW + .8, .8, -2.1); eng.rotation.y = PI / 2; scene.add(eng);
+[[-RW + .55, -.6, '#7af0c8', .5], [-RW + .55, -.35, '#f08ac8', .38], [-RW + .55, -.1, '#7af0c8', .44], [2.2, -4.8, '#8ad0ff', .42], [2.45, -4.8, '#7af0c8', .5]].forEach(([x, z, c, h]) => put(S.tube({ h, r: .055, c }), x, z, 0, .8));
+const smallG = [[-RW + .9, -.5, .2], [-RW + 1.0, -.9, .13]].map(([x, z, r], i) => { const g = S.gear({ r, th: .05, speed: i ? -3 : 2, spokes: i ? 0 : 5, c: '#c89a48' }); g.position.set(x, .8 + r, z); g.rotation.y = PI / 2; scene.add(g); return g; });
+// 奥のかべの歯車じかけ（大小 3 つがかみ合う）と、つりランプ
+const wg1 = S.gear({ r: .85, th: .12, pitch: .32, c: '#c89a48', speed: .35, spokes: 6 }); wg1.position.set(-2.7, 1.9, ZB + .12); scene.add(wg1);
+const wg2 = S.gear({ r: .5, th: .1, pitch: .32, c: '#9a9ab0', spokes: 5 }); wg2.position.set(-2.7 + 1.22, 1.9 + .42, ZB + .14); scene.add(wg2); S.mesh(wg1, wg2);
+const wg3 = S.gear({ r: .38, th: .1, pitch: .32, c: '#c89a48', spokes: 0 }); wg3.position.set(-2.7 - .3, 1.9 - 1.12, ZB + .14); scene.add(wg3); S.mesh(wg1, wg3);
+const big = S.engine({ h: 1.9, r: .45, c: '#c89a48', speed: .9, gearR: .6 }); big.position.set(4.1, 0, -1.4); big.rotation.y = -PI / 2; scene.add(big);
+{ big.updateMatrixWorld(); const v = new THREE.Vector3(...big.userData.vent).applyMatrix4(big.matrixWorld), st = C.steam({ n: 7, r: .22, rise: 1.4, spread: .25, speed: .5, c: '#f8f0e8', a: .45 }); st.position.copy(v); scene.add(st); }
+const lampL = F.hangLamp({ drop: .6, light: true, power: 7, range: 7 }); lampL.position.set(-1.6, RH - .55, -.8); scene.add(lampL);
+scene.add(R.merge(fixed));
+
+// ---- 人・ねこ・ぜんまいの小鳥（真ちゅう色の R.bird） ----
+const hero = R.actor({ hairStyle: 'short', hair: '#c8783a', mouth: 'smile', cloth: 'vest', top: '#6a4a3a', top2: '#f0e4c8', bottom: '#4a4a5a', shoes: 'boot', shoe: '#5a3a2a', gloves: 'glove', glove: '#8a5a34', neck: 'collar', belt: '#c89a48', hold: 'wrench' }); scene.add(hero);
+const cat = R.cat({ c: '#f0ece4', belly: '#ffffff' }); cat.position.set(4.2, .72, 4.4); cat.rotation.y = -2.2; scene.add(cat);
+const cat2 = R.cat({ c: '#5a5a6a', belly: '#d8d4cc' }); scene.add(cat2);
+const bird = R.bird({ c: '#d0a048', belly: '#f0d890', s: 1.3 }); scene.add(bird);
+const fx = K.fx(scene, 30);
+// 夕日の光のすじ（丸窓から床へ）
+const shaft = C.shaft({ w: 1.9, h: 3.4, c: '#ffc888', a: .16 }); shaft.position.set(0, 0, ZB + 1.6); shaft.rotation.x = -.42; shaft.position.y = .1; scene.add(shaft);
+scene.add(C.pools([{ p: [0, .03, ZB + 4.6], r: 1.4, c: '#ffb070', k: .35 }]));
+
+// ---- 主役の道（窓の前 → 作業台 → 手前 → たな → 窓の前） ----
+const path = new THREE.CatmullRomCurve3([[0, -3.6], [-2.6, -2.8], [-3.4, -.4], [-2.4, 1.8], [0, 2.6], [2.6, 2], [3.4, -.6], [2.2, -2.8]].map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+const LEN = path.getLength(), SPEED = 1.2, cp = new THREE.Vector3(), look = new THREE.Vector3(), cl = (v, a, b) => Math.max(a, Math.min(b, v));
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+let first = true, sm = 0;
+K.loop((dt, t) => {
+  const dist = t * SPEED + 2.5, u = (dist / LEN) % 1, p = path.getPointAt(u), tg = path.getTangentAt(u);
+  hero.position.copy(p); hero.rotation.y = Math.atan2(tg.x, tg.z); R.walk(hero, dist * 3.6, .85);
+  const tall = innerWidth < innerHeight, tx = cl(p.x * (tall ? .9 : .6), tall ? -1.7 : -3, tall ? 1.7 : 3), tz = Math.min(ZF - .3, p.z + (tall ? 3 : 3.4)), k = first ? 1 : 1 - Math.exp(-dt * 2); first = false;
+  cp.x += (tx - cp.x) * k; cp.z += (tz - cp.z) * k; cp.y = tall ? 2.4 : 2.35; cam.position.copy(cp); look.x += (p.x * (tall ? 1 : .8) - look.x) * k; look.z += (p.z - (tall ? .5 : 1.6) - look.z) * k; cam.lookAt(look.x, 1.2, look.z);
+  R.catPose(cat, 'sit', t); const ca = t * .3; cat2.position.set(1.2 + Math.cos(ca) * 1.1, 0, -.2 + Math.sin(ca) * .8); cat2.rotation.y = Math.atan2(-Math.sin(ca) * 1.1, Math.cos(ca) * .8); R.catPose(cat2, 'walk', t * 1.3);
+  const ba = t * .8; bird.position.set(Math.cos(ba) * 1.8, 2.5 + Math.sin(t * 2) * .15, -.8 + Math.sin(ba) * 1.4); bird.rotation.y = Math.atan2(-Math.sin(ba) * 1.8, Math.cos(ba) * 1.4); R.birdPose(bird, 'fly', t * 1.4);
+  lampL.userData.light && (lampL.userData.light.intensity = 7 * (.94 + .06 * Math.sin(t * 6)));
+  if ((sm += dt) > .4) { sm = 0; eng.updateMatrixWorld(); const v = new THREE.Vector3(...eng.userData.vent).applyMatrix4(eng.matrixWorld); fx.emit('smoke', v.x, v.y, v.z, { size: .08, life: 1.6, vy: .5, grow: .8, spread: .05, tint: '#f8f0e8' }); }
+  S.tick(t); F.tick(t); C.update(t, cam); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

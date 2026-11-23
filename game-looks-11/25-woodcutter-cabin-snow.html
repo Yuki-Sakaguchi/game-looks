@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-25 雪の森のきこり小屋 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1e1c34;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fbe8d8;opacity:.9;text-shadow:0 1px 0 #1a1830}
+</style>
+<div id="cap">11-25 ─ 雪の森のきこり小屋 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方の雪の森。雪をかぶった もみの木にかこまれて、丸太を組んだ小屋が 1 けん。窓にあかり、えんとつから けむり。前の広場に まき割り台と まきの山、森のはしに しかの親子。
+// 色の組は「夕空の あい色ともも色・雪のうす むらさき・もみの深緑」＋差し色の 窓と戸口の だいだいの あかり。丸太のかべは手打ちのドット絵（丸い丸太・すき間・木はだ・ふし）、しかは この場面で R.geo の loft とドット絵で作った。
+// 主役は まきを両手にかかえた きこりの娘（R.actor の toon）。まき割り台の横から 小屋の戸口へ歩き、うしろからカメラが追う。まきを割るおじいさん・しか・けむり・ちらつく雪・からすが動く
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), W = PACK_FWILD(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 600, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#262a5c'], [.45, '#4e4a88'], [.74, '#b07a9c'], [.9, '#f0a888'], [1, '#ffd0a0']], { r: 380 })); scene.fog = new THREE.Fog('#8a7aa8', 26, 150);
+const { sun } = K.lights(scene, renderer, { sky: 0xb8a8e0, ground: 0x6a6098, amb: 1.4, sun: 0xffa880, power: 1.7, range: 30 }), SUN = new THREE.Vector3(.55, .25, -.8).normalize();
+
+// ---- 雪の広場と森。小屋の前から まき割り場へ、ふみ固めた道 ----
+const sst = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => sst(12, 30, Math.hypot(x, z + 6)) * (Math.sin(x * .2) + Math.sin(z * .17 + 1) + 1.4) * 1.3;
+const pathD = (x, z) => { const t = Math.max(0, Math.min(1, (z - -10.5) / 19)), px = .6 + t * 3.6; return Math.abs(x - px); };
+const land = R.ground({ w: 120, d: 110, cell: 2, cz: -10, H, layers: [T.snow({ c: '#d4cce8' }), T.snow({ c: '#a49cc8', seed: 3 }), T.dirt({ c: '#8a7a80', pebbles: .2 })],
+  mix: (x, z) => [Math.sin(x * .4 + z * .3) + Math.sin(z * .5 - x * .2) > 1.2 ? 1 : 0, pathD(x, z) < .8 && z > -11 && z < 9 ? 1 : 0],
+  shade: (x, z) => { const d = Math.hypot(x - .6, z + 9.5), w = Math.max(0, 1 - d / 7) ** 2; return [.86 + w * .6, .84 + w * .32, .98 + w * .02]; } });   // 戸口のまわりの雪に、だいだいの あかりを焼きこむ
+scene.add(land.mesh);
+
+// ---- 丸太のかべ（手打ち：丸い丸太の明暗・すき間・木はだ・ふし）と、雪の屋根 ----
+const logT = (() => { const P = R.Px(64), Lg = R.ramp('#8a5634'), Gp = '#2a1c24';
+  for (let r = 0; r < 8; r++) { const y0 = r * 8, sd = hash(r, 1) * 3; for (let x = 0; x < 64; x++) for (let j = 0; j < 8; j++) { const t = [5, 4, 4, 3, 3, 2, 1, 0][j], gr = R.tn(x, y0 + j, 8, 4, 64, 64, r) > .62, c = j === 7 ? Gp : j === 6 && (x + r) % 5 < 2 ? '#e8e0f0' : tone(t - (gr ? 1 : 0)); P.set(x, y0 + j, c); }
+    const kx = Math.floor(hash(r, 2) * 56); P.bits(kx, y0 + 2, ['.dd.', 'dmmd', '.dd.'], { d: Lg[0], m: Lg[2] }); for (let k = 0; k < 4; k++) { const x = Math.floor(hash(r, k + 5) * 60); P.rect(x, y0 + 3 + (k % 2), 3 + k, 1, Lg[1]); } }
+  function tone(i) { return Lg[Math.max(0, Math.min(5, i))]; } return T.from(P, { m: 2.4 }); })();
+const snowP = R.paint.snow({}), snowRoof = (c, e0) => { const P = R.paint.roof({ c, kind: 'slate' }); P.each((x, y) => { const e = e0 + Math.sin(x * .39) * 3 + Math.sin(x * .98 + 1) * 2; return y < e ? (y > e - 2 ? '#9a8ec0' : snowP.get(x, y)) : undefined; }); return T.from(P, { m: 3 }); };
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const winL = T.window({ bars: 'cross', lit: 1, curtain: '#ffd890', frame: '#5a3a2a', box: 1 });
+const CAB = { x: 0, z: -14, w: 7.2, d: 5.6, h: 2.8 };
+const cabin = put(R.house({ w: CAB.w, d: CAB.d, h: CAB.h, wall: logT, roof: snowRoof('#4a3a44', 52), pitch: .85, eave: .7, win: winL, winLit: winL, lit: 1, door: T.door({ style: 'plank', c: '#6a4030', lit: 1 }), doorX: .6, chimney: { x: -2 }, wins: { f: 2, b: 0, l: 1, r: 1 }, seed: 4 }), CAB.x, CAB.z, 0, 0);
+{ const G = R.geo().smooth(1), ends = R.geo(); for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let k = 0; k < 8; k++) { const y = .16 + k * .345, x = CAB.x + sx * (CAB.w / 2 + .08), z = CAB.z + sz * (CAB.d / 2 + .08);   // 角に つき出た丸太のはし
+    G.at(R.TR(x, y, z, 0, 0, PI / 2)).loft(6, [[-.22, .16, .16, 0, .8], [.22, .16, .16, 1, 1]], {}).at(null); ends.at(R.TR(x + sx * .22, y, z, 0, 0, PI / 2)).loft(6, [[0, .16, .16, 0, 1], [.001, .16, .16, 1, 1]], { cap: 'top', capRect: true }).at(null); }
+  fixed.push(G.mesh(T.bark({ c: '#7a4a30' })), ends.mesh((() => { const P = R.Px(16), A = R.ramp('#c89a68'); P.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d > 7 ? A[1] : Math.floor(d) % 3 === 0 ? A[2] : A[4]; }); return T.from(P, { m: 1 }); })())); }
+
+// ---- まき割り台・まきの山・荷そり・ランタン・もみの森 ----
+const LOG = T.bark({ c: '#6a4a34' }), CUT = (() => { const P = R.Px(16), A = R.ramp('#d8a870'); P.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); return d > 7 ? '#5a3a2a' : Math.floor(d) % 3 === 0 ? A[2] : A[4]; }); return T.from(P, { m: 1 }); })();
+const logPile = (x, z, ry, n, len = 1) => { const B = R.parts(), Lb = B.g(LOG), Lc = B.g(CUT); let k = 0; for (let row = 0; row < 4; row++) for (let i = 0; i < n - row; i++, k++) { const px = (i - (n - row - 1) / 2) * .3, py = .15 + row * .26;
+    Lb.at(R.TR(px, py, 0, 0, PI / 2)).loft(6, [[-len / 2, .14, .14, 0, .85], [len / 2, .14, .14, 1, 1]], {}).at(null); for (const s of [-1, 1]) Lc.at(R.TR(px, py, s * len / 2, 0, s > 0 ? PI / 2 : -PI / 2)).loft(6, [[0, .14, .14, 0], [.001, .14, .14, 1]], { cap: 'top', capRect: true }).at(null); }
+  return put(B.group(), x, z, ry); };
+logPile(CAB.x + CAB.w / 2 + .7, CAB.z + .6, 0, 6, 1.6); logPile(CAB.x + CAB.w / 2 + .7, CAB.z - 1.6, 0, 5, 1.6); logPile(-5.6, -2.4, .4, 5, .9);
+const BX = -3.4, BZ = -4.6; put(R.geo().smooth(1).loft(8, [[0, .34, .34, 0, .8], [.5, .32, .32, 1, 1]], {}).mesh(LOG), BX, BZ); put(R.geo().loft(8, [[.5, .32, .32, 0], [.501, .32, .32, 1]], { cap: 'top', capRect: true }).mesh(CUT), BX, BZ);
+put(R.lamp({ h: 2.4 }), 2.6, -10.4); put(R.barrel({ c: '#6a4a34' }), -2.6, -10.8); put(R.fence({ len: 6, kind: 'rail' }), -6, -6, .3); put(R.fence({ len: 5, kind: 'rail' }), -9.2, -1.4, 1.4);
+const pine = (h, seed, c) => { const g = new THREE.Group(), G = R.geo().smooth(2); g.add(R.tree({ kind: 'pine', h, c, seed }));
+  for (let k = 0; k < 4; k++) { const y0 = h * (.16 + k * .19), r = h * (.25 - k * .048); G.loft(6, [[y0 + h * .13, r * .72, r * .72, 0, .72], [y0 + h * .2, r * .5, r * .5, .4, 1], [y0 + h * .37, .03, .03, 1, 1.1]], { rot: k * .5, ur: 2 }); } g.add(G.mesh(T.snow({ m: 2 }))); return g; };
+for (let i = 0; i < 150; i++) { const a = hash(i, 1) * PI * 2, r = 13 + hash(i, 2) ** .8 * 45, x = Math.cos(a) * r, z = -8 + Math.sin(a) * r; if (z > -5 && Math.abs(x - 3) < 12) continue; put(pine(5 + hash(i, 3) * 8, i, i % 3 ? '#24584e' : '#2e6456'), x, z, i); }
+for (let i = 0; i < 14; i++) { const a = hash(i, 7) * PI * 2, r = 9 + hash(i, 8) * 6, x = Math.cos(a) * r, z = -6 + Math.sin(a) * r; if (pathD(x, z) < 2.5 || Math.hypot(x - CAB.x, z - CAB.z) < 6) continue; put(R.rock({ s: .5 + hash(i, 9), c: '#8a84a8', seed: i }), x, z, i, H(x, z) - .15); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#3e4a6e', haze: '#8a7aa8', r: 150, h: 34, y: -3, rep: 6 }), R.backdrop({ c: '#7a7ab0', haze: '#b08aa8', r: 260, h: 80, y: -5, seed: 3 }));
+const lamps = [[CAB.x + .6, 1.7, CAB.z + CAB.d / 2 + 1, 12, 9], [2.6, 2.3, -10.4, 8, 7], [CAB.x - 1.8, 1.5, CAB.z + CAB.d / 2 + .6, 6, 5]].map(([x, y, z, p, r]) => { const L = new THREE.PointLight('#ffa860', p, r, 1.5); L.position.set(x, y, z); scene.add(L); return L; });
+
+// ---- しか（この場面で作る。64×32 の手打ちの絵：胴・首・頭・足・角） ----
+const deerTex = (() => { const P = R.Px(64, 32), C = R.ramp('#9a6a44'), Wt = R.ramp('#efe2cc'), K0 = '#1a1418'; P.clip = true;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const a = Math.abs(x - 15.5); P.set(x, y, a < 5 ? Wt[4] : a < 7 ? Wt[2] : y > 27 && a > 9 ? Wt[4] : a > 13 ? C[2] : (x * 3 + y * 7) % 11 === 0 ? C[4] : C[3]); }   // 胴（腹とおしりが白い）
+  for (let y = 0; y < 16; y++) for (let x = 32; x < 48; x++) P.set(x, y, Math.abs(x - 39.5) < 2 && y > 6 ? Wt[4] : y < 3 ? C[2] : C[3]);                       // 首
+  for (let y = 0; y < 16; y++) for (let x = 48; x < 64; x++) { const a = Math.abs(x - 55.5); P.set(x, y, y > 11 && a < 3 ? Wt[4] : C[3]); } P.bits(50, 5, ['kk', 'kh'], { k: K0, h: '#f0f0f0' }); P.bits(59, 5, ['kk', 'hk'], { k: K0, h: '#f0f0f0' }); P.rect(54, 13, 3, 2, K0);   // 頭（目と鼻）
+  for (let y = 16; y < 32; y++) for (let x = 32; x < 48; x++) P.set(x, y, y > 29 ? K0 : y > 24 ? C[2] : C[3]);                                               // 足（ひづめ）
+  for (let y = 16; y < 32; y++) for (let x = 48; x < 64; x++) P.set(x, y, (x + y) % 4 === 0 ? '#e8d8b8' : '#c8b088');                                          // 角
+  return T.from(P, { m: 1 }); })();
+const deer = (s = 1, antler = true) => { const m = R.mat(deerTex, { vc: true, smooth: true, side: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, X = 64, Y = 32; root.scale.setScalar(s); g.add(root);
+  const part = (G, parent, x, y, z) => { const me = new THREE.Mesh(G.build(), m); me.castShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
+  J.body = part(R.geo().smooth(1).px(0, 0, 32, 32, X, Y).at(R.TR(0, 0, 0, 0, PI / 2)).loft(6, [[-.1, .08, .1, 0, .85], [0, .15, .18, .15], [.35, .16, .19, .55], [.65, .15, .18, .85], [.78, .1, .12, 1]], { cap: 'both', rot: 0 }), root, 0, .82, -.36);
+  J.neck = part(R.geo().smooth(1).px(32, 0, 16, 16, X, Y).at(R.TR(0, 0, 0, 0, .5)).loft(6, [[0, .09, .11, 0], [.42, .06, .07, 1]], { rot: 0 }), J.body, 0, .06, .7);
+  const Gh = R.geo().smooth(1).px(48, 0, 16, 16, X, Y).at(R.TR(0, 0, 0, 0, PI / 2 + .3)).loft(6, [[-.06, .06, .07, 0, .9], [.04, .075, .08, .4], [.2, .035, .04, 1, 1.05]], { cap: 'both', rot: 0 }).at(null);
+  Gh.px(48, 0, 4, 8, X, Y); for (const sx of [-1, 1]) Gh.tri([sx * .04, .05, -.03], [sx * .07, .05, -.06], [sx * .16, .12, -.08], [0, 0], [1, 0], [.5, 1]);
+  if (antler) { Gh.px(48, 16, 16, 16, X, Y); for (const sx of [-1, 1]) { Gh.at(R.TR(sx * .035, .06, -.04, 0, -.3, -sx * .35)).loft(4, [[0, .016, .016, 0], [.32, .01, .01, 1]], { cap: 'top' }).at(R.TR(sx * .07, .2, -.08, 0, .5, -sx * .2)).loft(4, [[0, .012, .012, 0], [.14, .007, .007, 1]], { cap: 'top' }).at(R.TR(sx * .1, .3, -.12, 0, -.9, -sx * .5)).loft(4, [[0, .01, .01, 0], [.12, .006, .006, 1]], { cap: 'top' }).at(null); } }
+  J.head = part(Gh, J.neck, 0, .42, 0);
+  const leg = (x, y, z) => part(R.geo().smooth(1).px(32, 16, 16, 16, X, Y).loft(4, [[-.8, .026, .03, 0], [-.4, .03, .034, .5], [0, .06, .07, 1]], { cap: 'bot' }), J.body, x, y, z);
+  J.fl = leg(.08, -.04, .62); J.fr = leg(-.08, -.04, .62); J.hl = leg(.085, -.02, .04); J.hr = leg(-.085, -.02, .04);
+  g.userData = { J }; return g; };
+const deerPose = (d, t, graze, walk) => { const J = d.userData.J, a = Math.sin(t * 5) * walk; J.neck.rotation.x = graze ? 1.5 + Math.sin(t * 2) * .05 : .1 + Math.sin(t * .7) * .05; J.head.rotation.x = graze ? .5 : -.3; J.head.rotation.y = graze ? 0 : Math.sin(t * .4) * .5;
+  J.fl.rotation.x = a * .4; J.hr.rotation.x = a * .4; J.fr.rotation.x = -a * .4; J.hl.rotation.x = -a * .4; };
+
+// ---- 人（5 頭身の toon。どれもこの場面のためのオリジナル）。まきの たば と おの は ここで作って付ける ----
+R.cfg.actorBuild = 'toon';
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor(o); p.position.set(x, H(x, z), z); p.rotation.y = ry; scene.add(p); return p; };
+const furHat = (p, c) => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k * 1.05, v, s, 0, -.03 * HW];
+  p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.58, 1.28, 0, .8), r(.72, 1.3, .3, 1), r(.98, 1.12, .6, 1.05), r(1.14, .66, .9, 1.1), r(1.2, .1, 1, 1.12)], { ur: 3, cap: 'top' }).mesh(T.thatch({ c, m: 1 }), { side: true })); return p; };
+const hero = furHat(act({ sex: 'f', hairStyle: 'tail', hair: '#7a3a2a', eye: '#3a6a5a', mouth: 'smile', blush: true, cloth: 'coat', sleeve: 'long', top: '#3a6a4a', top2: '#f4ecdc', lower: 'baggy', bottom: '#5a4a6a', gloves: 'glove', glove: '#a8743a', shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#e0a040', belt: '#4a3428' }), '#c8b8a0');
+{ const D = hero.userData.build, B = R.parts(), Lb = B.g(LOG), Lc = B.g(CUT), PS = (D.thigh + D.shin + D.torso) / 1.1, z0 = D.chest + .1 * PS;   // 両手でかかえる まき（胴の前）
+  for (const [x, y, z] of [[0, 0, 0], [0, .1, .02], [0, .05, .11], [0, .15, .1]]) { const yy = D.torso * .3 + y * PS, zz = z0 + z * PS; Lb.at(R.TR(x, yy, zz, 0, 0, PI / 2)).loft(6, [[-.42 * PS, .06 * PS, .06 * PS, 0, .85], [.42 * PS, .06 * PS, .06 * PS, 1, 1]], {}).at(null);
+    for (const s of [-1, 1]) Lc.at(R.TR(s * .42 * PS, yy, zz, 0, 0, -s * PI / 2)).loft(6, [[0, .06 * PS, .06 * PS, 0], [.001, .06 * PS, .06 * PS, 1]], { cap: 'top', capRect: true }).at(null); }
+  hero.userData.J.torso.add(B.group()); }
+const grandpa = furHat(act({ bulk: 1.18, hairStyle: 'short', hair: '#d8d0c8', beard: 'beard', brow: 'thick', eyes: 'half', mouth: 'smile', cloth: 'coat', sleeve: 'long', top: '#a83a30', top2: '#2a2a34', lower: 'baggy', bottom: '#4a4a5a', gloves: 'glove', glove: '#6a4a30', shoes: 'boot', shoe: '#3a2a24' }, BX - 1.05, BZ, PI / 2), '#8a6a4a');
+const axe = new THREE.Group(); { const D = grandpa.userData.build; axe.add(R.geo().loft(5, [[0, .022, .022, 0], [.75, .02, .02, 1]], { cap: 'both' }).mesh(T.planks({ c: '#a07a4a' })), R.geo().normal([1, 0, 0]).quad([0, .62, -.02], [0, .62, .17], [0, .78, .2], [0, .78, -.02]).mesh(T.metal({ c: '#9aa0b0' }), { side: true })); axe.position.set(0, -D.farm - D.hand[2] * .5, .02); axe.rotation.x = PI / 2; grandpa.userData.J.foreR.add(axe); }
+const half = [0, 1].map(k => { const g = R.geo().at(R.TR(0, 0, 0, 0, PI / 2, 0)).loft(6, [[-.18, .12, .12, 0], [.18, .12, .12, 1]], { cap: 'both' }).at(null).mesh(LOG); scene.add(g); return g; });
+const deers = [[8.4, -7.5, -1.9, 1.1, true], [10, -9.4, -1.4, .85, false], [9.2, -11.6, -2.2, .8, false]].map(([x, z, ry, s, an]) => { const d = deer(s, an); d.userData.home = [x, z, ry]; scene.add(d); return d; });
+const crows = [0, 1].map(k => { const b = R.bird({ c: '#2a2834', belly: '#3a3844', neck: false, s: 1.7 }); scene.add(b); return b; });
+const snow = W.motes({ n: 120, box: [26, 10, 30], c: '#f4f0ff', size: .09, rise: -.5, drift: .5, y: .3 }); scene.add(snow);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 50), SPEED = 1.25, LOOP = 19 / SPEED + 4, S0 = 3; let sm = 0;
+K.loop((dt, t) => {
+  const tt = (t + S0) % LOOP, k = Math.min(1, tt * SPEED / 19), z = 8.5 - k * 18.6, x = .6 + Math.max(0, (z + 10.5) / 19) * 3.6 + Math.sin(z * .5) * .15, done = k >= 1;
+  hero.position.set(x, H(x, z), z); hero.rotation.y = PI + .18 * (1 - k); if (!done) R.walk(hero, tt * SPEED * 3.6, .8); else R.idle(hero, t, 0); F.carryPose(hero);
+  const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.8; cam.position.set(x + (tall ? .4 : 1.2), hero.position.y + (tall ? 2.3 : 2.1), z + D); cam.lookAt(x - .4, hero.position.y + (tall ? 1.4 : 1.5), z - 7);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  // おじいさんは まきを割る（ふり上げて、ふり下ろす）。割れたまきが左右にとぶ
+  { const ph = (t * .7) % 1, up = ph < .6 ? ph / .6 : 1 - (ph - .6) / .4 * 1.2, J = grandpa.userData.J; R.idle(grandpa, t, 0); J.armR.rotation.set(-.6 - Math.max(-.2, up) * 2.3, 0, .25); J.armL.rotation.set(-.6 - Math.max(-.2, up) * 2.3, 0, -.25); J.foreR.rotation.x = J.foreL.rotation.x = -.3; J.torso.rotation.x = .25 - up * .3;
+    const sp = ph > .78 ? (ph - .78) / .22 : 0; half.forEach((g, i) => { const s = i ? 1 : -1; g.position.set(BX, H(BX, BZ) + .62 + (ph > .78 ? Math.sin(sp * PI) * .25 : .1) - sp * .3, BZ + s * (.1 + sp * .5)); g.rotation.x = s * sp * 1.3; }); }
+  deers.forEach((d, i) => { const [hx, hz, ry] = d.userData.home, wk = Math.max(0, Math.sin(t * .3 + i * 2)), dz = Math.sin(t * .15 + i) * 1.5; d.position.set(hx + dz * Math.sin(ry), H(hx, hz), hz + dz * Math.cos(ry)); d.rotation.y = ry + (Math.cos(t * .15 + i) < 0 ? PI : 0); deerPose(d, t + i, Math.sin(t * .4 + i * 1.7) > -.3, wk > .5 ? 1 : 0); });
+  crows.forEach((b, i) => { const a = t * (.3 + i * .06) + i * 2, r = 12 + i * 4; b.position.set(Math.cos(a) * r, 12 + i * 2, -14 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .5 + i); });
+  lamps.forEach((L, i) => L.intensity = [12, 8, 6][i] * (.92 + .08 * Math.sin(t * 7 + i * 2)));
+  if ((sm += dt) > .45) { sm = 0; fx.emit('smoke', CAB.x - 2, CAB.h + 3.4, CAB.z - .5, { size: .6, life: 4.5, vy: .7, vx: .25, grow: 1.8, spread: .12, tint: '#e8e0f0' }); }
+  snow.userData.tick(t, x, z - 6); F.tick(t); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-37 雨季の水びたしの遺跡 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dfe8f4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-37 ─ 雨季の水びたしの遺跡 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-jungle2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨季の嵐。密林にしずんだ古い神殿の回廊は ひざまで水につかり、強い雨が水面に波紋をえがく。柱のかげの たいまつが水に映り、ときどき いなずまで回廊の奥の門が浮かぶ。
+// 色の組は「青灰の石と雨・にごった水の深い青みどり」＋差し色の たいまつの だいだい（主役のマントの赤も少し）。暗い所は青むらさき寄りで、いなずまと ふちの光で形を読ませる（D.mood 'storm'）。
+// 主役は赤いマントの旅人（R.actor の toon）。ひざまで水につかって回廊を奥へ進み、カメラは ななめ うしろの右上から追う。雨・波紋・足もとの しぶき・滝・こうもり・たいまつ が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), J = PACK_JUNGLE2(THREE, K, R, F), T = R.tex, PT = PK.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', hair: '#d8c49a', bangs: 'jag', mouth: 'small', cloth: 'tunic', top: '#dcd2bc', top2: '#8a6a4a', lower: 'baggy', bottom: '#4a5268', belt: '#6a4a34', shoes: 'boot', shoe: '#4a3a30', gloves: 'wrap', glove: '#d8ccb0', neck: 'cape', acc: '#c0402e', hold: 'staff' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 30, level: .78, sky: ['#080e1c', '#141f34', '#25384e', '#3e5670'], fog: ['#1e2c3e', 14, 100], hills: '#16222e', base: [.78, .86, 1] });
+
+// ---- 回廊：まっすぐ奥（-z）へのびる石の床。両がわに柱の列とかべ。水面は床から .55 m 上 ----
+const WY = .55, CW = 3.4, STONE = '#7a8494', TORCH = [[-CW + .45, 6], [CW - .45, -2], [-CW + .45, -10], [CW - .45, -18], [-CW + .45, -26], [CW - .45, -34], [-CW + .45, -42]];
+const land = R.ground({ w: 80, d: 140, cell: 2, cz: -25, layers: [T.cobble({ kind: 'slab', c: '#5a6474', moss: .5 }), PT.ancient({ kind: 'block', c: '#6a7484', moss: .6 })], mix: (x, z) => [Math.abs(x) > CW + .8 ? 1 : 0, 0], shade: mood.shade(TORCH.map(([x, z]) => ({ x, z, r: 4, c: '#ffa050', k: .7 }))) }); scene.add(land.mesh);
+const WF = T.water({ c: '#2e5a68' }), water = R.ground({ w: 60, d: 130, cell: 2, cz: -25, layers: [WF[0]] }); water.mesh.position.y = WY; water.mesh.receiveShadow = false; water.mat.transparent = true; water.mat.opacity = .82; water.mat.depthWrite = false; water.mat.color.set('#6a8898'); scene.add(water.mesh);
+
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let k = 0; k < 16; k++) { const z = 10 - k * 4, br = [0, 0, .55, 0, 0, .7, 0, 0, 0, .45, 0, 0, 0, .6, 0, 0][k]; for (const s of [-1, 1]) put(PK.column({ h: 6, r: .5, c: STONE, broken: s > 0 ? br : [0, .5, 0, 0, 0, 0, .4, 0][k % 8], seed: k * 2 + (s > 0 ? 1 : 0), ivy: .6 }), s * CW, z, k); }
+{ const G = R.geo(), CT = PT.ancient({ kind: 'carve', c: STONE, moss: .35 });   // 柱にのる はりと、天井の石板（ところどころ落ちて、雨がふりこむ）
+  for (let k = 0; k < 15; k++) { const z = 10 - k * 4 - 2; if (k !== 2 && k !== 5 && k !== 9 && k !== 13) G.box(1.2, .8, 4.4, -CW, 6, z, { m: 3, bottom: true }); if (k !== 2 && k !== 5 && k !== 13 && k !== 9 && k !== 6) G.box(1.2, .8, 4.4, CW, 6, z, { m: 3, bottom: true }); if (k % 3 === 1) G.box(2 * CW + 1.2, .6, 1.4, 0, 6.6, z, { m: 3, bottom: true }); }
+  for (const [x, z, ry, rz] of [[1.4, -12.5, .4, .25], [-1.6, -30, -.3, -.2], [.6, -47, .2, .1]]) G.at(R.TR(x, -.1, z, ry, 0, rz)).box(1.1, .8, 3.6, 0, 0, 0, { m: 3 }).at(null);   // 水の中に落ちた石
+  fixed.push(G.mesh(CT)); }
+for (const s of [-1, 1]) for (let k = 0; k < 7; k++) put(PK.wall({ len: 9.6, h: 5 + hash(k, s) * 2, tex: PT.ancient({ kind: k % 2 ? 'carve' : 'block', c: '#6a7486', moss: .5 }), seed: k, rebar: false, fall: .25 }), s * (CW + 3.4), 8 - k * 9.6, PI / 2);
+put(PK.steps({ w: 7, n: 8, rise: .3, run: .55, c: STONE, moss: .5 }), 0, -54, 0); put(PK.arch({ w: 5.4, h: 7.2, c: STONE, seed: 3 }), 0, -59, 0, 2.4);
+for (const s of [-1, 1]) put(D.statue({ kind: 'knight', s: 1.7, c: '#7a8496', seed: s + 3 }), s * 4, -57, -s * .3, 2.4);
+// かべの外の密林（うしろの大木と、上からたれる つる）
+for (let i = 0; i < 18; i++) { const s = i % 2 ? 1 : -1, z = 14 - i * 4.5 - hash(i, 2) * 2; put(J.tree({ h: 16 + hash(i, 3) * 8, c: '#4a4e54', leaf: ['#2a4e48', '#30564a'][i % 2], seed: i + 7, vines: 3, vineC: '#2e5a44' }), s * (CW + 7 + hash(i, 4) * 8), z, i); }
+for (let k = 0; k < 14; k++) { const s = k % 2 ? 1 : -1, v = F.vine({ len: 2 + hash(k, 5) * 3, n: 3, w: 1, c: '#3a6a4a', seed: k }); v.position.set(s * (CW + (hash(k, 6) - .5) * .6), 6, 8 - k * 4.6); fixed.push(v); }
+fixed.push(D.streaks(TORCH.map(([x, z]) => ({ x: x * .92, z: z + .3, h: 1.6, c: '#ffa050', k: .75, w: .9, len: 3 })), { y: WY + .02 }));
+scene.add(R.merge(fixed));
+const torches = TORCH.map(([x, z], i) => { const t = F.torch({ wall: true, y: 2.6, light: i % 2 === 0, power: 10, range: 9, seed: i }); t.position.set(x, 0, z); t.rotation.y = x < 0 ? PI / 2 : -PI / 2; scene.add(t); return t; });
+
+// ---- 天気：強い雨、いなずま、水面の波紋、天井の穴からの滝、こうもり ----
+scene.add(D.clouds({ n: 10, r: 250, y: 80, s: 100, c: '#4a5a78', shade: '#1e2a44', speed: .02 }), D.rain({ n: 1400, box: [22, 12, 22], speed: 26, slant: [.12, .22], a: .5 }), D.lightning(mood, { first: 2.2, every: 6, az: 5, spread: 30, dist: 170 }));
+const rip = J.ripples({ n: 70, box: [16, 22], y: WY + .03, r: .5, life: 1.1, c: '#b8d0e8', a: .7 }); scene.add(rip);
+const falls = [[-CW, -6], [CW, -26], [-CW, -50]].map(([x, z], i) => { const w = F.waterfall({ w: 1.2, h: 5.6, c: '#8ab0c8', speed: 1.4 }); w.position.set(x * .55, WY, z); w.rotation.y = x < 0 ? PI / 2 : -PI / 2; scene.add(w); return w; });
+scene.add(D.flock({ kind: 'bat', n: 8, r: 5, h: 2, center: [0, 8, -30] }));
+const fx = K.fx(scene, 40);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.04 }); onResize(crt.resize);
+const Z0 = 12, LEN = 58, SPEED = 1.05; let sp = 0;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = Math.sin(z * .12) * .5, ph = t * SPEED * 3.4;
+  hero.position.set(x, -.04 + Math.abs(Math.sin(ph)) * .03, z); hero.rotation.y = PI + Math.cos(z * .12) * .06; R.walk(hero, ph, .55); const Jn = hero.userData.J; Jn.torso.rotation.x = .12; Jn.armL.rotation.z = .55 + Math.sin(ph) * .08;   // 水をかき分けて、少し前かがみに
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.7 : 4.1; cam.position.set(x + (tall ? .9 : 1.5), tall ? 2.4 : 2.2, z + Dc); cam.lookAt(x - .2, tall ? 1.6 : 1.6, z - 5);
+  if ((sp += dt) > .32) { sp = 0; const s = Math.sin(ph) > 0 ? 1 : -1; rip.userData.emit(x + s * .15, z - .1, t); fx.emit('splash', x + s * .15, WY + .05, z - .2, { size: .35, life: .5, vy: .6, spread: .2 }); }
+  R.flip(water.mat, WF, t, 5); rip.userData.tick(t, x, z - 5); for (const tc of torches) tc.userData.tick(t); for (const w of falls) w.userData.tick(t);
+  fx.update(dt); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

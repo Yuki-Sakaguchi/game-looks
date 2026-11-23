@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-23 氷河の洞くつ 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0e2a52;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8f6ff;opacity:.9;text-shadow:0 1px 0 #0a2448}
+</style>
+<div id="cap">11-23 ─ 氷河の洞くつ / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 氷河の中の洞くつ。天井の うすい氷を通った光で、かべも天井も青くすきとおって光る。かべには 年ごとに積もった氷の層のしま、天井から つらら、足もとに とけ水の小川。
+// 色の組は「氷の青・水色・天井の白い光」＋差し色の 主役の上着の こはく色。氷の層は手打ちのドット絵（層・あわ・ひび）で、高さにそって しまがならぶようにはった。洞くつの筒はページの中で作り、明るさは頂点の色に焼きこんだ。
+// 主役は こはく色の上着の 山歩きの少年（R.actor の toon）。たいまつなしで、曲がりくねった氷の通路を奥へ歩き、うしろからカメラが追う。光の粒・しずく・小川・長い耳の白い小さな獣（pack-fantasy-wild.js）が動く
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), T = R.tex, X = W.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 300, aa: false, fitAspect: .9, maxFov: 78 });
+scene.background = new THREE.Color('#1a5aa8'); scene.fog = new THREE.Fog('#2468b8', 16, 64);
+const { sun } = K.lights(scene, renderer, { sky: 0xbfe6ff, ground: 0x5a9ae0, amb: 1.3, sun: 0xe0f4ff, power: 1.4, range: 26 });
+
+// ---- 通路の形：s m 進んだ所の まん中 cx(s)、はばの半分 HW(s)、天井の高さ HC(s)。s≈52 に 天井の高い広間 ----
+const LEN = 150, cx = s => Math.sin(s * .045) * 4 + Math.sin(s * .12 + 1) * 1.3, hall = s => Math.exp(-((((s % LEN) - 52) / 13) ** 2));
+const HW = s => 4.4 + 1.4 * Math.sin(s * .07 + 1) + hall(s) * 5, HC = s => 5.2 + 1.2 * Math.sin(s * .05 + 2) + hall(s) * 4.5;
+const HF = (x, z) => { const s = -z, d = Math.abs(x - cx(s)) / HW(s); return Math.max(0, d - .55) * 1.6 + Math.sin(x * .9 + z * .4) * .05; };
+
+// ---- 氷の層のテクスチャ（高さにそってならぶ しま。層ごとに青の深さを変え、あわとひびを打つ） ----
+const strata = (() => { const P = R.Px(64), I = R.ramp('#58a4e4', 6, { cool: .6 }), BAND = [I[3], I[4], I[2], I[4], I[3], I[5], I[2], I[3]];
+  P.each((x, y) => { const w = y + Math.sin(x / 64 * PI * 4 + 1) * 2.2 + R.tn(x, y, 16, 16, 64, 64, 3) * 4, b = Math.floor(w / 8), f = w - b * 8, band = BAND[((b % 8) + 8) % 8];
+    if (f < 1) return b % 3 === 0 ? '#ffffff' : I[5]; if (f > 7) return I[1]; return R.tn(x, y, 8, 8, 64, 64, b) > .7 && (x + y) & 1 ? R.mix(band, '#ffffff', .35) : band; });
+  for (let k = 0; k < 26; k++) { const x = Math.floor(hash(k, 1) * 64), y = Math.floor(hash(k, 2) * 64); P.set(x, y, '#ffffff'); if (k % 3 === 0) { P.set(x + 1, y, I[5]); P.set(x, y + 1, I[1]); } }   // あわ
+  for (let k = 0; k < 4; k++) { let x = hash(k, 5) * 64, y = hash(k, 6) * 64; for (let s = 0; s < 10; s++) { P.set(x, y, s % 4 === 3 ? I[5] : '#ffffff'); x += 1; y += hash(k, s) > .5 ? 1 : 0; } }   // ひび
+  return T.from(P, { m: 4 }); })();
+
+// ---- 洞くつの筒（輪をつなぐ。天井の明るい所＝氷のうすい所は白く、下は深い青。頂点の色に焼きこむ） ----
+const SKY = [12, 31, 47, 58, 78, 99, 118, 137].map((s, i) => ({ s, x: cx(s) + (hash(i, 3) - .5) * 3 }));
+const lightAt = (s, x, y) => { let k = 0; for (const L of SKY) for (const o of [0, LEN]) { const d = Math.hypot(s - L.s - o, x - L.x); k += Math.max(0, 1 - d / 7) ** 2; } return k; };
+const tube = (() => { const G = R.geo().smooth(1), STEP = 1.25, N = Math.ceil((LEN + 30) / STEP), M = 16, ring = [];
+  for (let i = 0; i <= N; i++) { const s = i * STEP - 12, row = []; for (let k = 0; k <= M; k++) { const a = k / M * PI, b = .13 * Math.sin(s * .55 + k * 1.7) + .07 * Math.sin(s * 1.6 + k * 2.9) + (k === 0 || k === M ? .05 : 0);
+      const x = cx(s) + Math.cos(a) * HW(s) * (1 + b), y = Math.pow(Math.sin(a), .7) * HC(s) * (1 + b * .6) - .5, up = Math.max(0, y) / HC(s), l = lightAt(s, x, y) * up;
+      row.push({ p: [x, y, -s], uv: [(s + x * .4) / 4, (y + Math.abs(x - cx(s)) * .6) / 4], c: [.22 + up * .4 + l * .6, .36 + up * .42 + l * .55, .68 + up * .3 + l * .4] }); } ring.push(row); }
+  for (let i = 0; i < N; i++) for (let k = 0; k < M; k++) { const a = ring[i][k], b = ring[i][k + 1], c = ring[i + 1][k + 1], d = ring[i + 1][k]; G.tri(a.p, b.p, c.p, a.uv, b.uv, c.uv, [a.c, b.c, c.c]).tri(a.p, c.p, d.p, a.uv, c.uv, d.uv, [a.c, c.c, d.c]); }
+  const me = G.mesh(strata, { glow: true, side: true }); me.frustumCulled = false; return me; })();
+scene.add(tube);
+const land = R.ground({ w: 40, d: 90, cell: 1.5, H: HF, layers: [T.snow({ c: '#8eb2e2' }), X.ice({ c: '#4a92d8' }), T.snow({ c: '#b4d0f0', seed: 3 })],
+  mix: (x, z) => { const s = -z, d = Math.abs(x - cx(s)) / HW(s); return [d < .5 && Math.sin(x * .7 + z * .5) + Math.sin(z * .23) > .9 ? 1 : 0, d > .7 ? 1 : 0]; },
+  shade: (x, z) => { const s = -z, l = lightAt(s, x, 0); return [.62 + l * .45, .72 + l * .4, .95 + l * .2]; } });
+scene.add(land.mesh);
+
+// ---- つらら（天井から）・氷の柱（床から）・光のすじ・とけ水の小川 ----
+const fixed = [], ticks = [], icT = X.ice({ c: '#a8dcf8' }), icT2 = X.ice({ c: '#7ec0ee', seed: 2 }), DRIP = [], icM = R.mat(icT, { glow: true, vc: true, smooth: true }), icM2 = R.mat(icT2, { glow: true, vc: true, smooth: true });   // つららは 光を通して自分で光る
+for (let i = 0; i < 150; i++) { const s = hash(i, 1) * LEN, side = hash(i, 2) * 2 - 1, x = cx(s) + side * HW(s) * .8, a = Math.acos(Math.max(-1, Math.min(1, side * .8))), y = Math.pow(Math.sin(a), .7) * HC(s) - .7;
+  const sp = W.spike({ h: .6 + hash(i, 3) ** 1.5 * 2.4, r: .12 + hash(i, 4) * .14, down: true, seed: i, tex: i % 3 ? icT : icT2 }); sp.material = i % 3 ? icM : icM2; sp.position.set(x, y, -s); fixed.push(sp); if (i % 5 === 0) DRIP.push([x, y - 1.5, -s]); }
+for (let i = 0; i < 40; i++) { const s = hash(i, 11) * LEN, sd = hash(i, 12) > .5 ? 1 : -1, x = cx(s) + sd * HW(s) * (.62 + hash(i, 13) * .25), h = .8 + hash(i, 14) * 2.2;
+  const sp = W.spike({ h, r: .25 + hash(i, 15) * .3, seed: i + 300, tex: icT }); sp.material = icM; sp.position.set(x, HF(x, -s) - .1, -s); fixed.push(sp); }
+scene.add(R.merge(fixed));
+for (const L of SKY) for (const o of [0, LEN]) { const b = W.beam({ h: HC(L.s) + .5, r: 1.3, c: '#e0f6ff', opacity: .08 }); b.position.set(L.x, 0, -(L.s + o)); scene.add(b); ticks.push(b.userData.tick);
+  const g = W.halo('#ffffff', 4, .55); g.position.set(L.x, HC(L.s) - .3, -(L.s + o)); scene.add(g); }
+const stream = W.flow([...Array(Math.ceil((LEN + 40) / 2))].map((_, i) => { const s = i * 2 - 15; return [cx(s) + 1.6 + Math.sin(s * .3) * .25, .02, -s]; }), .9, { kind: 'water', c: '#4a9ae0', speed: 1.1 }); scene.add(stream); ticks.push(stream.userData.tick);
+
+// ---- 主役・白い小さな獣・光の粒 ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2a2a', eye: '#3a6a9a', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#e8962a', top2: '#f4ecdc', lower: 'baggy', bottom: '#3a4a6a', gloves: 'glove', glove: '#5a3a2a', shoes: 'boot', shoe: '#6a3a2a', hat: 'band', acc: '#f4ecdc', back: 'pack', strap: true, belt: '#4a3a2a', hold: 'staff' }); scene.add(hero);
+const beast = W.critter({ c: '#f0f4fa', belly: '#ffffff', s: 1.25 }); scene.add(beast);
+const motes = W.motes({ n: 90, box: [16, 6, 24], c: '#e8f8ff', size: .1, rise: .1, drift: .4, y: .3 }); scene.add(motes);
+
+const crt = R.crt(renderer, { noise: 0, bloom: .25 }); onResize(crt.resize);
+const fx = K.fx(scene, 60), SPEED = 1.5, S0 = 36, cd = new THREE.Vector3(); let first = true, dp = 0;
+K.loop((dt, t) => {
+  const s = S0 + t * SPEED, sm = s % LEN, x = cx(sm) - .6, z = -sm, x2 = cx(sm + .5) - .6, dir = new THREE.Vector3(x2 - x, 0, -.5).normalize();
+  hero.position.set(x, HF(x, z), z); hero.rotation.y = Math.atan2(dir.x, dir.z); R.walk(hero, s * 2.4, .85);
+  if (first) { cd.copy(dir); first = false; } cd.lerp(dir, 1 - Math.exp(-dt * 2)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 3.9 : 4.8;
+  cam.position.set(x - cd.x * D + .4, hero.position.y + (tall ? 2.1 : 1.9), z - cd.z * D); cam.lookAt(x + cd.x * 4, hero.position.y + (tall ? 1.5 : 1.45), z + cd.z * 4);   // 少し見上げて、天井の光とつららを入れる
+  sun.position.set(x + 4, 30, z - 6); sun.target.position.set(x, 0, z); land.follow(cx(sm + 20), z - 20);
+  // 白い小さな獣は 主役の先を行ったり来たりして、ときどき すわってふりかえる
+  { const fs = sm + 5 + Math.sin(t * .35) * 2.2, fxp = cx(fs) - 2 + Math.sin(t * .5) * .5, fz = -fs, sit = Math.sin(t * .35 + 1.4) > .55; beast.position.set(fxp, HF(fxp, fz), fz); beast.rotation.y = sit ? .4 : (Math.cos(t * .35) > 0 ? PI : 0); W.critterPose(beast, sit ? 'sit' : 'walk', t * 9); }
+  // つららの しずく
+  if ((dp += dt) > .18) { dp = 0; const d = DRIP[Math.floor(Math.random() * DRIP.length)], oz = Math.abs(d[2] - z) < 25 ? 0 : -LEN * Math.round((d[2] - z) / LEN); fx.emit('splash', d[0], d[1], d[2] + oz, { size: .12, life: .9, grav: -9, tint: '#e8f8ff' }); }
+  for (const f of ticks) f(t); motes.userData.tick(t, x, z - 6); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

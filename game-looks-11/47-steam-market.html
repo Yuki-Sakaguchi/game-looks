@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-47 蒸気の市場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4e0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-47 ─ 蒸気の市場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-steam2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の市場の通り。れんがの店のあいだに、緑にぬった鉄のアーチとガラスの屋根がかかり、光のすじと骨組みの影が石だたみに落ちる。屋台のわきでは小さな蒸気機関が歯車を回し、湯気をふく。
+// 色の組は「れんがの赤茶・ガラスと空の水色・真ちゅうの金」＋差し色は屋台の品の色とりどり。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役はかごを持った女の子（R.actor の toon）。人ごみの中を こちらへ歩いてきて、カメラは前の少し高い所から下がりながら顔を見せる。歯車・蒸気機関・ランプは pack-steam2.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_STEAM2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#3a74c0'], [.55, '#70a8d8'], [1, '#b8d4e0']], { r: 400 })); scene.fog = new THREE.Fog('#b0c8d4', 40, 160);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0x8a6a58, amb: 1.0, sun: 0xfff0d0, power: 2.1, range: 22 }), SUN = new THREE.Vector3(-.45, .8, -.35).normalize();
+
+// ---- 地面：まん中は切り石、店の前はれんが敷き ----
+const land = R.ground({ w: 60, d: 120, cell: 2, cz: -25, layers: [T.cobble({ kind: 'slab', c: '#b4a690', m: 2 }), T.brickFloor({ c: '#a86a50' })], mix: x => [Math.abs(x) > 4.3 ? 1 : 0, 0] }); scene.add(land.mesh);
+
+// ---- 両がわの店（れんがの 1 階、しっくいの 2 階、黒い屋根）。通りの奥は時計塔 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const BR = [T.brick({ c: '#a8583c' }), T.brick({ c: '#8a4a3a', seed: 2 }), T.brick({ c: '#b8704a', seed: 3 })], PL = [T.plaster({ c: '#e8dcc0', frame: 'none' }), T.plaster({ c: '#d8c8a8', frame: 'box', wood: '#4a3a34' })];
+const ROOF = T.roof({ kind: 'slate', c: '#4a4e64' }), WIN = T.window({ bars: 'grid', curtain: '#e8d8b0', frame: '#2a4a48', box: 1 }), WINL = T.window({ bars: 'grid', lit: 1, curtain: '#ffe0a0', frame: '#2a4a48' }), DOOR = T.door({ style: 'glass', c: '#2a5a54' });
+const SIGNS = ['bread', 'potion', 'mug', 'star', 'sword'], AW = ['#2a8a84', '#c8503a', '#d8a040', '#5a6aa8'];
+for (const s of [-1, 1]) { let z = 12, i = s > 0 ? 2 : 0; while (z > -66) { const w = 6 + hash(i, s) * 1.6, d = 5;
+    put(R.house({ w, d, h: 3.2, h2: 2.6, wall: BR[i % 3], wall2: PL[i % 2], roof: ROOF, pitch: .7, win: WIN, winLit: WINL, lit: .2, door: DOOR, seed: i, sign: T.sign({ kind: SIGNS[i % 5] }), awning: T.fabric({ c: AW[i % 4], c2: '#f4ecd8', scallop: 1 }), awningW: 2.6, chimney: i % 2 ? { h: 1 } : false, wins: { f: 2, b: 0, l: 1, r: 1 }, wins2: { f: 2, b: 0, l: 1, r: 1 } }), s * (5.2 + d / 2), z - w / 2, s > 0 ? -PI / 2 : PI / 2);
+    z -= w + .1; i++; } }
+const tower = F.clockTower({ w: 4, h: 15, stone: T.brick({ c: '#9a5a44' }), roof: '#3a5a58', lit: false }); put(tower, 0, -74);
+
+// ---- ガラスの屋根：緑の鉄のアーチ（4 m ごと）と柱、そのあいだのガラス ----
+const AX = 4.8, AY = 5.6, AH = 2.7, NA = 10, arch = k => [-AX + 2 * AX * k / NA, AY + AH * Math.sin(PI * k / NA)], ZR0 = 10, ZR1 = -62, IRON = F.tex.iron({ c: '#3e6a5e', rust: .1 });
+{ const G = R.geo(), bar = (a, b, w = .12) => { const d = new THREE.Vector3(...b).sub(new THREE.Vector3(...a)), n = new THREE.Vector3(-d.y, d.x, 0).normalize().multiplyScalar(w); const L = d.length();
+    const p = (q, dx, dy, dz) => [q[0] + dx, q[1] + dy, q[2] + dz]; G.quad(p(a, 0, 0, w), p(b, 0, 0, w), p(b, n.x, n.y, w), p(a, n.x, n.y, w), [0, 0, L / 2, .1]); G.quad(p(b, 0, 0, -w), p(a, 0, 0, -w), p(a, n.x, n.y, -w), p(b, n.x, n.y, -w), [0, 0, L / 2, .1]);
+    G.quad(p(a, 0, 0, -w), p(b, 0, 0, -w), p(b, 0, 0, w), p(a, 0, 0, w), [0, 0, L / 2, .1], .75); };
+  for (let z = ZR0; z >= ZR1; z -= 4) { for (let k = 0; k < NA; k++) { const [x1, y1] = arch(k), [x2, y2] = arch(k + 1); bar([x2, y2, z], [x1, y1, z], .1); }
+    for (const s of [-1, 1]) { G.box(.26, AY, .26, s * AX, 0, z, { m: 2 }); G.box(.4, .3, .4, s * AX, 0, z, { m: 2 }); G.box(.34, .2, .34, s * AX, AY - .2, z, { m: 2 }); } }
+  for (const s of [-1, 1]) for (let z = ZR0; z > ZR1; z -= 4) G.box(.18, .18, 4, s * AX, AY - .1, z - 2, { m: 2 });   // 柱をつなぐ はり
+  for (let k = 1; k < NA; k += 3) { const [x, y] = arch(k); G.box(.1, .1, ZR0 - ZR1, x, y - .05, (ZR0 + ZR1) / 2, { m: 2 }); }
+  fixed.push(G.mesh(IRON)); }
+const glassT = (() => { const P = R.Px(64), Gc = R.ramp('#bfe0e4'), Fr = R.ramp('#3e6a5e'); P.fill(Gc[3]); P.each((x, y) => (x + y * 2) % 37 < 3 ? Gc[5] : (x + y * 2) % 37 < 6 ? Gc[4] : undefined); for (let i = 0; i < 64; i++) { for (const y of [0, 1, 32]) P.set(i, y, Fr[y === 1 ? 4 : 2]); for (const x of [0, 1, 32]) P.set(x, i, Fr[x === 1 ? 4 : 2]); } return T.from(P, { m: 2 }); })();
+{ const G = R.geo(); for (let z = ZR0; z > ZR1; z -= 4) for (let k = 0; k < NA; k++) { const [x1, y1] = arch(k), [x2, y2] = arch(k + 1); G.quad([x1, y1, z], [x2, y2, z], [x2, y2, z - 4], [x1, y1, z - 4], [0, 0, 1, 2]); }
+  const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: glassT, transparent: true, opacity: .42, side: THREE.DoubleSide, depthWrite: false })); m.renderOrder = 2; scene.add(m); }
+// 屋根からさしこむ光のすじ
+[[-1.5, -6], [1.8, -18], [-2, -30], [1, -44]].forEach(([x, z], i) => { const s = D.shaft({ w: 2.2, h: 7.6, c: '#fff4d0', a: .14, lean: [.5, .35] }); s.position.set(x, 0, z); scene.add(s); });
+
+// ---- 屋台と、そのわきの蒸気機関（歯車が回り、湯気をふく）。つりランプ、たる、木箱、旗のひも ----
+const ST = []; for (let k = 0; k < 9; k++) { const s = k % 2 ? 1 : -1, z = 6 - k * 6.2 - (s > 0 ? 2.4 : 0); ST.push([s, z]);
+  put(R.stall({ w: 2.4, c: ['#2a8a84', '#c8503a', '#d8a040', '#6a5aa8', '#3a7a4a'][k % 5], c2: '#f4ecd8', seed: k, fc: [['#e8503a', '#f8d048', '#78b848'], ['#f0a040', '#c84868', '#f8e8c8'], ['#5a8ad8', '#e8c040', '#d85050'], ['#a8d058', '#f07848', '#f8f0d8']][k % 4] }), s * 3.35, z, s > 0 ? -PI / 2 : PI / 2); }
+const ENGS = ST.filter((_, k) => k % 3 !== 2).map(([s, z], k) => { const e = S.engine({ h: 2.1, r: .5, c: '#d0a048', speed: 1.1 + k * .2, seed: k, gearR: .75 }); e.position.set(s * 3.1, 0, z - 2.4); e.rotation.y = s > 0 ? -PI / 2 : PI / 2; scene.add(e); return e; });
+for (let z = 4; z > -60; z -= 8) { const l = S.lamp({ kind: 'hang', glow: '#ffe0a0' }); l.position.set(0, AY + AH - .1, z); fixed.push(l); }
+[[-3.9, 3.5, 'barrel'], [3.9, -6.5, 'crate'], [-3.9, -19, 'crate'], [3.9, -27, 'barrel'], [-3.9, -40, 'barrel'], [3.9, -46, 'crate']].forEach(([x, z, k], j) => put(k === 'barrel' ? R.barrel({ c: '#8a6a44' }) : R.crate({ c: '#9a7a4a', kind: 'x' }), x, z, j));
+for (let z = 2; z > -56; z -= 12) fixed.push(F.bunting({ from: [-AX, AY - .3, z], to: [AX, AY - .3, z - 3], n: 12, cs: ['#e8503a', '#f8d048', '#2a8a84', '#f4ecd8'], sag: .8 }));
+scene.add(R.merge(fixed));
+
+// ---- 人（5 頭身の toon。どれもこの場面のためのオリジナル）、ねこ、はと ----
+const act = o => { const p = R.actor(o); scene.add(p); return p; };
+const hero = act({ sex: 'f', hairStyle: 'twin', hair: '#e8b860', eye: '#3a6a9a', mouth: 'smile', blush: true, cloth: 'jacket', top: '#2a5a8a', top2: '#f4ecd8', lower: 'skirt', skirt: .5, skirtC: '#8a3a3a', shoes: 'boot', shoe: '#5a3a2a', neck: 'collar' }); F.wear(hero, 'basket', { hand: 'R', c: '#c8a068', fc: ['#e8503a', '#f8d048', '#78b848'] });
+const CROWD = [
+  { o: { hairStyle: 'short', hair: '#3a2a24', beard: 'mustache', cloth: 'coat', top: '#5a4a3a', top2: '#e8dcc0', bottom: '#3a3a44', hat: 'cap', acc: '#3a3a44' }, x: -1.6, sp: -1.1, ph: 0 },
+  { o: { sex: 'f', hairStyle: 'bun', hair: '#8a4a2a', cloth: 'robe', top: '#7a5a8a', top2: '#f0e4c8', skirt: .85, shoe: '#4a3a30' }, x: 1.7, sp: .9, ph: 9 },
+  { o: { hairStyle: 'spiky', hair: '#c86a3a', mouth: 'open', cloth: 'vest', top: '#c8843a', top2: '#f0e4c0', bottom: '#4a5a6a', s: .75 }, x: .9, sp: 1.6, ph: 21 },
+  { o: { sex: 'f', hairStyle: 'long', hair: '#2a2228', cloth: 'tunic', top: '#3a7a5a', top2: '#f0e8d0', lower: 'skirt', skirt: .7, skirtC: '#e8dcc0' }, x: -.8, sp: -.8, ph: 30 },
+  { o: { hairStyle: 'bald', hair: '#9a9090', beard: 'beard', eyes: 'closed', cloth: 'coat', top: '#4a4a5a', top2: '#d8d0c0', bottom: '#4a4a5a', hold: 'staff' }, x: 2.2, sp: .6, ph: 40 },
+  { o: { sex: 'f', hairStyle: 'tail', hair: '#c86a3a', cloth: 'tunic', top: '#d8a040', top2: '#f4ecd8', lower: 'skirt', skirt: .6, skirtC: '#5a4a6a', s: .8 }, x: -.4, sp: -1.3, ph: 12 },
+  { o: { hairStyle: 'short', hair: '#2a2228', cloth: 'jacket', top: '#8a3a3a', top2: '#f0e4c8', bottom: '#3a3a44', hat: 'cap', acc: '#3a3a44' }, x: 1.2, sp: 1.0, ph: 33 },
+  { o: { sex: 'f', hairStyle: 'bob', hair: '#5a3a2a', cloth: 'coat', top: '#2a7a74', top2: '#f0e8d8', lower: 'skirt', skirt: .8, skirtC: '#2a5a54' }, x: -2.3, sp: -.7, ph: 45 },
+  { o: { hairStyle: 'tufts', hair: '#4a3a30', cloth: 'overall', top: '#5a6a8a', top2: '#e8dcc0', bottom: '#5a6a8a', gloves: 'glove', glove: '#c8a050', hat: 'cap', acc: '#a83a2a' }, x: -2, sp: 1.2, ph: 50 }].map(c => ({ ...c, p: act({ ...c.o }) }));
+const sellers = [[ST[0], { sex: 'f', hairStyle: 'bob', hair: '#3a2a24', mouth: 'smile', cloth: 'tunic', top: '#c8503a', top2: '#f4ecd8' }], [ST[1], { hairStyle: 'short', hair: '#6a4a30', beard: 'stubble', cloth: 'vest', top: '#2a8a84', top2: '#f4ecd8' }], [ST[4], { hairStyle: 'tail', hair: '#2a2228', cloth: 'tunic', top: '#d8a040', top2: '#f4ecd8' }], [ST[5], { sex: 'f', hairStyle: 'bun', hair: '#e8d8c0', cloth: 'robe', top: '#5a6aa8', top2: '#f0e8d8', skirt: .8 }]]
+  .map(([[s, z], o]) => { const p = act(o); p.position.set(s * 4.15, .3, z); p.rotation.y = s > 0 ? -PI / 2 : PI / 2; F.wear(p, 'apron', { c: '#f4ecd8' }); return p; });
+const cat = R.cat({ c: '#e8a050', belly: '#f8ecd8' }); scene.add(cat);
+const birds = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#9a9ab0', belly: '#d8d8e0', s: 1.1 }); b.position.set(-1.8 + hash(k, 1) * 3.6, 0, -10 - hash(k, 2) * 6); b.rotation.y = hash(k, 3) * 6; scene.add(b); return b; });
+
+const steams = ENGS.map((e, i) => { e.updateMatrixWorld(); const v = new THREE.Vector3(...e.userData.vent).applyMatrix4(e.matrixWorld), s = C.steam({ n: 8, r: .28, rise: 2.6, spread: .3, speed: .5, c: '#ffffff', a: .55, phase: i * .3 }); s.position.copy(v); scene.add(s); return s; });
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const ZA = -46, LEN = 40, SPEED = 1.3, pathX = z => Math.sin(z * .12) * .6 + .2;
+K.loop((dt, t) => {
+  const z = ZA + (t * SPEED) % LEN, x = pathX(z);
+  hero.position.set(x, 0, z); hero.rotation.y = Math.atan2(pathX(z + 1) - x, 1); R.walk(hero, t * SPEED * 3.7, .85);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.8 : 4.6; cam.position.set(x - (tall ? .6 : 1.4), tall ? 2.3 : 2.4, z + Dc); cam.lookAt(x + .2, 1.5, z - 3);
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, z + SUN.z * 50); sun.target.position.set(x, 0, z - 3);
+  for (const c of CROWD) { const L = 46, d = ((c.ph + t * c.sp) % L + L) % L, zz = -2 - d; c.p.position.set(c.x + Math.sin(d * .3) * .2, 0, zz); c.p.rotation.y = c.sp > 0 ? PI : 0; R.walk(c.p, t * Math.abs(c.sp) * 3.8 + c.ph, .75); }
+  sellers.forEach((p, i) => { R.idle(p, t + i, Math.sin(t * .5 + i) * .5); const J = p.userData.J; if (i % 2 === 0) { J.armR.rotation.x = -1 + Math.sin(t * 2 + i) * .3; J.armR.rotation.z = .3; } });
+  const ca = t * .4; cat.position.set(-2.2 + Math.cos(ca) * .9, 0, z - 4 + Math.sin(ca) * .6); cat.rotation.y = Math.atan2(-Math.sin(ca) * .9, Math.cos(ca) * .6); R.catPose(cat, 'walk', t * 1.3);
+  birds.forEach((b, k) => R.birdPose(b, 'peck', t + k));
+  S.tick(t); F.tick(t); C.update(t, cam); D.tick(t, cam); land.follow(x, z); crt.render(scene, cam, t);
+});
+</script>
+</html>

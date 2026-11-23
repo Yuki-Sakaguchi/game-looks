@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-04 棚田と水車 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a3424;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8ec;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-04 ─ 棚田と水車 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-wa1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝の里山。山の斜面に、水をはった棚田が等高線にそって何段も重なり、水面に朝の空が映る。段の水を受けて水車が回り、上の段には かやぶきの農家。かかしが立ち、しらさぎが飛ぶ。
+// 色の組は「水面の空色・あぜと山の若葉の緑・かやぶきの麦わら色」＋差し色の 主役の手ぬぐいの朱。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は むぎわら帽子の少年（R.actor の toon）。曲がった あぜ道を歩き、カメラは前ななめ上から見おろして、主役の前の姿と棚田を入れる。田植えの人・水車・さぎ・農家のけむり・水が動く。水車・かかし・さぎは pack-wa1.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), W = PACK_WA1(THREE, K, R, F), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 44, far: 600, aa: false, fitAspect: .9, maxFov: 74 });
+scene.add(R.skyDome([[0, '#6c9ed4'], [.55, '#b8d0e2'], [.85, '#f2dcc4'], [1, '#ffe6c4']], { r: 400 })); scene.fog = new THREE.Fog('#cfd8dc', 60, 280);
+const SUN = new THREE.Vector3(.75, .42, -.5).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xe8f0ff, ground: 0x9a9a78, amb: 1.4, sun: 0xffe2b0, power: 2.4, range: 28 });
+
+// ---- 棚田の形：等高線 u にそって、段（はば TD）ごとに LH ずつ上がる。各段の前のふちが あぜ、奥のふちが土手 ----
+const TD = 5.6, LH = .95, sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const U = (x, z) => -z + 2.4 * Math.sin(x * .085) + 1.3 * Math.sin(x * .2 + 1);
+const lv = (x, z) => { const g = U(x, z) / TD, k = Math.floor(g); return [k, (g - k) * TD]; };
+const AZE = .75, BANK = 1.0;
+const VAL = -6 * TD, H = (x, z) => { const u = U(x, z); if (u < VAL) return -6 * LH - .3 + sstep(VAL - 25, VAL - 90, u) * 14 + Math.sin(x * .1) * sstep(VAL - 20, VAL - 60, u) * 3; const [k, f] = lv(x, z), far = sstep(28, 60, u) * 10; if (f > TD - BANK) return k * LH + LH * sstep(TD - BANK, TD, f) + far; return k * LH + (f < AZE ? .06 : -.14) + far; };
+const VAL0 = -6 * TD, WH = (x, z) => { const [k, f] = lv(x, z); return f < AZE * .8 || f > TD - BANK * .8 || U(x, z) > 28 || U(x, z) < VAL0 ? k * LH - .5 : k * LH - .02; };
+const land = R.ground({ w: 170, d: 170, cell: 1, cz: 20, H, layers: [T.grass({ c: '#6a9a48', flowers: .1, fc: ['#fff4d0', '#f8d0e0'] }), T.dirt({ c: '#8a7254', pebbles: .2 }), T.grass({ c: '#5a8a40', seed: 3 })],
+  mix: (x, z) => { const [, f] = lv(x, z); return [f < AZE * .9 && f > .1 ? .8 : 0, f > TD - BANK ? 1 : 0]; } }); scene.add(land.mesh);
+// 水面：空を映す水と、ならんだ苗（ドット絵）。地面と同じ やり方の細かい面で、段ごとの高さにする
+const paddy = (() => { const P = R.Px(64), A = R.ramp('#5e98cc', 6, { contrast: .8 }), S = R.ramp('#e8ccc0', 6, { contrast: .6 }), G = R.ramp('#6aa848');
+  P.each((x, y) => { const n = R.tn(x, y, 32, 8, 64, 64, 2) * .7 + R.tn(x, y, 16, 4, 64, 64, 5) * .3; return n > .74 ? S[4] : n > .7 ? (x + y & 1 ? S[4] : A[3]) : n < .3 ? A[2] : n > .5 ? A[4] : A[3]; });
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 5; i++) { const x = Math.floor(i * 12.8 + (j & 1) * 6 + 3), y = j * 16 + 6; P.set(x, y, G[3]); P.set(x - 1, y - 1, G[4]); P.set(x + 1, y - 1, G[2]); P.set(x, y + 1, A[1]); }
+  return T.from(P, { m: 3 }); })();
+const water = R.ground({ w: 104, d: 64, cell: .75, cz: 8, H: WH, layers: [paddy], shade: () => 1 }); scene.add(water.mesh);
+
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+// 等高線の上の点（段 k、ふちからの きょり f）を x から求める
+const zAt = (x, k, f) => { let z = -(k * TD + f) + 2.4 * Math.sin(x * .085) + 1.3 * Math.sin(x * .2 + 1); return z; };
+
+// ---- 農家（かやぶき）と水車小屋、水車と とい ----
+const PLA = T.plaster({ c: '#ece2cc', frame: 'beam', wood: '#5a4030' }), BRD = T.boards({ c: '#7a5a3e' }), THATCH = T.thatch({ c: '#c8a868' });
+put(R.house({ w: 8, d: 6, h: 2.8, wall: PLA, roof: THATCH, roofKind: 'hip', pitch: .95, eave: 1.1, door: T.door({ style: 'plank', c: '#5a4030' }), win: T.window({ bars: 'grid', curtain: false, frame: '#4a3428' }), wins: { f: 2, b: 0, l: 1, r: 1 }, seed: 2 }), -9, zAt(-9, 3, 2.6), .08);
+put(R.house({ w: 5, d: 4.4, h: 2.4, wall: BRD, roof: THATCH, roofKind: 'gable', pitch: .8, eave: .7, door: T.door({ style: 'plank', c: '#5a4030' }), wins: { f: 1, b: 0, l: 0, r: 0 }, seed: 5 }), 17.6, zAt(17.6, 0, 2.6), -.15, -.14);
+const MX = 12.2, MZ = zAt(MX, 0, TD - 1.9), mill = W.suisha({ r: 1.7, w: .7, speed: .7 }); mill.position.set(MX, H(MX, MZ) + 1.6, MZ); scene.add(mill);
+{ const G = R.geo(), y1 = H(MX, MZ) + 3.55, z1 = MZ, z0 = zAt(MX, 1, 1.5), y0 = LH + .4; for (const sx of [-1, 1]) G.quad([MX + sx * .35, y1 - .3, z1 - .1], [MX + sx * .35, y0 - .3, z0], [MX + sx * .35, y0, z0], [MX + sx * .35, y1, z1 - .1], [0, 0, 3, .3]); G.quad([MX - .35, y1 - .3, z1 - .1], [MX + .35, y1 - .3, z1 - .1], [MX + .35, y0 - .3, z0], [MX - .35, y0 - .3, z0], [0, 0, .5, 3]);
+  for (const zz of [z0 + .6, (z0 + z1) / 2]) for (const sx of [-1, 1]) G.box(.12, y1 - .3 - H(MX, zz) + (zz - z1) * (y0 - y1) / (z0 - z1 || 1), .12, MX + sx * .3, H(MX, zz), zz, { m: 1 });
+  fixed.push(G.mesh(T.planks({ c: '#6a4a30' }))); }
+// 水の流れ（といの中・水車から下へ）
+const flowT = T.water({ c: '#7ab0d8' }), flowM = R.mat(flowT[0], { glow: false, side: true }), flow = new THREE.Mesh(R.geo().quad([MX - .28, H(MX, MZ) + 3.38, MZ - .1], [MX + .28, H(MX, MZ) + 3.38, MZ - .1], [MX + .28, LH + .12, zAt(MX, 1, 1.5)], [MX - .28, LH + .12, zAt(MX, 1, 1.5)], [0, 0, .5, 3]).build(), flowM); scene.add(flow);
+
+// ---- かかし、あぜの草、山すその木、遠くの山 ----
+[[-6, 0, 3.2], [7, -1, 2.6], [-15, 1, 3.4], [22, 0, 2.8], [-22, -1, 3], [1, 1, 3]].forEach(([x, k, f], i) => put(W.kakashi({ c: ['#4a6a9a', '#9a4a3a', '#6a8a4a'][i % 3] }), x, zAt(x, k, f), (hash(i, 3) - .5) * .8, k * LH - .14));
+for (let i = 0; i < 90; i++) { const x = -40 + hash(i, 1) * 80, k = Math.floor(hash(i, 2) * 6) - 1, f = hash(i, 4) > .5 ? .35 : TD - .5; put(R.tuft({ kind: i % 4 ? 'grass' : 'flower', s: .5 + hash(i, 5) * .4, c: '#6a9a48', fc: ['#fff4d0', '#f8c8d8'], seed: i % 3 }), x, zAt(x, k, f), i); }
+for (let i = 0; i < 80; i++) { const x = -60 + hash(i, 11) * 130, z = zAt(x, 5, 1) - 1 - hash(i, 12) * 30; put(R.tree({ kind: hash(i, 13) > .5 ? 'round' : 'pine', h: 6 + hash(i, 14) * 6, c: ['#4e7e3e', '#5a8a44', '#3e6e40'][i % 3], seed: i }), x, z, i); }
+for (const [x, k, f] of [[-18, 3, 2.5], [-2, 4, 3], [20, 3, 3.5], [3, 3, 4.2]]) put(R.tree({ kind: 'round', h: 5 + hash(x, 2) * 2, c: '#6a9a48', seed: x }), x, zAt(x, k, f), x);
+for (let i = 0; i < 9; i++) { const x = -30 + i * 8 + hash(i, 31) * 4, z = -VAL + 2.4 * Math.sin(x * .085) + 1.3 * Math.sin(x * .2 + 1) + 6 + hash(i, 32) * 10; put(R.house({ w: 5 + hash(i, 33) * 2, d: 4.5, h: 2.5, wall: i % 2 ? PLA : BRD, roof: THATCH, roofKind: 'hip', pitch: .65, eave: .8, seed: i }), x, z, hash(i, 34) - .5); }
+for (let i = 0; i < 40; i++) { const x = -50 + hash(i, 41) * 110, z = -VAL + 4 + hash(i, 42) * 40; put(R.tree({ kind: i % 3 ? 'round' : 'pine', h: 5 + hash(i, 43) * 5, c: ['#5a8a44', '#4e7e3e'][i % 2], seed: i }), x, z + 2.4 * Math.sin(x * .085), i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#6a8a90', haze: '#d8dcd8', r: 200, h: 46, y: -4, rep: 2 }), R.backdrop({ c: '#8a9cac', haze: '#e4e0d8', r: 280, h: 80, y: -6, seed: 3 }));
+for (let k = 0; k < 6; k++) { const c = R.cloud({ s: 12 + hash(k, 9) * 10, c: '#fff4e8', shade: '#c8b4b8' }); c.position.set((hash(k, 7) - .5) * 300, 60 + hash(k, 8) * 30, -200 - hash(k, 6) * 100); scene.add(c); }
+
+// ---- 人・さぎ ----
+const act = (o) => { const p = R.actor({ build: 'toon', ...o }); scene.add(p); return p; };
+const hero = act({ hairStyle: 'short', hair: '#2a2228', mouth: 'smile', blush: true, cloth: 'tunic', top: '#e8e2d0', top2: '#3a5a8a', bottom: '#3a4a6a', shoes: 'shoe', shoe: '#8a6a4a', neck: 'scarf', acc: '#e0503a' }); F.wear(hero, 'strawHat', { c: '#e0c47a', c2: '#e0503a' });
+const planters = [0, 1, 2].map(i => { const p = act({ sex: i === 1 ? 'f' : 'm', hairStyle: i === 1 ? 'bun' : 'short', hair: '#3a3030', cloth: 'robe', top: ['#4a6a8a', '#8a4a5a', '#6a7a5a'][i], top2: '#e8e0d0', skirt: .4, shoes: 'shoe', shoe: '#5a4a3a' }); F.wear(p, 'strawHat', { c: '#d8bc72', c2: '#5a4a3a' }); return p; });
+const PL = [[-3.5, 0, 3.2], [-1.8, 0, 2.4], [4, 0, 2.2]];
+const herons = [0, 1, 2].map(() => { const b = W.sagi({ s: 1.1 }); scene.add(b); return b; });
+const stand = W.sagi({ s: 1 }); stand.position.set(5.5, -.14, zAt(5.5, 0, 3.4)); stand.rotation.y = -.8; scene.add(stand);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 40), SPEED = 1.1, X0 = 8, LOOP = 36; let sm = 0;
+K.loop((dt, t) => {
+  // 主役：段 1 の あぜ（ふちから .36 m）を、行ったり来たりせず左から右へ。はしまで来たら また左から
+  const x = X0 - (t * SPEED) % LOOP, z = zAt(x, 1, .36), z2 = zAt(x - .3, 1, .36), y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(-.3, z2 - z); R.walk(hero, t * SPEED * 3.6, .8);
+  const tall = innerWidth < innerHeight, ox = tall ? -2.8 : -3.8, oz = tall ? -3.4 : -4.3, oy = tall ? 3.2 : 3.4;
+  cam.position.set(x + ox, y + oy, z + oz); cam.lookAt(x + (tall ? .9 : 2.2), y + .5, z + (tall ? 1.8 : 3));
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 3); land.follow(Math.round(x / 6) * 6, 20); water.follow(Math.round(x / 6) * 6, 8);
+  // 田植え：こしをかがめて、苗を植える
+  planters.forEach((p, i) => { const [px, k, f] = PL[i], pz = zAt(px, k, f) + Math.sin(t * .1 + i) * .2; p.position.set(px + Math.sin(t * .08 + i) * .3, k * LH - .1, pz); p.rotation.y = i === 2 ? -.6 : .4; R.idle(p, t + i, 0); const J = p.userData.J, b = Math.sin(t * 1.6 + i * 2); J.torso.rotation.x = .75 + b * .1; J.armR.rotation.x = -.9 + b * .5; J.armL.rotation.x = -.6 - b * .3; J.head.rotation.x = -.3; });
+  // さぎ：棚田の上を大きく回って飛ぶ。1 羽は田に立つ
+  herons.forEach((b, i) => { const a = t * (.16 + i * .03) + i * 2.1, r = 12 + i * 4; b.position.set(x + 6 + Math.cos(a) * r, y + 3 + i * 1.4 + Math.sin(t * .5 + i) * .6, z + 10 + Math.sin(a) * r * .6); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .6); W.sagiPose(b, 'fly', t + i); });
+  W.sagiPose(stand, 'stand', t); stand.rotation.y = -.8 + Math.sin(t * .4) * .3;
+  mill.userData.tick(t); R.flip(flowM, flowT, t, 6);
+  if ((sm += dt) > .4) { sm = 0; fx.emit('smoke', -9 + 2.6, 3 * LH + 4.4, zAt(-9, 3, 2.6) - .5, { size: .35, life: 4, vy: .6, vx: .3, grow: 1.6, spread: .1, tint: '#f4ece4' }); fx.emit('splash', MX, H(MX, MZ) + .3, MZ + .4, { size: .25, life: .6, vy: 1.2, spread: .4, tint: '#e8f4ff' }); }
+  fx.update(dt); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

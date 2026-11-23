@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-31 密林の川くだり 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#10180e;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#eef0d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-31 ─ 密林の川くだり / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-jungle1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の密林。にごった茶色の川を、細長い くりぬき舟でくだる。両岸から大きな葉（バナナ・モンステラ・しだ・やし）がせり出し、板根の大木から つるがたれ、川の上を太いつるがわたる。
+// 色の組は「密林の深い緑・川の茶色・空の白っぽい水色」＋差し色の 舟のふちの赤と、とぶ鳥の赤。葉・木・さる・鳥・舟は pack-jungle1.js（J.〜）。
+// 主役は舟のうしろにすわって かいをこぐ若い探検家（R.actor の toon。むぎわら帽子）。前に案内人。カメラは舟のうしろから追う。さる・オウムのなかま・ちょう が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FT = PACK_FTOWN(THREE, K, R), J = PACK_JUNGLE1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 600, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#4a9ad8'], [.5, '#8ac4e4'], [.85, '#d0e8e0'], [1, '#e8f0d8']], { r: 380 })); scene.fog = new THREE.Fog('#cfe2c8', 30, 140);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0f0ff, ground: 0x6a8a4a, amb: 1.6, sun: 0xfff0c8, power: 2.4, range: 30 }), SUN = new THREE.Vector3(.5, .8, -.3).normalize();
+
+// ---- 川：まん中の線 cx(z) にそって曲がる。川はば 11 m、岸は 0.6 m ほど上がる ----
+const cx = z => Math.sin(z * .045) * 6 + Math.sin(z * .017 + 1) * 4, dcx = z => Math.cos(z * .045) * .27 + Math.cos(z * .017 + 1) * .068, RW = 5.5;
+const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const dR = (x, z) => Math.abs(x - cx(z)), H = (x, z) => -1.1 + sstep(RW - 1.4, RW + 1.2, dR(x, z)) * 1.7 + sstep(9, 20, dR(x, z)) * (Math.sin(x * .2) * Math.cos(z * .15) + 1) * 1.2;
+const land = R.ground({ w: 100, d: 200, cell: 2, cz: -60, H, layers: [T.dirt({ c: '#4e3c2a', pebbles: .2 }), T.grass({ c: '#4a8a34', flowers: .08, fc: ['#f8e070', '#f07a8a'] }), T.dirt({ c: '#5a4a34' })],
+  mix: (x, z) => [dR(x, z) > RW + .1 ? 1 : 0, 0], shade: (x, z) => dR(x, z) > RW + 1 ? .82 : 1 }); scene.add(land.mesh);
+const WF = J.tex.river({ c: '#86643a', hi: '#d8c8a0', m: 4 }), water = R.ground({ w: 100, d: 200, cell: 2, cz: -60, layers: [WF[0]], shade: (x, z) => { const k = Math.min(1, dR(x, z) / RW), e = sstep(.55, 1, k); const c = sstep(.5, 0, k) * (.8 + Math.sin(z * .4 + x * .2) * .2); return [.92 + c * .3 - e * .5, .94 + c * .36 - e * .4, .9 + c * .5 - e * .5]; } }); water.mesh.position.y = -.05; water.mesh.receiveShadow = true; scene.add(water.mesh);
+
+// ---- 岸の植物と大木。木は ry=0 で置き、えだの上の点（perch）に さると鳥をのせる ----
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const trees = [];
+for (let i = 0; i < 26; i++) { const z = 24 - i * 6.4 - hash(i, 1) * 2, s = i % 2 ? 1 : -1, x = cx(z) + s * (RW + 2.2 + hash(i, 2) * 3), h = 15 + hash(i, 3) * 7;
+  trees.push(put(J.bigTree({ h, r: .45 + hash(i, 4) * .2, crown: 5.5 + hash(i, 5) * 2, c: ['#3f7f3a', '#4a8a3a', '#356f3a'][i % 3], seed: i, vines: 5, vineLen: h * .5, vineFlowers: i % 4 === 0 }), x, z, 0)); }
+for (let i = 0; i < 40; i++) { const z = 30 - i * 4.2, s = i % 2 ? -1 : 1, x = cx(z) + s * (RW + 9 + hash(i, 6) * 14); put(R.tree({ kind: i % 3 ? 'round' : 'tall', h: 10 + hash(i, 7) * 8, c: ['#3a7a3a', '#2f6a3a', '#4a8a40'][i % 3], seed: i }), x, z, i); }
+const KINDS = ['banana', 'monstera', 'fern', 'banana', 'fern', 'monstera'];
+for (let i = 0; i < 150; i++) { const z = 30 - i * 1.05 - hash(i, 8), s = hash(i, 9) < .5 ? -1 : 1, d = RW - .9 + hash(i, 10) * 6, x = cx(z) + s * d, k = KINDS[i % 6];
+  if (i % 11 === 5) { put(J.palm({ h: 6 + hash(i, 11) * 4, seed: i, lean: .5 }), x + s * 1.5, z, 0); continue; }
+  put(J.plant({ kind: k, seed: i, c: k === 'banana' ? '#5aa83a' : k === 'monstera' ? '#2f7a34' : '#4a8a3a', h: k === 'banana' ? 1.2 + hash(i, 12) * 1.4 : 0, len: k === 'banana' ? 2.6 : undefined }), x, z, hash(i, 13) * 6); }
+for (let i = 0; i < 40; i++) { const z = 28 - i * 4, s = i % 2 ? 1 : -1, x = cx(z) + s * (RW - .3 + hash(i, 14) * .6); put(R.tuft({ kind: i % 3 ? 'reed' : 'bush', s: 1 + hash(i, 15) * .6, c: '#5a8a3a', seed: i % 3 }), x, z, i, H(x, z) - .1); }
+for (let i = 0; i < 12; i++) { const z = 18 - i * 11, s = i % 2 ? 1 : -1, x = cx(z) + s * (RW - .2); put(R.rock({ s: .5 + hash(i, 16) * .5, c: '#7a7060', moss: .7, seed: i }), x, z, i, -.4); }
+// 川をわたる太いつる（木のかさの下どうし）
+const LOW = []; for (let i = 0; i + 1 < trees.length; i += 3) { const a = trees[i].position, b = trees[i + 1].position, ya = 9 + hash(i, 17) * 3, sg = 3 + hash(i, 18) * 2; fixed.push(J.liana([a.x, ya, a.z], [b.x, 10, b.z], { sag: sg })); LOW.push([(a.x + b.x) / 2, (ya + 10) / 2 - sg, (a.z + b.z) / 2]); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#4a7a4a', haze: '#cfe2c8', r: 170, h: 40, y: -4, rep: 3 }));
+for (let i = 0; i < 6; i++) { const c = R.cloud({ s: 30 + hash(i, 19) * 20, c: '#ffffff', shade: '#c8dcec', seed: i }); c.position.set((hash(i, 20) - .5) * 260, 60 + hash(i, 21) * 30, -160 - hash(i, 22) * 100); scene.add(c); }
+
+// ---- さる（えだの上にすわる・つるにぶら下がる）と、オウムのなかま ----
+const perchW = (tr, k) => { const p = tr.userData.perch[k % tr.userData.perch.length]; return [tr.position.x + p[0], tr.position.y + p[1], tr.position.z + p[2], p[3]]; };
+const monkeys = [[2, 0], [5, 1], [9, 2], [14, 0], [19, 1], [23, 3]].map(([ti, k], i) => { const m = J.monkey({ c: ['#7a5234', '#5a4a3a', '#8a6a44'][i % 3], s: 1.4 }), p = perchW(trees[ti], k); m.position.set(p[0], p[1], p[2]); m.rotation.y = Math.atan2(cx(p[2]) - p[0], 0) + (hash(i, 23) - .5); m.userData.ph = i * 1.7; scene.add(m); return m; });
+const hanger = LOW.filter((_, i) => i % 2 === 0).map((p, i) => { const m = J.monkey({ c: ['#6a4a30', '#8a6a44'][i % 2], s: 1.5 }); m.position.set(p[0] + .6, p[1] - .05, p[2]); m.rotation.y = i * 1.3; m.userData.ph = i * 2.3; scene.add(m); return m; });
+// 岸の流木の上で毛づくろいする さるの親子
+const logs = [-6, -38, -70].map((zz, i) => { const s = i % 2 ? 1 : -1, x = cx(zz) + s * (RW - .8); const lg = J.liana([x - .2, .05, zz + 1.6], [x + .3, .25, zz - 1.6], { sag: -.15, r: .28, c: '#7a6a54' }); scene.add(lg); const a = J.monkey({ c: '#7a5234', s: 1.5 }), b = J.monkey({ c: '#8a6a44', s: .9 }); a.position.set(x, .45, zz); b.position.set(x + .1, .4, zz - .6); a.rotation.y = b.rotation.y = -s * 1.2; scene.add(a, b); return [a, b]; });
+const PC = [['#e0302a', '#f0c030', '#2a6ad8'], ['#2a7ad8', '#f0d040', '#2aa860'], ['#e8402a', '#2aa860', '#2a5ad0']];
+const parrots = [...Array(6)].map((_, i) => { const p = J.parrot({ c: PC[i % 3][0], c2: PC[i % 3][1], c3: PC[i % 3][2], s: 2.8 }); p.userData.ph = hash(i, 24) * 6.28; scene.add(p); return p; });
+const sitP = [[7, 1], [12, 2], [20, 0]].map(([ti, k], i) => { const p = J.parrot({ c: PC[(i + 1) % 3][0], c2: PC[(i + 1) % 3][1], c3: PC[(i + 1) % 3][2], s: 2 }), q = perchW(trees[ti], k); p.position.set(q[0], q[1], q[2]); p.rotation.y = i * 2; scene.add(p); return p; });
+
+// ---- 舟と人：主役は うしろ、案内人は前。かいは手の位置から ----
+const boat = new THREE.Group(), hull = J.canoe({ len: 5.8, w: .82, c: '#8a5a34', band: '#d0402a' }); boat.add(hull); scene.add(boat);
+const crew = (o, z) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(0, -.33, z); boat.add(p); const pd = J.paddle({ len: 1.45 }); boat.add(pd); return { p, pd }; };
+const hero = crew({ hairStyle: 'spiky', hair: '#2a2228', eyes: 'big', brow: 'soft', cloth: 'jacket', sleeve: 'short', top: '#f4f0e0', top2: '#3a8a6a', lower: 'shorts', bottom: '#6a5a40', belt: '#6a4a30', shoes: 'boot', shoe: '#6a4a30', gloves: 'glove', glove: '#8a6a44', hat: 'band', acc: '#e0503a', strap: true }, -1.55);
+const guide = crew({ sex: 'f', hairStyle: 'tail', hair: '#2a2228', cloth: 'vest', top: '#e88a3a', top2: '#f0e8d0', lower: 'pants', bottom: '#5a4a3a', shoes: 'shoe', shoe: '#6a4a30', hat: 'band', acc: '#f0c040' }, 1.5);
+// 舟のうしろに引く V の字の波（白い泡の帯。帯の絵を うしろへ送る）
+const foamT = (() => { const P = R.Px(16, 32); P.clip = true; for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) { const w = Math.sin(y * .8 + x * .3) * .5 + .5; if (Math.abs(x - 8 + Math.sin(y * .5) * 2) < 2 + w * 2 && (x + y * 3) % 5) P.set(x, y, w > .6 ? '#fff8e8' : '#e8d8b8'); } return T.from(P, { m: 1, cut: true }); })();
+const wake = (() => { const G = R.geo().normal([0, 1, 0]); for (const sx of [-1, 1]) G.quad([sx * .32, .16, 2.4], [sx * .7, .16, 2.4], [sx * 2.4, .16, -4.5], [sx * 1.8, .16, -4.5], [0, 0, 1, 2.5]); G.quad([-.25, .06, 2.9], [.25, .06, 2.9], [.6, .06, 2.4], [-.6, .06, 2.4], [0, 0, 1, .3]); const m = G.mesh(foamT); m.material = m.material.clone(); m.material.map = foamT.clone(); m.material.map.needsUpdate = true; m.material.transparent = true; m.material.opacity = .55; m.castShadow = false; return m; })(); boat.add(wake);
+const bags = R.crate({ s: .42, kind: 'plain', c: '#8a7a50' }); bags.position.set(0, .2, .1); boat.add(bags);
+const UP = new THREE.Vector3(0, -1, 0), hv = new THREE.Vector3(), hv2 = new THREE.Vector3(), dv = new THREE.Vector3();
+// こぐ形：すわって、下の手で かいを前から うしろへ。side 1 は右、-1 は左
+const row = (c, ph, side) => { const J0 = c.p.userData.J, s = Math.sin(ph), q = Math.cos(ph), lo = side > 0 ? 'R' : 'L', hi = side > 0 ? 'L' : 'R';
+  J0.legL.rotation.set(-1.35, 0, .15); J0.legR.rotation.set(-1.35, 0, -.15); J0.shinL.rotation.x = J0.shinR.rotation.x = .7; J0.torso.rotation.set(.06 + s * .1, side * (-.25 + s * .2), 0);
+  J0['arm' + lo].rotation.set(-1.0 - s * .55, 0, -side * (.35 + q * .1)); J0['fore' + lo].rotation.x = -.35; J0['arm' + hi].rotation.set(-1.9 - s * .35, 0, side * .55); J0['fore' + hi].rotation.x = -.9;
+  c.p.updateMatrixWorld(true); const a = boat.worldToLocal(J0['fore' + hi].localToWorld(hv.set(0, -.26, 0))), b = boat.worldToLocal(J0['fore' + lo].localToWorld(hv2.set(0, -.26, 0)));
+  dv.copy(b).sub(a).normalize(); c.pd.position.copy(a).addScaledVector(dv, -.12); c.pd.quaternion.setFromUnitVectors(UP, dv); };
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const ZS = 14, LEN = 96, SPEED = 1.9, cd = new THREE.Vector3(), cp = new THREE.Vector3(); let first = true;
+K.loop((dt, t) => {
+  const z = ZS - (t * SPEED) % LEN, x = cx(z), vx = -dcx(z), vl = Math.hypot(vx, 1), dx = vx / vl, dz = -1 / vl;
+  boat.position.set(x, Math.sin(t * 1.4) * .03, z); boat.rotation.set(Math.sin(t * 1.1) * .02, Math.atan2(dx, dz), Math.sin(t * 1.7) * .03);
+  boat.updateMatrixWorld(true); row(hero, t * 2.6, 1); row(guide, t * 2.6 + .6, -1); hero.p.userData.J.head.rotation.y = Math.sin(t * .4) * .5;
+  if (first) { cd.set(dx, 0, dz); first = false; } cd.lerp(new THREE.Vector3(dx, 0, dz), 1 - Math.exp(-dt * 1.4)).normalize();
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 4.9, Sd = tall ? .8 : 1.35; cp.set(x - cd.x * D + cd.z * Sd, tall ? 1.8 : 1.7, z - cd.z * D - cd.x * Sd); cam.position.copy(cp); cam.lookAt(x + cd.x * 3 - cd.z * .3, tall ? .9 : 1.05, z + cd.z * 3 + cd.x * .3);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  R.flip(water.mat, WF, t, 3); wake.material.map.offset.y = t * .9;
+  monkeys.forEach((m, i) => J.monkeyPose(m, 'sit', t + m.userData.ph)); logs.forEach(([a, b], i) => { J.monkeyPose(a, 'sit', t + i * 2); J.monkeyPose(b, 'sit', t * 1.4 + i); });
+  hanger.forEach((m, i) => J.monkeyPose(m, 'hang', t * (1 + i * .1) + m.userData.ph));
+  parrots.forEach((p, i) => { const ph = p.userData.ph, cz = z - 9 - (i % 3) * 8, a = t * (.35 + i * .03) + ph, r = 8 + i, X = cx(cz) + Math.cos(a) * r, Z = cz + Math.sin(a) * r * .6; p.position.set(X, 4.5 + (i % 3) * 1.6 + Math.sin(t + ph) * .6, Z); p.rotation.y = Math.atan2(-Math.sin(a) * r, Math.cos(a) * r * .6); J.parrotPose(p, 'fly', t + ph); });
+  sitP.forEach((p, i) => J.parrotPose(p, 'perch', t + i * 2));
+  crt.render(scene, cam, t);
+});
+</script>
+</html>
