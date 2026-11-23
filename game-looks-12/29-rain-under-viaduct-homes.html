@@ -38,7 +38,6 @@ for (let row = 0; row < 3; row++) for (let x = -70, i = 0; x < 90; i++) { const 
 const land = R.ground({ w: 140, d: 50, cell: 1, layers: [X.asphalt({ wet: 1, c: '#3a4252', wetC: '#6a80a8' }), X.plate({ c: '#4a5266', n: 2, rust: .5 }), X.conc({ c: '#5a6070' })], mix: (x, z) => [z < -2.6 ? 1 : 0, z > 2.5 ? 1 : 0], shade: mood.shade(lights) });
 scene.add(land.mesh);
 for (let i = 0; i < 14; i++) { const x = -40 + i * 7 + hash(i, 1) * 3; if (i % 3 === 0) put(C.drum({ c: CS[i % 6], mark: 'band' }), x, -2.7); else if (i % 3 === 1) put(C.trash({ kind: 'bin', c: '#4f6f78' }), x, -2.8); else put(R.crate({ s: .6, c: '#7a5a40' }), x, -2.8, i); }
-fixed.push(C.pipe([[-80, 5.6, -2.9], [90, 5.6, -2.9]], .3, { c: '#7a5a48', joint: 5 }));
 const lamps = [-24, -4, 16, 36, 56].map((x, i) => put(C.streetLamp({ h: 4.2, light: i < 3, power: 12, range: 9, flicker: i === 3 }), x, -2.9, PI / 2));
 for (const l of lamps) lights.push({ x: l.position.x, z: -1.6, r: 3.6, c: '#ffc070', k: .55 });
 scene.add(R.merge(fixed));
@@ -46,7 +45,9 @@ scene.add(D.streaks(lights.filter((_, i) => i % 2 === 0).map(l => ({ x: l.x, z: 
 
 // ---- 頭の上：上の都市の台の裏（天井のように手前までおおう）。家なみの向こうのふちから、雨水のたき ----
 const UR = 300, UY = 34, RIM = -46; { const up = U.upper({ r: UR, y: UY, th: 26, towers: 0, glow: true, tint: .9, seed: 2, hang: 0, lamps: .9, dotSize: 2, underGlow: '#2a2c44', underTint: .9 }); up.position.set(0, 0, RIM + UR); scene.add(up); }
-const FALLS = [[-46, 7], [-22, 4.5], [-4, 9], [18, 5], [40, 7.5], [64, 5]].map(([x, w], i) => { const f = U.cascade({ w, h: UY - 1, speed: 1.6 + i * .1, a: .7 }); f.position.set(x, UY - 1.4, RIM + UR - Math.sqrt(UR * UR - x * x) + 1); scene.add(f); const h = U.halo({ c: '#c8d8ff', r: w * 1.3, k: .18 }); h.position.set(x, UY - 3, f.position.z + 1); scene.add(h); return f; });
+const FALLS = [[-46, 9], [-24, 6], [-4, 12], [18, 7], [40, 10], [64, 7]].map(([x, w], i) => { const f = U.cascade({ w, h: UY - 1, speed: 1.6 + i * .1, a: .85 }); f.position.set(x, UY - 1.4, RIM + UR - Math.sqrt(UR * UR - x * x) + 1); scene.add(f); const h = U.halo({ c: '#c8d8ff', r: w * 1.3, k: .18 }); h.position.set(x, UY - 3, f.position.z + 1); scene.add(h); return f; });
+// 台のふちの向こう：雨にかすむ、別の上の都市の塔の群れ（遠くで白く光る）
+{ const far = U.upper({ r: 160, y: 46, th: 22, towers: 16, tall: .8, glow: true, tint: .75, haze: '#5a6488', hazeK: .35, seed: 9, hang: 4, dotSize: 2 }); far.position.set(60, 0, -560); scene.add(far); const h = U.halo({ c: '#d8e0ff', r: 200, k: .1 }); h.position.set(60, 150, -620); scene.add(h); }
 // 屋根の雨どいから落ちる細い水
 const drips = gut.map(([x, y, z]) => { const f = U.cascade({ w: .35, h: y, speed: 2.2, a: .6 }); f.position.set(x, y, z); scene.add(f); return f; });
 const rain = D.rain({ n: 900, box: [30, 14, 22], speed: 22, slant: [.12, .06], a: .5 }); scene.add(rain);

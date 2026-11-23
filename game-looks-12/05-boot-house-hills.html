@@ -62,10 +62,10 @@ for (let i = 0; i < 8; i++) { const z = -10 - i * 14, x = SX(z) + (i % 2 ? 9 : -
 
 // ---- 遠くの、山ほどの はさみ・指ぬきの塔・糸まきの塔 ----
 { const B = R.parts(), SV = B.g(X.silver({ c: '#c0c4d8' })).smooth(1), HN = B.g(X.plastic({ c: '#e85a3a' })).smooth(1);
-  for (const sd of [-1, 1]) { const m = R.TR(0, 0, 0, 0, 0, sd * .32); SV.at(m).loft(4, [[0, .4, 3, 0, .9], [60, 5, 2, 1, 1], [100, 4.4, 1.6, 2, 1.05]], { ur: 1 }).at(null);
-    const hp = []; for (let i = 0; i <= 16; i++) { const a = i / 16 * TAU; hp.push([Math.cos(a) * 14, 116 + Math.sin(a) * 18, 0, 3.2]); } const mh = R.TR(0, 0, 0, 0, 0, sd * .32); B1.tube(HN.at(mh), hp, 8, { m: 6, up: [0, 0, 1] }); HN.at(null); }
-  B.g(X.thimble({ c: '#d8c070' })).loft(8, [[100, 6, 6, 0, 1], [104, 6, 6, .3, 1.1]], { cap: 'both' });
-  const sc = B.group(); sc.position.set(46, -24, -230); sc.rotation.y = -.3; sc.rotation.x = .15; scene.add(sc); }
+  for (const sd of [-1, 1]) { const m = R.TR(0, 60, sd * 1.2, 0, 0, sd * .3); SV.at(m).loft(4, [[-62, .4, 1.4, 0, .9], [-10, 5, 1.6, 1, 1], [0, 5, 1.6, 1.2, 1], [8, 3, 1.4, 1.5, 1.05]], { cap: 'both', ur: 1 }).at(null);   // 刃（下が切っ先）
+    const hp = []; for (let i = 0; i <= 16; i++) { const a = i / 16 * TAU; hp.push([Math.cos(a) * 9, 24 + Math.sin(a) * 13, 0, 2.6]); } const mh = R.TR(0, 60, sd * 1.2, 0, 0, sd * .3); B1.tube(HN.at(mh), hp, 8, { m: 6, up: [0, 0, 1] }); HN.at(null); }
+  B.g(X.thimble({ c: '#d8c070' })).at(R.TR(0, 60, 0, 0, PI / 2)).loft(10, [[-4, 3.4, 3.4, 0, 1], [4, 3.4, 3.4, .3, 1.1]], { cap: 'both' }).at(null);   // 止めねじ
+  const sc = B.group(); sc.position.set(50, -8, -230); sc.rotation.y = -.3; sc.rotation.x = .12; scene.add(sc); }
 { const B = R.parts(); B.g(X.thimble({ c: '#d8b860', m: 4 })).smooth(1).loft(18, [[0, 30, 30, 0, .8], [70, 25, 25, 18, 1], [84, 21, 21, 21, 1.05], [92, 14, 14, 23, 1.1], [95, 4, 4, 24, 1.1]], { cap: 'top', ur: 24 });
   B.g(X.thimble({ c: '#a88a40', m: 2 })).loft(18, [[0, 31, 31, 0, .9], [5, 31, 31, 1, 1]], { ur: 30 });
   const Wl = B.g(T.window({ bars: 'cross', lit: 1, curtain: '#ffd890' }), { glow: true }); for (let k = 0; k < 18; k++) { const a = k * 2.1, y = 12 + (k * 13) % 60, r = 30 - y * .07 + .3, s = Math.sin(a), c = Math.cos(a), w = 1.6; Wl.quad([s * r - c * w, y, c * r + s * w], [s * r + c * w, y, c * r - s * w], [s * r + c * w, y + 3.4, c * r - s * w], [s * r - c * w, y + 3.4, c * r + s * w]); }
