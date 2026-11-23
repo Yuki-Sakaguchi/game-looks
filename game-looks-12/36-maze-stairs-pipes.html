@@ -119,8 +119,8 @@ K.loop((dt, t) => {
   hero.position.set(x, y, z); ry += (h - ry) * Math.min(1, dt * 6); hero.rotation.y = ry; if (u < TOT) R.walk(hero, t * 5.4); else R.idle(hero, t, .3);
   hero.userData.J.armL.rotation.z = .25; hero.userData.J.foreL.rotation.x = -.15;
   // ななめ上から見下ろす（吹きぬけの中。かべの外へは出さない）
-  const tx = Math.max(-4.2, Math.min(3, x - 2.1)), tz = Math.min(4.6, z + 2.5), ty = y + (tall ? 3.3 : 2.9); cx += (tx - cx) * Math.min(1, dt * 2.5); cy += (ty - cy) * Math.min(1, dt * 2.5); cz += (tz - cz) * Math.min(1, dt * 2.5); if (t < .05) { cx = tx; cy = ty; cz = tz; }
-  cam.position.set(cx, cy, cz); cam.lookAt(x + 1.3, y + (tall ? -.2 : .2), z - .9);
+  const tx = Math.max(-4.2, Math.min(3, x * .45 - 2.4)), tz = Math.min(4.6, z + 2.6), ty = y * .45 + (tall ? 4.2 : 3.8);   // 主役の半分ほどしか動かさない（見わたす感じ） cx += (tx - cx) * Math.min(1, dt * 2.5); cy += (ty - cy) * Math.min(1, dt * 2.5); cz += (tz - cz) * Math.min(1, dt * 2.5); if (t < .05) { cx = tx; cy = ty; cz = tz; }
+  cam.position.set(cx, cy, cz); cam.lookAt(x * .6 + 1.3, y * .6 + (tall ? -.1 : .3), z - .9);
   crt.u.bright.value = Math.min(1, u / .6 + .0, (LOOP * SPEED - u) / .6);
   sun.position.set(x - 10, y + 30, z + 10); sun.target.position.set(x, y, z); herol.position.set(x + .6, y + 2.2, z + 1.2);
   R.idle(leaner, t, Math.sin(t * .4) * .5); leaner.userData.J.armR.rotation.x = -.6; leaner.userData.J.armL.rotation.x = -.6;

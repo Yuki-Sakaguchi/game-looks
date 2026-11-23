@@ -72,9 +72,9 @@ const crew = [{ bulk: 1.15, hairStyle: 'bald', hair: '#5a4a3a', beard: 'beard', 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const fx = K.fx(scene, 80), SPEED = 1.35, X0 = -30, LEN = 70; let sm = 0;
 K.loop((dt, t) => {
-  const LP = 26, d = (t * SPEED) % (LP * 2 + 4), out = d < LP + 2, z = 9 + (out ? Math.min(LP, d) : Math.max(0, LP - (d - LP - 2))), x = 14.4 + (out ? 0 : .3), y = 0;   // 桟橋を先まで行って もどる
-  hero.position.set(x, y, z); hero.rotation.y = out ? 0 : PI; R.walk(hero, t * SPEED * 3.6, .85);
-  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? 4.2 : 5.4), tall ? 4.6 : 4.3, z + (tall ? 1.8 : 2.4)); cam.lookAt(x - 1.6, tall ? -3.4 : -3, z - .8);   // ななめ上から見下ろす
+  const LP = 24, z = 8 + (t * SPEED) % LP, x = 14.3, y = 0;   // がけの通路から桟橋の先へ歩く
+  hero.position.set(x, y, z); hero.rotation.y = 0; R.walk(hero, t * SPEED * 3.6, .85);
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? 2.6 : 3.6), tall ? 4.4 : 4.2, z - (tall ? 3.4 : 4.2)); cam.lookAt(x - 2.4, tall ? -3 : -2.2, z + 9);   // ななめうしろの上から、桟橋の先と下の段々・雲の海を見下ろす
   sun.position.set(x + SUN.x * 60, SUN.y * 60, SUN.z * 60); sun.target.position.set(x, 0, 0);
   crew.forEach((p, k) => { if (k === 2) { p.position.set(14 - .6, 0, 7.4 + 28.6); p.rotation.y = PI * .6; R.idle(p, t, Math.sin(t * .5) * .5); return; }   // 桟橋の先で船を見る船長
     const ph = (t * .06 + k * .5) % 1, go = ph < .5, kk = go ? ph * 2 : 2 - ph * 2, px = x + 7 + k * 1.4, pz = 7.6 + kk * 14 * (1 - k * .2); p.position.set(-22 - .7 + k * 1.4, 0, pz); p.rotation.y = go ? 0 : PI; R.walk(p, t * 5 + k, .8); F.carryPose(p); });

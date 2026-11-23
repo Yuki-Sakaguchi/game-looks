@@ -58,7 +58,7 @@ const steam = stalls.filter((_, i) => i % 3 === 0).map(([x, s], i) => { const m 
 const hero = R.actor({ sex: 'f', hairStyle: 'tail', hair: '#3a2430', mouth: 'smile', blush: true, cloth: 'jacket', top: '#2fa89a', top2: '#f4ecd8', lower: 'pants', bottom: '#f0e4c8', shoes: 'shoe', shoe: '#e8443a', back: 'bag', acc: '#e8443a' }); scene.add(hero);
 const npc = (o, x, z, ry) => { const p = R.actor(o); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
 const sellers = stalls.filter((_, i) => i % 2 === 0).map(([x, s], i) => npc(N.extra(i + 50, { cloth: 'tunic', top: '#f4ecd8', top2: RED }), x, s * (HW - .5), s > 0 ? PI : 0));
-const crowd = [...Array(22)].map((_, i) => ({ p: npc(N.extra(i + 80), 0, 0, 0), dir: i % 2 ? 1 : -1, z: (hash(i, 3) - .5) * 4.4, sp: .55 + hash(i, 4) * .5, off: hash(i, 5) * 70, stop: i % 5 === 0 }));
+const crowd = [...Array(22)].map((_, i) => ({ p: npc(N.extra(i + 80), 0, 0, 0), dir: i % 2 ? 1 : -1, z: (i % 2 ? 1 : -1) * (1.35 + hash(i, 3) * .9), sp: .55 + hash(i, 4) * .5, off: hash(i, 5) * 70, stop: i % 5 === 0 }));
 
 // ---- 主人公：通りを +x へ。カメラは低い所から主役のまわりを回り、見上げる ----
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
@@ -66,7 +66,7 @@ const SPEED = .9, X0 = -14;
 K.loop((dt, t) => {
   const x = X0 + t * SPEED, z = Math.sin(t * .3) * .4, tall = innerWidth < innerHeight;
   hero.position.set(x, 0, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 6.8); hero.userData.J.head.rotation.x = -.35;
-  const a = PI - .25 + Math.sin(t * .2) * .32, D = tall ? 4.4 : 4.6; cam.position.set(x + Math.cos(a) * D, tall ? .7 : .75, z + Math.sin(a) * D); cam.lookAt(x + 3, tall ? 4.4 : 3.4, z * .5);
+  const a = PI - .25 + Math.sin(t * .2) * .32, D = tall ? 3.9 : 4; cam.position.set(x + Math.cos(a) * D, tall ? .7 : .75, z + Math.sin(a) * D); cam.lookAt(x + 3, tall ? 4.4 : 3.4, z * .5);
   sun.position.set(x + SUN.x * 80, SUN.y * 80, SUN.z * 80); sun.target.position.set(x, 0, 0);
   crowd.forEach((c, i) => { const W = 50, b = c.off + t * c.sp * c.dir * (c.stop ? 0 : 1) - x + 14, px = x - 14 + ((b % W) + W) % W; c.p.position.set(px, 0, c.z); c.p.rotation.y = c.stop ? (c.z > 0 ? 0 : PI) : c.dir > 0 ? PI / 2 : -PI / 2; if (c.stop) R.idle(c.p, t + i, Math.sin(t * .4 + i) * .3); else R.walk(c.p, t * c.sp * 4.8 + c.off, .8); });
   sellers.forEach((c, i) => { R.idle(c, t + i, Math.sin(t * .5 + i) * .25); c.userData.J.armR.rotation.x = -.8 - Math.sin(t * 2.6 + i) * .2; });

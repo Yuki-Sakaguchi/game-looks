@@ -46,7 +46,7 @@ const town = (sd, flip, tz, th) => { const g = new THREE.Group(), fixed = [], pu
   g.add(R.merge(fixed)); for (let i = 0; i < 3; i++) g.add(F.bunting({ from: [-6, 4.6, 10 + i * 26], to: [6, 4.8, 12 + i * 26], n: 10, sag: .8, cs: ['#ffe070', '#f05a7a', '#5ac0e0', '#ffffff'] }));
   return g; };
 const ground = town(0, false, 196, [30, 12, 5]); scene.add(ground);
-const SS = 1.8, SKZ = 457, sky = town(7, true, (SKZ - 196) / SS, [16, 7, 3.2]); sky.rotation.x = PI; sky.scale.setScalar(SS); sky.position.set(0, SY, SKZ);   // 上の町は 1.8 倍の大きさ scene.add(sky);   // まるごと回して、さかさまに（z は向こうへ反転するので、ずらして合わせる）
+const SS = 1.8, SKZ = 457, sky = town(7, true, (SKZ - 196) / SS, [16, 7, 3.2]); sky.rotation.x = PI; sky.scale.setScalar(SS); sky.position.set(0, SY, SKZ); scene.add(sky);   // 上の町は 1.8 倍の大きさ。   // まるごと回して、さかさまに（z は向こうへ反転するので、ずらして合わせる）
 sky.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
 
 // ---- 間をわたる物：風船・鳥・雲 ----
