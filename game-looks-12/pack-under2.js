@@ -22,6 +22,7 @@
 //   U.fireworks({ n: 4, center: [x, y, z], spread: [sx, sy, sz], per: 4.6, R0: 13, cs: [[色, 光る色], …], size: 3.2 }) → Group   花火（上る光のすじ → 開く点の輪 → 落ちながら消える）
 //   U.cascade({ w: 3, h: 30, c, a: .75, speed: 1.4 }) → Group   台のふちから落ちる水（原点が上のはし。-y へ落ちる。下のはしに しぶき）
 //   U.kite({ c, c2, s: 1, tail: 6 }) → Group   たこ（ひし形の紙と しっぽ）。毎コマ kite.userData.string(手の位置 Vector3) で糸を引く
+//   U.umbrella(人, { c, c2, patch（つぎの色）, hand: 'R'/'L', s }) → Group   こうもりがさ（人の手に付ける。うでを前へ上げて持たせる）
 //   U.update(t)
 window.PACK_UNDER2 = (THREE, K, R) => {
   const { hash } = K, PI = Math.PI, TAU = PI * 2, T = R.tex, U = {}, tx = {}, cache = new Map(), ramp = R.ramp, mix = (a, b, k) => { const p = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join(''); };
@@ -153,6 +154,17 @@ window.PACK_UNDER2 = (THREE, K, R) => {
     g.userData.tick = t => { body.rotation.z = Math.sin(t * 1.7 + s) * .25; body.rotation.x = Math.sin(t * 1.1) * .2; for (let i = 0; i <= tn; i++) { const yy = -.55 * s - i * .28 * s, xx = Math.sin(t * 3 - i * .8) * .12 * i * s; tp[i * 3] = xx; tp[i * 3 + 1] = yy; tp[i * 3 + 2] = -.1 * i; if (i > 0) tail[i - 1].position.set(xx, yy, -.1 * i); } tg.attributes.position.needsUpdate = true; };
     g.userData.string = hand => { g.updateMatrixWorld(); w0.set(0, -.3 * s, 0).applyMatrix4(g.matrixWorld); for (let i = 0; i <= 8; i++) { const k = i / 8; v.lerpVectors(hand, w0, k); v.y -= Math.sin(k * PI) * hand.distanceTo(w0) * .06; spos[i * 3] = v.x; spos[i * 3 + 1] = v.y; spos[i * 3 + 2] = v.z; } sg.attributes.position.needsUpdate = true; };
     return live(g); };
+
+  // ---- こうもりがさ（8 本骨の布。つぎの当たったのも）。人の手に付ける ----
+  def('canopy', 1, (o = {}) => { const P = R.Px(32), A = ramp(o.c || '#3a5a8a'), B2 = ramp(o.c2 || o.c || '#3a5a8a'), sd = o.seed || 0;
+    P.each((x, y) => { const dx = x - 15.5, dy = y - 15.5, a = Math.atan2(dy, dx), r = Math.hypot(dx, dy), sec = Math.floor((a + PI) / (PI / 4)), rib = Math.abs(((a + PI) / (PI / 4)) % 1 - .5) > .44; return rib ? A[1] : r > 14 ? A[2] : (sec % 2 ? B2[3] : A[3]); });
+    if (o.patch) { P.rect(18, 6, 6, 5, R.ramp(o.patch)[3]); P.rect(18, 6, 6, 1, R.ramp(o.patch)[1]); for (let i = 0; i < 6; i += 2) P.set(18 + i, 10, '#e8e0cc'); }
+    for (let k = 0; k < 20; k++) { const x = hash(k, 1, sd) * 32, y = hash(k, 2, sd) * 32; P.set(x, y, A[4]); }   // 雨つぶの光
+    return P; });
+  U.umbrella = (p, o = {}) => { const J = p.userData.J, hand = o.hand === 'L' ? J.foreL : J.foreR, b = p.userData.build || {}, k = (b.head || .26) / .26 * (o.s || 1), g = new THREE.Group(), B = R.parts();
+    B.g(T.metal ? T.metal({ c: '#4a4a52' }) : tx.under()).loft(4, [[0, .02 * k, .02 * k, 0, 1], [1.05 * k, .015 * k, .015 * k, 1, 1]], {});
+    const G = B.g(tx.canopy(o), { side: true }), R0 = .68 * k, top = 1.05 * k, n = 8; for (let i = 0; i < n; i++) { const a0 = i / n * TAU, a1 = (i + 1) / n * TAU, q = a => [Math.cos(a) * R0, top - .26 * k, Math.sin(a) * R0], uv = a => [.5 + Math.cos(a) * .48, .5 + Math.sin(a) * .48]; G.tri(q(a0), [0, top, 0], q(a1), uv(a0), [.5, .5], uv(a1), [.85, 1.1, .85]); }
+    g.add(B.group()); if (o.attach !== false) { g.position.set(0, -.28 * k, .04); g.rotation.x = -.45; hand.add(g); } return g; };
 
   U.update = t => { for (const o of U.live) o.userData.tick?.(t); };
   return U;

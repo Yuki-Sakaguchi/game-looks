@@ -108,7 +108,8 @@ window.PACK_BOOK1 = (THREE, K, R) => {
     return P; });
   def('glyphs', 2, o => { const P = Px(64), A = ramp(o.c || '#3a4ab0'), cs = o.cs || ['#ffe070', '#ffffff', '#f8a0c0', '#a0f0e0'];
     P.each((x, y) => { const w = Math.sin(x / 64 * TAU * 2 + Math.sin(y / 64 * TAU * 3) * 1.5), n = tn(x, y, 16, 8, 64, 64, 4); return w > .9 ? A[5] : w > .75 ? A[4] : n < .3 ? A[2] : A[3]; });
-    for (let k = 0; k < 22; k++) { const x = Math.floor(hash(k, 1) * 60), y = Math.floor(hash(k, 2) * 60), i = Math.floor(hash(k, 3) * 10); glyph(P, x + 1, y + 1, i, A[1]); glyph(P, x, y, i, cs[k % cs.length]); }
+    const big = (x, y, i, c) => GLY[i % GLY.length].forEach((row, j) => [...row].forEach((ch, q) => { if (ch === 'x') P.rect(x + q * 2, y + j * 2, 2, 2, c); }));   // 2 倍の大きさの字
+    for (let k = 0; k < 12; k++) { const x = (k % 4) * 16 + Math.floor(hash(k, 1) * 8), y = Math.floor(k / 4) * 21 + Math.floor(hash(k, 2) * 10), i = Math.floor(hash(k, 3) * 10); big(x + 1, y + 1, i, A[0]); big(x, y, i, cs[k % cs.length]); }
     return P; });
   def('ribbon', 1, o => { const P = Px(16, 64), A = ramp(o.c || '#d83a4a'); P.clip = true; P.each((x, y) => { const notch = y > 52 && Math.abs(x - 7.5) < (y - 52) * .7; if (notch) return null; return x < 1 ? A[1] : x > 14 ? A[1] : x < 3 ? A[2] : x > 5 && x < 8 ? A[5] : x < 10 ? A[4] : A[3]; }); return P; }, true);
 

@@ -17,7 +17,7 @@ canvas{display:block}
 <script type="module">
 // ネオンの港町の夜、巨大な集合住宅の中。四角い吹きぬけを、10 の階のろうかが かこみ、そのあいだを鉄の階段が何本も ななめに わたる。上も下も、蛍光灯のともる ろうかが続く。
 // 色の組は「青みどり（タイルとペンキ）・青ねずの鉄・蛍光灯の白みどり」＋差し色の もも（小さな診療所と店の看板）。暗いが黒くはつぶさず、どの階にも人のくらしがある。
-// 主役は買い物ぶくろをさげた少女（R.actor の toon）。吹きぬけをわたる階段をのぼり、カメラは ななめ上から見下ろす。下の階が霧の中へ深く続く。
+// 主役は買い物ぶくろをさげた少女（R.actor の toon）。吹きぬけをわたる階段を こちらへのぼってくるのを、上の階のすえ置きのカメラが前から見下ろす。下の階が霧の中へ深く続く。
 import * as THREE from 'three';
 const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), N = PACK_NEON2(THREE, K, R, C), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
 R.cfg.actorBuild = 'toon';
@@ -43,7 +43,7 @@ const WM = [0, 1, 2, 3].map(wallTex);
 // ---- 吹きぬけ（内のりは x・z が ±5）を、ろうか（±5〜±7）が かこむ。階は y = f×3（f = -5〜4） ----
 const IN = 5, OUT = 7, FH = 3, F0 = -5, F1 = 4;
 // 階段：吹きぬけを ななめにわたる（下の階のろうかから、上の階の反対がわのろうかへ）
-const STAIRS = [{ f: 0, ax: 'x', at: 1, dir: 1 }, { f: 1, ax: 'z', at: 3.8, dir: -1 }, { f: -1, ax: 'z', at: 2.2, dir: 1 }, { f: 2, ax: 'x', at: -2.2, dir: -1 }, { f: -2, ax: 'x', at: -1.2, dir: 1 }, { f: 3, ax: 'z', at: 2.6, dir: 1 }, { f: -3, ax: 'z', at: -2.4, dir: -1 }, { f: -4, ax: 'x', at: 2.2, dir: -1 }];
+const STAIRS = [{ f: 0, ax: 'x', at: 1, dir: 1 }, { f: 1, ax: 'z', at: -3.4, dir: -1 }, { f: -1, ax: 'z', at: 2.2, dir: 1 }, { f: 2, ax: 'x', at: -2.2, dir: -1 }, { f: -2, ax: 'x', at: -1.2, dir: 1 }, { f: 3, ax: 'z', at: 2.6, dir: 1 }, { f: -3, ax: 'z', at: -2.4, dir: -1 }, { f: -4, ax: 'x', at: 2.2, dir: -1 }];
 const sideOf = (s, end) => s.ax === 'x' ? ((s.dir > 0) !== end ? 'W' : 'E') : ((s.dir > 0) !== end ? 'S' : 'N');
 const gaps = {}; for (const s of STAIRS) { (gaps[s.f + sideOf(s, false)] ||= []).push(s.at); (gaps[s.f + 1 + sideOf(s, true)] ||= []).push(s.at); }
 const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
@@ -113,14 +113,14 @@ const PATH = [[-6, 0, 4.2], [-6, 0, 1], [-IN, 0, 1], [IN, FH, 1], [6, FH, 1], [6
 for (let i = 0; i < PATH.length - 1; i++) { const a = PATH[i], b = PATH[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]); SEG.push([a, b, TOT, l]); TOT += l; }
 const at = d => { for (const [a, b, s, l] of SEG) if (d <= s + l) { const k = (d - s) / l; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, Math.atan2(b[0] - a[0], b[2] - a[2])]; } const [a, b] = SEG[SEG.length - 1]; return [...b, Math.atan2(b[0] - a[0], b[2] - a[2])]; };
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
-const SPEED = .8, LOOP = TOT / SPEED + 1, D0 = 3.4; let ry = 0, cx = 0, cy = 0, cz = 0;
+const SPEED = .8, LOOP = TOT / SPEED + 1, D0 = 6.6; let ry = 0, cx = 0, cy = 0, cz = 0;
 K.loop((dt, t) => {
   const u = ((t + D0 / SPEED) % LOOP) * SPEED, [x, y, z, h] = at(Math.min(u, TOT)), tall = innerWidth < innerHeight;
   hero.position.set(x, y, z); ry += (h - ry) * Math.min(1, dt * 6); hero.rotation.y = ry; if (u < TOT) R.walk(hero, t * 5.4); else R.idle(hero, t, .3);
   hero.userData.J.armL.rotation.z = .25; hero.userData.J.foreL.rotation.x = -.15;
-  // ななめ上から見下ろす（吹きぬけの中。かべの外へは出さない）
-  const tx = Math.max(-4.2, Math.min(3, x * .45 - 2.4)), tz = Math.min(4.6, z + 2.6), ty = y * .45 + (tall ? 4.2 : 3.8);   // 主役の半分ほどしか動かさない（見わたす感じ） cx += (tx - cx) * Math.min(1, dt * 2.5); cy += (ty - cy) * Math.min(1, dt * 2.5); cz += (tz - cz) * Math.min(1, dt * 2.5); if (t < .05) { cx = tx; cy = ty; cz = tz; }
-  cam.position.set(cx, cy, cz); cam.lookAt(x * .6 + 1.3, y * .6 + (tall ? -.1 : .3), z - .9);
+  // ななめ上から見下ろす、すえ置きのカメラ（昔のゲームの「部屋ごとのカメラ」）。主役が階段の両はしへ行くと、となりのカメラへ切りかえる
+  const CAMS = [[[-3.4, 3.4, 4.4], [-6, .9, 1.4]], [[3.3, 3.9, 3.4], [-1.2, 1.5, .5]], [[2.2, 6.4, 4.3], [6, 3.6, -1.6]]], k = x < -4.2 ? 0 : x < 4.4 ? 1 : 2, [cp, cl] = CAMS[k];
+  cam.position.set(cp[0], cp[1] + (tall ? .5 : 0), cp[2]); cam.lookAt(cl[0], cl[1] - (tall ? .3 : 0), cl[2]);
   crt.u.bright.value = Math.min(1, u / .6 + .0, (LOOP * SPEED - u) / .6);
   sun.position.set(x - 10, y + 30, z + 10); sun.target.position.set(x, y, z); herol.position.set(x + .6, y + 2.2, z + 1.2);
   R.idle(leaner, t, Math.sin(t * .4) * .5); leaner.userData.J.armR.rotation.x = -.6; leaner.userData.J.armL.rotation.x = -.6;

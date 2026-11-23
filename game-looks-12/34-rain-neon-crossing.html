@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-34 雨のネオンの交差点 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dceeff;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-34 ─ 雨のネオンの交差点 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-neon1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨の夜の大きな交差点。四つかどに高層の棟がそびえ、かべ一面に看板。かさの人ごみが横断歩道をわたり、その向こうを赤い二階建てのバスと車が横切る。ぬれた路面に看板とバスのあかりが たてに長く映る。
+// 色の組は「青い紺（路面・かべ・雨）」＋ネオンの「青みどり」と「もも」。差し色は 二階建てバスと主役のかさの 赤。
+// 主役は 赤いかさをさした みどりのコートの青年。カメラは 南の通りの上から見下ろして、横断歩道をわたる主役と、その向こうの交差点・バス・そびえる棟を いっしょに入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), PK = PACK_RUINS(THREE, K, R), N = PACK_NEON1(THREE, K, R, C), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const CY = '#3ae0f0', PN = '#ff4a9a', RED = '#e8302a', NAVY = '#1e2a5a';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 42, far: 900, aa: false, fitAspect: .9, maxFov: 72 });
+scene.background = new THREE.Color(NAVY); scene.add(R.skyDome([[0, '#101838'], [.6, '#1e2a5a'], [1, '#3a3a78']], { r: 600 })); scene.fog = new THREE.Fog('#2a3668', 40, 260);
+const { sun } = K.lights(scene, renderer, { sky: 0x8aa8f0, ground: 0x4a5a98, amb: 1.7, sun: 0xbcd0ff, power: .5, range: 30 });
+
+// ---- 四つかどの棟。かべの看板と、通りへつき出す看板 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, lights = [], streaks = [];
+const RX = 7, RZ = 6, WALLC = ['#7a86a8', '#8a8aa8', '#6a7ea0', '#9a8aa8'];   // 道のはばの半分（x の道は |z|<RX、z の道は |x|<RZ）。歩道は 3 m
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let k = 0; k < 4; k++) { const w = 13 + hash(k, sx, sz) * 6, d = 16, h = 50 + hash(k, sx * 3, sz) * 60, edge = sx * (RZ + 3);
+  const x = edge + sx * (k * 17 + w / 2), z = sz * (RX + 3 + d / 2); put(N.tower({ w, d, h, c: WALLC[(k + (sx > 0 ? 1 : 0) + (sz > 0 ? 2 : 0)) % 4], seed: 500 + k * 4 + (sx > 0 ? 1 : 0) + (sz > 0 ? 2 : 0), lit: .4, acBox: .3, emissive: '#161c40', grad: [.75, 1] }), x, z, sz > 0 ? PI : 0); }
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const z = sz * (RX + 3 + 8); put(N.tower({ w: 16, d: 16, h: 90 + (sx * sz > 0 ? 40 : 0), c: '#8a90b0', seed: 520 + sx + sz * 2, lit: .45, acBox: .2, emissive: '#161c40' }), sx * (RZ + 3 + 8), z, sx > 0 ? -PI / 2 : PI / 2); }   // かどの棟（z の道を向く）
+// かどの棟の かべ一面の大きな看板（交差点を見おろす）
+for (const [x, y, z, ry, kind, n, c, c2, w] of [[-(RZ + 3 + .2), 18, -(RX + 11), -PI / 2, 'v', 5, PN, CY, 4.5], [RZ + 3 + .2, 14, -(RX + 9), PI / 2, 'v', 4, CY, PN, 4], [RZ + 3.2, 34, -(RX + 13), PI / 2, 'h', 3, '#f0f0ff', PN, 12], [-(RZ + 3.2), 40, RX + 9, -PI / 2, 'h', 4, CY, '#f0f0ff', 13], [RZ + 3.2, 22, RX + 10, PI / 2, 'v', 4, PN, CY, 4.5]]) {
+  const sg = N.sign({ kind, n, c, c2, w, seed: Math.round(x * 7 + y), bulbs: kind === 'h', depth: .4 }); sg.position.set(x, y, z); sg.rotation.y = ry; fixed.push(sg); streaks.push({ x: x * .9, z: z * .9, h: y, c, k: .7, w: w * .4, len: 14 }); }
+for (let k = 0; k < 60; k++) { const along = hash(k, 1) > .5, s = hash(k, 2) > .5 ? 1 : -1, t = 9 + hash(k, 3) * 50, y = 3.6 + hash(k, 4) * 14, v = hash(k, 5) < .72, c = [CY, PN, CY, PN, '#ffc040', '#f0f0ff'][Math.floor(hash(k, 6) * 6)];
+  const sg = N.sign({ kind: v ? 'v' : 'h', n: v ? 3 + Math.floor(hash(k, 7) * 3) : 2 + Math.floor(hash(k, 7) * 2), c, c2: c === CY ? PN : CY, w: v ? 1 + hash(k, 8) * .6 : 2.2 + hash(k, 8), seed: k + 600, flicker: k % 10 === 3 }), w = sg.userData.w;
+  if (along) { const x = (hash(k, 9) > .5 ? 1 : -1) * t, z = s * (RX + 3 - w / 2 - .1); sg.position.set(x, y, z); sg.rotation.y = PI / 2; if (y < 9) streaks.push({ x, z: z * .8, h: y, c, k: .7, w: .6 + w * .3 }); }
+  else { const z = (hash(k, 9) > .5 ? 1 : -1) * t, x = s * (RZ + 3 - w / 2 - .1); sg.position.set(x, y, z); if (y < 9) streaks.push({ x: x * .8, z, h: y, c, k: .7, w: .6 + w * .3 }); }
+  fixed.push(sg); lights.push({ x: sg.position.x * .85, z: sg.position.z * .85, r: 4, c, k: .35 }); }
+
+// ---- 路面（ぬれたアスファルト）・歩道・横断歩道・水たまり・信号・街灯 ----
+const road = (x, z) => Math.abs(z) < RX || Math.abs(x) < RZ;
+const land = R.ground({ w: 140, d: 140, cell: 1.5, layers: [X.asphalt({ wet: 1, c: '#2e3866', wetC: '#5a78c8' }), X.tile({ c: '#5a6490', c2: '#4a5480' }), X.plate({ c: '#4a5488' })], mix: (x, z) => [road(x, z) ? 0 : 1, 0], shade: C.lightShade(lights, [.48, .54, .86]) }); scene.add(land.mesh);
+const ZB = PK.tex.marking({ kind: 'zebra', worn: .25 });
+for (const [x, z, ry] of [[0, -(RX + 1.6), PI / 2], [0, RX + 1.6, PI / 2], [-(RZ + 1.6), 0, 0], [RZ + 1.6, 0, 0]]) { const m = PK.decal(ZB, ry ? 3 : 3, ry ? RZ * 2 : RX * 2, { y: .04 }); m.position.set(x, 0, z); m.rotation.y = ry; fixed.push(m); }
+for (const [x, z, k] of [[2, -9.3, 1.6], [-3, -9.8, 1.2], [4, -3, 2.4], [-14, 2, 2], [12, 4, 1.8]]) { const p = PK.decal(PK.tex.puddle({ c: '#5a6ac8' }), k * 1.6, k, { ur: 1, vr: 1, y: .045 }); p.position.set(x, 0, z); fixed.push(p); }
+for (const [x, z] of [[-(RZ + .6), -(RX + .6)], [RZ + .6, -(RX + .6)], [-(RZ + .6), RX + .6], [RZ + .6, RX + .6]]) put(C.signal({ h: 3.4, cs: ['#ff4a3a', '#ffd060', '#4af08a'], blink: false }), x, z, Math.atan2(-x, -z));
+for (const [x, z] of [[-16, -(RX + .5)], [16, -(RX + .5)], [-16, RX + .5], [16, RX + .5], [-(RZ + .5), -18], [RZ + .5, 18]]) put(C.streetLamp({ h: 6, cold: true }), x, z, Math.atan2(-x, -z));
+put(C.vending({ c: '#4ac0d0' }), -10, -9.3); put(C.vending({ c: PN }), -11.1, -9.3); put(C.trash({ kind: 'bin', c: '#3f6a8a' }), 9, -9.4);
+scene.add(R.merge(fixed));
+scene.add(C.streaks(streaks, { far: 80 }), C.rain({ n: 1100, box: [30, 16, 30], speed: 18, slant: [.12, .04], c: '#cfe0ff', a: .5 }));
+
+// ---- 乗りもの：二階建てのバス・車（ヘッドライトの映りこみつき） ----
+const bus = N.bus({ c: RED, c2: '#f4ecd8', seed: 2 }); scene.add(bus);
+const cars = [['#e8e4d8', 'sedan', 1], ['#3a5a9a', 'van', -1], ['#c83a34', 'sedan', -1], ['#e8c84a', 'sedan', 1]].map(([c, kind, dir], i) => { const v = R.car({ c, kind }); scene.add(v); return { v, dir, ph: i * 37 }; });
+const BL = [{ x: 0, z: 0, h: 3, c: '#ffe2a0', k: .8, w: 3.5, len: 8 }, { x: 0, z: 0, h: 1, c: '#fff6dc', k: .9, w: 1.4, len: 6 }, { x: 0, z: 0, h: 1.2, c: '#ff4a3a', k: .7, w: 1.4, len: 5 }]; scene.add(C.streaks(BL, { far: 80 }));   // バスの窓・前の灯・うしろの赤い灯の映りこみ
+
+// ---- 人：主役（赤いかさ）・かさの人ごみ ----
+const hero = N.umbrella(R.actor({ hairStyle: 'short', hair: '#2a2030', eyes: 'sharp', cloth: 'coat', sleeve: 'long', top: '#2e7a5a', top2: '#e8e0c8', lower: 'pants', bottom: '#2a2a40', shoes: 'boot', shoe: '#3a2a2a', neck: 'scarf', acc: '#f0e8d0' }), RED, '#ffd0c8'); scene.add(hero);
+const UC = [[CY, '#e0fbff'], [PN, '#ffd0e6'], ['#f0f0ff', '#8aa8f0'], ['#3a4a8a', '#8aa8f0'], ['#e8c84a', '#fff4c0'], ['#4a4a5a', '#8a8aa0']];
+const crowd = [...Array(18)].map((_, i) => { const p = N.umbrella(R.actor(N.extra(i + 200, { cloth: i % 3 ? 'coat' : 'jacket' })), ...UC[i % 6]); scene.add(p); return { p, dir: i % 2 ? 1 : -1, z: -(RX + .5) - (i % 3) * .7 - hash(i, 3) * .4, sp: .75 + hash(i, 4) * .4, off: hash(i, 5) * 24, side: i % 4 === 3 }; });
+const glow = new THREE.PointLight('#ffd8e0', 7, 7, 1.4); scene.add(glow);
+
+// ---- 主人公：横断歩道を +x へわたる（わたり終えると、はじめにもどる）。カメラは ななめ上から ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = 1.1, SPAN = 22, X0 = -11;
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, z = -(RX + 1.5), tall = innerWidth < innerHeight;
+  hero.position.set(x, 0, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 6.2, .85); N.umbPose(hero);
+  const cx = Math.max(-3.5, Math.min(3.5, x * .35)); if (tall) { cam.position.set(cx, 6.2, z - 8); cam.lookAt(x * .85, 2, z + 5); } else { cam.position.set(cx, 5.6, z - 9); cam.lookAt(x * .6, 1.8, z + 6); }
+  crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
+  sun.position.set(x + 10, 40, z - 20); sun.target.position.set(x, 0, z); glow.position.set(x, 3, z - 1.5);
+  { const W = 220, bx = ((t * 5.5 + 40) % W) - 70; bus.position.set(bx, 0, -2.6); bus.rotation.y = 0; for (const w of bus.userData.wheels) w.rotation.z = -t * 11; BL[0].x = bx; BL[0].z = -2.6; BL[1].x = bx + 5.6; BL[1].z = -2.6; BL[2].x = bx - 5.6; BL[2].z = -2.6; }
+  cars.forEach(({ v, dir, ph }, i) => { const W = 200, u = ((t * 9 * dir + ph) % W + W) % W - 100; v.position.set(u, 0, dir > 0 ? -5 : 2.6 + (i % 2) * 1.6); v.rotation.y = dir > 0 ? PI / 2 : -PI / 2; });
+  crowd.forEach(c => { const W = 30, b = c.off + t * c.sp * c.dir - x + 15, px = x - 15 + ((b % W) + W) % W; c.p.position.set(px, 0, c.z); c.p.rotation.y = c.dir > 0 ? PI / 2 : -PI / 2; R.walk(c.p, t * c.sp * 5 + c.off * 3, .8); N.umbPose(c.p); });
+  C.update(t, cam); N.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

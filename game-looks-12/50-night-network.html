@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-50 電脳の夜 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#141a30;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8e4f8;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-50 ─ 電脳の夜 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-cyber2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 灯りの落ちた白い電脳世界の夜。高い テラスの下に広い平原がひろがり、光のネットワークの線が地平線まで走って、光の粒が流れる。遠くには巨大なサーバーの塔がならび、窓と先の灯が星のように またたく。
+// 色の組は「夜の紺・灯りの落ちた白（うすい青灰の板）」＋差し色の 水色の光の線と、塔の先のレモン色。黒くつぶさず、板の目地とふちの光は 青灰の 3 段で読ませる。
+// 主役は 光の輪を頭に浮かべた旅人（R.actor の toon、白いコート）。テラスのふちを右へ歩き、カメラは ななめうしろの高い所から見下ろして、平原と塔の列を入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), CY = PACK_CYBER2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1200, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#0a0e20'], [.5, '#141c3a'], [.82, '#24305a'], [.95, '#3a4a78'], [1, '#5a6a98']], { r: 900 })); scene.fog = new THREE.Fog('#1e2848', 80, 900);
+const hemi = new THREE.HemisphereLight(0x8a9ad8, 0x2a2a48, 1.5); scene.add(hemi);
+const moon = new THREE.DirectionalLight(0xb8c8ff, 1.0); moon.position.set(-30, 50, 20); moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024); Object.assign(moon.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 200 }); renderer.shadowMap.enabled = true; scene.add(moon, moon.target);
+
+// ---- 星（点）と、空の帯 ----
+{ const n = 900, pos = new Float32Array(n * 3), col = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const a = hash(i, 1) * 2 * PI, el = .05 + Math.pow(hash(i, 2), .7) * 1.4, r = 850; pos.set([Math.cos(a) * Math.cos(el) * r, Math.sin(el) * r, Math.sin(a) * Math.cos(el) * r], i * 3); const c = new THREE.Color(hash(i, 3) > .8 ? '#ffe8a8' : hash(i, 3) > .6 ? '#a8d8ff' : '#e8ecff').multiplyScalar(.5 + hash(i, 4) * .5); col.set([c.r, c.g, c.b], i * 3); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, fog: false }))); }
+
+// ---- テラス（z > -5。灯りの落ちた白い板）と、30 m 下の平原（板のます目）。平原は遠くまで ----
+const TOP = 0, LOW = -30, edge = z => z < -5;
+const H = (x, z) => z > -5 ? TOP : z > -7 ? TOP - (-5 - z) * 15 : LOW;
+const TILE = CY.tex.tile({ n: 2, c: '#6a7094', line: '#3a4270', seed: 1, accent: ['#7ad0ec', '#eed070'] }), TILE2 = CY.tex.tile({ n: 4, c: '#585e84', line: '#2e3460', seed: 2, accent: ['#7ad0ec'] });
+const terrace = R.ground({ w: 120, d: 40, cell: 2, cz: 12, H, layers: [TILE, CY.tex.under({ c: '#5a5e80', light: '#7ad0ec' })], mix: (x, z) => [z < -5 ? 1 : 0, 0] }); scene.add(terrace.mesh);
+const plain = new THREE.Group(); scene.add(plain);
+{ const G = R.geo().normal([0, 1, 0]), S = 24; for (let i = -40; i < 40; i++) for (let j = 0; j < 36; j++) { const x0 = i * S, z0 = -8 - j * S; G.quad([x0, 0, z0], [x0 + S, 0, z0], [x0 + S, 0, z0 - S], [x0, 0, z0 - S], [x0 / 6, -z0 / 6, (x0 + S) / 6, -(z0 - S) / 6]); } const m = G.mesh(TILE2); m.position.y = LOW; plain.add(m); }
+
+// ---- 光のネットワーク：平原のます目の線（地平線まで）と、塔へ向かう太い線。線の上を光の粒が流れる ----
+const lines = []; for (let i = -12; i <= 12; i++) lines.push([[i * 48, LOW + .1, -10], [i * 48 * 1.6, LOW + .1, -860]]);
+for (let j = 0; j < 14; j++) { const z = -20 - j * j * 4.6; lines.push([[-700, LOW + .1, z], [700, LOW + .1, z]]); }
+scene.add(CY.lines(lines, { w: 1.1, c: '#3a8ad0', k: .8 }));
+const TW = [[-260, -620, 22, 300], [-90, -720, 30, 380], [120, -680, 26, 340], [300, -560, 20, 260], [-420, -480, 16, 200], [460, -760, 24, 320], [10, -900, 40, 460]];
+const trunk = [], pkts = [];
+TW.forEach(([x, z], k) => { const path = [[(k - 3) * 6, LOW + .2, -9], [(k - 3) * 6 + x * .3, LOW + .2, -60 - k * 8], [x * .8, LOW + .2, z * .7], [x, LOW + .2, z + 20]]; for (let i = 0; i < path.length - 1; i++) trunk.push([path[i], path[i + 1]]); const p = CY.packets(path, { n: 7, c: k % 2 ? '#eed070' : '#bff0ff', s: 1.6, speed: 30 + k * 4, off: k * 13 }); scene.add(p); pkts.push(p); });
+scene.add(CY.lines(trunk, { w: 2.2, c: '#7ad0ec', k: 1 }));
+
+// ---- 遠くの巨大なサーバーの塔（窓の灯が星のように またたく）と、先の灯 ----
+const winTex = CY.tex.wall({ c: '#4a5078', glass: '#283058', lit: .55, accent: '#7ad0ec', seed: 9 });
+const tips = TW.map(([x, z, r, h], k) => { const tw = CY.tower({ r, h, n: 8, steps: 4, c: k % 3 ? '#7ad0ec' : '#eed070', tex: winTex, seed: k }); tw.position.set(x, LOW, z); scene.add(tw);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: CY.tex.sym({ kind: 'plus', c: '#fff4c0', edge: '#eed070' }), color: '#ffffff', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false })); halo.scale.setScalar(r * 1.4); halo.position.set(x, LOW + tw.userData.top + 2, z); scene.add(halo); return halo; });
+scene.add(CY.backdrop({ r: 1000, h: 120, y: LOW - 10, c: '#2a3258', haze: '#3a4a78', lit: '#a8d8ff', rep: 8 }));
+
+// ---- テラスの物：ふちの手すりの光、灯の消えた白い柱灯、ベンチのような板。浮かぶ窓の板 ----
+scene.add(CY.lines([[[-80, 1, -4.6], [80, 1, -4.6]], [[-80, .05, -4.2], [80, .05, -4.2]]], { w: .14, c: '#7ad0ec', mode: 'cross', k: .9 }));
+const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let i = -16; i <= 16; i++) { const x = i * 5; put(R.geo().loft(6, [[0, .06, .06, 0, .8], [1, .05, .05, 1, 1]], { cap: 'top' }).mesh(CY.tex.tile({ n: 4, c: '#8a90b4', seed: 3 })), x, 0, -4.6); }
+for (let i = -6; i <= 6; i++) { const x = i * 12 + 4; put(CY.tower({ r: .35, h: 3.4, n: 6, steps: 1, spire: false, ledge: false, tex: CY.tex.tile({ n: 4, c: '#7a80a4', seed: 4 }) }), x, 0, 3); }
+scene.add(R.merge(fixed));
+const lampL = [...Array(13)].map((_, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: CY.tex.sym({ kind: 'diamond', c: '#bff0ff', edge: '#7ad0ec' }), alphaTest: .5, fog: true })); s.scale.setScalar(.45); s.position.set((i - 6) * 12 + 4, 3.7, 3); scene.add(s); return s; });
+const boards = [[-10, 3.2, -3, 'graph'], [14, 3.6, -3.4, 'map'], [36, 3, -3, 'list']].map(([x, y, z, kind], k) => { const b = CY.board({ w: 1.8, h: 1.35, kind, c: '#7ad0ec', bg: '#1e2848', ink: '#a8d8ff', seed: k, opacity: .85 }); b.position.set(x, y, z); b.rotation.y = .3; scene.add(b); b.userData.y0 = y; return b; });
+// ただよう光の粒（テラスのまわり）
+const moteN = 60, mg = new THREE.BufferGeometry(), mp = new Float32Array(moteN * 3); mg.setAttribute('position', new THREE.BufferAttribute(mp, 3));
+const motes = new THREE.Points(mg, new THREE.PointsMaterial({ size: .12, color: '#bff0ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); motes.frustumCulled = false; scene.add(motes);
+
+// ---- 人：主役と、ふちにすわる 2 人（ひとりは ねこの耳） ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'long', sex: 'f', hair: '#c8d0f0', eye: '#5a8ad8', eyes: 'round', cloth: 'coat', sleeve: 'long', top: '#e8ecf8', top2: '#7ad0ec', lower: 'skirt', skirt: .7, skirtC: '#3a4a7a', tights: '#2a3058', shoes: 'boot', shoe: '#3a4a7a', neck: 'scarf', acc: '#7ad0ec', belt: '#3a4a7a' }); scene.add(hero); CY.wear(hero, 'halo', { c: '#bff0ff' });
+const heroL = new THREE.PointLight('#a8e0ff', 5, 7, 1.4); scene.add(heroL);
+const sit1 = R.actor({ hairStyle: 'spiky', hair: '#eed070', cloth: 'tunic', top: '#3a4a7a', top2: '#eed070', bottom: '#2a3058', shoes: 'boot', shoe: '#eed070' }); scene.add(sit1); CY.wear(sit1, 'ears', { kind: 'cat', c: '#eed070', c2: '#f8e8c0' }); CY.wear(sit1, 'tail', { kind: 'cat', c: '#eed070', c2: '#f8e8c0' });
+const sit2 = R.actor({ sex: 'f', hairStyle: 'bob', hair: '#2a2a48', cloth: 'robe', top: '#b8a8e8', top2: '#e8ecf8', skirt: .8 }); scene.add(sit2); CY.wear(sit2, 'mark', { kind: 'moon', c: '#eed070', s: .3 });
+
+const crt = R.crt(renderer, { noise: 0, bloom: .4 }); onResize(crt.resize);
+const SPEED = 1.15;
+K.loop((dt, t) => {
+  const x = -6 + t * SPEED, z = -2.6, y = 0;
+  hero.position.set(x, y, z); hero.rotation.y = PI / 2 + .25; R.walk(hero, t * SPEED * 3.6, .8);
+  heroL.position.set(x + .5, 2, z + 1.5);
+  const tall = innerWidth < innerHeight; cam.position.set(x - (tall ? 2.2 : 3.4), tall ? 4.6 : 4.4, z + (tall ? 4.4 : 5)); cam.lookAt(x + (tall ? .8 : 2.4), tall ? -1.6 : -.6, z - 6);   // ななめうしろの高い所から見下ろす
+  moon.position.set(x - 30, 50, 20); moon.target.position.set(x, 0, z); terrace.follow(Math.round(x / 10) * 10, 12);
+  { const sx = 10; sit1.position.set(sx, -.38, -4.1); sit2.position.set(sx + 1.1, -.38, -4.1); for (const p of [sit1, sit2]) { p.rotation.y = PI; R.idle(p, t, Math.sin(t * .4 + p.position.x) * .3); const J = p.userData.J; J.legL.rotation.x = J.legR.rotation.x = -1.5; J.shinL.rotation.x = J.shinR.rotation.x = 1.2; } sit1.userData.J.armR.rotation.set(-2.4, 0, .3 + Math.sin(t * 3) * .2); }
+  tips.forEach((h, k) => { h.material.opacity = .45 + .55 * Math.abs(Math.sin(t * (.8 + k * .23) + k)); });
+  lampL.forEach((s, i) => { s.position.y = 3.7 + Math.sin(t * 1.5 + i) * .08; });
+  boards.forEach((b, k) => { b.position.y = b.userData.y0 + Math.sin(t * 1.2 + k * 2) * .15; });
+  for (let i = 0; i < moteN; i++) { const q = (t * (.05 + hash(i, 1) * .06) + hash(i, 2)) % 1; mp[i * 3] = x - 10 + hash(i, 3) * 26 + Math.sin(t * .5 + i) * .5; mp[i * 3 + 1] = -2 + q * 8; mp[i * 3 + 2] = -6 + hash(i, 4) * 10; } mg.attributes.position.needsUpdate = true;
+  CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

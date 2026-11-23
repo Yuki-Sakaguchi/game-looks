@@ -26,32 +26,37 @@ const AC = 0, AZ = -70;   // 会場のまん中
 
 // ---- 観客席の絵（64×32 ＝ 3 m × 1.5 m。4 ドットごとの段に、頭と体の点。2 コマで手を上げる人が変わる） ----
 const CROWD = ['#f2a0c4', '#7ad0ec', '#eed070', '#9ad88a', '#b8a8e8', '#f4f0ec', '#e89a7a', '#5a6aa0'], SKIN = ['#f0c49c', '#d8a07a', '#f8dcc0', '#f4f0f4'];
-const crowdTex = (f, sd) => { const P = R.Px(64, 32), S = R.ramp('#d8dae8', 6, { contrast: .5 });
+const crowdTex = (f, sd, team) => { const P = R.Px(64, 32), S = R.ramp('#b0b2cc', 6, { contrast: .5 });
   P.each((x, y) => { const r = y % 8; return r === 0 ? S[5] : r === 1 ? S[2] : S[3]; });
-  for (let row = 0; row < 4; row++) for (let i = 0; i < 16; i++) { const x = i * 4 + (row % 2) * 2, y0 = row * 8 + 2, h = hash(i, row, sd); if (h > .9) continue;
-    const C = R.ramp(CROWD[Math.floor(hash(i, row, sd + 1) * CROWD.length)], 6, { contrast: .7 }), sk = SKIN[Math.floor(hash(i, row, sd + 2) * 4)], up = hash(i, row, sd + 3 + f * 7) > .62;
-    P.rect(x, y0 + 3, 3, 3, C[3]); P.set(x, y0 + 3, C[5]); P.set(x + 2, y0 + 5, C[1]); P.rect(x, y0 + 1, 2, 2, sk); P.set(x + 2, y0 + 1, C[2]);   // 体・頭（かみ・ぼうし）
+  for (let row = 0; row < 4; row++) for (let i = 0; i < 16; i++) { const x = i * 4 + (row % 2) * 2, y0 = row * 8 + 2, h = hash(i, row, sd); if (h > .97) continue;
+    const C = R.ramp(hash(i, row, sd + 9) < .7 ? team : CROWD[Math.floor(hash(i, row, sd + 1) * CROWD.length)], 6, { contrast: .7 }), sk = SKIN[Math.floor(hash(i, row, sd + 2) * 4)], up = hash(i, row, sd + 3 + f * 7) > .62;
+    P.rect(x, y0 + 3, 4, 4, C[3]); P.rect(x, y0 + 3, 4, 1, C[4]); P.set(x + 3, y0 + 5, C[1]); P.set(x + 3, y0 + 6, C[1]); P.rect(x, y0 + 1, 2, 2, sk); P.set(x + 2, y0 + 1, C[2]);   // 体・頭（かみ・ぼうし）
     if (up) { P.set(x - 1, y0, C[4]); P.set(x + 3, y0, C[4]); P.set(x - 1, y0 + 1, C[3]); P.set(x + 3, y0 + 1, C[3]); } }
-  const tx = T.from(P, { m: 15 }); tx.minFilter = THREE.NearestFilter; tx.generateMipmaps = false; tx.needsUpdate = true; return tx; };   // 遠くでも点のまま（にじませると色がまざって 1 色になる）
-const CROWD_T = [0, 1].map(f => crowdTex(f, 0)), WAVE_T = [0, 1].map(f => crowdTex(f, 4));
+  return T.from(P, { m: 6 }); };
+// 区画ごとに おうえんの色をそろえる（遠くでは色の帯に、近くでは 1 人ずつの点に見える）
+const TEAMS = ['#f08aac', '#5ab8e8', '#eed070', '#b8a8e8'], CROWD_T = TEAMS.map((c, k) => [0, 1].map(f => crowdTex(f, k * 3, c)));
 
 // ---- 会場：すりばちの観客席、内がわの白いかべ、上のふちの光の帯、下へすぼまる底。まん中に丸い舞台 ----
 const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 const sec = R.ngon(56, .5), TILE = CY.tex.tile({ seed: 2 }), WALLT = CY.tex.wall({ seed: 3, lit: .2 }), UND = CY.tex.under({ seed: 4 });
 const arena = new THREE.Group(); arena.position.set(AC, 0, AZ); scene.add(arena);
-const crowdMat = R.mat(CROWD_T[0], { vc: true, side: true }), waveMat = R.mat(WAVE_T[0], { vc: true, color: '#fff0f8', side: true });
+const secMats = [...Array(8)].map((_, s) => { const m = R.mat(CROWD_T[s % 4][0], { vc: true, side: true, color: '#ffffff' }).clone(); m.onBeforeCompile = R.mat('#fff').onBeforeCompile; return m; });
 { const Bp = R.parts(), Tl = Bp.g(TILE, { side: true }), Wl = Bp.g(WALLT, { side: true }), Un = Bp.g(UND), Gl = Bp.g(CY.tex.beam(), { glow: true, color: '#7ad0ec', side: true });   // すりばちの内がわから見るので両面
   Wl.loft(sec, [[-3, 46, 46, -1, .9], [4, 46, 46, 4 / 3, 1]], { ur: 96 });   // 内がわのかべ（窓の帯）
   Tl.loft(sec, [[4, 46, 46, 0, 1], [4, 48, 48, 1, 1]], { ur: 96 });
   const tiers = [[4, 48], [22, 72], [26, 74], [48, 104], [52, 106], [74, 134]];   // [高さ, 半径]。席の面と、とちゅうの通路の段
-  const Gc = R.geo(), Gw = R.geo();
+  const Gs = [...Array(8)].map(() => R.geo());
   for (let k = 0; k < tiers.length - 1; k++) { const [y0, r0] = tiers[k], [y1, r1] = tiers[k + 1], seat = k % 2 === 0, L = Math.hypot(y1 - y0, r1 - r0), urn = Math.round(2 * PI * r0 / 3);
-    if (seat) { for (let s = 0; s < 8; s++) { const G = s % 4 === 1 ? Gw : Gc; G.loft(sec, [[y0, r0, r0, 0, .9], [y1, r1, r1, L / 7.5, 1.04]], { ur: Math.round(urn * 3 / 15), seg: [s * 7, s * 7 + 7] }); } }   // 8 つの区画。1 つおきの区画は色の波
+    if (seat) { for (let s = 0; s < 8; s++) { Gs[s].loft(sec, [[y0, r0, r0, 0, .9], [y1, r1, r1, L / 3, 1.04]], { ur: Math.round(urn / 2), seg: [s * 7, s * 7 + 7] }); } }   // 8 つの区画。1 つおきの区画は色の波
     else { Tl.loft(sec, [[y0, r0, r0, 0, .85], [y1, r1, r1, 1, 1]], { ur: urn / 4 }); Gl.loft(sec, [[y0 + .1, r0 - .05, r0 - .05, 0], [y0 + .7, r0 - .05, r0 - .05, 1]], { ur: 56 }); } }
   Wl.loft(sec, [[74, 134, 134, 0, .9], [82, 136, 136, 8 / 3, 1]], { ur: 140 }); Tl.loft(sec, [[82, 136, 136, 0, 1], [82, 140, 140, 1, 1]], { ur: 140 }); Gl.loft(sec, [[80, 136.4, 136.4, 0], [81.2, 136.4, 136.4, 1]], { ur: 56 });   // 上のふちと光の帯
   Un.loft(sec, [[-60, 30, 30, -20, .75], [-30, 90, 90, -10, .85], [-3, 132, 132, 0, .95], [82, 140, 140, 28, 1]], { ur: 140 });   // 外がわと、下へすぼまる底（外から見える）
   Un.loft(sec, [[-60, 30, 30, 0, .75], [-61, 4, 4, 0, .7]], { cap: 'bot' });
-  arena.add(Bp.group()); const mc = new THREE.Mesh(Gc.build(), crowdMat), mw = new THREE.Mesh(Gw.build(), waveMat); mc.receiveShadow = mw.receiveShadow = true; arena.add(mc, mw); }
+  arena.add(Bp.group()); Gs.forEach((G, s) => { const me = new THREE.Mesh(G.build(), secMats[s]); me.receiveShadow = true; arena.add(me); });
+  // 観客が色の板を かかげて作る大きな絵（区画ごとに 記号 1 つ）。遠くからでも読める
+  const KS = ['star', 'heart', 'note', 'diamond'], [y0, r0] = tiers[2], [y1, r1] = tiers[3];
+  for (let s = 0; s < 8; s++) { const Gm = R.geo(), a = .12, b = .9; Gm.loft(sec, [[y0 + (y1 - y0) * a, r0 + (r1 - r0) * a - .3, r0 + (r1 - r0) * a - .3, 0, 1], [y0 + (y1 - y0) * b, r0 + (r1 - r0) * b - .3, r0 + (r1 - r0) * b - .3, 1, 1]], { seg: [s * 7 + 2, s * 7 + 5] });
+    const u = Gm.build(), uv = u.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, (uv.getX(i) * 56 - (s * 7 + 2)) / 3); const me = new THREE.Mesh(u, R.mat(CY.tex.sym({ kind: KS[s % 4], c: TEAMS[(s + 1) % 4], edge: '#f8f6fa' }), { side: true })); arena.add(me); } }
 // 舞台（浮かぶ丸い島。ふちに光の帯）と、主役の入場の橋
 const stage = CY.isle({ r: 16, depth: 14, n: 16, seed: 5, rim: '#f2a0c4', side: CY.tex.under({ c: '#eceef8', seed: 5 }), top: CY.tex.tile({ n: 2, seed: 6, accent: ['#f2a0c4', '#7ad0ec'] }) }); stage.position.set(AC, 0, AZ); scene.add(stage);
 scene.add(CY.lines([[[AC - 10, .06, AZ], [AC + 10, .06, AZ]], [[AC, .06, AZ - 10], [AC, .06, AZ + 10]]], { w: .4, c: '#7ad0ec', k: .9 }));
@@ -94,7 +99,7 @@ K.loop((dt, t) => {
     if ((sp += dt) > .45) { sp = 0; fx.emit('spark', AC + (hash(t, 1) - .5) * 1.5, 1.2 + hash(t, 2), AZ + (hash(t, 3) - .5), { size: 1.2, life: .6, spread: 4, add: true, tint: hash(t, 4) > .5 ? '#f08aac' : '#7ad0ec' }); } }
   ref.position.set(AC + 6, 0, AZ - 6); ref.rotation.y = -PI / 4; R.idle(ref, t, Math.sin(t * 1.6) * .4); ref.userData.J.armR.rotation.set(-2.6, 0, .3);
   // 観客の波：手を上げる人の絵を入れかえ、色の帯（もも色がかった列）が会場をめぐる
-  const f = Math.floor(t * 3) % 2; crowdMat.map = CROWD_T[f]; waveMat.map = WAVE_T[1 - f]; arena.rotation.y = t * .05;
+  const f = Math.floor(t * 3) % 2; secMats.forEach((m, s) => { m.map = CROWD_T[s % 4][(f + s) % 2]; const w = Math.max(0, Math.cos((t * .9 - s * .785) % (2 * PI))) ** 6; m.color.setScalar(.92 + w * .3); });   // 区画ごとに手を上げ、明るさの波が会場をめぐる
   boards.forEach((b, k) => { b.position.y = 30 + Math.sin(t * .8 + k * 1.6) * .8; });
   fx.update(dt); CY.tick(t); crt.render(scene, cam, t);
 });

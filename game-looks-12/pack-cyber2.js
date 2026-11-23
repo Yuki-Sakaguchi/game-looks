@@ -102,7 +102,7 @@ window.PACK_CYBER2 = (THREE, K, R) => {
   CY.isle = (o = {}) => { const r = o.r || 6, dp = o.depth ?? r * .9, n = o.n || 10, sd = o.seed || 0, sec = secN(n, sd), Bp = R.parts(), top = o.top || CY.tex.tile({ seed: sd }), side = o.side || CY.tex.under({ seed: sd }), ur = Math.max(1, Math.round(2 * PI * r / 3));
     fan(Bp.g(top), sec, r, 0, top.userData.m || 3);
     Bp.g(CY.tex.tile({ n: 4, c: '#d8dae6', seed: sd + 1 })).loft(sec, [[-.45, r * 1.0, r * 1.0, 0, .85], [0, r, r, .15, 1]], { ur });   // ふちの板
-    Bp.g(side).loft(sec, [[-dp, r * .06, r * .06, -dp / 3, .8], [-dp * .72, r * .34, r * .34, -dp * .72 / 3, .86], [-dp * .45, r * .62, r * .62, -dp * .45 / 3, .92], [-dp * .2, r * .86, r * .86, -dp * .2 / 3, .97], [-.45, r * .98, r * .98, 0, 1]], { ur });
+    Bp.g(side, { emissive: o.lift || '#4a4c62' }).loft(sec, [[-dp, r * .06, r * .06, -dp / 3, .8], [-dp * .72, r * .34, r * .34, -dp * .72 / 3, .86], [-dp * .45, r * .62, r * .62, -dp * .45 / 3, .92], [-dp * .2, r * .86, r * .86, -dp * .2 / 3, .97], [-.45, r * .98, r * .98, 0, 1]], { ur });
     const g = Bp.group(); if (o.rim) { const Gr = R.geo(); Gr.loft(sec, [[-.42, r * 1.012, r * 1.012, 0], [-.3, r * 1.012, r * 1.012, 1]], { ur: n }); const me = new THREE.Mesh(Gr.build(), R.mat(CY.tex.beam(), { glow: true, color: o.rim })); g.add(me); }
     g.userData.r = r; return g; };
   CY.tower = (o = {}) => { const r = o.r || 4, h = o.h || 40, n = o.n || 8, st = o.steps || 3, t = o.tex || CY.tex.wall({ seed: o.seed || 0 }), Bp = R.parts(), W = Bp.g(t), Lg = Bp.g(CY.tex.tile({ n: 4, seed: 3 })), c = o.c || '#7ad0ec', Gl = Bp.g(CY.tex.beam(), { glow: true, color: c }), sec = R.ngon(n, .5);

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-04 本のページの山 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#8ae0d8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.92;text-shadow:0 1px 0 #3a3a6a}
+</style>
+<div id="cap">12-04 ─ 本のページの山 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-book1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の中の真昼。開いた巨大な本のページが左右の山になり、そのあいだの谷（とじ目）を、文字が流れる川がくだる。山の上には しおりの旗、谷のつきあたりには 本を積みあげた塔。
+// 色の組は「紙のクリーム色・インクのあい色・ありえない ミント色の空」＋差し色の しおりの赤。ページ・本の背・表紙・文字の川・しおりは手打ちのドット絵（pack-book1.js）。家と木は R.house・R.tree を warp で曲げた。
+// 主役は本を かかえた見習いの魔法使い（R.actor の toon）。川ぞいの道を奥へ歩き、うしろからカメラが追う。文字が川を流れて舞いあがり、しおりがはためき、鳥と町の人とねこが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), B1 = PACK_BOOK1(THREE, K, R), T = R.tex, X = B1.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#3aa8b8'], [.45, '#6ad8c8'], [.78, '#c8f4d8'], [.93, '#fff8d0'], [1, '#fff0c0']], { r: 700 })); scene.fog = new THREE.Fog('#e8f4dc', 160, 800);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0fff0, ground: 0xc8a888, amb: 1.25, sun: 0xfff4e0, power: 2.3, range: 36 }), SUN = new THREE.Vector3(-.45, .8, .3).normalize();
+
+// ---- 開いた本：とじ目（x=0）から左右へ、ページが山のように反りあがる ----
+const PW = 74, PZ0 = 30, PZ1 = -170, Hp = (x, z) => { const u = Math.abs(x + 1.5); return u * .22 + u * u * .0065 + Math.sin(z * .05 + (x > 0 ? 1 : 3)) * u * .02; };
+const H = (x, z) => Math.abs(x + 1.5) < 2.4 ? Math.max(0, Hp(x, z) - .9) * .5 : Hp(x, z) - .45;   // とじ目は平らな川床
+const land = R.ground({ w: PW * 2, d: PZ0 - PZ1, cell: 2, cx: 0, cz: (PZ0 + PZ1) / 2, H, layers: [X.page({ m: 10 }), X.page({ m: 10, seed: 3, ink: '#8a3a4a', pic: false }), T.dirt({ c: '#c8b088', pebbles: .2 })],
+  mix: (x, z) => [Math.sin(x * .07 + z * .03) > .55 ? 1 : 0, x > .8 && x < 4.2 ? 1 : 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// ページのたばの小口（左右のはしと、奥のはし）と、その下の表紙
+{ const E = R.geo(), C = R.geo(); for (const sx of [-1, 1]) for (let z = PZ0; z > PZ1; z -= 4) { const x = sx * PW - 1.5 * 0, y0 = H(x, z), y1 = H(x, z - 4); if (sx > 0) E.quad([x, -6, z], [x, -6, z - 4], [x, y1, z - 4], [x, y0, z], [0, 0, 4, (y0 + 6) / 1]); else E.quad([x, -6, z - 4], [x, -6, z], [x, y0, z], [x, y1, z - 4], [0, 0, 4, (y0 + 6) / 1]); }
+  for (let x = -PW; x < PW; x += 4) { const z = PZ1, y0 = H(x, z), y1 = H(x + 4, z); E.quad([x, -6, z], [x + 4, -6, z], [x + 4, y1, z], [x, y0, z], [0, 0, 4, 8]); }
+  for (const sx of [-1, 1]) C.box(PW + 6, 2, PZ0 - PZ1 + 10, sx * (PW / 2 + 1), -8, (PZ0 + PZ1) / 2, { m: 12 });
+  fixed.push(E.mesh(X.pageEdge({}), { side: true }), C.mesh(X.cover({ c: '#2a4a8a' }))); }
+
+// ---- 文字の川（とじ目にそって流れる） ----
+const RV = []; for (let z = PZ0 + 10; z > PZ1 - 4; z -= 3) RV.push([-1.5, .05, z]);
+const glyT = X.glyphs({ c: '#3a4ab0', m: 4 }); glyT.minFilter = THREE.NearestFilter; glyT.generateMipmaps = false; glyT.needsUpdate = true; const river = R.strip(RV, 4, glyT, { lift: .04 }); scene.add(river);
+
+// ---- ページの山の上の物：小さな紙の家、木、しおりの旗、本の塔 ----
+const winW = T.window({ bars: 'cross', curtain: '#f4e8d0', box: true });
+for (let i = 0; i < 12; i++) { const sx = i % 2 ? 1 : -1, z = 14 - i * 12 - hash(i, 1) * 5, x = sx * (8 + hash(i, 2) * 10);
+  const hs = R.house({ w: 3.6 + hash(i, 3), d: 3.4, h: 2.4, h2: hash(i, 4) > .4 ? 2 : 0, wall: T.plaster({ c: '#fff4dc', frame: 'box', wood: '#3a4ab0' }), roof: X.cover({ c: ['#c83a4a', '#3a6ab0', '#4a8a5a'][i % 3], m: 3 }), base: X.pageEdge({}), win: winW, lit: 0, door: T.door({ style: 'plank', c: '#3a4ab0' }), chimney: i % 3 === 0, seed: i, pitch: 1.2 });
+  put(B1.warp(hs, { lean: [(hash(i, 5) - .5) * .3, (hash(i, 6) - .5) * .2], twist: (hash(i, 7) - .5) * .8, bulge: .15, wave: .7, seed: i }), x, z, -sx * PI / 2 + (hash(i, 8) - .5) * .6, H(x, z) - .2); }
+for (let i = 0; i < 22; i++) { const sx = i % 2 ? 1 : -1, z = 20 - hash(i, 3) * 170, x = sx * (7 + hash(i, 4) * 40), tr = R.tree({ kind: i % 3 ? 'round' : 'pine', h: 4 + hash(i, 5) * 4, c: ['#4a9a6a', '#6ab870', '#3a8a8a'][i % 3], seed: i }); put(B1.warp(tr, { wave: 1, twist: .5, lean: [(hash(i, 6) - .5) * .4, 0], seed: i, step: 1 }), x, z, i); }
+const RIB = ['#d83a4a', '#3a6ad8', '#f0b030', '#7a3ab0'], ribbons = [];
+const ribbonFlag = (x, z, c, h) => { const pole = R.geo().smooth(1).loft(5, [[0, .12, .12, 0, .8], [h, .08, .08, h / 2, 1]], { cap: 'top' }); put(pole.mesh(X.candy({ c: '#c8a050', c2: '#f0d890' })), x, z, 0, H(x, z) - .1);
+  const g = new THREE.Group(), G = R.geo(); for (let k = 0; k < 4; k++) G.quad([-.6, -(k + 1) * 1.3, 0], [.6, -(k + 1) * 1.3, 0], [.6, -k * 1.3, 0], [-.6, -k * 1.3, 0], [0, k / 4, 1, (k + 1) / 4]);
+  const m = G.mesh(X.ribbon({ c }), { side: true }); m.rotation.z = PI / 2; m.position.set(0, 0, 0); g.add(m); g.position.set(x, H(x, z) + h - .3, z); scene.add(g); ribbons.push(g); };
+for (let i = 0; i < 10; i++) { const sx = i % 2 ? 1 : -1, z = 10 - i * 18, x = sx * (16 + hash(i, 9) * 34); ribbonFlag(x, z, RIB[i % 4], 7 + hash(i, 10) * 5); }
+for (let i = 0; i < 6; i++) ribbonFlag(i % 2 ? 5.6 : -5.2, 8 - i * 14, RIB[(i + 1) % 4], 3.6);   // 道ぞいの小さな しおり
+// 本を積んだ塔（閉じた本の箱。背に題の模様）
+const book = (w, th, d, c, sd) => { const B = R.parts(), cv = X.cover({ c, m: Math.max(w, d) }), sp = X.spine({ c, seed: sd, m: th * 2 }), pe = X.pageEdge({});
+  B.g(cv).box(w, th * .12, d, 0, 0, 0, { uv: [0, 0, 1, 1], topUV: [0, 0, 1, 1] }).box(w, th * .12, d, 0, th * .88, 0, { uv: [0, 0, 1, 1], topUV: [0, 0, 1, 1] });
+  B.g(pe).box(w - .6, th * .76, d - .6, -.3 * 0, th * .12, -.3, { top: false, m: 2 });
+  B.g(sp).quad([-w / 2, 0, d / 2 + .02], [w / 2, 0, d / 2 + .02], [w / 2, th, d / 2 + .02], [-w / 2, th, d / 2 + .02], [0, 0, 1, 1]); return B.group(); };
+const tower = (x, z, n, s, sd) => { let y = H(x, z) - 1; for (let k = 0; k < n; k++) { const w = (22 - k * .9 + hash(k, sd) * 5) * s, d = (16 - k * .6 + hash(k, sd + 1) * 4) * s, th = (3 + hash(k, sd + 2) * 4) * s, b = book(w, th, d, ['#c83a4a', '#2a5aa8', '#3a8a5a', '#d8a030', '#7a3a9a', '#e8e0c8'][(k + sd) % 6], k + sd);
+  put(b, x + (hash(k, sd + 3) - .5) * 3 * s, z, (hash(k, sd + 4) - .5) * .7, y); y += th; } return y; };
+const TY = tower(-4, -215, 18, 1.7, 1); tower(-70, -250, 11, 1.4, 4); tower(80, -280, 13, 1.5, 7); tower(42, -120, 6, .8, 9); tower(-38, -90, 5, .7, 12);
+{ const G = R.geo().smooth(1); G.loft(8, [[0, 4, 4, 0, .9], [14, 2.6, 2.6, 2, 1], [26, .2, .2, 3, 1.1]], { cap: 'top' }); put(G.mesh(X.cover({ c: '#d8a030', m: 6 })), -4, -215, 0, TY); }   // 塔のてっぺんの、金のとんがり
+scene.add(R.backdrop({ c: '#7aa8b0', haze: '#f0f8e0', r: 640, h: 60, y: -10, rep: 5, seed: 6 }));
+for (let k = 0; k < 7; k++) { const c = R.cloud({ s: 60 + hash(k, 9) * 50, c: '#ffffff', shade: '#b8e0d8', seed: k }); c.position.set(-280 + k * 90, 90 + hash(k, 8) * 60, -460); scene.add(c); }
+scene.add(R.merge(fixed));
+
+// ---- 動く物：舞いあがる文字、鳥、人、ねこ ----
+const letters = [...Array(18)].map((_, i) => { const P = R.Px(8); P.clip = true; B1.glyph(P, 2, 2, i, ['#ffe070', '#ffffff', '#f8a0c0', '#3a4ab0'][i % 4]); B1.glyph(P, 3, 3, i, '#2a2a5a'); B1.glyph(P, 2, 2, i, ['#ffe070', '#ffffff', '#f8a0c0', '#a0f0e0'][i % 4]);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.from(P, { cut: true }), alphaTest: .5 })); s.scale.setScalar(.9); scene.add(s); return s; });
+const birds = PK.flock({ n: 8, r: 16, h: 4, c: '#fffaf0', s: 1.8, speed: .32 }); birds.position.set(0, 34, -60); scene.add(birds);
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#e8a030', skin: '#f4c8a0', eyes: 'big', mouth: 'smile', blush: true, cloth: 'robe', top: '#3a4ab0', top2: '#f8e8c0', skirt: .7, shoes: 'boot', shoe: '#6a3a2a', hat: 'wizard', acc: '#3a4ab0', neck: 'cape', belt: '#d83a4a' }); scene.add(hero);
+const tome = book(.42, .14, .32, '#d83a4a', 3); tome.scale.setScalar(1); hero.userData.J.foreL.add(tome); tome.position.set(0, -.22, .08); tome.rotation.set(0, 0, PI / 2);
+const folk = [R.actor({ hairStyle: 'bald', hair: '#d8d0c8', beard: 'beard', eyes: 'half', cloth: 'coat', top: '#7a5a3a', top2: '#f4ecd8', lower: 'pants', bottom: '#3a3a4a', shoes: 'shoe', hold: 'staff' }), R.actor({ hairStyle: 'spiky', hair: '#3a2a2a', s: .8, cloth: 'tunic', top: '#d83a4a', lower: 'shorts', bottom: '#3a4a6a', shoes: 'boot' })];
+folk.forEach(f => scene.add(f)); const cat = R.cat({ c: '#e8a050', belly: '#fff4e0' }); scene.add(cat);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 20, SPEED = 1.3;
+K.loop((dt, t) => {
+  const z = Z0 - t * SPEED, x = 2.5 + Math.sin(z * .08) * .3, y = H(x, z); hero.position.set(x, y, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.7, .8); hero.userData.J.armL.rotation.set(-.7, 0, .25); hero.userData.J.foreL.rotation.set(-1.1, 0, 0);
+  const tall = innerWidth < innerHeight; cam.position.set(x + 1.4, y + (tall ? 2.6 : 2.2), z + (tall ? 4.4 : 5.2)); cam.lookAt(x - .4, y + (tall ? 3 : 2.6), z - 12);   // うしろから。谷の奥の塔まで入れる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 6); land.follow(0, (PZ0 + PZ1) / 2);
+  glyT.offset.y = t * .25;
+  letters.forEach((s, i) => { const u = (t * .12 + i / letters.length) % 1, lz = z - 4 - (i * 2.7) % 26; s.position.set(-1.5 + Math.sin(t + i) * .8 + (i % 3 - 1) * .6, H(-1.5, lz) + .3 + u * 6, lz); s.material.opacity = 1; });
+  ribbons.forEach((g, i) => { g.rotation.y = Math.sin(t * 1.6 + i) * .5 + .4; g.rotation.x = Math.sin(t * 2.3 + i * 2) * .08; });
+  folk.forEach((f, i) => { const fz = z - 16 + ((t * 1.3 + i * 8) % 20), fx = -5.4 - i * 1.2; f.position.set(fx, H(fx, fz), fz); f.rotation.y = 0; R.walk(f, t * 4 + i, .6); });
+  { const cz = z - 3 + Math.sin(t * .5) * 1.5; cat.position.set(4.3, H(4.3, cz), cz); cat.rotation.y = Math.cos(t * .5) > 0 ? PI : 0; R.catPose(cat, 'walk', t * 5); }
+  birds.userData.tick(t); B1.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -14,7 +14,7 @@
 //   N.tower({ w: 12, d: 10, h: 40, c, seed, lit, cage, ac, wash, roof: true, shops: false, fog: true }) → Group   高い集合住宅（屋上に水のタンク・アンテナ・小屋）。userData.h
 //   N.sign({ n, dir, style, c, c2, bg, px: .045（1 ドットが何 m か）, arm: .35（かべからの はなれ）, flat: false（かべに平らに付ける）, flicker, seed }) → Group
 //       つき出し看板。かべが z=0 で、+z の向きへ つき出す（面は x の両がわを向く）。flat: true なら +z を向いて かべに付く。userData = { w, h, c }
-//   N.signs({ x0, x1, z: 0, y0: 3, y1: 12, n: 8, seed, cs: [色…], styles, dirs }) → Group   かべにそって看板をならべる（高さとつき出しをずらし、重ねる）。userData.lights（地面に焼く光）
+//   N.signs({ x0, x1, z: 0, y0: 3, y1: 12, n: 8, seed, cs: [色…], box: .4（箱の看板のわり合い）, horiz: .2（横書き）, reach: .8（つき出しの長さ）, flat: 0（かべに平らに付けるわり合い）, flick, px }) → Group   かべにそって看板をならべる（高さとつき出しをずらし、重ねる）。userData.lights（地面に焼く光）
 //   N.coil({ r: .35, turns: 5, c }) → Group   うずまきの線香（つるす点が y=0。下へたれる円すい）。userData.tip ＝ 火のついた先
 // ■ 人
 //   N.folk(k, o) → R.actor の引数（港町の人。k で かみ型・服・色がかわる。o で上書き）
@@ -150,7 +150,7 @@ window.PACK_NEON2 = (THREE, K, R, C) => {
   const NC = ['#ff5aa8', '#4ae0f0', '#ffd060', '#7af09a', '#ff7a3a', '#b48aff'], BOX = [['#f4ecd0', '#c8302a', '#c8302a'], ['#ffd23a', '#2a2a5a', '#c8302a'], ['#e83a2a', '#fff4d0', '#ffd23a'], ['#f0f4ff', '#2a5aa8', '#2a5aa8'], ['#3a9a6a', '#fff4d0', '#ffd23a']];
   N.signs = (o = {}) => { const g = new THREE.Group(), n = o.n || 8, sd = o.seed || 0, x0 = o.x0 ?? -10, x1 = o.x1 ?? 10, y0 = o.y0 ?? 3, y1 = o.y1 ?? 12, cs = o.cs || NC, lights = [], r = k => hash(sd, k, 53);
     for (let i = 0; i < n; i++) { const box = r(i * 5) < (o.box ?? .4), dir = r(i * 5 + 1) < (o.horiz ?? .2) ? 'h' : 'v', nn = dir === 'h' ? 3 + Math.floor(r(i * 5 + 2) * 2) : 2 + Math.floor(r(i * 5 + 2) * 4), B = BOX[Math.floor(r(i * 5 + 3) * BOX.length)], c = cs[Math.floor(r(i * 5 + 4) * cs.length)];
-      const s = N.sign(box ? { n: nn, dir, style: 'box', bg: B[0], c: B[1], c2: B[2], seed: sd * 31 + i, px: o.px || .05, arm: .3 + r(i * 7) * (o.reach ?? .8) } : { n: nn, dir, style: 'neon', c, c2: cs[(i + 2) % cs.length], seed: sd * 31 + i, px: o.px || .05, arm: .3 + r(i * 7) * (o.reach ?? .8), flicker: r(i * 9) < (o.flick ?? .15) });
+      const flat = r(i * 17) < (o.flat || 0), s = N.sign(box ? { n: nn, dir, style: 'box', bg: B[0], c: B[1], c2: B[2], seed: sd * 31 + i, px: o.px || .05, arm: .3 + r(i * 7) * (o.reach ?? .8), flat } : { n: nn, dir, style: 'neon', c, c2: cs[(i + 2) % cs.length], seed: sd * 31 + i, px: o.px || .05, arm: .3 + r(i * 7) * (o.reach ?? .8), flat, flicker: r(i * 9) < (o.flick ?? .15) });
       const x = x0 + (i + .5) / n * (x1 - x0) + (r(i * 11) - .5) * (x1 - x0) / n * .6, y = y0 + r(i * 13) * (y1 - y0); s.position.set(x, y, o.z || 0); g.add(s);
       lights.push({ x, y: y + s.userData.h / 2, z: (o.z || 0) + .4 + s.userData.w / 2, c: s.userData.c, h: s.userData.h, w: s.userData.w }); }
     g.userData.lights = lights; return g; };

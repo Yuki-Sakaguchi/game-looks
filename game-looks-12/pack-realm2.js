@@ -26,7 +26,7 @@ window.PACK_REALM2 = (THREE, K, R, F) => {
 
   Q.skyShip = (o = {}) => { const s = o.s || 1, g = new THREE.Group(), body = new THREE.Group(), ship = F.ship({ c: o.c || '#7a5236', c2: o.c2 || '#c8453a', sail: o.sail, sail2: o.sail2, crest: o.crest, cc: o.cc, trim: o.trim, flag: o.flag }), B = parts();
     body.add(ship);
-    const rib = T.planks({ c: o.rib || '#6a4c34' }), Rb = B.g(rib), Wg = B.g(wingTex(o.wing || '#ece0c4', o.c2 || '#c8453a'), { side: true }), It = B.g(F.tex.iron({ rust: .2, c: o.iron }));
+    const rib = T.planks({ c: o.rib || '#6a4c34' }), Rb = B.g(rib), It = B.g(F.tex.iron({ rust: .2, c: o.iron }));
     // つばさ：ふなべりの 2 点から、外へ 4 本のほねが扇にひらく。ほねのあいだに布
     const wings = [];
     for (const sx of [-1, 1]) { const wg = new THREE.Group(), G = geo(), Gr = geo(), L = [5.4, 6.6, 6.2, 4.6], A = [.55, .25, -.08, -.42];

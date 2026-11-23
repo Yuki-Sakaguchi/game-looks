@@ -70,7 +70,8 @@ for (let i = 0; i < 60; i++) { const near = i < 26, x = near ? -60 + hash(i, 6) 
 for (let i = 0; i < 30; i++) { const x = -70 + hash(i, 9) * 140, z = 16 + hash(i, 10) * 18; put(R.rock({ s: .8 + hash(i, 11) * 1.6, c: '#4a4a7a', moss: .4, seed: i }), x, z, i); }
 // 天井から さがる つらら石・岩の柱、滝
 for (let i = 0; i < 46; i++) { const x = (hash(i, 12) - .5) * 380, z = 10 - hash(i, 13) * 300, y = HC(x, z); if (y < 30) continue; put(FW.spike({ h: 12 + hash(i, 14) * 30, r: 4 + hash(i, 15) * 4, down: true, seed: i, tex: ROCK }), x, z, 0, y + 1); }
-for (const [x, z, h] of [[-170, -60, 70], [190, -90, 90], [-60, -260, 100]]) { const wf = FW.waterfall({ w: 6, h, c: '#a8e8ff', lip: 3 }); wf.position.set(x, 0, z); wf.rotation.y = -Math.atan2(x, z + 60); scene.add(wf); fixed.push(); LIGHTS.push(); wf.userData.isWf = true; scene.userData.wf = (scene.userData.wf || []).concat(wf); }
+const FALLS = [];
+for (const [x, z, h] of [[-170, -60, 70], [190, -90, 90], [-60, -260, 100]]) { const wf = FW.waterfall({ w: 6, h, c: '#a8e8ff', lip: 3 }); wf.position.set(x, 0, z); wf.rotation.y = -Math.atan2(x, z + 60); scene.add(wf); FALLS.push(wf); }
 scene.add(R.merge(fixed));
 // 塔のかさの光のにじみ
 TOW.forEach(([x, z, h, sr, c]) => { const hl = FW.halo(c, sr * 9, .32); hl.position.set(x, H(x, z) + h - sr, z); scene.add(hl); });
@@ -106,7 +107,7 @@ K.loop((dt, t) => {
   boats.forEach((g, i) => { const a = t * .05 + i * 2.1, bx = Math.sin(a) * (30 + i * 12), bz = -20 - i * 9 + Math.cos(a) * 6; g.position.set(bx, Math.sin(t + i) * .05, bz); g.rotation.y = a + (i % 2 ? PI : 0); const J = g.userData.rower.userData.J; J.armL.rotation.x = J.armR.rotation.x = -1 + Math.sin(t * 2 + i) * .5; });
   bugs.forEach((b, i) => { const a = t * .3 + i * .9; b.position.set(x + Math.sin(a + i) * (5 + i % 5), y + 1 + Math.sin(t * .7 + i) * 1.2 + (i % 3), Math.cos(a * 1.2) * 4 - 2); b.rotation.y = a; FW.bugPose(b, t + i); });
   spores.position.set(x, y - 4, -6);
-  R.flip(wm, WF, t, 4); (scene.userData.wf || []).forEach(w => w.userData.tick?.(t));
+  R.flip(wm, WF, t, 4); FALLS.forEach(w => w.userData.tick?.(t));
   F.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
 });
 </script>

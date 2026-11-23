@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-37 夜市の龍のまつり 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#120c18;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0dc;opacity:.88;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-37 ─ 夜市の龍のまつり / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-neon2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// ネオンの港町の夜市。屋台がならぶ通りを、長い布の龍が 10 人の踊り手の棒にささえられて、うねりながら進む。爆竹のけむりと火花、頭の上にはちょうちんの列、
+// その向こうに集合住宅が 40〜80 m 積み重なり、看板がびっしり光る。色の組は「赤（龍・ちょうちん）・金（うろこ・電球）・紺（夜空とかべ）」＋差し色の 水色（ネオン）。
+// 主役は光る玉の棒を持って龍をみちびく若者（R.actor の toon）。カメラは横から並んで進み、少し見上げる。龍・踊り手・見物の人・けむり・火花が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), N = PACK_NEON2(THREE, K, R, C), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const RED = '#d8302a', GOLD = '#f0b42a', CY = '#4ae0f0';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#0c0a22'], [.55, '#241a4a'], [.9, '#5a2a52'], [1, '#8a3a4a']], { r: 600 })); scene.fog = new THREE.Fog('#2a1a3a', 40, 300);
+const { sun } = K.lights(scene, renderer, { sky: 0xa890d0, ground: 0x6a3a40, amb: 1.6, sun: 0xffc8a0, power: .5, range: 30 });
+
+// ---- 通り：x の向き。北がわ（-z）に屋台と見物の人、その奥に集合住宅。カメラは南がわから見る ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, lights = [];
+const WALLC = ['#a88a9a', '#8a8aa8', '#9a8a7a', '#b0a0a8', '#7a8aa0', '#a8907a'];
+for (let x = -60, i = 0; x < 200; i++) { const w = 10 + hash(i, 1) * 5, h = 34 + hash(i, 2) * 44, d = 12;
+  put(N.tower({ w, d, h, c: WALLC[i % 6], seed: i + 3, lit: .4, shops: true, awning: ['#a8443a', '#c8963a', '#3a4a8a'][i % 3] }), x + w / 2, -9 - d / 2 - hash(i, 3) * 2);
+  if (hash(i, 4) > .25) put(N.tower({ w: w * .9, d: 12, h: h + 25 + hash(i, 5) * 30, c: WALLC[(i + 3) % 6], seed: i + 30, lit: .32 }), x + w * .5, -34 - hash(i, 6) * 8);
+  x += w + .3; }
+for (let x = -60, k = 0; x < 190; x += 14, k++) { const g = N.signs({ x0: 0, x1: 14, z: 0, y0: 3.8, y1: 24, n: 10, seed: k + 60, box: .45, horiz: .25, reach: 1.6, px: .065, flat: .55, flick: .1 }); g.position.set(x, 0, -9); fixed.push(g);
+  for (const l of g.userData.lights) if (l.y < 8) lights.push({ x: x + l.x, z: -8, r: 3, c: l.c, k: .45 }); }
+// 屋台の列（のれん・湯気）と、売り台の電球
+const STALL = [], YC = [['#d8302a', '#f4ecd0'], ['#c8963a', '#f4ecd0'], ['#3a4a9a', '#e8f0ff'], ['#2f7a6a', '#f4ecd0']];
+for (let x = -40, i = 0; x < 120; x += 3.6, i++) { const [c, c2] = YC[i % 4]; STALL.push(put(C.yatai({ c, c2, kind: ['wave', 'ring', 'dots', 'bars'][i % 4], seed: i }), x, -5.4, 0)); lights.push({ x, z: -4.2, r: 3.4, c: '#ffc070', k: .7 }); }
+// 頭の上のちょうちんの列（通りをまたぐ）
+const lan = []; for (let x = -40; x < 120; x += 5) { lan.push(C.lanterns([x, 6.2, -8.6], [x + 2, 6.6, 7], { n: 6, sag: .9, kind: 'red', r: .26 })); lights.push({ x: x + 1, z: -1, r: 3.6, c: '#ff8050', k: .35 }); }
+fixed.push(...lan);
+const land = R.ground({ w: 300, d: 40, cell: 1.5, cx: 40, layers: [X.asphalt({ wet: .3, c: '#4a3a5a', wetC: '#8a5a8a' }), X.conc({ c: '#9a8a9a' }), T.cobble({ kind: 'slab', c: '#8a7a80' })], mix: (x, z) => [z < -7.5 ? 1 : 0, z > 6 ? 1 : 0], shade: C.lightShade(lights, [.52, .46, .68]) });
+scene.add(land.mesh); scene.add(R.merge(fixed));
+scene.add(C.backdrop({ r: 420, h: 130, y: -6, c: '#2a2050', haze: '#5a2a52', rep: 4 }));
+
+// ---- 布の龍（ページの中で作る）。うろこの絵 32×32、頭の顔の絵 32×32 ----
+const scaleTex = (() => { const P = R.Px(32), Rd = R.ramp(RED), G = R.ramp(GOLD);
+  P.each((x, y) => { const row = y >> 3, sx = (x + (row & 1) * 4) & 7, sy = y & 7, d = Math.hypot(sx - 3.5, sy - 1); if (y >= 26) return y === 26 ? G[1] : (x + y) % 4 === 0 ? G[4] : G[3]; if (y < 3) return x % 3 === 0 ? G[5] : G[3];
+    return d > 3.6 && d < 4.6 ? G[3] : d < 3.6 ? (sy < 3 ? Rd[4] : Rd[3]) : Rd[2]; }); return T.from(P, { m: 1 }); })();
+const faceTex = (() => { const P = R.Px(32), Rd = R.ramp(RED), G = R.ramp(GOLD), W = R.ramp('#f4f0e0');
+  P.each((x, y) => (x + y) % 5 === 0 ? Rd[4] : Rd[3]);
+  for (const ex of [8, 23]) { P.disc(ex, 11, 5, W[4]); P.disc(ex, 11, 5 - 1.4, '#1a1428'); P.set(ex - 1, 9, '#ffffff'); P.set(ex, 9, '#ffffff'); for (let i = -6; i <= 6; i++) P.set(ex + i, 5 - Math.round(Math.abs(i) * .4), G[4]); }
+  for (let x = 4; x < 28; x++) { P.set(x, 22, G[1]); if (x % 3 === 0) { P.set(x, 23, W[5]); P.set(x, 24, W[4]); } } for (let x = 10; x < 22; x++) P.set(x, 17, Rd[1]); P.disc(12, 18, 1.2, '#1a1428'); P.disc(20, 18, 1.2, '#1a1428');
+  for (let y = 26; y < 32; y++) for (let x = 0; x < 32; x++) P.set(x, y, (x + y) % 3 ? G[3] : G[4]); return T.from(P, { m: 1 }); })();
+const SEG = 16, segs = [], body = new THREE.Group(); scene.add(body);
+for (let i = 0; i < SEG; i++) { const r = i === 0 ? .46 : .42 * (1 - i / SEG * .55), G = R.geo().smooth(1); G.loft(8, [[-.55, r * .92, r, 0, .9], [0, r * 1.05, r * 1.12, .5, 1], [.55, r * .92, r, 1, .9]], { ur: 2 });
+  for (let k = 0; k < 3; k++) { const y = -.4 + k * .4; G.rect(0, .9, 1, 1).tri([0, y - .14, r * 1.1], [0, y + .14, r * 1.1], [0, y, r * 1.1 + .28]); }   // 背の金のひれ
+  const m = G.mesh(scaleTex, { side: true }), h = new THREE.Group(); h.add(m); m.rotation.set(-PI / 2, 0, 0); body.add(h); segs.push(h); }
+// 頭：上あご・下あご・角・ひげ（どれもテクスチャつきの少ない面）
+const head = new THREE.Group(); { const G = R.geo(); G.box(.9, .62, 1.3, 0, -.05, .1, { taper: [.8, .7], uv: [0, 0, 1, 1] }); G.box(.7, .2, 1, 0, -.32, .2, { uv: [0, 0, 1, .2] }); head.add(G.mesh(faceTex));
+  const Hn = R.geo(); for (const s of [-1, 1]) Hn.at(R.TR(s * .28, .4, -.2, 0, -.7, s * .25)).box(.1, .7, .1, 0, 0, 0, { taper: .2 }); head.add(Hn.mesh(T.bark({ c: GOLD })));
+  const Wk = R.geo(); for (const s of [-1, 1]) Wk.quad([s * .3, -.1, .6], [s * .9, -.4, .9], [s * .9, -.2, .9], [s * .3, .05, .6]); head.add(Wk.mesh(T.fabric({ c: '#f4f0e0', pattern: 'plain' }), { side: true }));
+  const Mn = R.geo(); Mn.loft(6, [[0, .5, .4, 0, 1], [.5, .35, .3, 1, .8]], {}); const mane = Mn.mesh(T.fabric({ c: GOLD, c2: '#fff0a0', pattern: 'stripe' }), { side: true }); mane.rotation.x = -1.2; mane.position.set(0, .15, -.4); head.add(mane); }
+scene.add(head);
+// 踊り手（黄色い服と赤いはちまき。棒で龍をささえる）
+const POLE = R.mat(T.bark({ c: '#8a5a34' })), dancers = [];
+for (let i = 0; i < 9; i++) { const p = R.actor({ build: 'toon', hairStyle: ['short', 'spiky', 'tufts'][i % 3], hair: '#1e1a22', eyes: 'sharp', mouth: 'open', cloth: 'tunic', sleeve: 'short', top: GOLD, top2: RED, bottom: RED, lower: 'baggy', shoes: 'shoe', shoe: '#1e1a22', hat: 'band', acc: RED, belt: '#1e1a22' }); scene.add(p);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1, 5), POLE); scene.add(pole); dancers.push({ p, pole, i }); }
+// 主役：光る玉の棒を持って先をいく
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#2a1e2a', eyes: 'big', mouth: 'smile', cloth: 'jacket', top: RED, top2: GOLD, bottom: '#1e2a4a', lower: 'baggy', shoes: 'shoe', shoe: '#f4f0e0', hat: 'band', acc: GOLD, belt: GOLD }); scene.add(hero);
+const pearl = new THREE.Group(); { const pm = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.6, 5), POLE); pm.position.y = .8; const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(.22, 1), R.mat('#fff4c8', { glow: true })); ball.position.y = 1.7; const hl = C.halo({ c: '#ffe0a0', r: .9, k: .9 }); hl.position.y = 1.7; pearl.add(pm, ball, hl); pearl.userData.ball = ball; } scene.add(pearl);
+const pl = new THREE.PointLight('#ffe0a0', 10, 8, 1.4); scene.add(pl);
+// 見物の人（屋台の前。手をたたく・ふりむく）、こども、ねこ
+const watch = [...Array(22)].map((_, k) => { const p = R.actor(N.folk(k + 100)); p.position.set(-20 + k * 2.1 + hash(k, 1) * .8, 0, -3.5 - hash(k, 2) * .9); p.rotation.y = .2 * (hash(k, 3) - .5); scene.add(p); return p; });
+const front = [...Array(6)].map((_, k) => { const p = R.actor(N.folk(k + 150, { s: k % 2 ? .72 : .95 })); p.position.set(-6 + k * 4.3, 0, 5.6 + hash(k, 5) * .6); p.rotation.y = PI + (hash(k, 6) - .5) * .5; scene.add(p); return p; });
+// 爆竹のけむりと火花（龍の足もとについて動く）
+const smokes = [0, 1, 2].map(k => { const s = C.steam({ r: .7, rise: 2.6, n: 9, c: '#d8c8d8', a: .45, speed: .45, phase: k }); scene.add(s); return s; });
+const sparks = [0, 1].map(k => { const s = C.sparks({ n: 16, every: 1.1 + k * .4, c: '#ffd060', power: 1.2 }); scene.add(s); return s; });
+const warm = new THREE.PointLight('#ff9060', 12, 12, 1.3); scene.add(warm);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SPEED = .7, SPAN = 34, X0 = -8, v = new THREE.Vector3();
+K.loop((dt, t) => {
+  const d = (t * SPEED) % SPAN, x = X0 + d, tall = innerWidth < innerHeight;
+  // 龍：頭は主役のうしろ 2.2 m。体はうしろへ、上下と左右にうねる
+  const P = i => { const s = i * .95, xx = x - 2.4 - s; return [xx, 2.15 + Math.sin(t * 3.1 - i * .62) * .8 + (i === 0 ? .15 : 0), -.6 + Math.sin(t * 1.4 - i * .42) * 1.4]; };
+  const pts = [...Array(SEG + 1)].map((_, i) => P(i));
+  segs.forEach((h, i) => { const a = pts[i], b = pts[i + 1]; h.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); h.lookAt(b[0], b[1], b[2]); });
+  head.position.set(pts[0][0] + .55, pts[0][1] + .1, pts[0][2]); head.lookAt(head.position.x + 3, head.position.y + Math.sin(t * 2.4) * .6, head.position.z + Math.sin(t * 1.3) * .8);
+  dancers.forEach(({ p, pole, i }) => { const a = pts[1 + i * 1.6 | 0]; p.position.set(a[0], 0, a[2] + .1); p.rotation.y = PI / 2 + Math.sin(t * 1.4 - i * .42) * .3; R.walk(p, t * 7 + i, 1.1);
+    const J = p.userData.J; J.armR.rotation.x = J.armL.rotation.x = -2.4; J.foreR.rotation.x = J.foreL.rotation.x = -.2; p.position.y = Math.max(0, Math.sin(t * 6 + i)) * .12;
+    pole.position.set(a[0], (a[1] + 1.4) / 2, a[2]); pole.scale.y = a[1] - 1.4 + .3; });
+  // 主役：玉を龍の顔の前で ふりまわしながら、横向きに歩く
+  hero.position.set(x, 0, 2.1); hero.rotation.y = -.75 + Math.sin(t * 1.2) * .3;   // 龍のほうを向いて、うしろ向きに歩く R.walk(hero, t * 6, .8);
+  const J = hero.userData.J; J.armR.rotation.x = -2 + Math.sin(t * 2.4) * .3; J.foreR.rotation.x = -.3;
+  pearl.position.set(x - .25, .9, 2.4); pearl.rotation.z = .35 + Math.sin(t * 2.4) * .35; pearl.rotation.x = Math.sin(t * 1.6) * .2; pearl.userData.ball.getWorldPosition(v); pl.position.copy(v);
+  // カメラ：南がわから横に並んで進み、少し見上げる
+  const cd = tall ? 8.2 : 7.4, cx = x - (tall ? 1.2 : 2); cam.position.set(cx, tall ? 1.3 : 1.2, cd); cam.lookAt(cx, tall ? 4.1 : 3.3, -4);
+  crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
+  sun.position.set(x + 20, 50, 30); sun.target.position.set(x, 0, 0); land.follow(x + 20, 0); warm.position.set(x - 5, 3, 1);
+  smokes.forEach((s, k) => s.position.set(x - 3 - k * 4.5, .1, -.6 + k * .7)); sparks.forEach((s, k) => s.position.set(x - 2 - k * 6, .15, 1.2 - k));
+  watch.forEach((p, k) => { R.idle(p, t + k, Math.atan2(x - 3 - p.position.x, 6) * .6); const c = Math.sin(t * 7 + k) > .3; p.userData.J.armR.rotation.x = p.userData.J.armL.rotation.x = c ? -1.2 : -1; p.userData.J.foreR.rotation.x = p.userData.J.foreL.rotation.x = c ? -.9 : -.6; });
+  front.forEach((p, k) => { R.idle(p, t + k * 2, Math.sin(t * .5 + k) * .3); p.visible = Math.abs(p.position.x - cx) > 3.4; });
+  N.tick(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
