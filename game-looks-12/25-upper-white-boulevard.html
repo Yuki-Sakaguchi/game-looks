@@ -75,7 +75,7 @@ const Z0 = 4, SPEED = 1.0, LEN = 40;
 K.loop((dt, t) => {
   const dist = (t * SPEED) % LEN, z = Z0 - dist, x = EDGE - 2.9;
   hero.position.set(x, 0, z); hero.rotation.y = PI + .15; R.walk(hero, dist * 5, .8); hero.userData.J.head.rotation.y = .5 + Math.sin(t * .4) * .3;   // 歩きながら 手すりのむこうを見る
-  const tall = innerWidth < innerHeight; cam.position.set(EDGE - (tall ? 1.5 : 2.0), tall ? 3.2 : 3.2, z + (tall ? 3.0 : 4.6)); cam.lookAt(x + (tall ? 2.2 : 5), tall ? -7 : -2.6, z - 12);   // うしろななめ上から 手すりのむこうを見下ろす
+  const tall = innerWidth < innerHeight; cam.position.set(EDGE - (tall ? 2.1 : 2.0), tall ? 3.3 : 3.2, z + (tall ? 3.0 : 4.6)); cam.lookAt(x + (tall ? 2.2 : 5), tall ? -4.5 : -2.6, z - 12);   // うしろななめ上から 手すりのむこうを見下ろす
   sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
   strollers.forEach((s, i) => { const u = (t * s.sp + s.ph) % 220, zz = s.dir > 0 ? -170 + u : 50 - u; let lx = s.lane; if (zz > z - 2 && zz < z + 6 && lx > x - 2.5) lx = x - 2.5; s.p.position.set(lx, 0, zz); s.p.rotation.y = s.dir > 0 ? 0 : PI; R.walk(s.p, t * s.sp * 4.2 + i, .5); });
   guards.forEach((g, i) => { R.idle(g, t + i * 3, Math.sin(t * .3 + i) * .5); g.userData.J.armR.rotation.x = -.25; });

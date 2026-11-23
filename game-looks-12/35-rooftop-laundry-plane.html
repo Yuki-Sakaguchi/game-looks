@@ -38,14 +38,14 @@ for (let i = -6; i <= 6; i++) for (let j = -6; j <= 2; j++) { if (j === 0 && Mat
 for (let k = 0; k < 16; k++) put(N.tower({ w: 24, d: 22, h: 90 + hash(k, 1) * 90, c: '#c8ccd8', seed: 800 + k, roof: false, acBox: 0, grad: [1, 1.05] }), -360 + k * 48 + hash(k, 2) * 20, -300 - hash(k, 3) * 120);   // 遠くの高層の棟（かすむ）
 
 // ---- 主役の屋上の物：物干しの台・アンテナ・タンク・はしご小屋・植木ばち・鳥小屋 ----
-{ const B = R.parts(), pole = B.g(T.bark({ c: '#c8b078' })).smooth(1); for (const z of [-5, -2.2, 1.8]) for (let x = -14; x <= 14; x += 7) pole.loft(5, [[H0, .05, .05, 0, 1, x, z], [H0 + 2.3, .045, .045, 1, 1, x, z]]); fixed.push(B.group()); }
+{ const B = R.parts(), pole = B.g(T.bark({ c: '#c8b078' })).smooth(1); for (const z of [-5.4, -2.6]) for (let x = -14; x <= 14; x += 7) pole.loft(5, [[H0, .05, .05, 0, 1, x, z], [H0 + 2.3, .045, .045, 1, 1, x, z]]); fixed.push(B.group()); }
 for (const [x, z, h] of [[-12, -6.5, 4.5], [-9, -6.8, 3.4], [6, -7, 5.2], [13, 6.5, 3.8], [10, -6.6, 4]]) put(N.antenna({ h, n: 6 }), x, z, x * .3, H0);
 for (const [x, z, r] of [[-15, 5.5, 1.1], [-12.3, 5.6, .9], [15, -5.8, 1]]) put(C.tank({ r, h: 2, c: ['#4f8f88', '#a8a49a', '#c8a04a'][Math.round(x) & 1 ? 0 : 1], legs: .9 }), x, z, 0, H0);
 put(C.shack({ w: 4, d: 3.4, floors: 1, seed: 7, shop: 'door', lit: 0, awning: 'tin', laundry: false, sign: false }), 4, 5.6, PI, H0);
 for (let k = 0; k < 7; k++) { const G = R.geo().smooth(1); G.loft(8, [[0, .22, .22, 0, .8], [.4, .3, .3, 1, 1]], { cap: 'top' }); put(G.mesh(T.brick({ c: '#c86a4a' })), -6 + k * 1.1, 7.3, 0, H0); put(R.tuft({ kind: k % 2 ? 'bush' : 'flower', s: .7 }), -6 + k * 1.1, 7.3, k, H0 + .4); }
 put(R.crate({ s: .6 }), 9, 2.6, .3, H0); put(R.crate({ s: .5, kind: 'x' }), 9.6, 3.4, .8, H0); put(C.drum({ c: '#4f8f88' }), -3, 6.4, 0, H0);
 scene.add(R.merge(fixed));
-const wash = []; for (const z of [-5, -2.2, 1.8]) for (let x = -14; x < 14; x += 7) { const l = N.laundry([x, H0 + 2.2, z], [x + 7, H0 + 2.2, z], { seed: Math.round(x * 3 + z * 7), n: 6, sag: .18 }); scene.add(l); wash.push(l); }
+const wash = []; for (const z of [-5.4, -2.6]) for (let x = -14; x < 14; x += 7) { const l = N.laundry([x, H0 + 2.2, z], [x + 7, H0 + 2.2, z], { seed: Math.round(x * 3 + z * 7), n: 6, sag: .18 }); scene.add(l); wash.push(l); }
 for (let k = 0; k < 18; k++) { const x = -110 + hash(k, 1) * 220, z = -100 + hash(k, 2) * 120; if (Math.abs(x) < 20 && Math.abs(z) < 12) continue; const y = H0 + Math.floor((hash(k, 3) - .3) * 6) * 3 + 1.8; scene.add(N.laundry([x, y, z], [x + 6, y, z + (hash(k, 4) - .5) * 3], { seed: k + 40, n: 5 })); }   // まわりの屋上の洗たく物
 
 // ---- 生きもの：はと（ついばむ）・回る群れ ----
@@ -65,9 +65,9 @@ const SPEED = .8, X0 = 6;
 K.loop((dt, t) => {
   const x = X0 - t * SPEED, z = -.6 + Math.sin(t * .4) * .2, tall = innerWidth < innerHeight;
   hero.position.set(x, H0, z); hero.rotation.y = -PI / 2; R.walk(hero, t * SPEED * 7.4, .9); hero.userData.J.head.rotation.x = -.3 - Math.max(0, Math.sin(t * .5)) * .2;
-  if (tall) { cam.position.set(x - 2.6, H0 + 1.3, z + 3.6); cam.lookAt(x + .6, H0 + 4.2, z - 10); } else { cam.position.set(x - 3.4, H0 + 1.5, z + 3.4); cam.lookAt(x + 2, H0 + 3.6, z - 10); }
+  if (tall) { cam.position.set(x - 2.4, H0 + .9, z + 4.6); cam.lookAt(x + 3.6, H0 + 4.6, z - 10); } else { cam.position.set(x - 3.6, H0 + 1, z + 4.4); cam.lookAt(x + 3.4, H0 + 4.4, z - 10); }
   sun.position.set(x + SUN.x * 60, H0 + SUN.y * 60, SUN.z * 60); sun.target.position.set(x, H0, 0);
-  const u = ((t + 1) % 30), px = 60 - u * 11; plane.position.set(px, H0 + 30 - u * .5, -24 + u * .3); plane.rotation.set(0, -.18, .04); plane.visible = px > -260;
+  const u = ((t + 1) % 30), px = 60 - u * 11; plane.position.set(px, H0 + 19 - u * .3, -22 + u * .3); plane.rotation.set(0, -.18, .04); plane.visible = px > -260;
   pigeons.forEach((b, i) => R.birdPose(b, i % 3 === 2 ? 'stand' : 'peck', t * 1.2 + i * 1.7));
   R.idle(gran, t, Math.sin(t * .6) * .2); gran.userData.J.armL.rotation.set(-2.4 - Math.sin(t * 1.4) * .2, 0, .1); gran.userData.J.armR.rotation.set(-2.3 - Math.cos(t * 1.4) * .2, 0, -.1);
   flock.userData.tick(t); C.update(t, cam); N.tick(t); crt.render(scene, cam, t);
