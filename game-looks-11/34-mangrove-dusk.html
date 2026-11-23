@@ -34,11 +34,11 @@ const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a)
 const H = (x, z) => -.55 + sstep(1.1, .7, dMG(x, z)) * .7;
 const land = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, H, layers: [T.dirt({ c: '#5a4234', pebbles: .3 }), T.grass({ c: '#5a7a3a' })], mix: (x, z) => [dMG(x, z) < .75 ? 1 : 0, 0] }); scene.add(land.mesh);
 const WF = J.tex.river({ c: '#a894c4', hi: '#fff0c0', m: 3 });
-const water = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, layers: [WF[0]], shade: (x, z) => { const k = sstep(1.6, .9, dMG(x, z)), g = sstep(-10, -60, z); return [.95 - k * .5 + g * .25, .95 - k * .5 + g * .05, 1.05 - k * .35 - g * .25]; } });
+const water = R.ground({ w: 110, d: 130, cell: 1.5, cz: -14, layers: [WF[0]], shade: (x, z) => { const k = sstep(1.6, .9, dMG(x, z)), g = sstep(.35, .75, F.vn(x * .06, z * .045, 4)); return [.95 - k * .5 + g * .35, .95 - k * .5 + g * .02, 1.05 - k * .35 - g * .35]; } });
 water.mesh.position.y = -.04; scene.add(water.mesh);
 // 水に映る夕日の光の道（加算の横線。日の方角へ）
-const glint = (() => { const P = R.Px(32, 64); P.clip = true; for (let y = 0; y < 64; y++) { const w = 3 + y * .2; for (let k = 0; k < 2; k++) { const x0 = Math.round(16 - w / 2 + (hash(y, k) - .5) * 8), L = Math.round(w * (.4 + hash(y, k + 2) * .6)); if ((y + k * 3) % 4) continue; for (let i = 0; i < L; i++) P.set(x0 + i, y, i % 3 ? '#ffd890' : '#fff4d0'); } } const t = T.from(P, { m: 1 });
-  const G = R.geo().normal([0, 1, 0]); G.quad([-4, 0, 0], [4, 0, 0], [7, 0, -60], [-7, 0, -60]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: t, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .4, fog: false })); m.renderOrder = 3; scene.add(m); return m; })();
+const glint = (() => { const P = R.Px(32, 64); P.clip = true; for (let y = 0; y < 64; y++) { const w = 3 + y * .2; for (let k = 0; k < 2; k++) { const x0 = Math.round(16 - w / 2 + (hash(y, k) - .5) * 8), L = Math.round(w * (.4 + hash(y, k + 2) * .6)); if ((y + k * 3) % 4) continue; for (let i = 0; i < L; i++) P.set(x0 + i, y, i % 3 ? '#ffa850' : '#ffe0a0'); } } const t = T.from(P, { m: 1 });
+  const G = R.geo().normal([0, 1, 0]); G.quad([-3, 0, 0], [3, 0, 0], [9, 0, -70], [-9, 0, -70]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ map: t, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .75, fog: false })); m.renderOrder = 3; scene.add(m); return m; })();
 
 const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
 for (const [x, z, r, i] of MG) put(J.mangrove({ h: 4.5 + hash(i, 4) * 3, r, c: ['#3a6a40', '#2f5a3a', '#44723e'][i % 3], seed: i }), x, z, hash(i, 5) * 6, -.05);
