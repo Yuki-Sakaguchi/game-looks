@@ -14,7 +14,7 @@
 //   skyline { c, haze, lit, seed }   遠くの塔の町なみ（128×64。抜き）   beam   光の線の芯（加算で使う）   fur { c, c2 }   耳・しっぽの毛
 // ■ 形
 //   CY.isle({ r, depth, n, top, side, rim（色。ふちの光の帯）, seed })   浮かぶ島（上の面が y=0）。上は板の床、下はすぼまる段
-//   CY.tower({ r, h, n, tex, steps, spire, c（光の色）, ledge })   白い塔（段ごとに細くなる筒と、光の帯、先の光）。userData.top
+//   CY.tower({ r, h, n, tex, steps, spire, c（光の色）, ledge, glow（かべを光に関係なく見せる。夜の窓あかり） })   白い塔（段ごとに細くなる筒と、光の帯、先の光）。userData.top
 //   CY.board({ w, h, kind, c, bg, ink, seed, score, opacity, frame })   浮かぶ窓の板（+z 向き。下のまん中が原点）。userData.face ＝ 光る面
 //   CY.lines([[a, b], …], { w, c, k, mode: 'flat'/'up'/'cross', fog })   光の線（加算）
 //   CY.packets(点の列, { n, c, s, speed, loop })   線にそって流れる光の粒（userData.tick）
@@ -105,7 +105,7 @@ window.PACK_CYBER2 = (THREE, K, R) => {
     Bp.g(side, { emissive: o.lift || '#4a4c62' }).loft(sec, [[-dp, r * .06, r * .06, -dp / 3, .8], [-dp * .72, r * .34, r * .34, -dp * .72 / 3, .86], [-dp * .45, r * .62, r * .62, -dp * .45 / 3, .92], [-dp * .2, r * .86, r * .86, -dp * .2 / 3, .97], [-.45, r * .98, r * .98, 0, 1]], { ur });
     const g = Bp.group(); if (o.rim) { const Gr = R.geo(); Gr.loft(sec, [[-.42, r * 1.012, r * 1.012, 0], [-.3, r * 1.012, r * 1.012, 1]], { ur: n }); const me = new THREE.Mesh(Gr.build(), R.mat(CY.tex.beam(), { glow: true, color: o.rim })); g.add(me); }
     g.userData.r = r; return g; };
-  CY.tower = (o = {}) => { const r = o.r || 4, h = o.h || 40, n = o.n || 8, st = o.steps || 3, t = o.tex || CY.tex.wall({ seed: o.seed || 0 }), Bp = R.parts(), W = Bp.g(t), Lg = Bp.g(CY.tex.tile({ n: 4, seed: 3 })), c = o.c || '#7ad0ec', Gl = Bp.g(CY.tex.beam(), { glow: true, color: c }), sec = R.ngon(n, .5);
+  CY.tower = (o = {}) => { const r = o.r || 4, h = o.h || 40, n = o.n || 8, st = o.steps || 3, t = o.tex || CY.tex.wall({ seed: o.seed || 0 }), Bp = R.parts(), W = Bp.g(t, o.glow ? { glow: true } : {}), Lg = Bp.g(CY.tex.tile({ n: 4, seed: 3 })), c = o.c || '#7ad0ec', Gl = Bp.g(CY.tex.beam(), { glow: true, color: c }), sec = R.ngon(n, .5);
     let y = 0, rr = r; for (let i = 0; i < st; i++) { const hh = h / st * (i === 0 ? 1.15 : .92), r2 = rr * .94, ur = Math.max(1, Math.round(2 * PI * rr / 3 / 1.2)); W.loft(sec, [[y, rr, rr, y / 3, .95], [y + hh, r2, r2, (y + hh) / 3, 1.05]], { ur });
       if (o.ledge !== false) { Lg.loft(sec, [[y + hh - .3, r2 * 1.12, r2 * 1.12, 0, .8], [y + hh, r2 * 1.12, r2 * 1.12, .1, 1]], { cap: 'top', capRect: true, ur: 4 }); Gl.loft(sec, [[y + hh - .6, r2 * 1.01, r2 * 1.01, 0], [y + hh - .35, r2 * 1.01, r2 * 1.01, 1]], { ur: n }); }
       y += hh; rr = r2 * .74; }

@@ -71,7 +71,7 @@ const SPEED = 1.1, SPAN = 22, X0 = -11;
 K.loop((dt, t) => {
   const d = (t * SPEED) % SPAN, x = X0 + d, z = -(RX + 1.5), tall = innerWidth < innerHeight;
   hero.position.set(x, 0, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 6.2, .85); N.umbPose(hero);
-  const cx = Math.max(-3.5, Math.min(3.5, x * .35)); if (tall) { cam.position.set(cx, 6.2, z - 8); cam.lookAt(x * .85, 2, z + 5); } else { cam.position.set(cx, 5.6, z - 9); cam.lookAt(x * .6, 1.8, z + 6); }
+  const cx = Math.max(-3.5, Math.min(3.5, x * .35)); if (tall) { cam.position.set(x * .7, 4.8, z - 6.4); cam.lookAt(x + .4, 1.6, z + 6); } else { cam.position.set(cx, 4.8, z - 7.2); cam.lookAt(x * .9, 1.5, z + 6); }
   crt.u.bright.value = Math.min(1, d / .5, (SPAN - d) / .5);
   sun.position.set(x + 10, 40, z - 20); sun.target.position.set(x, 0, z); glow.position.set(x, 3, z - 1.5);
   { const W = 220, bx = ((t * 5.5 + 40) % W) - 70; bus.position.set(bx, 0, -2.6); bus.rotation.y = 0; for (const w of bus.userData.wheels) w.rotation.z = -t * 11; BL[0].x = bx; BL[0].z = -2.6; BL[1].x = bx + 5.6; BL[1].z = -2.6; BL[2].x = bx - 5.6; BL[2].z = -2.6; }
