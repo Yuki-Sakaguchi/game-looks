@@ -38,14 +38,14 @@ const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z)
 for (let i = 0; i < SP.length; i += 3) for (const s of [-1, 1]) { const a = SP[i], b = SP[Math.min(SP.length - 1, i + 1)], dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, x = a.x - dz / l * s * 1.35, z = a.z + dx / l * s * 1.35; if (hash(i, s) < .35) continue; put(R.rock({ s: .25 + hash(i, s + 4) * .25, c: '#9a9c8a', moss: .8, seed: i }), x, z, i, H(x, z) - .1); }
 
 // ---- 雲霧林：こけむした木（えだに着生植物と、たれる こけ）、木生しだ、しだ ----
-const trees = []; for (let i = 0; i < 44; i++) { const x = (hash(i, 1) - .5) * 50, z = 20 - hash(i, 2) * 70, [d] = near(x, z); if (d < 3.6) continue;
+const trees = []; for (let i = 0; i < 90; i++) { const x = (hash(i, 1) - .5) * 40, z = 22 - hash(i, 2) * 70, [d] = near(x, z); if (d < 2.9 || trees.some(q => Math.hypot(q.position.x - x, q.position.z - z) < 4.2)) continue;
   const tr = put(J.bigTree({ h: 11 + hash(i, 3) * 6, r: .38 + hash(i, 4) * .14, crown: 4.5, c: ['#5a8a4a', '#4a7a44', '#6a9a50'][i % 3], barkC: '#7a8a68', moss: true, seed: i, vines: 6, vineC: '#a8b48a', vineLen: 4 }), x, z, 0); trees.push(tr);
   for (const p of tr.userData.perch) { put(J.plant({ kind: 'strap', n: 9, len: .55, c: '#5a9a4a', tip: hash(i, p[3]) < .5 ? '#e0403a' : '#f0a030', seed: i }), x + p[0], z + p[2], 0, tr.position.y + p[1]); } }
 for (let i = 0; i < 26; i++) { const x = (hash(i, 5) - .5) * 30, z = 18 - hash(i, 6) * 60, [d] = near(x, z); if (d < 2.8) continue; put(J.palm({ h: 2.6 + hash(i, 7) * 2.4, n: 10, len: 2.2, c: '#5a9a48', lean: .25, seed: i + 7, bark: '#6a5a44' }), x, z, 0); }
-for (let i = 0; i < 90; i++) { const x = (hash(i, 8) - .5) * 34, z = 20 - hash(i, 9) * 62, [d] = near(x, z); if (d < 1.5) continue; const k = i % 4 === 0 ? 'monstera' : i % 5 === 0 ? 'strap' : 'fern'; put(J.plant({ kind: k, seed: i, c: k === 'fern' ? '#5a9a46' : '#3f7a3e', tip: k === 'strap' ? '#e0403a' : undefined, n: k === 'strap' ? 10 : undefined, len: k === 'strap' ? .7 : undefined }), x, z, hash(i, 10) * 6); }
+for (let i = 0; i < 150; i++) { const x = (hash(i, 8) - .5) * 30, z = 22 - hash(i, 9) * 64, [d] = near(x, z); if (d < 1.5) continue; const k = i % 4 === 0 ? 'monstera' : i % 5 === 0 ? 'strap' : 'fern'; put(J.plant({ kind: k, seed: i, c: k === 'fern' ? '#5a9a46' : '#3f7a3e', tip: k === 'strap' ? '#e0403a' : undefined, n: k === 'strap' ? 10 : undefined, len: k === 'strap' ? .7 : undefined }), x, z, hash(i, 10) * 6); }
 // 石像（道の曲がりかど。目を閉じてすわる）と、その先の石柱
 const SI = 78, sp = SP[SI], sq = SP[SI + 1], sdx = sq.x - sp.x, sdz = sq.z - sp.z, sl = Math.hypot(sdx, sdz), STX = sp.x + sdz / sl * 2.6, STZ = sp.z - sdx / sl * 2.6;
-const statue = put(J.idol({ kind: 'seated', s: 1.25, moss: .65, seed: 5 }), STX, STZ, Math.atan2(sp.x - STX, sp.z - STZ) + .5, H(STX, STZ) - .15);
+const statue = put(J.idol({ kind: 'seated', s: 1.25, moss: .65, seed: 5 }), STX, STZ, Math.atan2(SP[SI - 22].x - STX, SP[SI - 22].z - STZ), H(STX, STZ) - .15);
 put(J.idol({ kind: 'stele', s: .9, moss: .7, seed: 8 }), SP[104].x - 2.2, SP[104].z, .4); put(J.idol({ kind: 'stele', s: .8, moss: .7, seed: 9 }), SP[106].x + 2.3, SP[106].z, -.4);
 scene.add(R.merge(fixed));
 scene.add(D.groundFog({ n: 60, box: [44, 60], H, c: '#ffffff', a: .3, h: 1.8, w: 9, wind: [.35, -.2] }));
