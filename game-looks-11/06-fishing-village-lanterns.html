@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-06 漁村の灯ろう流し 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0e20;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e4d0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-06 ─ 漁村の灯ろう流し / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-sea.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-wa2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夏の夜の入り江の小さな漁村。浜の人たちが流した無数の灯ろうが、しずかな海を沖へただよい、あかりが水に映る。浜には引き上げた小舟と、あみを干すさお。おだやかで少しさびしい。
+// 色の組は「夜空と海の藍・砂の灰ベージュ・家の板の こげ茶」＋差し色は灯ろうとちょうちんの だいだい。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役はゆかたの少女（R.actor の toon。赤いちょうちんを手に）。波うちぎわを入り江の奥へ歩き、左ななめうしろからカメラが追って、右に海と灯ろうを見せる。灯ろう・ちょうちんは pack-wa2.js（WA.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), S = PACK_SEA(THREE, K, R), D = PACK_DARK(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ build: 'toon', ...WA.yukata({ sex: 'f', hairStyle: 'long', bangs: 'straight', hair: '#1e1e2e', mouth: 'small', blush: true, top: '#2e3e7a', obi: '#f0b040', shoe: '#b08a5a' }) }); scene.add(hero);
+const moon = D.moon({ r: 16, az: 22, el: 13, dist: 330, c: '#fff4d8', haloC: '#8a9ad8', halo: 2.4, k: .45 }); scene.add(moon);
+const mood = D.mood(scene, renderer, 'moon', { sky: ['#070a1e', '#121c44', '#2a3a72', '#5a6aa0'], fog: ['#263464', 26, 190], hemi: ['#a8b8f0', '#30304a', 1.15], key: ['#dce4ff', 1.5, moon.userData.dir.toArray()], fill: ['#5a6aa8', .55], hills: '#141c3a', base: [.66, .7, .9], stars: 200, follow: hero, range: 30 });
+
+// ---- 浜と海：波うちぎわ SX(z) より右が海。左は砂浜がゆるく上って、村の道（土）へ ----
+const SX = z => 3 + Math.sin(z * .045) * 2.6 + Math.sin(z * .11 + 1) * .6, cl = (v, a, b) => Math.max(a, Math.min(b, v));
+const H = (x, z) => { const d = SX(z) - x; return d > 0 ? Math.min(.6, d * .08) + cl((d - 8) * .35, 0, .6) : Math.max(-2.2, d * .16); };
+const LAN0 = [];   // 浜のちょうちんのあかり（地面に焼きこむ）
+const sea = S.sea({ w: 150, d: 170, cell: 2, c: '#1e2e64', wave: .07, alpha: .9, shore: (x, z) => 1 - Math.abs(x - SX(z)) / 3 }); scene.add(sea.mesh);
+
+// ---- 村：浜の上の段に、板ばりとかわら屋根の漁師の家。海に向いて、窓にあかり ----
+const fixed = [], put = (o, x, z, ry = 0, y) => { o.position.set(x, y ?? H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const BOARD = T.boards({ c: '#5a4436' }), BOARD2 = T.boards({ c: '#4a3c3a', seed: 2 }), SHIRO = F.tex.shiro({ c: '#d8d0c0', wood: '#4a3428' }), KAWARA = F.tex.kawara({ c: '#4a5068' }), KAWARA2 = F.tex.kawara({ c: '#5a5660', seed: 2 }), THATCH = T.thatch({ c: '#8a7a5a' });
+const winL = T.window({ bars: 'grid', lit: 1, curtain: '#ffd890', frame: '#3a2a24' }), winP = T.window({ bars: 'grid', curtain: '#c8c0b0', frame: '#3a2a24' }), DOOR = T.door({ style: 'plank', c: '#4a3428' });
+const KIND = [{ w: 6, d: 5, h: 2.7, wall: BOARD, roof: KAWARA, pitch: .6, eave: .8 }, { w: 7, d: 5.4, h: 2.7, h2: 2.2, wall: BOARD2, wall2: SHIRO, roof: KAWARA2, pitch: .55, eave: .8 }, { w: 5.4, d: 5, h: 2.6, wall: BOARD, roof: THATCH, pitch: .9, eave: .7 }];
+for (let i = 0, z = 18; z > -95; i++) { const k = KIND[i % 3], x = SX(z) - 11.5 - k.d / 2 - hash(i, 4) * 1.5, cz = z - k.w / 2;
+  put(R.house({ ...k, win: winP, winLit: winL, lit: hash(i, 2) > .3 ? .8 : 0, door: DOOR, seed: i, wins: { f: 2, b: 0, l: 1, r: 1 } }), x, cz, PI / 2);
+  if (i % 2 === 0) LAN0.push({ x: x + k.d / 2 + 1.5, z: cz, r: 5, c: '#ffb860', k: .55 });
+  z -= k.w + 1.2 + hash(i, 3) * 3; }
+// あみを干すさお（2 本の柱に あみ）と、引き上げた小舟、たる、石灯ろう、松
+const NET = F.tex.rope({ kind: 'net' });
+for (const z0 of [6, -21, -47, -73]) { const x0 = SX(z0) - 6.4; const B = R.parts(), Pl = B.g(T.bark({ c: '#5a4a40' })).smooth(1), Nt = B.g(NET, { side: true, cut: true });
+  for (const dz of [-2, 2]) Pl.loft(5, [[-.3, .07, .07, 0, .8, 0, dz], [2.3, .06, .06, 1.5, 1, 0, dz]], { cap: 'top' }); Pl.at(R.TR(0, 2.2, 0, 0, PI / 2)).loft(4, [[-2.2, .04, .04, 0, .9], [2.2, .04, .04, 2, 1]], { cap: 'both' }).at(null);
+  Nt.quad([0, .5, 2], [0, .5, -2], [0, 2.2, -2], [0, 2.2, 2], [0, 0, 4, 1.7]); put(B.group(), x0, z0, .1); }
+[[-4.6, 12, .4], [-5.4, 1, 2.6], [-4.8, -14, 1], [-5.6, -30, 2.9], [-4.4, -41, .6], [-5.2, -58, 2.4], [-4.8, -66, 1.2]].forEach(([dx, z, ry], i) => { const b = R.boat({ c: ['#6a5a4a', '#4a5a6a', '#7a5a3a'][i % 3] }); put(b, SX(z) + dx, z, ry, H(SX(z) + dx, z) - .05).rotation.z = (i % 2 ? .12 : -.1); });
+[[-8.6, 4], [-9, -26], [-8.4, -52]].forEach(([dx, z], i) => { put(R.barrel({ c: '#6a5038' }), SX(z) + dx, z, i); put(R.crate({ s: .6, c: '#7a6448', kind: 'plain' }), SX(z) + dx + .6, z + .8, .5); });
+for (let k = 0; k < 6; k++) { const z = 10 - k * 17, x = SX(z) - 9.2; put(F.stoneLantern({ h: 1.3, lit: true }), x, z, PI / 2); LAN0.push({ x, z, r: 3.4, c: '#ffc070', k: .5 }); }
+for (let k = 0; k < 40; k++) { const z = 22 - hash(k, 2) * 130, x = SX(z) - 20 - hash(k, 1) * 26; put(R.tree({ kind: k % 3 ? 'pine' : 'round', h: 6 + hash(k, 3) * 6, c: ['#22403e', '#2a4a44', '#243a40'][k % 3], seed: k }), x, z, k); }
+const land = R.ground({ w: 120, d: 170, cell: 2, cz: -40, H, layers: [T.sand({ c: '#8a8274' }), T.dirt({ c: '#7a6a5a', pebbles: .3 }), T.grass({ c: '#4a6a5a', flowers: 0 })],
+  mix: (x, z) => { const d = SX(z) - x; return [d > 8.5 ? 1 : 0, d > 19 ? 1 : 0]; }, shade: mood.shade(LAN0) });
+scene.add(land.mesh);
+// 桟橋（入り江の奥）と、沖の小島の鳥居
+const pier = S.pier({ len: 14, w: 1.6, h: .5, depth: 2.6, c: '#6a5a50' }); put(pier, SX(-80) + 6, -80, 0, 0);
+put(F.torii({ w: 5.4, h: 6.8, c: '#d0482e' }), 17, -66, -.35, -.6);   // 海の中に立つ鳥居
+// 浜の小物：流木、浜の草、小石、つないだ縄
+for (let k = 0; k < 70; k++) { const z = 20 - hash(k, 7) * 100, d = .6 + hash(k, 8) * 7.5, x = SX(z) - d; if (Math.abs(d - 2.4) < .9) continue; const q = k % 5;
+  if (q < 2) put(R.tuft({ kind: 'grass', s: .5 + hash(k, 9) * .5, c: '#6a7a6a', seed: k % 3 }), x, z, k); else if (q < 4) put(R.rock({ s: .14 + hash(k, 9) * .22, c: '#5a5a66', moss: 0, seed: k }), x, z, k, H(x, z) - .04); else put(R.geo().smooth(1).at(R.TR(0, .06, 0, k, 0, PI / 2)).loft(5, [[-.7, .07, .06, 0, .8], [.7, .05, .05, 1, 1]], { cap: 'both' }).mesh(T.bark({ c: '#8a7a68' })), x, z, k); }
+// 入り江の両うでの岬（遠くのがけ）
+[[46, -40, 9], [52, -10, 7], [40, -120, 12], [-6, -135, 14], [26, -140, 10]].forEach(([x, z, s], i) => put(R.rock({ s, c: '#232842', moss: 0, seed: i + 20 }), x, z, i, -2.5));
+scene.add(R.merge(fixed));
+
+// ---- 灯ろう：浜から流れ出て、沖へ ゆっくり ただよう。ひとつずつ光のにじみと、水への映りこみ ----
+const NT = 84, TL = 36, TORO = [], STREAK = [], TC = ['#ffc060', '#ffd070', '#ffb050', '#ffa850'];
+const ROWS = [-4, -14, -24, -34, -46];   // 流す場所（浜の人が しゃがんで流す）
+for (let i = 0; i < NT; i++) { const z0 = ROWS[i % 5] + (hash(i, 1) - .5) * 8, a = .25 + (hash(i, 2) - .5) * .9, o = WA.toro({ s: 1.25 + hash(i, 3) * .3, c: ['#f8e0a8', '#f8d8b0', '#f4e4c0'][i % 3] }), c = TC[i % 4];
+  const hl = D.halo({ c, r: .55, k: .85 }), h2 = D.halo({ c, r: 1.5, k: .22 }); hl.position.y = h2.position.y = o.userData.mid; o.add(hl, h2); scene.add(o);
+  const st = { x: 0, z: 0, h: .5, c, w: .7, k: .9, len: 2.6 }; STREAK.push(st);
+  TORO.push({ o, st, z0, dx: Math.cos(a), dz: -Math.sin(a), u: hash(i, 4) * TL, v: .16 + hash(i, 5) * .1, sd: i }); }
+const streaks = D.streaks(STREAK, { y: .04, far: 70 }); scene.add(streaks);
+const tl = [0, 1, 2].map(() => { const l = new THREE.PointLight('#ffb860', 4, 6, 1.6); scene.add(l); return l; });
+
+// ---- 人：浜で灯ろうを流す人（しゃがむ）、ちょうちんを持って立つ老人、走る子ども。ねこ、空の雲、浜の小さなかに ----
+const act = (o, x, z, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, H(x, z), z); p.rotation.y = ry; scene.add(p); return p; };
+const kneel = [[-6.5, 0, { hairStyle: 'bun', hair: '#2a2228', sex: 'f', ...WA.yukata({ top: '#e8e0d0', obi: '#3a5a8a' }) }], [-28.6, 1, { hairStyle: 'short', hair: '#3a3030', cloth: 'jacket', top: '#3a4a6a', top2: '#e8dcc0', bottom: '#4a4450', shoe: '#5a4a3a' }], [-17.4, 2, { s: .74, hairStyle: 'bob', hair: '#2a2228', mouth: 'open', blush: true, ...WA.yukata({ sex: 'f', top: '#e88a8a', obi: '#f8e0a0' }) }]]
+  .map(([z, i, o]) => act(o, SX(z) - .9, z, PI / 2 + .2));
+const elder = act({ hairStyle: 'bald', hair: '#b0a8a0', beard: 'beard', eyes: 'closed', ...WA.yukata({ top: '#5a5a6a', obi: '#8a7a5a', skirt: .8 }) }, SX(-12) - 3.6, -12, PI / 2 + .4);
+const eL = WA.chochin({ c: '#f0e8d0', mark: 'wave', mc: '#2a3a6a', r: .14, h: .3, cord: .2 }); eL.position.set(0, -.04, .2); elder.userData.J.foreR.add(eL);
+const kid = act({ s: .72, hairStyle: 'short', hair: '#2a2228', mouth: 'open', cloth: 'tunic', top: '#e8c060', top2: '#f8f0e0', lower: 'shorts', bottom: '#4a5a7a', shoes: 'shoe', shoe: '#6a4a3a' }, 0, 0, 0);
+const cat = R.cat({ c: '#f0ece4', belly: '#ffffff' }); scene.add(cat);
+scene.add(D.clouds({ n: 8, r: 260, y: 70, s: 80, c: '#3a4a80', shade: '#1a2248', speed: .01 }));
+// 主役の手のちょうちん（D.lanternPose で うでを前へ）
+{ const J = hero.userData.J, B = hero.userData.build, hold = new THREE.Group(), g = new THREE.Group(), ch = WA.chochin({ c: '#e0402a', mark: 'ring', mc: '#f8e8c8', r: .13, h: .28, cord: .16 });
+  J.foreL.add(hold); g.position.y = -B.farm - B.hand[2] * .8; hold.add(g); g.add(ch); const hl = D.halo({ c: '#ff8a50', r: .5, k: .8 }); hl.position.y = ch.userData.mid; g.add(hl);
+  const L = new THREE.PointLight('#ff9a60', 3.5, 5, 1.6); L.position.y = ch.userData.mid; g.add(L); hero.userData.lantern = { g, hand: 'L' }; }
+const heroSpot = D.spot({ c: '#ff9a60', r: 1.8, k: .22 }); scene.add(heroSpot);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 12, LEN = 70, SPEED = 1.2, wp = new THREE.Vector3();
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = SX(z) - 2.4, y = H(x, z), tx = SX(z - 1) - SX(z);
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.8, .7); D.lanternPose(hero, .8);
+  hero.userData.lantern.g.getWorldPosition(wp); heroSpot.position.set(wp.x, H(wp.x, wp.z) + .07, wp.z);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4 : 5, cx = x - (tall ? 1.1 : 2.3), cz = z + Dc; cam.position.set(cx, H(cx, cz) + (tall ? 2.4 : 2.3), cz); cam.lookAt(x + (tall ? .9 : 1.2), y + (tall ? 1.5 : 1.25), z - 6);   // 左うしろから。右に海を広く
+  // 灯ろう：ゆっくり沖へ。波で上下し、少し回る
+  const near = [];
+  for (const L of TORO) { const d = (L.u + t * L.v) % TL, bx = SX(L.z0) + .3 + L.dx * d + Math.sin(t * .3 + L.sd) * .4, bz = L.z0 + L.dz * d, by = sea.h(bx, bz, t);
+    L.o.position.set(bx, by - .02, bz); L.o.rotation.set(Math.sin(t * 1.2 + L.sd) * .06, L.sd + t * .05, Math.cos(t * 1.1 + L.sd) * .06); const s = Math.min(1, d / .6); L.o.scale.setScalar(s);
+    Object.assign(L.st, { x: bx, z: bz, k: .9 * s }); near.push([Math.hypot(bx - x, bz - z + 4), bx, by, bz]); }
+  near.sort((a, b) => a[0] - b[0]).slice(0, 3).forEach(([, bx, by, bz], k) => tl[k].position.set(bx, by + .5, bz));
+  // 浜の人
+  kneel.forEach((p, i) => { MO.play(p, 'crouch', t + i * 2); p.userData.J.armL.rotation.x = p.userData.J.armR.rotation.x = -1 + Math.sin(t * .8 + i) * .15; p.userData.J.head.rotation.x = .3; });
+  R.idle(elder, t, Math.sin(t * .3) * .3); elder.userData.J.armR.rotation.x = -.7; elder.userData.J.foreR.rotation.x = -.6; eL.rotation.x = 1.3;
+  const kz = z - 9 + Math.sin(t * .6) * 3, kx = SX(kz) - 1.2 + Math.sin(t * 1.4) * .6; kid.position.set(kx, H(kx, kz), kz); kid.rotation.y = Math.cos(t * .6) > 0 ? PI : 0; MO.play(kid, 'run', t, { amp: .8 });
+  cat.position.set(SX(-22) - 5, H(SX(-22) - 5, -22), -22); cat.rotation.y = 1.2; R.catPose(cat, 'sit', t);
+  S.tick(t); sea.tick(t, x + 8, z - 20); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

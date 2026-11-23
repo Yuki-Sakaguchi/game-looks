@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-10 桜の川くだり 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#9ac8e8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-10 ─ 桜の川くだり / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-wa2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 春の昼。石がきの川の両岸に満開の桜並木がつづき、花びらが舞って、水の上には花びらのいかだが流れる。小舟は石の橋の下をくぐって、ゆっくり川をくだる。
+// 色の組は「桜のもも色・川の青緑・石がきの白っぽい灰」＋差し色は主役の帯と、橋の上の人の赤い かさ。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は舟のまん中にすわる、黄色い着物の少女（R.actor の toon）。へさきで船頭が さおをさす。カメラは舟の上、主役のすぐうしろ。運河と石の橋は pack-fantasy-town.js、花びらと あみがさは pack-wa2.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#4a92dc'], [.55, '#84c0ec'], [.88, '#c4e2f4'], [1, '#f6e4ec']], { r: 400 })); scene.fog = new THREE.Fog('#f0e0ea', 60, 240);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0ecff, ground: 0xd8c0c8, amb: 1.5, sun: 0xfff2e0, power: 2.3, range: 32 }), SUN = new THREE.Vector3(.45, .78, .3).normalize();
+
+// ---- 川（石がきの運河）と、両岸の土手（草と花びら）と小道 ----
+const CW = 8.4, DP = 1.4, WY = -DP * .45, EDGE = CW / 2 + 1.2, Z0 = 40, Z1 = -150, PINK = '#f4b4cc', PF = ['#ffffff', '#ffd6e6'];
+const land = R.ground({ w: 120, d: 210, cell: 1, cz: -55, H: (x, z) => Math.abs(x) < EDGE - .5 ? -2.4 : Math.max(0, (Math.abs(x) - 16) * .25), layers: [T.grass({ c: '#7ab65a', flowers: .3, fc: ['#ffffff', '#ffe27a', '#f7b8d0'] }), T.dirt({ c: '#c8b08a' }), T.grass({ c: PINK, flowers: .8, fc: PF, seed: 1 })],
+  mix: (x, z) => { const a = Math.abs(x); return [a > EDGE + 1.6 && a < EDGE + 3 ? 1 : 0, a < EDGE + 1.5 || (a > EDGE + 3.4 && a < EDGE + 7.5) ? .7 + Math.sin(z * 1.3 + x) * .25 : 0]; } });
+scene.add(land.mesh);
+const canal = F.canal({ len: Z0 - Z1, w: CW, depth: DP, stone: F.tex.ashlar({ c: '#d0c8bc', moss: .35 }), water: '#3aa0a0' }); canal.position.set(0, 0, (Z0 + Z1) / 2); scene.add(canal);
+
+// ---- 桜並木（両岸に 2 列）、石の橋 3 つ、石灯ろう、ちょうちん、うしろの家なみ ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const BR = [-22, -64, -108];
+for (const s of [-1, 1]) for (let z = Z0 - 2, k = 0; z > Z1; z -= 6.5, k++) { if (BR.some(b => Math.abs(b - z) < 3)) continue; put(R.tree({ h: 7 + hash(k, s) * 2.5, c: k % 3 ? PINK : '#f8c8da', flowers: 1, fc: PF, seed: k * 2 + (s > 0) }), s * (EDGE + .9 + hash(k, s + 3) * .5), z, k);
+  if (k % 2) put(R.tree({ h: 6 + hash(k, s + 5) * 2, c: '#f6c0d4', flowers: 1, fc: PF, seed: k + 40 }), s * (EDGE + 9 + hash(k, s + 7) * 2), z - 3, k); }
+for (const z of BR) { put(F.bridge({ span: CW, w: 3, rise: 1.9, rail: 'wood', stone: F.tex.ashlar({ c: '#d8d0c4' }) }), 0, z); for (const s of [-1, 1]) put(F.stoneLantern({ h: 1.4 }), s * (EDGE + .2), z + 2.4); }
+const KAWARA = F.tex.kawara({ c: '#5a6478' }), SHIRO = F.tex.shiro({ c: '#f0e6d2' }), BOARD = T.boards({ c: '#7a5038' }), winP = T.window({ bars: 'grid', curtain: '#f4e8cc', frame: '#4a3428' });
+for (const s of [-1, 1]) for (let z = Z0, i = 0; z > Z1; i++) { const w = 6 + hash(i, s) * 2; put(R.house({ w, d: 6, h: 2.8, h2: hash(i, s + 1) > .5 ? 2.3 : 0, wall: i % 2 ? BOARD : SHIRO, wall2: SHIRO, roof: KAWARA, pitch: .6, eave: .9, win: winP, door: T.door({ style: 'plank', c: '#5a3a2c' }), seed: i }), s * (EDGE + 15.5), z - w / 2, -s * PI / 2); z -= w + 1 + hash(i, s + 4) * 3; }
+const ORNL = []; for (let z = Z0; z > Z1; z -= 4) for (const s of [-1, 1]) ORNL.push([s * (EDGE + 4.6), z]);   // 土手の小道ぞいの ちょうちんのつな（昼なので光らない）
+{ const B = R.parts(), Rp = B.g(T.planks({ c: '#4a3a30' })).smooth(1); for (const [x, z] of ORNL) { Rp.at(R.TR(x, 0, z)).loft(4, [[0, .05, .05, 0, .8], [2.6, .045, .045, 1, 1]], { cap: 'top' }).at(R.TR(x, 2.5, z, 0, PI / 2)).loft(3, [[-4, .012, .012, 0, 1], [0, .012, .012, 1, 1]], {}).at(null); put(WA.chochin({ c: z % 8 ? '#f8f0e0' : '#e8504a', mark: 'wave', mc: '#d84a3a', r: .15, h: .3, cord: .05, glow: false }), x, z - 2, 0, 2.45); } fixed.push(B.group()); }
+for (let k = 0; k < 60; k++) { const s = k % 2 ? 1 : -1, z = Z0 - hash(k, 1) * (Z0 - Z1), x = s * (EDGE + 2 + hash(k, 2) * 8); put(R.tuft({ kind: ['flower', 'grass', 'bush'][k % 3], s: .6 + hash(k, 3) * .4, seed: k % 3 }), x, z, k); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#8ab0a0', haze: '#f0e0ea', r: 260, h: 44, y: -4, rep: 2 }));
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 36 + hash(i, 9) * 26, c: '#ffffff', shade: '#d8dcf2', seed: i }), a = i * .9 + 3.6; c.position.set(Math.cos(a) * 230, 55 + hash(i, 10) * 35, Math.sin(a) * 230); c.lookAt(0, 24, 0); scene.add(c); }
+
+// ---- 水の上の花びらのいかだ（手で打った もも色の点の切りぬき。水といっしょに流れる） ----
+const raftT = (() => { const P = R.Px(64); P.clip = false; const A = R.ramp(PINK); for (let k = 0; k < 9; k++) { const cx = hash(k, 1) * 64, cy = hash(k, 2) * 64, r = 3 + hash(k, 3) * 6; for (let j = 0; j < r * r * 1.4; j++) { const a = hash(j, k + 4) * 6.28, d = Math.sqrt(hash(j, k + 5)) * r; P.set(cx + Math.cos(a) * d * 1.4, cy + Math.sin(a) * d, A[[3, 4, 5, 4][j % 4]]); } } return T.from(P, { m: 6, cut: true }); })();
+const rafts = (() => { const G = R.geo().normal([0, 1, 0]); for (let z = Z1; z < Z0; z += 6) G.quad([-CW / 2, WY + .02, z + 6], [CW / 2, WY + .02, z + 6], [CW / 2, WY + .02, z], [-CW / 2, WY + .02, z], [0, (z + 6) / 6, CW / 6, z / 6]); const m = new THREE.Mesh(G.build(), new THREE.MeshLambertMaterial({ map: raftT, alphaTest: .5 })); scene.add(m); return m; })();
+
+// ---- 舟：平たい木の小舟（板ばりの横腹、とがった へさき）。前は -z ----
+const boat = new THREE.Group(); scene.add(boat);
+{ const B = R.parts(), Pk = B.g(T.planks({ c: '#8a6a4a', m: 1.5 }), { side: true }), Fl = B.g(T.planks({ c: '#a8865e', m: 1.5 })), L = 2.4, Bw = .78, Tw = .95, h = .55, bow = -3.3, by = .85;
+  for (const s of [-1, 1]) { Pk.quad([s * Bw, 0, L], [s * Bw, 0, -L + .4], [s * Tw, h, -L], [s * Tw, h, L + .2], [0, 0, 3, .5]); Pk.quad([s * Bw, 0, -L + .4], [0, 0, bow + .5], [0, by, bow], [s * Tw, h, -L], [0, 0, 1, .5]); }
+  Pk.quad([-Bw, 0, L], [Bw, 0, L], [Tw, h, L + .2], [-Tw, h, L + .2], [0, 0, 1.2, .5]); Fl.quad([-Bw, .12, L], [Bw, .12, L], [Bw, .12, -L + .4], [-Bw, .12, -L + .4], [0, 0, 1.2, 3]);
+  Fl.box(Tw * 2, .06, .25, 0, .45, .3, { m: 1 }); Fl.box(Tw * 2, .06, .25, 0, .45, -1.4, { m: 1 }); boat.add(B.group()); }
+const pole = R.geo().smooth(1).loft(5, [[0, .03, .03, 0, .8], [4.2, .025, .025, 3, 1]], { cap: 'both' }).mesh(T.bark({ c: '#a89070' }));
+
+// ---- 人：主役（すわる）、へさきの船頭（さお）、むこうから来る舟、岸を歩く人、橋の上の人、子ども、かも、鳥 ----
+const mk = o => R.actor({ build: 'toon', ...o }), act = (o, x, z, ry, y = 0) => { const p = mk(o); p.position.set(x, y, z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = mk({ sex: 'f', hairStyle: 'tail', bangs: 'straight', hair: '#3a2a2a', mouth: 'smile', blush: true, ...WA.yukata({ top: '#f0c040', top2: '#f8f0e0', obi: '#d8402e' }) }); hero.position.set(0, .12, .45); hero.rotation.y = PI; boat.add(hero);
+const sendo = WA.kasa(mk({ hairStyle: 'short', hair: '#2a2228', beard: 'stubble', cloth: 'jacket', top: '#2e4a7a', top2: '#f4ecd8', lower: 'pants', bottom: '#3a3a4a', shoes: 'shoe', shoe: '#c8b890', gloves: 'wrap', glove: '#f4ecd8' }), { c: '#d0b878' }); sendo.position.set(.15, .12, -1.9); sendo.rotation.y = PI; boat.add(sendo); boat.add(pole);
+const boat2 = new THREE.Group(); { const b = R.boat({ c: '#7a5a3a', sail: false }); b.scale.set(1.2, 1.2, 1.5); boat2.add(b); const r2 = mk({ sex: 'f', hairStyle: 'bun', hair: '#2a2228', mouth: 'smile', ...WA.yukata({ top: '#8ac0e0', obi: '#f8f0e0' }) }); r2.position.set(0, .1, -.2); boat2.add(r2); boat2.userData.p = r2; const r3 = WA.kasa(mk({ hairStyle: 'bald', hair: '#a09890', beard: 'beard', eyes: 'closed', cloth: 'jacket', top: '#5a4a3a', top2: '#e8dcc0', bottom: '#4a4450' })); r3.position.set(0, .1, 1.5); boat2.add(r3); boat2.userData.q = r3; } scene.add(boat2);
+const walkers = [{ sex: 'f', hairStyle: 'long', hair: '#3a2a30', ...WA.yukata({ top: '#e88aa8', obi: '#f8f0e0' }) }, { hairStyle: 'short', hair: '#2a2228', cloth: 'jacket', top: '#5a7a5a', top2: '#f4f0e8', bottom: '#4a4a5a' }, { s: .72, hairStyle: 'bob', hair: '#2a2228', mouth: 'open', blush: true, ...WA.yukata({ sex: 'f', top: '#f8f0e0', obi: '#e8504a' }) }, { sex: 'f', hairStyle: 'bun', hair: '#5a3a30', ...WA.yukata({ top: '#6a5aa0', obi: '#f0c040' }) }].map(o => act(o, 0, 0, 0));
+const onBr = BR.map((z, i) => act([{ sex: 'f', hairStyle: 'twin', hair: '#2a2228', mouth: 'open', ...WA.yukata({ top: '#f8f0e0', obi: '#d84a3a' }) }, { hairStyle: 'tufts', hair: '#4a3020', cloth: 'tunic', top: '#d84a3a', top2: '#f8f0e0', bottom: '#4a4a5a' }, { sex: 'f', hairStyle: 'long', hair: '#2a2228', ...WA.yukata({ top: '#e8a0b8', obi: '#f8f0e0' }) }][i], -.8 + i * .6, z - .2, 0, 2.3));
+// 橋の上の人の赤い かさ（和がさ。たての骨の線を打った円すい）
+const kasaT = (() => { const P = R.Px(32, 16), A = R.ramp('#d8402e'); P.fill(A[3]); for (let x = 0; x < 32; x += 4) P.rect(x, 0, 1, 16, A[1]); P.rect(0, 0, 32, 2, A[5]); P.rect(0, 14, 32, 2, A[2]); return T.from(P, { m: 1 }); })();
+{ const u = R.geo().smooth(1).loft(12, [[0, .62, .62, 0, .9], [.32, .05, .05, 1, 1.1]], { ur: 4, cap: 'bot' }).loft(4, [[-.75, .012, .012, 0, 1], [0, .012, .012, 1, 1]], {}).mesh(kasaT, { side: true }); u.position.set(-.08, .08, .1); u.rotation.x = -.15; onBr[0].userData.J.foreR.add(u); }
+const ducks = [0, 1, 2].map(k => { const b = R.bird({ c: k ? '#8a6a4a' : '#4a7a5a', belly: '#e8dcc0', s: 1.6 }); scene.add(b); return b; }), gulls = [0, 1, 2].map(k => { const b = R.bird({ c: '#f8f6f0', belly: '#ffffff', neck: false, s: 1.3 }); scene.add(b); return b; });
+const petals = WA.petals(scene, { n: 220, box: [26, 9, 30], c: '#ffd2e2', size: 2.4, fall: .9, wind: [.4, .9] });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const START = -6, RUN = START - (Z1 + 12), SPEED = 1.6, cp = new THREE.Vector3(), mod = (a, n) => ((a % n) + n) % n, fx = K.fx(scene, 40); let sp = 0;
+K.loop((dt, t) => {
+  const z = START - mod(t * SPEED, RUN), x = .9 + Math.sin(z * .05) * .5, by = WY - .12 + Math.sin(t * 1.1) * .025;
+  boat.position.set(x, by, z); boat.rotation.set(Math.sin(t * .9) * .012, Math.cos(z * .05) * .025, Math.sin(t * .8) * .02);
+  MO.play(hero, 'sit', t); { const J = hero.userData.J; J.head.rotation.y = Math.sin(t * .35) * .5; J.head.rotation.x = -.15 - Math.max(0, Math.sin(t * .23)) * .25; }   // あたりの桜を見まわし、ときどき見上げる
+  // 船頭：さおを水につき、うしろへ押す
+  { const k = (t * .45) % 1, J = sendo.userData.J, push = Math.sin(k * PI * 2); R.idle(sendo, t, 0); J.torso.rotation.x = .25 + push * .15; J.armL.rotation.set(-.9 - push * .4, 0, .3); J.armR.rotation.set(-1.3 - push * .4, 0, -.2); J.foreL.rotation.x = J.foreR.rotation.x = -.5;
+    pole.position.set(.5, -.9, -1.2 + push * .5); pole.rotation.set(-.5 - push * .15, 0, -.18); }
+  const tall = innerWidth < innerHeight, D = tall ? 1.9 : 2.1; cp.set(x + .3, WY + (tall ? 2.0 : 1.95), z + .45 + D); cam.position.copy(cp); cam.lookAt(x - .05, WY + (tall ? 1.25 : 1.2), z - 6);   // 舟の上、主役のすぐうしろ
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  // むこうから来る舟、岸の人、橋の上の人、かも、かもめ
+  const z2 = Z1 + 10 + mod(t * 1.2 + 70, 170); boat2.position.set(-2, WY - .15 + Math.sin(t * 1.2 + 2) * .03, z2); R.idle(boat2.userData.p, t + 1, Math.sin(t * .5) * .5); MO.play(boat2.userData.p, 'sit', t); MO.play(boat2.userData.q, 'sit', t + 3);
+  walkers.forEach((w, i) => { const v = [1.1, 1.3, 1.9, 1][i], sx = i % 2 ? -1 : 1, back = i > 1, wz = back ? Z1 + 6 + mod(t * v + i * 40, Z0 - Z1 - 12) : Z0 - 6 - mod(t * v + i * 30 + 8, Z0 - Z1 - 12); w.position.set(sx * (EDGE + 2.3), 0, wz); w.rotation.y = back ? 0 : PI; if (i === 2) MO.play(w, 'run', t, { amp: .7 }); else R.walk(w, t * v * 4 + i, .7); });
+  onBr.forEach((p, i) => { R.idle(p, t + i, Math.sin(t * .5 + i) * .5); p.rotation.y = Math.atan2(cp.x - p.position.x, cp.z - p.position.z); if (i === 1) MO.play(p, 'wave', t); if (i === 0) { const J = p.userData.J; J.armR.rotation.set(-1.2, 0, -.15); J.foreR.rotation.x = -1.3; } });
+  ducks.forEach((b, k) => { const dz = z - 14 - k * 1.2 + Math.sin(t * .3) * 2, dx = 2.6 - k * .5 + Math.sin(t * .4 + k) * .3; b.position.set(dx, WY + .03, dz); b.rotation.y = .4 + Math.sin(t * .4 + k); R.birdPose(b, 'stand', t + k); });
+  gulls.forEach((b, k) => { const a = t * (.3 + k * .05) + k * 2, r = 7 + k * 2; b.position.set(Math.cos(a) * r * .6, 9 + k, z - 18 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a) * .6, Math.cos(a)); R.birdPose(b, 'fly', t * .5 + k); });
+  rafts.material.map.offset.set(Math.sin(t * .3) * .05, -t * .012);
+  if ((sp += dt) > .35) { sp = 0; boat.updateMatrixWorld(); const v = new THREE.Vector3(0, 0, -3.3).applyMatrix4(boat.matrixWorld); fx.emit('splash', v.x + (Math.random() - .5) * .5, WY + .1, v.z + .4, { size: .35, life: .6, vy: .3, grow: .8 }); }
+  F.tick(t); petals.tick(t, x, z - 8, WY); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

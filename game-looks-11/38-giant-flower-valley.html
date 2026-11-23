@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-38 巨大な花の谷 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffbe8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-38 ─ 巨大な花の谷 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-jungle2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の谷。人の何倍もある花とシダが両がわの坂に咲き、そのあいだの小道を むぎわら帽子の子が歩く。大きなちょうが飛び、花粉の光がのぼる。明るく、かわいく。
+// 色の組は「若草の緑・空の水色・花のもも色」＋差し色の 花のまん中の黄色。花は面の少ない板の花びらに、手で打ったすじと ふちの光のテクスチャをはる。
+// 主役は旅の子（R.actor の toon。白と水色の服、むぎわら帽子）。カメラは ななめ上のうしろから見下ろし、花の顔と道の先を入れる。ちょう・花粉・虫・小さな獣・鳥・ゆれる花が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), J = PACK_JUNGLE2(THREE, K, R, F), T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#4aa0e8'], [.5, '#7cc0f0'], [.85, '#b8e2f4'], [1, '#f0f8e8']], { r: 400 })); scene.fog = new THREE.Fog('#d8f0ec', 40, 200);
+const { sun } = K.lights(scene, renderer, { sky: 0xe0f4ff, ground: 0xa8d090, amb: 1.7, sun: 0xfff2c8, power: 2.2, range: 30 }), SUN = new THREE.Vector3(.5, .7, .45).normalize();
+
+// ---- 谷：まん中を小道がくねり、両がわは ゆるい坂。道のわきに小川 ----
+const pathX = z => Math.sin(z * .07) * 4 + Math.sin(z * .19 + 1) * .8, off = (x, z) => x - pathX(z);
+const H = (x, z) => { const d = Math.abs(off(x, z)); return Math.max(0, d - 4) ** 1.5 * .09 + (F.vn(x * .1, z * .1, 2) - .5) * Math.min(1, d / 6) * 1.2 - (Math.abs(off(x, z) + 6) < 1.4 ? .25 : 0); };
+const land = R.ground({ w: 140, d: 160, cell: 2, cz: -40, H, layers: [T.grass({ c: '#78c058', flowers: .4, fc: ['#ffffff', '#ffd8ec', '#fff08a'] }), T.dirt({ c: '#d8b880', pebbles: .4 }), T.grass({ c: '#8ccc5a', flowers: .8, fc: ['#ff9ac8', '#ffffff', '#c8b0ff'], seed: 3 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - Math.abs(off(x, z)) / 1.2)), F.vn(x * .15, z * .15, 6) > .55 ? 1 : 0] }); scene.add(land.mesh);
+const WF = T.water({ c: '#68c0e8' }), brook = R.strip([...Array(40)].map((_, i) => { const z = 20 - i * 4; return [pathX(z) - 6, .02, z]; }), 1.8, WF[0]); scene.add(brook);
+
+// ---- 巨大な花・シダ・大きな葉 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const KINDS = [{ c: '#f878b0', c2: '#fff4b0', kind: 'open', heart: '#ffd040' }, { c: '#fff0f4', c2: '#ffd0e0', kind: 'open', heart: '#ffc030', n: 8 }, { c: '#ffd040', c2: '#fff8d0', kind: 'cup', heart: '#e07a30', n: 7 }, { c: '#b89af0', c2: '#ffffff', kind: 'bell', heart: '#fff080', n: 5 }, { c: '#ff8a70', c2: '#fff0c0', kind: 'open', heart: '#ffe060', spots: '#d84a60' }];
+const flowers = [];
+for (let i = 0; i < 56; i++) { const z = 22 - i * 2 - hash(i, 1) * 1.5, s = i % 2 ? 1 : -1, d = 2.6 + hash(i, 2) ** 1.6 * 11, x = pathX(z) + s * d, k = KINDS[(i * 3 + (i >> 2)) % 5], h = 3.6 + hash(i, 3) * 4.5 + d * .2;
+  const f = J.flower({ ...k, h, r: h * (k.kind === 'bell' ? .26 : .38), tilt: .45 + hash(i, 4) * .4, seed: i }); f.position.set(x, H(x, z), z); f.rotation.y = -s * (.25 + hash(i, 5) * .4); f.userData.ph = hash(i, 6) * TAU; scene.add(f); flowers.push(f); }
+for (let i = 0; i < 24; i++) { const z = 18 - i * 4.4 - hash(i, 31) * 2, x = pathX(z) + 5.5 + hash(i, 32) * 10, k = KINDS[(i * 2 + 1) % 5], h = 3 + hash(i, 33) * 4;   // 右の坂にも、少し小さめの花の群れ
+  const f = J.flower({ ...k, h, r: h * (k.kind === 'bell' ? .26 : .36), tilt: .55, seed: i + 300 }); f.position.set(x, H(x, z), z); f.rotation.y = -.7 - hash(i, 34) * .5; f.userData.ph = hash(i, 35) * TAU; scene.add(f); flowers.push(f); }
+for (let i = 0; i < 90; i++) { const z = 22 - hash(i, 7) * 110, s = hash(i, 8) > .5 ? 1 : -1, x = pathX(z) + s * (2.3 + hash(i, 9) ** 1.3 * 14), q = i % 5;
+  if (q === 0) put(J.fern({ s: 1.6 + hash(i, 10) * 1.6, c: ['#5ab04a', '#68bc54'][i % 2], seed: i, n: 10 }), x, z, i); else if (q === 1) put(J.bigLeaf({ s: 1.2 + hash(i, 11) * 1, c: '#58aa4c', seed: i, n: 5 }), x, z, i);
+  else if (q === 2) put(J.flower({ ...KINDS[i % 5], h: .8 + hash(i, 12) * .8, r: .35, tilt: .6, seed: i + 100 }), x, z, i); else put(R.tuft({ kind: ['flower', 'grass', 'bush'][q - 2], s: .7 + hash(i, 13) * .5, seed: i % 3 }), x, z, i); }
+for (let i = 0; i < 26; i++) { const z = 10 - i * 4.5, s = i % 2 ? 1 : -1, x = pathX(z) + s * (20 + hash(i, 14) * 18); put(R.tree({ kind: i % 3 ? 'round' : 'tall', h: 7 + hash(i, 15) * 6, c: ['#5aa84e', '#66b458', '#4e9c4a'][i % 3], flowers: .3, fc: ['#ffc0dc', '#ffffff'], seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#78b46a', haze: '#d8f0ec', r: 160, h: 46, y: -2, rep: 5 }), R.backdrop({ c: '#9ac8a0', haze: '#e8f4f0', r: 260, h: 90, y: -4, seed: 3 }));
+for (let k = 0; k < 7; k++) { const c = R.cloud({ s: 30 + hash(k, 9) * 26, c: '#ffffff', shade: '#d0e4f4', seed: k }), a = k * .9 - 2.6; c.position.set(Math.sin(a) * 230, 60 + hash(k, 10) * 40, -Math.cos(a) * 230); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 主役と生きもの ----
+const strawHat = p => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k, v, s]; p.userData.J.head.add(R.geo().smooth(1).loft(10, [r(.82, 2.3, 0, .8), r(.92, 1.45, .4, 1), r(1.05, 1.15, .6, 1.05), r(1.25, .9, 1, 1.1)], { ur: 4, cap: 'top' }).mesh(T.thatch({ c: '#f0d890' }), { side: true })); return p; };
+const hero = strawHat(R.actor({ build: 'toon', sex: 'f', hairStyle: 'bob', hair: '#8a5030', eyes: 'big', mouth: 'smile', blush: true, cloth: 'tunic', top: '#f8f4ec', top2: '#58a8e8', lower: 'skirt', skirt: .5, skirtC: '#58a8e8', shoes: 'boot', shoe: '#c87a48', neck: 'scarf', acc: '#ff7aa8', back: 'bag' })); scene.add(hero);
+const flies = [...Array(9)].map((_, i) => { const b = J.butterfly({ s: 1.4 + hash(i, 20) * 1.2, c: ['#58b8f8', '#ffb048', '#f888c8', '#a888f0'][i % 4], c2: ['#ffe060', '#fff4d0', '#80e0ff', '#ffe060'][i % 4], seed: i }); b.userData.o = [hash(i, 21) * TAU, 1.4 + hash(i, 22) * 2.4, 1.4 + hash(i, 23) * 2.2, .25 + hash(i, 24) * .3, 1 + i * 2.6]; scene.add(b); return b; });
+const pollen = F.motes({ n: 140, box: [26, 7, 30], c: '#fff4a0', size: .14, rise: .35, drift: .8, y: .4 }); scene.add(pollen);
+const bees = [...Array(4)].map((_, i) => { const b = F.bug({ c: '#ffe880', s: 1.2 }); scene.add(b); return b; });
+const crits = [...Array(3)].map((_, i) => { const g = F.critter({ c: ['#e8c8a0', '#f4e8d8', '#d8a070'][i], s: 1.5 }); scene.add(g); return g; });
+const birds = [...Array(4)].map((_, i) => { const b = R.bird({ c: ['#f8f4ec', '#78b0e8'][i % 2], belly: '#fff4e0' }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 14, LEN = 96, SPEED = 1.6, cd = new THREE.Vector3(0, 0, -1);
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.7, .9); hero.userData.J.head.rotation.y = Math.sin(t * .7) * .4;
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.2; cam.position.set(x - 1.2, y + (tall ? 2.3 : 2.1), z + Dc); cam.lookAt(x + .3, y + (tall ? 2.2 : 1.95), z - 6);   // 低い所のうしろから、頭の上にかぶさる花を見上げる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 4);
+  for (const f of flowers) { const p = f.userData.ph; f.userData.head.rotation.z = Math.sin(t * .8 + p) * .06; f.rotation.x = Math.sin(t * .6 + p) * .012; }
+  flies.forEach((b, i) => { const [ph, r, hh, sp, ahead] = b.userData.o, a = ph + t * sp, cz = z - ahead - 2, cx = pathX(cz); b.position.set(cx + Math.cos(a) * r, H(cx, cz) + hh + Math.sin(t * 1.3 + ph) * .6, cz + Math.sin(a) * r * .6); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .6) + PI / 2; J.butterflyPose(b, t + ph); });
+  bees.forEach((b, i) => { const a = t * (1.6 + i * .3) + i * 2, cz = z - 3 - i * 5, cx = pathX(cz) + (i % 2 ? 3 : -3); b.position.set(cx + Math.cos(a) * .8, H(cx, cz) + 1.2 + Math.sin(t * 3 + i) * .3, cz + Math.sin(a) * .8); b.rotation.y = -a; F.bugPose(b, t + i); });
+  crits.forEach((g, i) => { const cz = z - 6 - i * 7 + Math.sin(t * .4 + i) * 1.5, cx = pathX(cz) + (i % 2 ? 2.2 : -2.4); g.position.set(cx, H(cx, cz), cz); g.rotation.y = i * 2 + Math.sin(t * .3 + i); F.critterPose(g, i === 1 ? 'walk' : 'sit', t * (i === 1 ? 6 : 1) + i); });
+  birds.forEach((b, i) => { const a = t * (.3 + i * .05) + i * 1.6, r = 10 + i * 2; b.position.set(x + Math.cos(a) * r, y + 9 + i, z - 16 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t + i); });
+  R.flip(brook.material, WF, t, 4); pollen.userData.tick(t, x, z - 6); crt.render(scene, cam, t);
+});
+</script>
+</html>

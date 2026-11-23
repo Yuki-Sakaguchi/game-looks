@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-17 夜の砂漠と星 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0a1030;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0e8ff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-17 ─ 夜の砂漠と星 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-sand2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の砂漠。満天の星と天の川の下、大きな砂丘の上に小さなテントとたき火があり、らくだが ひざを折って休む。仲間が火のそばで手をふる。
+// 色の組は「夜空と砂の青・あい色の砂丘のかげ」＋差し色の たき火のだいだい。星空は F.starDome（天の川をかたむけて砂丘の上へ）、火のあかりは地面に焼きこむ。
+// 主役は旅の少女（R.actor の toon。青い上着とだいだいのスカーフ）。砂丘をのぼってたき火へ向かい、ななめ うしろの低い所からカメラが追って、砂丘の上の空を大きく見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FW = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), SD = PACK_SAND2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 800, aa: false, fitAspect: .9, maxFov: 78 });
+scene.fog = new THREE.Fog('#1a2458', 40, 220); renderer.setClearColor('#1a2458');
+const { sun } = K.lights(scene, renderer, { sky: 0x7088e8, ground: 0x1a1a50, amb: .85, sun: 0xb8c8ff, power: .85, range: 30 }), MOONV = new THREE.Vector3(.5, .7, .35).normalize();
+// 星空と天の川（かたむけて、砂丘の上へ天の川がかかるように）、流れ星
+const sky = new THREE.Group(), tilt = new THREE.Group(); tilt.rotation.set(-.55, 0, .35); tilt.add(FW.starDome({ r: 330, stops: [[0, '#060a28'], [.5, '#14205a'], [1, '#3a4a8e']], n: 560 }));
+const met = FW.meteors({ n: 6, r: 250, dir: .3, arc: 2.2 }); tilt.add(met); sky.add(tilt); scene.add(sky);
+
+// ---- 砂丘：手前の低い所から、たき火のある平らな上へ。まわりは波うつ砂丘 ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const TOP = 5.6, H = (x, z) => TOP * sm(10, -9, z + Math.sin(x * .12) * 2.5) * (1 - sm(-26, -40, z) * .7) + Math.sin(x * .09 + z * .05) * 1.6 * sm(6, 20, Math.abs(x)) + Math.sin(x * .7 + z * .4) * .08;
+const FIRE = [0, -10.6], FY = H(...FIRE), bake = FW.bake([{ x: FIRE[0], y: FY + .6, z: FIRE[1], c: '#ffa040', r: 9, k: 1.6 }, { x: 2.8, y: H(2.8, -13) + .6, z: -12.4, c: '#ff9a48', r: 3, k: .6 }], [.36, .46, .98]);
+const land = R.ground({ w: 160, d: 160, cell: 2, cz: -14, H, layers: [T.sand({ c: '#a89a98' }), T.sand({ c: '#8a7c80', seed: 3 })], mix: (x, z) => [Math.max(0, Math.min(1, .5 + Math.sin(x * .3 - z * .5) * .9))], shade: (x, z) => bake(x, z, H(x, z)) }); scene.add(land.mesh);
+// 主役の足あと（のぼってきた砂の上に点々と）
+{ const G = R.geo().normal([0, 1, 0]), P = R.Px(8), A = R.ramp('#8a7a6a'); P.clip = true; P.rect(2, 1, 3, 5, A[1]); P.rect(3, 2, 2, 3, A[0]); const tx = T.from(P, { m: 1, cut: true });
+  for (let k = 0; k < 30; k++) { const z = 14 - k * .55, x = Math.sin(z * .2) * .6 + (k % 2 ? .14 : -.14), y = H(x, z) + .03; G.quad([x - .1, y, z + .14], [x + .1, y, z + .14], [x + .1, y, z - .14], [x - .1, y, z - .14]); } const m = G.mesh(tx); m.receiveShadow = true; scene.add(m); }
+
+// ---- キャンプ：テント、たき火（石の輪とまき）、荷、休むらくだ ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+put(SD.tent({ w: 2.6, d: 3, h: 2, c: '#d8c8a8', c2: '#3a5a8a' }), 3, -14, -.6);
+for (let k = 0; k < 9; k++) { const a = k / 9 * PI * 2; put(R.rock({ s: .22, c: '#6a6a7a', seed: k }), FIRE[0] + Math.cos(a) * .55, FIRE[1] + Math.sin(a) * .55, k); }
+{ const G = R.geo(); for (let k = 0; k < 4; k++) G.at(R.TR(FIRE[0], FY + .08, FIRE[1], k * .8, 0, PI / 2 - .25)).loft(5, [[-.4, .05, .05, 0, .8], [.4, .045, .045, 1, 1]], { cap: 'both' }).at(null); fixed.push(G.mesh(T.bark({ c: '#5a3a2a' }))); }
+put(R.crate({ s: .6, c: '#8a6a48' }), 4.8, -12, .4); put(R.barrel({ h: .7, r: .28, c: '#7a5a3a' }), 4.6, -11.2, 0); put(R.crate({ s: .45, c: '#9a7a50', kind: 'x' }), 1.4, -15.4, 1);
+for (let i = 0; i < 18; i++) { const x = (hash(i, 1) - .5) * 60, z = 6 - hash(i, 2) * 50; if (Math.abs(x) < 8 && z > -20) continue; put(i % 3 ? R.tuft({ kind: 'bush', s: .7 + hash(i, 3) * .5, seed: i % 3 }) : R.rock({ s: .5 + hash(i, 4), c: '#7a7488', seed: i }), x, z, i); }
+scene.add(R.merge(fixed));
+const flame = D.flame({ s: 1.2, c: '#ffa040' }); flame.position.set(FIRE[0], FY + .05, FIRE[1]); scene.add(flame);
+const glow = D.halo({ c: '#ff9a40', r: 4.5, k: .55, flicker: true }); glow.position.set(FIRE[0], FY + .7, FIRE[1]); scene.add(glow);
+const fireL = new THREE.PointLight('#ffa050', 9, 10, 1.4); fireL.position.set(FIRE[0], FY + 1, FIRE[1]); scene.add(fireL);
+const sparks = FW.motes({ n: 24, box: [.8, 3, .8], c: '#ffc060', size: 1.4, rise: 1.2, drift: .3 }); sparks.position.set(FIRE[0], FY + .3, FIRE[1]); scene.add(sparks);
+const camels = [[-3.4, -12.8, 1.1, '#c8975a'], [-5.2, -9.8, .5, '#b88550']].map(([x, z, ry, c], i) => { const m = SD.camel({ c, seed: i, c2: i ? '#3a5a8a' : '#b8382e' }); m.position.set(x, H(x, z), z); m.rotation.y = ry; scene.add(m); return m; });
+const standing = SD.camel({ c: '#a8784a', saddle: false, seed: 3 }); standing.position.set(6.8, H(6.8, -8.5), -8.5); standing.rotation.y = -2.2; scene.add(standing);
+
+// ---- 人：主役（のぼる）と、火のそばにすわる仲間 ----
+const hero = R.actor({ build: 'toon', sex: 'f', hairStyle: 'tail', hair: '#2a2438', skin: '#e0b088', eyes: 'big', cloth: 'tunic', top: '#5a7ac8', top2: '#f0e0c0', lower: 'baggy', bottom: '#e8dcc0', belt: '#8a5a34', shoes: 'boot', shoe: '#6a4a34', neck: 'scarf', acc: '#f0903a', back: 'bag', strap: true, gloves: 'wrap', glove: '#e8d8b8' }); scene.add(hero);
+const pal = R.actor({ build: 'toon', hairStyle: 'short', hair: '#5a3a2a', skin: '#c88a58', beard: 'stubble', cloth: 'robe', top: '#4a6a8a', top2: '#e8d8b8', skirt: .7, shoe: '#5a4030', hat: 'band', acc: '#e0a040' }); scene.add(pal);
+{ const p = pal, x = 1.25, z = -9.7; p.position.set(x, H(x, z) - .3, z); p.rotation.y = -2.1; const J = p.userData.J; J.legL.rotation.x = J.legR.rotation.x = -1.5; J.shinL.rotation.x = J.shinR.rotation.x = 1.6; }   // 火のそばに こしを下ろす
+
+const lamp = D.lantern(hero, { hand: 'R', power: 2.5, range: 4, r: 1.4, k: .35 }), crt = R.crt(renderer, { noise: 0, bright: 1.05 }); onResize(crt.resize);
+const Z0 = 9, LEN = 15, SPEED = 1.2;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 - dist, x = Math.sin(z * .2) * .6, y = H(x, z), slope = (H(x, z - .5) - y) * 2;
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.cos(z * .2) * .12; R.walk(hero, t * SPEED * 3.8, .85); hero.userData.J.torso.rotation.x = Math.min(.25, slope * .25); D.lanternPose(hero); lamp.userData.spot.position.y = y + .06;
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 4.8; cam.position.set(x + (tall ? .8 : 1.2), y + (tall ? 1.7 : 1.5), z + Dc); cam.lookAt(x + .3, y + (tall ? 2.2 : 1.95) + slope * .6, z - 7);   // 低い所から見上げて、砂丘の上の空を大きく
+  sun.position.set(x + MOONV.x * 60, y + MOONV.y * 60, z + MOONV.z * 60); sun.target.position.set(x, y, z - 5);
+  // 火のゆらぎ、火の粉、らくだ、仲間の手ふり
+  const fl = .8 + Math.sin(t * 13) * .1 + Math.sin(t * 7.3) * .1; fireL.intensity = 9 * fl; flame.scale.set(1, fl * 1.1, 1); glow.material.opacity = .45 + fl * .12; sparks.userData.tick(t, FIRE[0], FIRE[1]);
+  camels.forEach((c, i) => SD.camelPose(c, 'rest', t + i * 3)); SD.camelPose(standing, 'stand', t * .7);
+  const J = pal.userData.J; J.armR.rotation.set(-2.6 + Math.sin(t * 5) * .25, 0, -.3); J.foreR.rotation.x = -.3; J.head.rotation.y = Math.sin(t * .4) * .3; J.armL.rotation.x = -.6;
+  D.tick(t, cam); tilt.rotation.y = t * .004; met.userData.tick?.(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

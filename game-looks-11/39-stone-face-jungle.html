@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-39 密林の巨大な石の顔 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffbe8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-39 ─ 密林の巨大な石の顔 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-jungle2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の密林。木の根にからまれた巨大な石の顔が、石だたみの古い道の両がわに ならぶ。木のかさのすきまから光のすじがさし、石の顔の上で さるの群れが遊ぶ。
+// 色の組は「こけむした石の黄土・密林の緑・光のすじの淡い金」＋差し色の 主役のスカーフの赤。顔の目・まゆ・鼻・くちびるは、64 ドットの絵に彫りの光とかげを打ってある（pack-jungle2.js の J.stoneFace）。
+// 主役は探検の若者（R.actor の toon）。こちらへ歩いてくるのを、カメラが前から うしろ向きに下がりながら写す（顔と前の姿が見える）。さる・鳥・ちょう・光の粒が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), PK = PACK_RUINS(THREE, K, R), J = PACK_JUNGLE2(THREE, K, R, F), T = R.tex, PT = PK.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#5aa8c8'], [.55, '#9ad0c8'], [1, '#e8f4d0']], { r: 400 })); scene.fog = new THREE.Fog('#b8d8b0', 26, 150);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8ffe0, ground: 0x6a8a5a, amb: 1.45, sun: 0xfff0c0, power: 2.4, range: 30 }), SUN = new THREE.Vector3(-.35, .75, -.55).normalize();
+
+// ---- 道：石だたみの古い道が ゆるく曲がりながら -z へ。まわりは こけと草 ----
+const pathX = z => Math.sin(z * .06) * 2.5, off = (x, z) => Math.abs(x - pathX(z));
+const H = (x, z) => Math.min(1, Math.max(0, off(x, z) - 3) / 6) * (F.vn(x * .12, z * .12, 3) - .3) * 1.4;
+const land = R.ground({ w: 120, d: 150, cell: 2, cz: -40, H, layers: [T.grass({ c: '#5a9a48', flowers: .1, fc: ['#ffffff', '#ffe27a'] }), PT.ancient({ kind: 'block', c: '#b8ac88', moss: .55 }), PT.moss({ flowers: .2 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - off(x, z) / 1.6)) * (F.vn(x * .4, z * .4, 8) > .25 ? 1 : 0), F.vn(x * .18, z * .18, 5) > .5 ? .8 : 0] }); scene.add(land.mesh);
+
+// ---- 石の顔（道の両がわ。どれも道の先＝カメラの来るほうを向く） ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const FACES = [[-1, 4, 1.15, 'calm'], [1, -8, 1.3, 'open'], [-1, -20, 1.4, 'open'], [1, -32, 1.2, 'calm'], [-1, -44, 1.35, 'calm'], [1, -56, 1.25, 'open'], [-1, -68, 1.3, 'open']].map(([s, z, sc, look], i) => {
+  const x = pathX(z) + s * (5.4 + sc * 1.6), f = put(J.stoneFace({ s: sc, c: ['#b8ac88', '#a8a490', '#c0b088'][i % 3], moss: .5, look, seed: i, flowers: .4 }), x, z, -s * .42, H(x, z) - .3); return [x, z, f]; });
+put(J.stoneFace({ s: 2.2, c: '#a8a088', look: 'calm', seed: 9, roots: 7 }), pathX(-86), -86, 0, -1);   // 道のはじまりの、いちばん大きな顔（主役のうしろに見える）
+// 大木、シダ、大きな葉、つる、くずれた石
+const trees = []; for (let i = 0; i < 36; i++) { const z = 14 - i * 3.3 - hash(i, 3) * 2, s = i % 2 ? 1 : -1, x = pathX(z) + s * (8.5 + hash(i, 4) ** 1.3 * 14); trees.push(put(J.tree({ h: 17 + hash(i, 5) * 9, c: '#6a6050', leaf: ['#3f7a3e', '#4a8840', '#36703e'][i % 3], seed: i, vines: 4, vineC: '#4a8a3a' }), x, z, i)); }
+for (let i = 0; i < 80; i++) { const z = 18 - hash(i, 6) * 100, s = hash(i, 7) > .5 ? 1 : -1, x = pathX(z) + s * (2.8 + hash(i, 8) ** 1.2 * 12), q = i % 5; if (FACES.some(([fx, fz]) => Math.hypot(x - fx, z - fz) < 3.4)) continue;
+  if (q < 2) put(J.fern({ s: 1 + hash(i, 9) * .9, c: ['#4f9a4a', '#5aa450'][i % 2], seed: i }), x, z, i); else if (q === 2) put(J.bigLeaf({ s: 1.1 + hash(i, 10) * .8, c: '#3f8a44', holes: i % 2 ? .5 : 0, seed: i }), x, z, i); else if (q === 3) put(R.rock({ s: .5 + hash(i, 11) * .8, c: '#a8a088', moss: .9, seed: i }), x, z, i, H(x, z) - .15); else put(R.tuft({ kind: ['grass', 'bush'][i % 2], s: .8, seed: i % 3 }), x, z, i); }
+for (let i = 0; i < 10; i++) { const a = trees[i * 3 % 30], b = trees[(i * 3 + 1) % 30]; if (Math.abs(a.position.z - b.position.z) > 16) continue; fixed.push(J.liana([a.position.x, a.position.y + a.userData.h * .62, a.position.z], [b.position.x, b.position.y + b.userData.h * .6, b.position.z], { sag: 3.5, leafC: '#4a9a44' })); }
+for (let i = 0; i < 9; i++) put(J.tree({ h: 20 + hash(i, 41) * 8, c: '#6a6050', leaf: ['#3f7a3e', '#36703e'][i % 2], seed: i + 60, vines: 5 }), pathX(-96) + (i - 4) * 6 + hash(i, 42) * 3, -98 - hash(i, 43) * 12, i);   // 大きな顔のうしろの森
+put(PK.column({ h: 4, r: .45, c: '#b8ac88', broken: .5, seed: 2, ivy: .8 }), pathX(-14) + 3.6, -14, .3); put(PK.column({ h: 4.5, r: .45, c: '#b8ac88', broken: .6, seed: 4, ivy: .8 }), pathX(-38) - 3.6, -38, 1.2);
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#4a8a50', haze: '#b8d8b0', r: 150, h: 50, y: -2, rep: 6 }));
+
+// ---- 光のすじと光の粒 ----
+const shafts = [[1, 0], [-2, -10], [2, -22], [-1, -33], [2, -46], [-2, -58]].map(([dx, z], i) => { const s = PK.shaft({ w: 2.6, h: 16, dx: -5, dz: -7, a: .28, c: '#fff0b8', seed: i }); s.position.set(pathX(z) + dx, 0, z); scene.add(s); return s; });
+const motes = F.motes({ n: 110, box: [20, 7, 26], c: '#fff6c8', size: .1, rise: .12, drift: .9, y: .3 }); scene.add(motes);
+
+// ---- 主役と生きもの ----
+const hero = R.actor({ build: 'toon', hairStyle: 'spiky', hair: '#3a2a22', eyes: 'big', mouth: 'smile', cloth: 'vest', top: '#f0e4c8', top2: '#3a8a8a', lower: 'baggy', bottom: '#7a6448', belt: '#5a3a28', shoes: 'boot', shoe: '#6a4430', gloves: 'wrap', glove: '#e8dcc0', neck: 'scarf', acc: '#d8483a', back: 'bag' }); scene.add(hero);
+const MK = ['#8a5a3a', '#a06a40', '#6a4a34'], monkeys = [];
+FACES.forEach(([x, z, f], i) => { const top = f.userData.top[1] * 1 + H(x, z) - .3; for (let k = 0; k < (i % 2 ? 2 : 3); k++) { const m = J.monkey({ s: 1.5 + hash(i, k) * .4, c: MK[(i + k) % 3] }); m.position.set(x + (k - 1) * 1.1, top, z + (k % 2 ? .6 : -.4)); m.rotation.y = (hash(k, i) - .5) * 2; m.userData.pose = ['sit', 'eat', 'look'][(i + k) % 3]; m.userData.ph = i * 3 + k; scene.add(m); monkeys.push(m); } });
+{ const bx = pathX(-86), sc = 2.2; [[-1, 0], [-1, 1], [1, 0], [0, 2]].forEach(([sx, k], i) => { const m = J.monkey({ s: 1.7, c: MK[i % 3] }); m.position.set(sx ? bx + sx * (2.3 * sc * 1.02 + .3 * sc) + (k ? sx * -.5 : 0) : bx - 1.4, sx ? 6 * sc * .5 + .55 * sc - 1 : H(bx - 1.4, -86 + 2.1 * sc + 1.8), sx ? -86 + 2.1 * sc * .3 + (k ? .6 : 0) : -86 + 2.1 * sc + 1.8); m.rotation.y = sx * -.4; m.userData.pose = ['look', 'eat', 'sit', 'sit'][i]; m.userData.ph = i * 5; scene.add(m); monkeys.push(m); }); }   // 大きな顔の耳かざりと、あごの根の上
+const walkers = [0, 1, 2].map(i => { const m = J.monkey({ s: 1.6, c: MK[i] }); scene.add(m); return m; });
+const hangers = [3, 12, 21].map((ti, i) => { const t = trees[ti], m = J.monkey({ s: 1.6, c: MK[(i + 1) % 3] }); m.position.set(t.position.x + (t.position.x > pathX(t.position.z) ? -1.2 : 1.2), t.position.y + t.userData.h * .5, t.position.z); m.userData.p = m.position.clone(); scene.add(m); return m; });
+const flock = PK.flock({ n: 6, r: 9, h: 3, speed: .3, squash: .5, c: '#e8483a' }); flock.position.set(0, 16, -20); scene.add(flock);
+const bfs = [[0, -6], [-2, -18], [2, -30]].map(([dx, z], i) => { const b = PK.butterflies({ n: 5, area: [5, 1.4, 4], fc: ['#fff8d8', '#ffd86a', '#f8b0d0'] }); b.position.set(pathX(z) + dx, .6, z); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = -74, LEN = 66, SPEED = 1.5;
+K.loop((dt, t) => {
+  const z = Z0 + (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z + 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .9); hero.userData.J.head.rotation.y = Math.sin(t * .5) * .45;
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 4.8, cz = z + Dc, cx = pathX(cz); cam.position.set(cx + (tall ? .6 : 1.2), H(cx, cz) + (tall ? 1.5 : 1.3), cz); cam.lookAt(x - .2, y + (tall ? 2.6 : 2.5), z - 6);   // 前から低く見上げる。主役の顔と、うしろの石の顔
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z);
+  monkeys.forEach(m => J.monkeyPose(m, m.userData.pose, t * 1.2 + m.userData.ph));
+  walkers.forEach((m, i) => { const mz = z - 2.5 - i * 1.3 + Math.sin(t * .8 + i) * .3, mx = pathX(mz) + (i - 1) * 1.1; m.position.set(mx, H(mx, mz), mz); m.rotation.y = 0; J.monkeyPose(m, 'walk', t * 4.4 + i * 1.7); });   // 主役のうしろを ついてくる
+  hangers.forEach((m, i) => { const sw = Math.sin(t * 1.4 + i * 2) * .35; m.position.set(m.userData.p.x + Math.sin(sw) * 1.2, m.userData.p.y - Math.cos(sw) * .3, m.userData.p.z); m.rotation.z = sw; J.monkeyPose(m, 'hang', t + i); });
+  flock.userData.tick(t); motes.userData.tick(t, x, z - 4); for (const b of bfs) b.userData.tick(t); for (const s of shafts) s.userData.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-09 狐火の夜道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dceaff;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-09 ─ 狐火の夜道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-wa2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の田んぼ。水を張った田のあいだの細い あぜ道が、遠くの古い鳥居と黒い森へ続く。田の向こうを、青白い狐火が 1 列になって ゆらゆら横切り、水に映る。鳥居の下には、狐の面をつけた小さな影が 3 つ。
+// 色の組は「月夜の青・田の水の紺・あぜの枯れ草の灰緑」＋差し色は主役のちょうちんの だいだい（狐火の青白と向かい合う）。不気味だけれど、こわすぎない。
+// 主役はちょうちんをさげた若者（R.actor の toon）。あぜ道を鳥居へ歩き、左うしろの低い所からカメラが肩ごしに追う。D.mood('moon')・D.wisp・地をはう霧は pack-dark.js、ちょうちんは pack-wa2.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), WA = PACK_WA2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', bangs: 'swept', hair: '#2a2a3a', mouth: 'small', cloth: 'jacket', top: '#e4e0d4', top2: '#3a4a6a', lower: 'pants', bottom: '#2e3a5a', shoes: 'shoe', shoe: '#6a5040', neck: 'scarf', acc: '#d8503a', back: 'bag', strap: true }); scene.add(hero);
+const moon = D.moon({ r: 17, az: 16, el: 15, c: '#f0f4ff', haloC: '#6a8ad0' }); scene.add(moon);
+const mood = D.mood(scene, renderer, 'moon', { sky: ['#050816', '#0c1834', '#1c3458', '#4a6a8c'], fog: ['#1e3048', 18, 150], hemi: ['#8ab0e0', '#26303e', 1.1], key: ['#d0e4ff', 1.6, moon.userData.dir.toArray()], fill: ['#3c5a88', .5], hills: '#0c1a28', base: [.7, .8, .95], stars: 180, follow: hero, range: 30 });
+
+// ---- 田んぼ：あぜ（少し高い土と枯れ草）の格子、田は水。主役の歩く あぜ道は x=0 で鳥居へ ----
+const CW = 9, CD = 7, ZT = -38, fr = v => v - Math.floor(v);
+const aze = (x, z) => Math.abs(x) < .9 || Math.min(fr(x / CW), 1 - fr(x / CW)) * CW < .55 || Math.min(fr(z / CD), 1 - fr(z / CD)) * CD < .5 || z < ZT + 5;
+const H = (x, z) => aze(x, z) ? .05 : -.35;
+const LIT = [...[-1, 1].map(s => ({ x: s * 2.6, z: ZT + 3, r: 3.5, c: '#ffc070', k: .7 })), { x: -4.2, z: ZT + 4, r: 3, c: '#a8e0ff', k: .8 }];
+const land = R.ground({ w: 140, d: 150, cell: 1, cz: -30, H, layers: [T.dirt({ c: '#4e4a48', pebbles: .3 }), D.tex.deadGrass({ c: '#4e6458' }), T.dirt({ c: '#2a3038' })],
+  mix: (x, z) => [aze(x, z) && Math.abs(x) > .5 ? 1 : 0, aze(x, z) ? 0 : 1], shade: mood.shade(LIT) }); scene.add(land.mesh);
+const WF = T.water({ c: '#1c2c48' }), water = R.ground({ w: 140, d: 150, cell: 2, cz: -30, layers: [WF[0]] }); water.mesh.position.y = -.14; water.mesh.renderOrder = 1; scene.add(water.mesh);
+
+// ---- 苗、かかし、鳥居、森、石灯ろう、ほこら ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let i = 0; i < 260; i++) { const x = Math.round(((hash(i, 1) - .5) * 70) / .9) * .9, z = Math.round((14 - hash(i, 2) * 74) / .8) * .8; if (aze(x, z) || aze(x + .4, z) || aze(x, z + .4)) continue; put(R.tuft({ kind: 'grass', s: .4 + hash(i, 3) * .12, c: '#7aa07a', seed: i % 3 }), x, z, i, -.14); }
+put(D.scarecrow({ s: 1.1 }), -6.5, -18, .5, -.1); put(D.scarecrow({ s: 1 }), 11, -32, -.4, -.1);
+put(F.torii({ w: 5, h: 5.6, c: '#a8483a' }), 0, ZT); put(F.torii({ w: 3.6, h: 4.2, c: '#8a3e36' }), 0, ZT - 6);
+for (const s of [-1, 1]) put(F.stoneLantern({ h: 1.5, lit: true }), s * 2.6, ZT + 2.5);
+put(F.eastHall({ w: 4, d: 3.4, h: 2.4, c: '#6a3432', roof: F.tex.kawara({ c: '#3a4050' }), lit: false }), 0, ZT - 14);
+for (let k = 0; k < 90; k++) { const x = (hash(k, 1) - .5) * 120, z = ZT - 4 - hash(k, 2) * 50; if (Math.abs(x) < 3.5 && z > ZT - 18) continue; put(R.tree({ kind: k % 3 ? 'tall' : 'pine', h: 11 + hash(k, 3) * 9, c: ['#14263a', '#182c3a', '#122230'][k % 3], seed: k }), x, z, k); }
+for (let k = 0; k < 18; k++) { const x = (k % 2 ? 1 : -1) * (30 + hash(k, 5) * 30), z = 10 - hash(k, 6) * 70; put(R.tree({ kind: 'round', h: 6 + hash(k, 7) * 4, c: '#1a2c36', seed: k + 50 }), x, z, k); }
+// 電柱の代わりに、あぜの木のくいと、つなの しめ縄
+{ const G = R.geo().smooth(1); for (let z = 10; z > ZT + 4; z -= 7) for (const s of [-1, 1]) G.at(R.TR(s * 1.1, 0, z)).loft(5, [[-.2, .06, .06, 0, .8], [.9 + hash(z, s) * .3, .05, .05, 1, 1]], { cap: 'top' }); fixed.push(G.at(null).mesh(T.bark({ c: '#5a5048' }))); }
+scene.add(R.merge(fixed));
+
+// ---- 狐火：田の向こうを横切る 1 列。ゆれながら左から右へ。水に映りこむ ----
+const NW = 13, WROW = [];
+for (let i = 0; i < NW; i++) { const c = ['#a8e0ff', '#c8f0ff', '#8ad0ff'][i % 3], w = D.wisp({ c, r: .75, drift: .25, seed: i * 3 + 1, light: i % 4 === 1, power: 6, range: 9, pool: 2.4, k: .5 }); scene.add(w); const st = { x: 0, z: 0, h: 1.1, c, w: .8, k: .9, len: 3.2 }; WROW.push({ w, st, i }); }
+const streaks = D.streaks(WROW.map(o => o.st), { y: -.1, far: 70 }); scene.add(streaks);
+const lonely = [[-16, -12], [19, -6], [-24, -40], [8, -48]].map(([x, z], i) => { const w = D.wisp({ c: '#9ad8ff', r: .35, drift: .8, seed: i + 40, pool: 2 }); w.position.set(x, 1.2, z); scene.add(w); return w; });
+
+// ---- 狐の面の小さな影（白い面に赤い くま取り、耳。鳥居の下に立って こちらを見る） ----
+const maskT = (() => { const P = R.Px(24, 24), Wt = R.ramp('#f4f0e8'), Rd = R.ramp('#d8402e'), Kk = R.ramp('#2a2228'); P.fill(Wt[4]); P.each((x, y) => (x - 11.5) ** 2 / 130 + (y - 13) ** 2 / 150 > 1 ? Wt[2] : undefined);
+  P.rect(5, 9, 5, 2, Kk[1]); P.rect(14, 9, 5, 2, Kk[1]); P.rect(4, 8, 2, 1, Rd[3]); P.rect(18, 8, 2, 1, Rd[3]); P.line(5, 7, 9, 5, Rd[3]); P.line(18, 7, 14, 5, Rd[3]); P.rect(10, 2, 4, 3, Rd[3]); P.rect(11, 15, 2, 1, Kk[1]); P.line(9, 18, 12, 19, Rd[2]); P.line(14, 18, 12, 19, Rd[2]); return T.from(P, { m: 1 }); })();
+const foxKid = (o, x, z) => { const p = R.actor({ build: 'toon', s: .78, mouth: 'small', ...WA.yukata(o) }); p.position.set(x, .05, z); scene.add(p);
+  const J = p.userData.J, b = p.userData.build, Hd = b.head, HW = b.hw * Hd, G = R.geo(); const w = HW * 1.05, h = Hd * .95, fz = HW * .98, y0 = Hd * .3;
+  G.quad([-w, y0, fz], [w, y0, fz], [w, y0 + h, fz], [-w, y0 + h, fz]).quad([-w * .3, y0 + h * .2, fz + .02], [w * .3, y0 + h * .2, fz + .02], [0, y0 + h * .5, fz + .12], [0, y0 + h * .5, fz + .12], [.35, .1, .65, .5]);
+  for (const s of [-1, 1]) G.tri([s * w * .95, y0 + h * .85, fz - .02], [s * w * .35, y0 + h, fz - .02], [s * w * .8, y0 + h * 1.55, fz - .04], [0, 1], [1, 1], [.5, 0]);
+  J.head.add(G.mesh(maskT, { side: true })); return p; };
+const foxes = [foxKid({ hairStyle: 'bob', hair: '#2a2228', top: '#e8e4dc', obi: '#d8402e' }, -5.6, ZT + 4), foxKid({ hairStyle: 'short', hair: '#2a2228', top: '#4a5a8a', obi: '#e8c060' }, -4.2, ZT + 3.5), foxKid({ hairStyle: 'bun', hair: '#2a2228', top: '#c84a4a', obi: '#f4ecd8' }, -2.9, ZT + 4.3)];
+const foxLan = WA.chochin({ c: '#bfe8ff', mark: 'none', r: .1, h: .2, cord: .1 }), fh = D.halo({ c: '#a8e0ff', r: .45, k: .8 }); fh.position.y = foxLan.userData.mid; foxLan.add(fh); foxLan.position.set(0, -.05, .08); foxes[1].userData.J.foreR.add(foxLan);
+
+// ---- 空気：地をはう霧、ほたるのような ちり、かえるの代わりに水面の波紋、からす、ふくろう ----
+scene.add(D.groundFog({ n: 60, box: [70, 70], c: '#9ab8d8', a: .26, h: 1.4, w: 9, y: -.05, wind: [.3, .05] }), D.flakes({ kind: 'dust', n: 80, c: '#d0f0c0', box: [24, 4, 24], size: 1.2 }), D.clouds({ n: 8, r: 260, y: 70, s: 90, c: '#2a4060', shade: '#101c30', speed: .012 }));
+{ const o = D.owl({ s: 1.5 }); o.position.set(2.5, 2.1, ZT + 2.5); o.rotation.y = .4; scene.add(o); }
+scene.add(D.flock({ n: 6, r: 18, h: 6, center: [-10, 24, -70], speed: .2 }));
+// 主役のちょうちん
+{ const J = hero.userData.J, B = hero.userData.build, hold = new THREE.Group(), g = new THREE.Group(), ch = WA.chochin({ c: '#f0e4c8', mark: 'ring', mc: '#c83a2a', r: .13, h: .28, cord: .16 });
+  J.foreL.add(hold); g.position.y = -B.farm - B.hand[2] * .8; hold.add(g); g.add(ch); const hl = D.halo({ c: '#ffb060', r: .55, k: .85 }); hl.position.y = ch.userData.mid; g.add(hl);
+  const L = new THREE.PointLight('#ffb060', 6, 7, 1.5); L.position.y = ch.userData.mid; g.add(L); hero.userData.lantern = { g, hand: 'L' }; }
+const hs = D.spot({ c: '#ffa850', r: 2.2, k: .35, flicker: 'fire' }); scene.add(hs);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.12 }); onResize(crt.resize);
+const Z0 = 7, LEN = 26, SPEED = 1.0, wp = new THREE.Vector3();
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = 0;
+  hero.position.set(x, .05, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.8, .7); D.lanternPose(hero, .8); hero.userData.J.head.rotation.y = Math.sin(t * .4) * .3 - .15;
+  hero.userData.lantern.g.getWorldPosition(wp); hs.position.set(wp.x, .1, wp.z);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.6 : 3.4; cam.position.set(x - (tall ? .7 : 1.1), tall ? 2.1 : 1.6, z + Dc); cam.lookAt(x + .5, tall ? 1.6 : 1.5, z - 8);   // 左肩ごしの低い所から
+  // 狐火の列：主役の 18 m 先の田を、左から右へ ゆっくり
+  const rz = Math.max(z - 13, ZT + 8);
+  WROW.forEach(({ w, st, i }) => { const px = ((i * 3.4 + t * .9) % (NW * 3.4)) - NW * 1.7, pz = rz - Math.sin(px * .12) * 2, py = 1.5 + Math.sin(t * 1.3 + i) * .3; w.position.set(px, py, pz); Object.assign(st, { x: px, z: pz, h: py }); const e = Math.min(1, (NW * 1.7 - Math.abs(px)) / 3); w.scale.setScalar(Math.max(.01, e)); st.k = .9 * e; });
+  foxes.forEach((p, i) => { R.idle(p, t + i * 2, Math.sin(t * .3 + i) * .2); p.rotation.y = Math.atan2(x - p.position.x, z - p.position.z) * .6; }); { const J = foxes[1].userData.J; J.armR.rotation.x = -.5; J.foreR.rotation.x = -.5; foxLan.rotation.x = 1; } foxes[2].userData.J.armL.rotation.set(-1.1 + Math.sin(t * 2) * .2, 0, .3);
+  R.flip(water.mat, WF, t, 2); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

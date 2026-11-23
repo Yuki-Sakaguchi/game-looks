@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-48 霧の鉄橋 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0c10;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#3a3440;opacity:.9;text-shadow:0 1px 0 #f0ece4}
+</style>
+<div id="cap">11-48 ─ 霧の鉄橋 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-steam2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝霧の川。リベット打ちの鉄のトラス橋が、石の橋脚の上を霧の奥までのびる。橋の外がわの歩道を、旅の女の子がトランクを持って渡る。下を外輪の蒸気船がけむりを吐いてくぐり、かもめが舞う。
+// 色の組は「霧のうす桃と白・鉄の青灰・川の緑灰」＋差し色は蒸気船の煙突と主役のケープの赤。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は R.actor の toon。カメラは歩道の外、少し高い所から横にならんで進む（横から見る構図）。鉄板・手すり・橋脚は pack-fantasy-town.js（F.〜）、遠くの町なみは pack-city.js（C.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), S = PACK_STEAM2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+const FOG = '#d8d0cc';
+scene.add(R.skyDome([[0, '#9ab0c8'], [.5, '#d4d0d4'], [.85, '#f0dcd0'], [1, FOG]], { r: 400 })); scene.fog = new THREE.Fog(FOG, 14, 120);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8e4f0, ground: 0x7a8a88, amb: 1.35, sun: 0xffe0c0, power: 1.3, range: 24 }), SUN = new THREE.Vector3(-.6, .35, -.7).normalize();
+
+// ---- 川（コマ送りの水）と、霧の奥の岸の町なみ ----
+const WF = T.water({ c: '#6a8a84' }), wmat = R.mat(WF[0], { vc: true, smooth: true });
+{ const G = R.geo(); for (let x = -110; x < 110; x += 4) for (let z = -90; z < 50; z += 4) { const c = (xx, zz) => .85 + .2 * Math.max(0, 1 - Math.hypot(xx + 20, zz + 60) / 70); G.quad([x, 0, z + 4], [x + 4, 0, z + 4], [x + 4, 0, z], [x, 0, z], [x / 3, -(z + 4) / 3, (x + 4) / 3, -z / 3], [c(x, z + 4), c(x + 4, z + 4), c(x + 4, z), c(x, z)]); }
+  const m = G.mesh(wmat); m.castShadow = false; scene.add(m); }
+scene.add(R.backdrop({ c: '#a8a0a8', haze: '#e4dcd6', r: 230, h: 40, y: -3, rep: 3, seed: 2 }));
+
+// ---- 鉄橋：石の橋脚、車道、外がわの歩道、両がわのトラス（上下の弦材・たて材・ななめ材）、上の横つなぎ ----
+const BANK = [], DY = 8, TH = 6.5, ZT = 2.3, X0 = -130, X1 = 130, BAY = 5, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const IRON = F.tex.iron({ c: '#5e6a80', rust: .35 }), IRON2 = F.tex.iron({ c: '#4e5870', rust: .5, seed: 2 });
+{ const G = R.geo(), H = R.geo(), mem = (a, b, w, G2 = G) => { const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(...d).normalize()), m = new THREE.Matrix4().compose(new THREE.Vector3(...a), q, new THREE.Vector3(1, 1, 1)); G2.at(m).box(w, L, w, 0, 0, 0, { m: 2, top: false }).at(null); };
+  for (const z of [-ZT, ZT]) { mem([X0, DY, z], [X1, DY, z], .5, H); mem([X0, DY + TH, z], [X1, DY + TH, z], .45, H);
+    for (let x = X0; x < X1; x += BAY) { mem([x, DY, z], [x, DY + TH, z], .28); const k = Math.round((x - X0) / BAY) % 2; mem(k ? [x, DY, z] : [x, DY + TH, z], k ? [x + BAY, DY + TH, z] : [x + BAY, DY, z], .22); } }
+  for (let x = X0; x < X1; x += BAY) { mem([x, DY + TH, -ZT], [x, DY + TH, ZT], .22); mem([x, DY - .3, -ZT - .2], [x, DY - .3, 4.4], .3, H); if (Math.round(x / BAY) % 2 === 0) { mem([x, DY + TH, -ZT], [x + BAY, DY + TH, ZT], .14); mem([x, DY + TH, ZT], [x, DY + TH - 1.3, ZT], .12); } }
+  fixed.push(G.mesh(IRON), H.mesh(IRON2)); }
+// 車道（石だたみ）と、外の歩道（板）と その手すり
+{ const G = R.geo(), P = R.geo(); for (let x = X0; x < X1; x += 4) { G.quad([x, DY, ZT], [x + 4, DY, ZT], [x + 4, DY, -ZT], [x, DY, -ZT], [x / 3, 0, (x + 4) / 3, 2 * ZT / 3]);
+    P.quad([x, DY + .02, 4.3], [x + 4, DY + .02, 4.3], [x + 4, DY + .02, ZT + .2], [x, DY + .02, ZT + .2], [x / 3, 0, (x + 4) / 3, .7]); P.quad([x, DY - .25, 4.3], [x + 4, DY - .25, 4.3], [x + 4, DY + .02, 4.3], [x, DY + .02, 4.3], [x / 3, 0, (x + 4) / 3, .1], .8); }
+  fixed.push(G.mesh(T.cobble({ kind: 'slab', c: '#8a8a8e' })), P.mesh(T.planks({ c: '#8a6a50' }))); }
+{ const G = R.geo(); for (let x = X0; x < X1; x += 2) { G.box(.07, 1.02, .07, x, DY, 4.2, { m: 1 }); if (x % 4 === 0) G.box(.12, .12, .12, x, DY + 1.02, 4.2, { m: 1 }); } for (const y of [1, .5]) G.box(X1 - X0, .07, .07, 0, DY + y - .035, 4.2, { m: 2 }); fixed.push(G.mesh(F.tex.iron({ c: '#3e4860' }))); }
+for (let x = -60; x <= 60; x += 15) { const l = R.lamp({ h: 3.4, c: '#3e4860' }); put(l, x + 2.5, 4.05, 0, DY); }
+// 橋脚（切り石）。上は橋の下まで
+for (const x of [-75, -35, 35, 75]) { const G = R.geo(); G.loft(8, [[-1, 3.2, 2.8, 0, .8], [DY - .5, 2.6, 2.4, 3, 1], [DY - .2, 3, 3, 3.2, 1.05]], { cap: 'top', ur: 4, rot: 0 }); put(G.mesh(F.tex.ashlar({ c: '#9a948c', moss: .3 })), x, 0); }
+// 橋の門（入口の飾りの塔）と旗
+for (const x of [-35, 35]) for (const z of [-ZT - .4, ZT + .4]) { const tw = F.tower({ kind: 'square', r: .7, h: DY + TH + 3, stone: F.tex.ashlar({ c: '#a8a098' }), roof: '#4a5a6a', top: 'cone', roofH: 2 }); put(tw, x, z, 0, 0); }
+// 霧の奥の岸：れんがの家なみと、工場の煙突
+{ const BR = T.brick({ c: '#9a6a5a' }), RF = T.roof({ kind: 'slate', c: '#5a5e6e' }); for (let k = 0; k < 14; k++) { const hx = -90 + k * 13 + hash(k, 1) * 5, h = 3 + hash(k, 2) * 3; put(R.house({ w: 8, d: 6, h, h2: 3, wall: BR, roof: RF, seed: k }), hx, -64 - hash(k, 3) * 6); }
+  for (const [cx, cz, ch] of [[-40, -74, 22], [-12, -78, 26], [30, -72, 20], [58, -80, 24]]) { const G = R.geo(); G.loft(8, [[0, 1.6, 1.6, 0, .8], [ch, 1.1, 1.1, ch / 3, 1], [ch + .6, 1.4, 1.4, ch / 3 + .2, 1]], { cap: 'top', ur: 3 }); put(G.mesh(T.brick({ c: '#8a5a4a', seed: 4 })), cx, cz); BANK.push([cx, ch, cz]); } }
+scene.add(R.merge(fixed));
+BANK.forEach(([cx, ch, cz], i) => { const s = C.steam({ n: 9, r: 2.2, rise: 16, spread: 2, speed: .12, c: '#e8e0dc', a: .5, wind: [6, 0], phase: i * .2 }); s.position.set(cx, ch + .6, cz); scene.add(s); });
+
+// ---- 外輪の蒸気船（川をよこぎり、橋の下をくぐる）と小舟 ----
+const steamer = (() => { const B = R.parts(), Hl = B.g(T.boards({ c: '#2e5a52' }), { side: true }).smooth(1), Dk = B.g(T.planks({ c: '#a08060' }), { side: true }), Wa = B.g(T.windowWall({ wall: 'boards', wallO: { c: '#e8e0d0' }, curtain: '#f0d890', bars: 'cross' }));
+  const sec = (z, hw, yt, dp) => [[-hw, yt, z], [-hw * .8, yt - dp * .7, z], [0, yt - dp, z], [hw * .8, yt - dp * .7, z], [hw, yt, z]], st = [[-7, 2.4, 1.3, 1.4], [-4, 2.6, 1.3, 1.8], [3, 2.6, 1.3, 1.8], [6, 1.8, 1.5, 1.6], [8, .1, 1.8, 1.3]];
+  for (let i = 0; i < st.length - 1; i++) { const a = sec(...st[i]), b = sec(...st[i + 1]); for (let k = 0; k < 4; k++) Hl.quad(a[k + 1], a[k], b[k], b[k + 1], [st[i][0] / 3, k * .25, st[i + 1][0] / 3, k * .25 + .25], k === 0 || k === 3 ? 1 : .7); }
+  { const a = sec(...st[0]); Hl.tri(a[0], a[2], a[4], [0, 0], [.5, 1], [1, 0], .8); }
+  Dk.quad([-2.4, 1.32, -7], [2.4, 1.32, -7], [2.4, 1.32, 6], [-2.4, 1.32, 6], [0, 0, 2, 4]); Dk.tri([-1.8, 1.5, 6], [1.8, 1.5, 6], [0, 1.82, 8]);
+  Wa.box(3.4, 1.9, 7, 0, 1.3, -1.6, { m: 1.6 }); B.g(T.roof({ kind: 'slate', c: '#8a3a34' })).box(3.8, .2, 7.6, 0, 3.2, -1.6, { m: 2 }); Wa.box(2, 1.4, 2.2, 0, 3.4, .6, { m: 1.6 });
+  B.g(T.metal({ c: '#c83a2e' })).loft(8, [[3.3, .45, .45, 0, 1, 0, -2.4], [6.6, .45, .45, 2, 1.05, 0, -2.4]]).loft(8, [[6.6, .55, .55, 0, .9, 0, -2.4], [7, .55, .55, .2, .9, 0, -2.4]]);
+  B.g(T.metal({ c: '#2e2a34' })).loft(8, [[5.4, .47, .47, 0, 1, 0, -2.4], [5.8, .47, .47, .2, 1, 0, -2.4]]);
+  const g = B.group(); g.children.forEach(m => m.castShadow = false);
+  const wheels = [-1, 1].map(s => { const w = S.gear({ r: 1.9, th: .5, pitch: .9, spokes: 8, c: '#8a3a30', speed: 1.4 * s }); w.position.set(s * 2.9, 1.1, 1.2); w.rotation.y = PI / 2; g.add(w); return w; });
+  const hood = R.geo(); hood.loft(10, [[0, 2.25, 2.25, 0, 1, 0, 0], [.7, 2.25, 2.25, .3, 1, 0, 0]], { seg: [0, 5], rot: 0 }); const hm = hood.mesh(T.boards({ c: '#e8d8b0' }), { side: true }); hm.rotation.z = -PI / 2;   // 外輪のおおい（上半分）
+  for (const s of [-1, 1]) { const h = hm.clone(); h.position.set(s * 2.9 - .35, 1.1, 1.2); g.add(h); }
+  g.userData.chimney = [0, 7, -2.4]; return g; })();
+scene.add(steamer); { const st = C.steam({ n: 10, r: .7, rise: 7, spread: .9, speed: .25, c: '#f4f0ec', a: .6, wind: [0, 3] }); st.position.set(0, 7, -2.4); steamer.add(st); }
+const boats = [0, 1].map(k => { const b = R.boat({ c: ['#9a6a44', '#5a7a8a'][k] }); b.scale.setScalar(1.3); scene.add(b); return b; });
+
+// ---- 人（主役・歩道の人）、かもめ ----
+const act = o => { const p = R.actor(o); scene.add(p); return p; };
+const hero = act({ sex: 'f', hairStyle: 'bob', hair: '#5a3a2a', mouth: 'small', cloth: 'tunic', top: '#4a5a7a', top2: '#f0e8d8', lower: 'skirt', skirt: .6, skirtC: '#3e4a64', shoes: 'boot', shoe: '#5a3a2a', neck: 'cape', acc: '#c83a2e', hold: 'case' });
+const walkers = [
+  { p: act({ hairStyle: 'short', hair: '#2a2228', beard: 'mustache', cloth: 'coat', top: '#3a3a4a', top2: '#e8e0d0', bottom: '#3a3a4a', hat: 'cap', acc: '#3a3a4a', hold: 'staff' }), z: 3.3, sp: -1, ph: 20 },
+  { p: act({ sex: 'f', hairStyle: 'bun', hair: '#c8a070', cloth: 'robe', top: '#8a6a7a', top2: '#f0e4d0', skirt: .9, shoe: '#4a3a3a' }), z: 3.7, sp: -.8, ph: 52 },
+  { p: act({ hairStyle: 'spiky', hair: '#8a5a3a', mouth: 'open', cloth: 'vest', top: '#7a5a3a', top2: '#f0e4c0', bottom: '#4a4a5a', back: 'bag', s: .78 }), z: 3.1, sp: 1.9, ph: 5 }];
+const gulls = [0, 1, 2, 3, 4].map(k => { const b = R.bird({ c: '#f0eee8', belly: '#ffffff', neck: false, s: 1.7 }); scene.add(b); return b; });
+
+const fx = K.fx(scene, 60), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const XS = -26, LEN = 46, SPEED = 1.35; let sm = 0;
+K.loop((dt, t) => {
+  const x = XS + (t * SPEED) % LEN, z = 3.4;
+  hero.position.set(x, DY, z); hero.rotation.y = PI / 2; R.walk(hero, t * SPEED * 3.7, .85);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.8 : 4.6; cam.position.set(x - Dc, DY + (tall ? 2.4 : 2.3), z + (tall ? .9 : 1.5)); cam.lookAt(x + 4, DY + (tall ? .9 : .6), z - (tall ? .5 : .2));
+  sun.position.set(x + SUN.x * 50, DY + SUN.y * 50, SUN.z * 50); sun.target.position.set(x, DY, 0);
+  for (const w of walkers) { const L = 70, d = ((w.ph + t * w.sp) % L + L) % L, wx = XS - 14 + d; w.p.position.set(wx, DY, w.z); w.p.rotation.y = w.sp > 0 ? PI / 2 : -PI / 2; R.walk(w.p, t * Math.abs(w.sp) * 3.8 + w.ph, .8); }
+  // 蒸気船：手前から奥へ、橋の下をくぐる
+  const sz = 16 - ((t * 2.2) % 110), sx = x + 13; steamer.position.set(sx, .05 + Math.sin(t * 1.3) * .05, sz); steamer.rotation.y = PI; steamer.rotation.z = Math.sin(t * .9) * .015;
+  boats.forEach((b, k) => { const bz = -10 - k * 22 + Math.sin(t * .2 + k) * 3; b.position.set(x - 14 + k * 26, .05 + Math.sin(t * 1.5 + k) * .04, bz); b.rotation.y = .6 + k; });
+  gulls.forEach((b, k) => { const a = t * (.35 + k * .05) + k * 1.3, r = 7 + k * 2.2; b.position.set(x + 9 + Math.cos(a) * r, DY + 1.2 + k * .6 + Math.sin(t * .7 + k) * .5, 6 + Math.sin(a) * r * .7); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .7); R.birdPose(b, 'fly', t * .6 + k); });
+  R.flip(wmat, WF, t, 4); for (const f of WF) f.offset.y = t * .05;
+  S.tick(t); F.tick(t); C.update(t, cam); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

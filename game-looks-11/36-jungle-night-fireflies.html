@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-36 夜の密林とほたる 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#d8f4e4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-36 ─ 夜の密林とほたる / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-jungle2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夜の密林。板根の大木と大きな葉・シダのあいだの くねった小道を、ランタンを持った探検家が歩く。無数のほたる、青く光るきのこと こけ、木の上で光る目。
+// 色の組は「密林の深い緑・夜空と光るきのこの青」＋差し色の ほたるの黄緑（ランタンのだいだいは主役だけ）。月の光は弱く、あかりは地面に焼きこむ（D.mood 'moon' を緑青に寄せた）。
+// 主役は探検家（R.actor の toon。だいだいの上着とつば広の帽子）。カメラは ななめ うしろの低い所から追い、木のかさと目を見上げる。ほたる・光る虫・目・ふくろう・かえるが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), J = PACK_JUNGLE2(THREE, K, R, F), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#4a3024', eyes: 'round', cloth: 'coat', top: '#ec9a44', top2: '#f0e2c0', lower: 'baggy', bottom: '#5a5a4a', belt: '#6a4a30', shoes: 'boot', shoe: '#5a3a28', gloves: 'glove', glove: '#8a6a44', neck: 'scarf', acc: '#e8d8a0', back: 'pack', hat: 'band' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 28, sky: ['#050e1c', '#0a2632', '#124648', '#28645a'], fog: ['#0e3236', 14, 90], hemi: ['#7ad8c0', '#1e3a34', 1.15], key: ['#a8e8ff', 1.2, [-.5, .7, -.5]], fill: ['#3a7898', .5], hills: '#0a2428', base: [.5, .66, .66], stars: 140 });
+
+// ---- 小道：くねりながら奥へ。土の道のまわりは こけと草。光るきのこの群れの あかりを地面に焼きこむ ----
+const pathX = z => Math.sin(z * .085) * 3.2 + Math.sin(z * .23) * .6, off = (x, z) => Math.abs(x - pathX(z));
+const H = (x, z) => Math.min(1, Math.max(0, off(x, z) - 2.5) / 6) * (F.vn(x * .15, z * .15, 2) - .2) * 1.6;
+const GLOWS = []; for (let i = 0; i < 16; i++) { const z = 14 - i * 5.2 - hash(i, 1) * 2, s = i % 2 ? 1 : -1; GLOWS.push([pathX(z) + s * (2.6 + hash(i, 2) * 2.2), z]); }
+const LIT = GLOWS.map(([x, z]) => ({ x, z, r: 3.4, c: '#58d8ff', k: .8 }));
+const land = R.ground({ w: 110, d: 140, cell: 2, cz: -30, H, layers: [T.grass({ c: '#2e5a46', flowers: 0 }), T.dirt({ c: '#6a5c4a', pebbles: .3 }), F.tex.moss({ kind: 'tile', c: '#3e7a5a', m: 2.5 })],
+  mix: (x, z) => [Math.max(0, Math.min(1, 1.3 - off(x, z) / 1.4)), F.vn(x * .2, z * .2, 4) > .55 ? .8 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 大木・シダ・大きな葉・つる ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const LEAF = ['#2f6a44', '#2a5e48', '#386e40'], trees = [];
+for (let i = 0; i < 34; i++) { const z = 20 - i * 3.4 - hash(i, 3) * 2, s = i % 2 ? 1 : -1, x = pathX(z) + s * (5 + hash(i, 4) ** 1.5 * 12); if (z < -84) break; trees.push(put(J.tree({ h: 14 + hash(i, 5) * 9, c: ['#5a5048', '#4e4a48'][i % 2], leaf: LEAF[i % 3], seed: i, vines: 4, vineC: '#3a7a44' }), x, z, i)); }
+for (let i = 0; i < 70; i++) { const z = 16 - hash(i, 6) * 96, s = hash(i, 7) > .5 ? 1 : -1, x = pathX(z) + s * (1.9 + hash(i, 8) ** 1.3 * 9), q = i % 4;
+  if (q === 0 || q === 1) put(J.fern({ s: .9 + hash(i, 9) * .7, c: ['#3f8a4e', '#4a9a54'][i % 2], seed: i }), x, z, i); else if (q === 2) put(J.bigLeaf({ s: 1 + hash(i, 10) * .8, c: '#2e7848', holes: i % 3 ? 0 : .5, seed: i, n: 5 }), x, z, i); else put(J.bigLeaf({ s: 1.3 + hash(i, 11) * .6, c: '#3a8048', seed: i, n: 4, upright: true }), x, z, i); }
+for (let i = 0; i < 12; i++) { const a = trees[i * 2 % trees.length], b = trees[(i * 2 + 3) % trees.length]; if (!a || !b || Math.abs(a.position.z - b.position.z) > 14) continue; const ca = a.userData.crown[0], cb = b.userData.crown[1] || b.userData.crown[0]; fixed.push(J.liana([a.position.x + ca[0] * .3, a.position.y + ca[1] * .7, a.position.z + ca[2] * .3], [b.position.x + cb[0] * .3, b.position.y + cb[1] * .65, b.position.z + cb[2] * .3], { sag: 3 + hash(i, 12) * 2, leafC: '#3a8a48' })); }
+// 光るきのこ（青・水色）と光るこけ
+const CAPS = [{ kind: 'spot', c: '#3a7ad8', c2: '#c8f4ff', glow: '#8ae8ff', gill: '#c8f4ff' }, { kind: 'ring', c: '#2a9ac0', c2: '#d8fff4', glow: '#a0fff0', gill: '#d8fff4' }];
+GLOWS.forEach(([x, z], i) => { for (let j = 0; j < 4; j++) { const k = CAPS[(i + j) % 2], dx = (hash(i, j + 20) - .5) * 1.4, dz = (hash(j, i + 20) - .5) * 1.4; put(F.mushroom({ ...k, shape: j ? 'dome' : 'bell', h: .35 + hash(i, j + 30) * .6, r: .2 + hash(j, i + 30) * .2, lean: .6, seed: i * 4 + j, skirt: false }), x + dx, z + dz, j); }
+  put(F.mossPatch({ r: .9, c: '#58e0c8', seed: i }), x + .4, z - .3, 0, H(x, z) + .02); });
+for (let i = 0; i < 40; i++) { const z = 24 - i * 3 - hash(i, 13) * 3, s = i % 2 ? 1 : -1, x = pathX(z) + s * (17 + hash(i, 14) * 16); put(J.tree({ h: 18 + hash(i, 15) * 8, c: '#4a4844', leaf: LEAF[i % 3], seed: i + 50, roots: 3, vines: 2, crown: 2 }), x, z, i); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#0e3030', haze: '#0e3236', r: 120, h: 40, y: -2, rep: 6, seed: 2 }));
+const mushL = [0, 1].map(() => { const L = new THREE.PointLight('#58d8ff', 5, 6, 1.6); scene.add(L); return L; });
+
+// ---- 生きもの：ほたるの群れ、光る虫、木の上の光る目、ふくろう、かえる ----
+const flies = F.motes({ n: 320, box: [30, 5.5, 34], c: '#d8ff70', size: .16, rise: .04, drift: 1.6, y: .25 }), flies2 = F.motes({ n: 90, box: [40, 10, 40], c: '#f0ffa0', size: .13, rise: .02, drift: 2.4, y: 3, seed: 5 }); scene.add(flies, flies2);
+const bugs = [...Array(5)].map((_, i) => { const b = F.bug({ c: '#d8ff70', s: .9 }); scene.add(b); return b; });
+const eyes = [[-1, 6, 1.2], [1, 1, 4.6], [-1, -6, 6.2], [1, -13, 5.2], [-1, -19, 1.4], [1, -26, 6.6], [-1, -33, 4.4], [1, -40, 1.3], [-1, -47, 6], [1, -55, 1.8], [-1, -62, 5.8], [1, -69, 2.2]].map(([s, z, y], i) => { const x = pathX(z) + s * (4.5 + hash(i, 40) * 3), e = J.eyes({ c: i % 3 ? '#ffd850' : '#a8ff70', s: .4, gap: .46, seed: i }); e.position.set(x, H(x, z) + y, z); scene.add(e); return e; });
+const owl = D.owl({ s: 1.5 }), oc = trees[4].userData.crown[0]; owl.position.set(trees[4].position.x + oc[0], trees[4].position.y + oc[1] - oc[3] * .36 - .2, trees[4].position.z + oc[2] + oc[3] * .6); scene.add(owl);
+const frogs = [...Array(3)].map((_, i) => { const g = F.slime({ c: ['#58c870', '#3ab890', '#80d050'][i], s: .16 }); const [x, z] = GLOWS[i * 3 + 1]; g.position.set(x - .9, H(x, z), z + .6); g.rotation.y = i; scene.add(g); return g; });
+
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffb860', power: 9, range: 8, r: 3, k: .75 }), crt = R.crt(renderer, { noise: 0, bright: 1.1 }); onResize(crt.resize);
+const Z0 = 12, LEN = 72, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.6, .85); D.lanternPose(hero); hero.userData.J.head.rotation.y = Math.sin(t * .6) * .35;
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.9 : 4.8; cam.position.set(x - (tall ? 1 : 2.2), y + (tall ? 1.9 : 1.55), z + Dc); cam.lookAt(x + .4, y + (tall ? 2.2 : 2.3), z - 5);   // ななめ うしろの低い所から、木の上を少し見上げる
+  GLOWS.slice().sort((a, b) => Math.abs(a[1] - z + 2) - Math.abs(b[1] - z + 2)).slice(0, 2).forEach(([gx, gz], k) => mushL[k].position.set(gx, H(gx, gz) + .7, gz));
+  bugs.forEach((b, i) => { const a = t * (.7 + i * .13) + i * 1.3, r = 1.2 + i * .35; b.position.set(x + Math.cos(a) * r, y + 1.2 + Math.sin(t * 1.3 + i) * .5, z - 1 + Math.sin(a) * r); b.rotation.y = -a; F.bugPose(b, t + i); });
+  for (const e of eyes) e.userData.tick(t); frogs.forEach((f, i) => F.slimePose(f, t * .8 + i * 1.7, .12));
+  flies.userData.tick(t, x, z - 6); flies2.userData.tick(t, x, z - 8); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

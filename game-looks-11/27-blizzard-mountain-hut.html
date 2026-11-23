@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-27 吹雪の山小屋 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#141a24;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8eef6;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-27 ─ 吹雪の山小屋 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-snow2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 強い吹雪の夜の峠。横なぐりの雪の中、道しるべの棒をたどった先の岩だなに、窓のあかりが ともる石の山小屋がある。戸口では小屋の人がランタンを ふって呼んでいる。
+// 色の組は「吹雪の灰青・雪の白・石の青むらさき」＋差し色は 窓とランタンの だいだい（主役の えりまきも同じ色）。D.mood の 'fog' を白っぽく上書きし、あかりは地面に焼きこむ。
+// 主役は R.actor の toon（青い上着とマント、背中の荷）。ジグザグの登り道を、ランタンを さげて風に前かがみで登る。カメラは ななめ うしろの低い所から、小屋を見上げる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_SNOW2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#4a3a34', brow: 'flat', mouth: 'line', cloth: 'coat', top: '#3c5c86', top2: '#d8d0c0', bottom: '#3a3a4c', gloves: 'glove', glove: '#5a4034', shoes: 'boot', shoe: '#4a3428', neck: 'scarf', acc: '#e8883a', back: 'pack' }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'fog', { follow: hero, range: 30, sky: ['#222a3a', '#3e4a5e', '#66748a', '#8c98aa'], fog: ['#6e7c92', 6, 58], hemi: ['#c4d0e8', '#4c5468', 1.3], key: ['#d8e4ff', .9, [.7, .55, -.4]], fill: ['#8a98b8', .45], hills: '#3a4458', base: [.84, .88, 1] });
+
+// ---- 地面：奥へ上る雪の斜面。ジグザグの道は少し ふみかためた青。小屋の前は岩だな ----
+const HUT = [-2.5, -24], cl = v => Math.max(0, Math.min(1, v)), sstep = (a, b, v) => { const k = cl((v - a) / (b - a)); return k * k * (3 - 2 * k); };
+const pathX = z => z > -19 ? Math.sin(z * .22) * 3.2 : HUT[0] + 1.5;
+const shelf = (x, z) => sstep(9, 6, Math.hypot(x - HUT[0], (z - HUT[1]) * .9));
+const H0 = (x, z) => Math.max(0, -z) * .32 + Math.sin(x * .3 + z * .2) * .4 + sstep(8, 30, Math.abs(x)) * 9 + Math.sin(x * .11 - z * .07) * 1.2;
+const H = (x, z) => { const s = shelf(x, z); return H0(x, z) * (1 - s) + H0(HUT[0], HUT[1] + 4) * s; };
+const DOOR = [HUT[0], HUT[1] + 2.4], LIT = [{ x: DOOR[0], z: DOOR[1] + 1.4, r: 5.5, c: '#ffb860', k: 1.3 }, { x: HUT[0] - 2, z: HUT[1] + 2.6, r: 3.2, c: '#ffb860', k: .8 }, { x: HUT[0] + 2.2, z: HUT[1] + 2.6, r: 3.2, c: '#ffb860', k: .8 }, { x: HUT[0] + 3.4, z: HUT[1], r: 3, c: '#ffb860', k: .6 }];
+const land = R.ground({ w: 120, d: 120, cell: 2, cz: -16, H, layers: [T.snow({ c: '#dce4f2' }), T.snow({ c: '#9aa8c8', seed: 2 }), D.tex.stone({ c: '#6a7088' })],
+  mix: (x, z) => [Math.abs(x - pathX(z)) < 1 && z < 12 && z > -21 ? 1 : 0, Math.abs(x - HUT[0]) < 5 && z > HUT[1] + 2.6 && z < HUT[1] + 6 ? .8 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 石の山小屋：石のかべ、雪のつもった屋根、あかりの窓、えんとつ。わきに まき束と たる ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const STONE = D.tex.stone({ c: '#7a8098', moss: .05 }), WIN = T.window({ bars: 'cross', shutters: 1, frame: '#4a3a34' }), WINL = T.window({ bars: 'cross', shutters: 1, lit: 1, curtain: '#ffd890', frame: '#4a3a34' });
+const hy = H(HUT[0], HUT[1]);
+put(R.house({ w: 7.4, d: 5.6, h: 3.1, wall: STONE, roof: T.snow({ c: '#e4ecf8', m: 2 }), pitch: .75, eave: .7, win: WIN, winLit: WINL, lit: 1, door: T.door({ style: 'plank', lit: 1, c: '#6a4a34' }), chimney: true, wins: { f: 2, b: 0, l: 1, r: 1 }, seed: 4 }), HUT[0], HUT[1], 0, hy);
+put(R.house({ w: 3, d: 3, h: 2.1, wall: STONE, roof: T.snow({ c: '#e4ecf8', m: 2 }), pitch: .6, eave: .5, win: WIN, winLit: WINL, lit: 1, wins: { f: 0, b: 0, l: 0, r: 1 }, seed: 7 }), HUT[0] + 5.2, HUT[1] - .8, 0, hy);   // 物置
+{ const G = R.geo(); for (let k = 0; k < 14; k++) G.at(R.TR(HUT[0] - 4.1, hy + .14 + Math.floor(k / 5) * .26, HUT[1] + .6 - (k % 5) * .5 + (Math.floor(k / 5) % 2) * .25, 0, 0, PI / 2)).loft(6, [[-.7, .13, .13, 0], [.7, .13, .13, 1]], { cap: 'both' }).at(null); fixed.push(G.mesh(T.bark({ c: '#7a5a44' }))); }   // まき束
+put(R.barrel({ c: '#6a4a34' }), HUT[0] + 3.4, HUT[1] + 2.9, 0, hy); put(R.fence({ len: 6, kind: 'rail', c: '#6a5a50' }), HUT[0] + 7, HUT[1] + 3.6, -.3, hy);
+// 道しるべの棒（先が赤い。雪に半分うまる）と、雪をかぶった岩、針葉樹
+const POLE = []; for (let z = 10; z > -19; z -= 3.4) { const x = pathX(z) + (Math.cos(z * .22) > 0 ? 1.6 : -1.6); POLE.push([x, z]); }
+{ const Gp = R.geo(), Gr = R.geo(); for (const [x, z] of POLE) { const y = H(x, z); Gp.at(R.TR(x, y, z, 0, .05, .08)).loft(4, [[0, .05, .05, 0], [1.3, .045, .045, .7]], {}).at(null); Gr.at(R.TR(x, y, z, 0, .05, .08)).loft(4, [[1.3, .05, .05, 0], [1.65, .05, .05, 1]], { cap: 'top' }).at(null); }
+  fixed.push(Gp.mesh(T.planks({ c: '#8a7058' })), Gr.mesh(T.planks({ c: '#c84838' }))); }
+for (let k = 0; k < 40; k++) { const x = (hash(k, 1) - .5) * 60, z = 14 - hash(k, 2) * 60; const s = .6 + hash(k, 3) * 1.3; if (Math.abs(x - pathX(z)) < 3 + s * 2.2 || shelf(x, z) > .1) continue; put(R.rock({ s, c: '#6e7490', seed: k }), x, z, k, H(x, z) - .3 * s); }
+for (let k = 0; k < 26; k++) { const x = (hash(k, 4) - .5) * 70, z = 16 - hash(k, 5) * 50; if (Math.abs(x - pathX(z)) < 4 || shelf(x, z) > .05) continue; put(S.snowPine({ h: 3.5 + hash(k, 6) * 4, snow: .8, seed: k, c: '#2a4a48' }), x, z, k); }
+scene.add(R.merge(fixed));
+// 窓と戸口のにじみ、地面とかべの光の輪
+for (const [x, y, z, r] of [[HUT[0] - 1.9, 1.5, HUT[1] + 2.55, 1.2], [HUT[0] + 1.9, 1.5, HUT[1] + 2.55, 1.2], [HUT[0], 1.2, HUT[1] + 2.6, 1.6], [HUT[0] + 3.25, 1.5, HUT[1], 1]]) { const h = D.halo({ c: '#ffb050', r, k: .5, flicker: true }); h.position.set(x, hy + y, z); scene.add(h); }
+const hutL = new THREE.PointLight('#ffa850', 18, 11, 1.4); hutL.position.set(HUT[0], hy + 1.6, HUT[1] + 3.6); scene.add(hutL);
+const flag = F.flag({ kind: 'flag', pole: 3.6, c: '#c84838', c2: '#f0e0c0', crest: 'star', cc: '#f0e0c0' }); flag.position.set(HUT[0] + 3.6, hy, HUT[1] + 4); flag.rotation.y = .4; scene.add(flag);
+
+// ---- 小屋の人（戸口でランタンをふる）と、軒下の犬 ----
+const keeper = R.actor({ build: 'toon', hairStyle: 'short', hair: '#8a8088', beard: 'beard', mouth: 'smile', cloth: 'jacket', top: '#7a4a3a', top2: '#e8dcc0', bottom: '#4a4450', shoes: 'boot', shoe: '#4a3428' }); keeper.position.set(DOOR[0] + .9, hy, DOOR[1] + .5); keeper.rotation.y = .15; scene.add(keeper);
+D.lantern(keeper, { hand: 'R', c: '#ffb860', power: 6, range: 6, r: 2 });
+const dog = R.cat({ c: '#6a5a50', belly: '#e8dcc8', s: 1.3 }); dog.position.set(DOOR[0] - 1.1, hy, DOOR[1] + .6); dog.rotation.y = .5; scene.add(dog);
+
+// ---- 吹雪：横なぐりの雪の粒、雪のすじ、地をはう雪けむり ----
+const flakes = D.flakes({ kind: 'snow', n: 900, box: [30, 14, 30], vy: -2.4, wind: [9, 1.5], size: 2, c: '#f4f8ff', a: .9 }), streak = D.rain({ n: 320, box: [26, 12, 26], speed: 8, slant: [2.2, .3], c: '#e8f0ff', a: .2, len: .3 });
+scene.add(flakes, streak, D.groundFog({ n: 50, box: [50, 50], c: '#e4ecf8', a: .34, h: 1.4, w: 7, wind: [3.5, .5], H }));
+const fx = K.fx(scene, 40), lamp = D.lantern(hero, { hand: 'L', c: '#ffb860', power: 9, range: 8, r: 3, k: .7 });
+const crt = R.crt(renderer, { noise: 0, bright: 1.05 }); onResize(crt.resize);
+const Z0 = 3, LEN = 20, SPEED = 1.05; let sm = 0;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.4, .7); hero.userData.J.torso.rotation.x = .22; hero.userData.J.head.rotation.x = .12; D.lanternPose(hero);   // 風に前かがみ
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.2; cam.position.set(x * .8 + 1.4, y + (tall ? 1.9 : 1.6), z + Dc); cam.lookAt(x * .6 + .2, y + 2.3, z - 7);   // 低い所から小屋を見上げる
+  keeper.userData.J.armR.rotation.set(-1.6 + Math.sin(t * 2.4) * .35, 0, -.5 + Math.sin(t * 2.4) * .4); keeper.userData.J.foreR.rotation.x = -.3; R.catPose(dog, 'sit', t);
+  if ((sm += dt) > .3) { sm = 0; fx.emit('smoke', HUT[0] + 2.2, hy + 5.4, HUT[1] - 1, { size: .5, life: 2.5, vx: 3, vy: .4, grow: 2.2, spread: .15, tint: '#d8dce8' }); }
+  F.tick(t); D.tick(t, cam); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

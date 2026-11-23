@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-16 砂嵐の古代遺跡 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#3a2a1e;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4e0c0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-16 ─ 砂嵐の古代遺跡 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-sand2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 茶色い砂嵐の中の古代遺跡。なかば砂にうもれた巨大な柱の列と、大きな門のあいだを、布で顔をおおった旅人がランタンをさげて進む。門の向こうの砂のかべに、大きな影と 2 つの目。
+// 色の組は「砂嵐の茶と黄土・古い石の灰ベージュ」＋差し色の ずきんの赤とランタンのだいだい。D.mood の 'ash' を砂の色に上書きし、横に流れる砂（D.flakes の dust）と地をはう砂けむりで嵐を出す。
+// 主役は ずきんの旅人（R.actor の toon。SD.hood）。柱のあいだを門へ歩き、少し低い うしろからカメラが追って柱を見上げる。遠くを らくだの隊が横切り、やぶれた旗がはためく。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), D = PACK_DARK(THREE, K, R), SD = PACK_SAND2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 700, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#3a2a24', skin: '#d8a478', eyes: 'sharp', cloth: 'robe', top: '#8a7458', top2: '#d8c49a', skirt: .55, lower: 'baggy', bottom: '#6a5a48', belt: '#a8483a', shoes: 'boot', shoe: '#4a3428', gloves: 'wrap', glove: '#d8c49a', back: 'pack', acc: '#a8483a' }); scene.add(hero);
+SD.hood(hero, { c: '#b84a38', c2: '#d8b888' });
+const SAND = { sky: ['#2e2018', '#5a3c28', '#8a5e3a', '#b48250'], fog: ['#7a5638', 10, 92], hemi: ['#e8c090', '#4a3428', 1.3], key: ['#ffd8a0', 1.05, [-.45, .55, -.7]], fill: ['#8a6a5a', .45], hills: '#4a3022', base: [1.02, .94, .84], glow: '#ffa448' };
+const mood = D.mood(scene, renderer, 'ash', { ...SAND, follow: hero, range: 32 });
+
+// ---- 地面：砂の道（まん中に うもれた敷石がのぞく）。両がわは柱の根もとへ砂がふきだまる ----
+const sstep = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => { const ax = Math.abs(x); return sstep(4, 12, ax) * 2.2 + sstep(14, 30, ax) * 5 + Math.sin(x * .21 + z * .13) * .35 + Math.sin(z * .37 - x * .1) * .2 * sstep(2, 6, ax); };
+const GZ = -46, LIT = [{ x: 0, z: GZ + 2, r: 7, c: '#ff9a48', k: .5 }];
+const land = R.ground({ w: 120, d: 150, cell: 2, cz: -20, H, layers: [T.sand({ c: '#b48a5a' }), PK.tex.ancient({ kind: 'block', c: '#a89478', moss: 0 }), T.sand({ c: '#9a7048', seed: 2 })],
+  mix: (x, z) => [Math.abs(x) < 2.6 && hash(Math.floor(x / 1.5), Math.floor(z / 1.5), 3) > .45 ? 1 : 0, Math.max(0, Math.min(1, .5 + Math.sin(x * .5 + z * .2) * .8))], shade: mood.shade(LIT) }); scene.add(land.mesh);
+
+// ---- 巨大な柱の列（なかば うもれ、かたむき、折れた物も）と、大きな門 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; }, STONE = '#b8a888';
+const COLS = [[-7, 8, 0, 4, .0], [7, 6, .3, 5, .05], [-7.5, -4, 0, 2.5, -.06], [7.2, -7, 0, 3, .0], [-7, -17, .45, 3.5, .08], [7.4, -20, 0, 2, -.05], [-7.2, -31, 0, 2.5, .0], [7, -33, .6, 4, .1], [-12, -40, 0, 1, .0], [12, -41, .2, 1.5, 0]];
+COLS.forEach(([x, z, br, sink, lean], i) => { const c = put(PK.column({ h: 17, r: 1.25, c: STONE, broken: br, seed: i, ivy: 0, moss: 0, base: sink }), x, z, i, H(x, z) - sink); c.rotation.z = lean; c.rotation.x = lean * .4; put(PK.mound({ r: 3.4, h: 1.6, tex: T.sand({ c: '#b48a5a' }), seed: i }), x + (hash(i, 4) - .5) * 1.5, z + 1.2, i); });
+{ const f = put(PK.column({ h: 13, r: 1.2, c: STONE, seed: 7, ivy: 0, moss: 0 }), -5, -11, 1.1, H(-5, -11) - .6); f.rotation.z = PI / 2 - .06; }   // たおれた柱（道のわきに）
+{ const G = R.geo(), CT = PK.tex.ancient({ kind: 'carve', c: STONE, moss: 0 });   // 柱の上の はり（片がわだけ のこる）と、落ちた石
+  G.box(16, 2, 2.4, -7, 0, 0, { m: 3, bottom: true }); const beam = G.mesh(CT); beam.position.set(0, H(-7, -4) + 14.4, -5.5); beam.rotation.z = .03; fixed.push(beam);
+  const G2 = R.geo(); G2.at(R.TR(5.5, H(5.5, -26) - .3, -26, .5, .1, .15)).box(3, 1.6, 2, 0, 0, 0, { m: 3 }).at(R.TR(-4.2, H(-4.2, 2), 2, -.3, 0, -.1)).box(1.8, 1.2, 1.6, 0, 0, 0, { m: 3 }).at(R.TR(3.6, H(3.6, -38), -38, .8)).box(2.2, 1.4, 1.8, 0, 0, 0, { m: 3 }).at(null); fixed.push(G2.mesh(CT)); }
+put(PK.arch({ w: 10, h: 15, thick: 3, d: 3.4, c: STONE, moss: 0, seed: 1, base: 3 }), 0, GZ, 0, H(0, GZ) - 3);
+for (const sx of [-1, 1]) put(PK.wall({ len: 14, h: 9, tex: PK.tex.ancient({ kind: 'carve', c: '#a89878', moss: 0 }), seed: sx + 3, rebar: false, fall: 0, thick: 2.4 }), sx * 14, GZ - .5, 0, H(sx * 14, GZ) - 2);
+for (const [x, z, s] of [[-3.8, GZ + 3, 1], [3.8, GZ + 3, -1]]) put(D.brazier({ s: 1.1, light: s > 0 }), x, z, 0);
+fixed.push(D.pools([{ p: [0, H(0, GZ) + 4, GZ + 1.75], n: [0, 0, 1], r: 6, r2: 5, c: '#ff9a48', k: .5 }]));
+// たれ下がる やぶれた旗（門の両わきの さお）と、砂にささった槍、骨のような岩
+const flags = [[-6, GZ + 5, '#7a2a24'], [6, GZ + 5, '#5a3a5a']].map(([x, z, c], i) => put(F.flag({ kind: 'flag', w: 2.2, h: 1.3, pole: 6.5, c, c2: '#c8a060', crest: i ? 'moon' : 'sun', cc: '#d8b878', tail: 'swallow' }), x, z, PI / 2));
+for (let i = 0; i < 26; i++) { const x = (hash(i, 1) - .5) * 70, z = 20 - hash(i, 2) * 80; if (Math.abs(x) < 5) continue; put(i % 3 ? R.rock({ s: .8 + hash(i, 3) * 1.6, c: '#8a7058', seed: i }) : R.tuft({ kind: 'reed', s: 1.1 }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- 嵐：横に流れる砂、地をはう砂けむり、流れる雲、遠くの大きな影 ----
+scene.add(D.flakes({ kind: 'dust', n: 900, box: [30, 12, 30], c: '#c89868', size: 1.4, a: .7, wind: [7, 1.5] }), D.flakes({ kind: 'dust', n: 260, box: [20, 8, 20], c: '#f0d0a0', size: 1.8, a: .5, wind: [9, 2] }));
+scene.add(D.groundFog({ n: 40, box: [60, 70], H, c: '#d8a878', a: .17, h: 1.5, w: 8, wind: [3.2, .6] }), D.clouds({ n: 10, r: 240, y: 60, s: 110, c: '#9a6a44', shade: '#5a3a26', speed: .03 }));
+const loomer = D.loomer({ w: 80, h: 64, c: '#62442e', eye: '#ffc860', gap: .12 }); loomer.position.set(-10, -4, -140); scene.add(loomer);
+for (const sx of [-1, 1]) { const e = D.halo({ c: '#ffb040', r: 7, k: .55 }); e.position.set(sx * 4.8, 64 * .7, .6); loomer.add(e); }   // 目のにじみを大きく（砂の向こうでも見えるように）
+// 遠くを横切る らくだの隊と、引く人
+const camels = [0, 1, 2].map(i => { const c = SD.camel({ c: ['#a8784a', '#b88a58', '#9a6a40'][i], seed: i }); scene.add(c); return c; });
+const guide = R.actor({ build: 'toon', hairStyle: 'short', cloth: 'robe', top: '#4a5a6a', top2: '#c8b898', skirt: .8, shoe: '#4a3428' }); SD.hood(guide, { c: '#d8c8a8', c2: '#4a5a6a' }); scene.add(guide);
+
+const lamp = D.lantern(hero, { hand: 'L', power: 8, range: 7, r: 2.6, k: .6 }), crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const Z0 = 12, LEN = 50, SPEED = 1.5;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 - dist, x = Math.sin(z * .09) * .9, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.cos(z * .09) * .08; R.walk(hero, t * SPEED * 3.6, .8); D.lanternPose(hero); lamp.userData.spot.position.y = y + .06;
+  hero.rotation.z = Math.sin(t * 1.7) * .03;   // 風にあらがって少しゆれる
+  const tall = innerWidth < innerHeight, Dc = tall ? 4 : 5.2; cam.position.set(x * .5 + 1, y + (tall ? 2 : 1.7), z + Dc); cam.lookAt(x * .4, y + (tall ? 2.4 : 2.6), z - 7);   // 少し見上げて、柱と門を入れる
+  // らくだの隊：門のあたりを右から左へ
+  const cx0 = 5 - ((t * 1.1) % 34); camels.forEach((c, i) => { const cx = cx0 + 3.4 + i * 3.2, cz = -22 - i * .4; c.position.set(cx, H(cx, cz), cz); c.rotation.y = -PI / 2; SD.camelPose(c, 'walk', t * 2.6 + i * 1.3); });
+  guide.position.set(cx0, H(cx0, -21.6), -21.6); guide.rotation.y = -PI / 2; R.walk(guide, t * 4.4, .7); guide.userData.J.armR.rotation.x = -1;
+  loomer.position.x = -10 + Math.sin(t * .08) * 10; loomer.position.y = -4 + Math.sin(t * .3) * 1.5;
+  land.follow(0, -20); D.tick(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-46 地下の大歯車の間 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0e0c0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-46 ─ 地下の大歯車の間 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-steam2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 地下深くの大きな空洞。家ほどもある真ちゅうと鉄の歯車が、かべぎわと頭の上で かみ合って ゆっくり回る。そのあいだを鉄の通路がまっすぐのび、真ちゅうのランプが点々と ともる。管のつぎ目から蒸気がふく。
+// 色の組は「岩と鉄の青むらさき・真ちゅうの金・蒸気の白」＋差し色は主役のマフラーの赤。暗いが、ランプのあかりを通路に焼きこみ、歯車の ふちを上からの青い光で出す（D.mood）。
+// 主役は手さげランタンの若い機械工（R.actor の toon）。通路を奥へ歩き、カメラは右うしろの低い所から、見上げるように追う。歯車・ランプ・小さな蒸気機関は pack-steam2.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_STEAM2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 600, aa: false, fitAspect: .9, maxFov: 80 });
+const hero = R.actor({ hairStyle: 'tufts', hair: '#3a2a24', mouth: 'small', cloth: 'jacket', top: '#4a5a8a', top2: '#e8dcc0', bottom: '#5a4a40', shoes: 'boot', shoe: '#6a4a34', gloves: 'glove', glove: '#8a5a34', neck: 'scarf', acc: '#d8443a', back: 'pack', hat: 'cap' }); scene.add(hero);
+const FOG = '#1a1a30', GOLD = '#ffc868';
+const mood = D.mood(scene, renderer, 'blackout', { follow: hero, hills: false, r: 400, sky: ['#06060e', '#0e0e1c', FOG, '#2a2238'], fog: [FOG, 10, 95], hemi: ['#9aa0d8', '#4a3030', 1.2], key: ['#b0bcf0', .9, [.3, .9, .35]], fill: ['#7a5a5a', .45], base: [.62, .6, .74], range: 26 });
+
+// ---- 通路の あかり（真ちゅうのランプ）を地面の明るさに焼きこむ ----
+const LAMPS = []; for (let z = 8; z > -110; z -= 9) LAMPS.push([(Math.round(z / 9) % 2 ? 1.3 : -1.3), z]);
+const shade = mood.shade(LAMPS.map(([x, z]) => ({ x, z, r: 4.2, c: GOLD, k: 1.1 })));
+
+// ---- 空洞のかべ（だ円の輪をつないだ岩）と、はるか下の炉のあかり ----
+{ const G = R.geo(), N = 22, A0 = -2.5, A1 = 2.5, P = (a, z) => { const w = 1 + (hash(Math.round(a * 9), Math.round(z), 3) - .5) * .12; return [Math.sin(a) * 22 * w, 6 + Math.cos(a) * 26 * w, z]; };
+  for (let z = 30; z > -150; z -= 4) for (let k = 0; k < N; k++) { const a1 = A0 + (A1 - A0) * k / N, a2 = A0 + (A1 - A0) * (k + 1) / N, p1 = P(a1, z), p2 = P(a2, z), p3 = P(a2, z - 4), p4 = P(a1, z - 4), c = y => { const k = Math.max(.3, .8 - Math.abs(y - 4) * .018), f = Math.max(0, Math.min(1, (-y - 2) / 14)); return [k + f * .55, k + f * .2, k - f * .1]; };
+    G.quad(p1, p4, p3, p2, [z / 4, a1 * 6, (z - 4) / 4, a2 * 6].map((v, i) => i % 2 ? v : v), [c(p1[1]), c(p4[1]), c(p3[1]), c(p2[1])]); }
+  const m = G.mesh(D.tex.stone({ c: '#4a4866', stain: .6, moss: .1 }), { side: true }); m.castShadow = false; scene.add(m); }
+const deep = []; for (let k = 0; k < 7; k++) { const h = D.halo({ c: '#ff8a40', r: 4 + hash(k, 2) * 4, k: .5 }); h.position.set((hash(k, 1) - .5) * 26, -16, 10 - k * 18); scene.add(h); deep.push(h); }
+
+// ---- 鉄の通路：鉄板の床・手すり・下の柱。右に太い管、左に細い管 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const Z0 = 16, Z1 = -112, W = 1.2;
+{ const G = R.geo(), E = R.geo(); for (let z = Z0; z > Z1; z -= 2) { const c = (x, zz) => shade(x, zz); G.quad([-W, 0, z], [W, 0, z], [W, 0, z - 2], [-W, 0, z - 2], [0, z / 2.4, 1, (z - 2) / 2.4], [c(-W, z), c(W, z), c(W, z - 2), c(-W, z - 2)]);
+    for (const s of [-1, 1]) E.quad([s * W, -.3, z], [s * W, -.3, z - 2], [s * W, 0, z - 2], [s * W, 0, z], [0, 0, 1, .15], .7); }
+  fixed.push(G.mesh(F.tex.iron({ c: '#6a6a88', rust: .2 })), E.mesh(F.tex.iron({ c: '#4a4a66' }), { side: true })); }
+for (let z = Z0 - 2; z > Z1; z -= 4) for (const s of [-1, 1]) put(R.fence({ len: 4, kind: 'iron', h: 1.05, c: '#7a7a98' }), s * (W - .04), z, PI / 2);
+{ const G = R.geo(); for (let z = Z0 - 4; z > Z1; z -= 8) { G.box(.3, 18, .3, 0, -18.3, z, { m: 3 }); G.box(W * 2 + .4, .3, .3, 0, -.6, z, { m: 2 }); for (const s of [-1, 1]) G.box(.14, 2.5, .14, s * .8, -2.9, z, { taper: 1 }); } fixed.push(G.mesh(F.tex.iron({ c: '#4e4e6a', rust: .3 }))); }
+fixed.push(C.pipe([[1.75, -.15, Z0], [1.75, -.15, Z1]], .3, { c: '#a8783a', joint: 4.5, band: '#c84a3a' }), C.pipe([[-1.6, -.35, Z0], [-1.6, -.35, Z1]], .14, { c: '#6a6a84', joint: 3 }), C.pipe([[-1.5, .55, Z0], [-1.5, .55, Z1]], .08, { c: '#b88a40', joint: 2.5 }));
+LAMPS.forEach(([x, z], i) => put(S.lamp({ kind: 'post', h: 2.3, glow: GOLD }), x, z, 0, 0));
+const VALVES = [-6, -24, -42, -60, -78]; VALVES.forEach((z, i) => { const v = C.valve({ r: .3, c: '#b84a3a' }); v.position.set(1.75, -.15, z); fixed.push(v); put(C.meter({ r: .2 }), 1.4, z + .8, -PI / 2, 1.2); });
+// 通路わきの小さな蒸気機関（足場の上）
+const ENG = [[-3.4, -17, .5], [3.6, -51, -.6], [-3.4, -86, .3]].map(([x, z, ry]) => { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; const e = S.engine({ h: 2.2, r: .55, c: '#c89a48' }); g.add(e);
+  const d = R.geo(); d.quad([-1.2, 0, 1.2], [1.2, 0, 1.2], [1.2, 0, -1.2], [-1.2, 0, -1.2], [0, 0, 1, 1]); d.box(2.4, .3, 2.4, 0, -.3, 0, { top: false, m: 2 }); g.add(d.mesh(F.tex.iron({ c: '#5a5a78' }))); scene.add(g); return { g, e }; });
+scene.add(R.merge(fixed));
+
+// ---- 大歯車：かべぎわに立つ物（面を通路へ向ける）、頭の上をまたぐ物、通路の下で ねている物 ----
+const gear = (o, x, y, z, ry = 0, rx = 0) => { const g = S.gear(o); g.position.set(x, y, z); g.rotation.set(rx, ry, 0, 'YXZ'); scene.add(g); return g; };
+const gA = gear({ r: 6.5, pitch: 1.15, th: .9, c: '#c89a48', speed: .12, seed: 1 }, -9, 3, -12, PI / 2);
+const gB = gear({ r: 3.3, pitch: 1.15, th: .7, c: '#8a8eaa', seed: 2 }, -9, 3 + 6.5 + 3.3 - .62, -12 - .2, PI / 2); S.mesh(gA, gB);
+const gC = gear({ r: 7.5, pitch: 1.3, th: 1, c: '#a8784a', speed: -.08, seed: 3 }, 10.5, 2, -36, -PI / 2);
+const gD = gear({ r: 3.8, pitch: 1.3, th: .8, c: '#c89a48', seed: 4 }, 10.5, 2 + 4.6, -36 + 9.2, -PI / 2); S.mesh(gC, gD);
+const gE = gear({ r: 10, pitch: 1.6, th: 1.3, c: '#c8984a', speed: .05, seed: 5 }, 0, 13.5, -52);
+const gF = gear({ r: 5, pitch: 1.6, th: 1, c: '#8a8eaa', seed: 6 }, -13.4, 13.5 - 4.4, -52.6); S.mesh(gE, gF);
+const gG = gear({ r: 5.5, pitch: 1.2, th: .8, c: '#8a8eaa', speed: .1, seed: 7 }, 6.5, -4, -54, 0, -PI / 2);
+gear({ r: 9, pitch: 1.6, th: 1.2, c: '#6a6a88', speed: -.04, seed: 8 }, -15, 9, -50, PI / 2); gear({ r: 7, pitch: 1.5, th: 1, c: '#9a7a4a', speed: .06, seed: 9 }, 14, 13, -98, -PI / 2);
+gear({ r: 4.5, pitch: 1.1, th: .8, c: '#c89a48', speed: -.15, seed: 10 }, -7.5, -2, 4, PI / 2);
+// 歯車の軸受け（かべから出る太い鉄の腕）
+{ const G = R.geo(); for (const [x, y, z, l] of [[-9, 3, -12, 13], [10.5, 2, -36, 11.5], [-9, 12.2, -12.2, 13], [-15, 9, -50, 7], [-7.5, -2, 4, 13]]) { const s = Math.sign(x), x0 = x + s * .4; G.box(l, .9, .9, x0 + s * l / 2, y - .45, z, { m: 2 }); } scene.add(G.mesh(F.tex.iron({ c: '#3e3e58', rust: .3 }))); }
+
+// ---- 蒸気（管のバルブと機関の煙突）・火花・ほこり・こうもり ----
+const steams = VALVES.map((z, i) => { const s = C.steam({ n: 7, r: .35, rise: 2.2, spread: .5, speed: .7, c: '#e8e8f0', a: .5, dir: [1, .6, 0], jet: .6, phase: i * .4 }); s.position.set(2, -.1, z); scene.add(s); return s; });
+ENG.forEach(({ g, e }, i) => { const v = new THREE.Vector3(...e.userData.vent).applyMatrix4((g.updateMatrixWorld(), g.matrixWorld)); const s = C.steam({ n: 8, r: .3, rise: 3, spread: .3, speed: .55, c: '#d8d8e8', a: .5, phase: i * .3 }); s.position.copy(v); scene.add(s); });
+const sp = C.sparks({ n: 16, every: 1.9, c: '#ffd080' }); sp.position.set(-2.9, .9, -17.6); scene.add(sp);
+scene.add(D.flakes({ kind: 'dust', n: 150, c: '#e8d8b0', box: [20, 8, 24], size: 1.2 }), D.flock({ kind: 'bat', n: 6, r: 4, h: 1.5, center: [3, 9, -30], speed: 1 }));
+
+// ---- 通路の先から来る点検係（工具を持つ）と、機関のわきの小さな係 ----
+const worker = R.actor({ hairStyle: 'short', hair: '#6a6a6a', beard: 'mustache', mouth: 'line', cloth: 'overall', top: '#7a6a4a', top2: '#d8d0b8', bottom: '#7a6a4a', shoes: 'boot', shoe: '#3a3434', gloves: 'glove', glove: '#c8a050', hat: 'cap', acc: '#5a6a8a', hold: 'wrench' }); scene.add(worker);
+const oiler = R.actor({ sex: 'f', hairStyle: 'bun', hair: '#8a4a2a', mouth: 'smile', cloth: 'overall', top: '#5a7a6a', top2: '#e8dcc0', bottom: '#5a7a6a', shoes: 'boot', shoe: '#4a3a30', gloves: 'glove', glove: '#c8a050' }); oiler.position.set(-2.6, 0, -16.2); oiler.rotation.y = -PI / 2 + .3; scene.add(oiler);
+[[-6, 5, -12], [7.5, 5, -36], [0, 6.5, -50]].forEach(p => { const l = new THREE.PointLight('#ffb870', 20, 16, 1.4); l.position.set(...p); scene.add(l); });
+const pls = [0, 1, 2].map(() => { const l = new THREE.PointLight(GOLD, 7, 8, 1.5); scene.add(l); return l; });
+const lamp = D.lantern(hero, { hand: 'L', c: GOLD, power: 8, range: 7, r: 2.4, k: .6 });
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.08 }); onResize(crt.resize);
+const ZS = 12, LEN = 92, SPEED = 1.45;
+K.loop((dt, t) => {
+  const z = ZS - (t * SPEED) % LEN, x = -.15 + Math.sin(z * .2) * .12;
+  hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.6, .85); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.9 : 4.4; cam.position.set(x + (tall ? .7 : 1.2), tall ? 1.9 : 1.55, z + Dc); cam.lookAt(x - .1, tall ? 2.4 : 2.5, z - 8);
+  LAMPS.slice().sort((a, b) => Math.abs(a[1] - z + 4) - Math.abs(b[1] - z + 4)).slice(0, 3).forEach(([lx, lz], k) => pls[k].position.set(lx, 2.2, lz));
+  const wz = z - 16 + ((t * .6) % 8); worker.position.set(.55, 0, wz); worker.rotation.y = 0; R.walk(worker, t * 4.4, .7);
+  R.idle(oiler, t, Math.sin(t * .6) * .4); const J = oiler.userData.J; J.armR.rotation.x = -1.1; J.foreR.rotation.x = -.5 + Math.sin(t * 4) * .3;
+  deep.forEach((h, i) => h.material.opacity = .4 + .15 * Math.sin(t * 1.3 + i));
+  S.tick(t); D.tick(t, cam); C.update(t, cam); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

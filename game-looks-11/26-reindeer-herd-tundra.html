@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-26 トナカイの群れ 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#20283a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f6fa;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-26 ─ トナカイの群れ / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-snow2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 北の昼。低い太陽が雪のツンドラを照らし、トナカイの群れが ゆっくり渡っていく。丘のかげに円すいのテントが 4 つ、けむりが のぼる。主役は荷をつんだ木のそりを こしのひもで引いて、群れと いっしょに歩く。
+// 色の組は「空のうす水色・雪の白と青い影・トナカイと毛皮の茶」＋差し色は 主役の赤い上着と、テントの赤と黄の帯。
+// 主役は R.actor の toon（毛皮のぼうし）。カメラは ななめ前の右から主役の顔を見せ、うしろに そり・群れ・テントの村を入れる。トナカイ・テント・雪の針葉樹・そりは pack-snow2.js（S.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), PK = PACK_RUINS(THREE, K, R), S = PACK_SNOW2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 48, far: 800, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#3a68b8'], [.45, '#6a9ad8'], [.78, '#a8cbee'], [.93, '#ead8c8'], [1, '#ffd8b0']], { r: 400 })); scene.fog = new THREE.Fog('#c4d6ee', 70, 300);
+const { sun } = K.lights(scene, renderer, { sky: 0xc8dcff, ground: 0x9aaad0, amb: 1.5, sun: 0xffe4c0, power: 2.3, range: 34 }), SUN = new THREE.Vector3(.55, .28, -.78).normalize();
+
+// ---- 地面：ゆるい丘の雪原。ところどころ風で雪がとび、枯れ草とこけがのぞく。そりと群れの通った あとは青く ふみかためる ----
+const nz = (x, z) => Math.sin(x * .05 + z * .03) * Math.sin(z * .045 - x * .02);
+const H = (x, z) => nz(x, z) * 2.2 + Math.sin(x * .13 + z * .2) * .35 + Math.max(0, -z - 45) * .1;
+const trail = (x, z) => Math.abs(z - Math.sin(x * .05) * 1.2);
+const land = R.ground({ w: 180, d: 160, cell: 2, cz: -30, H, layers: [T.snow({ c: '#f0f4fa' }), T.snow({ c: '#a8bce0', seed: 2 }), T.grass({ c: '#9a8a5a', blades: 1 })],
+  mix: (x, z) => { const tr = trail(x, z), hz = Math.abs(z + 11 - Math.sin(x * .04) * 2); return [tr < 1.1 || hz < 2.2 ? 1 : 0, Math.sin(x * .41 + z * .17) * Math.sin(z * .53 - x * .23) > .62 && tr > 3 ? .8 : 0]; },
+  shade: (x, z) => { const s = .92 + (H(x + 1, z) - H(x - 1, z)) * .12 - (H(x, z - 1) - H(x, z + 1)) * .08; return [s, s + .02, s + .07]; } });
+scene.add(land.mesh);
+
+// ---- テントの村（右の丘のかげ）、雪の針葉樹の まばらな林、岩 ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y - .05, z); o.rotation.y = ry; fixed.push(o); return o; };
+const CAMP = [[-6, -25, 2.4, 4.6], [1, -29, 2, 3.9], [7, -23.5, 2.6, 5], [-1, -20.5, 1.8, 3.4]], SMOKE = [];
+CAMP.forEach(([x, z, r, h], i) => { const tt = put(S.tent({ r, h, seed: i, c: ['#b8946a', '#c4a27a', '#a88660', '#bc9c74'][i] }), x, z, -1.2 + i * .5); SMOKE.push([x, H(x, z) + h * 1.02, z]); });
+put(S.sled({ len: 2.2, load: false }), 3, -25.5, .6); for (const [x, z] of [[-3.5, -22], [5, -26.5]]) put(R.crate({ c: '#8a6a4a', kind: 'plain', s: .6 }), x, z, x);
+{ const G = R.geo(); for (let k = 0; k < 9; k++) { const a = k / 9 * PI * 2; G.at(R.TR(-2 + Math.cos(a) * .6, H(-2, -24.5), -24.5 + Math.sin(a) * .6, a)).box(.3, .18, .25, 0, 0, 0, {}).at(null); } fixed.push(G.mesh(T.rock({ c: '#7a7a88' }))); }   // たき火の石組み
+for (let k = 0; k < 70; k++) { const x = -40 + hash(k, 1) * 160, z = -70 + hash(k, 2) * 100; if (trail(x, z) < 6 || Math.abs(z + 11) < 8 || z > 2 || Math.hypot(x, z + 25) < 12) continue; const far = z < -36;
+  put(S.snowPine({ h: 4 + hash(k, 3) * 4 + (far ? 3 : 0), snow: .55 + hash(k, 4) * .3, seed: k, c: k % 3 ? '#2c5a50' : '#355e4a' }), x, z, k); }
+for (let k = 0; k < 18; k++) { const x = -30 + hash(k, 5) * 120, z = 4 + hash(k, 6) * 26; put(R.rock({ s: .5 + hash(k, 7) * .9, c: '#8a8ea4', seed: k }), x, z, k, H(x, z) - .15); }
+for (let k = 0; k < 40; k++) { const x = -30 + hash(k, 8) * 120, z = -20 + hash(k, 9) * 50; if (trail(x, z) < 2) continue; put(R.tuft({ kind: k % 3 ? 'grass' : 'reed', s: .5 + hash(k, 10) * .3, c: '#b0a070' }), x, z, k); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#7a96c8', haze: '#c4d6ee', r: 170, h: 26, y: -2, rep: 5 }), R.backdrop({ c: '#a4bce4', haze: '#d8e4f4', r: 250, h: 70, y: -4, rep: 3, seed: 6 }));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(11, 20), new THREE.MeshBasicMaterial({ color: '#fff4d8', fog: false })); sunD.position.set(SUN.x * 330, SUN.y * 330, SUN.z * 330); sunD.lookAt(0, 0, 0); scene.add(sunD);
+for (let k = 0; k < 7; k++) { const c = R.cloud({ s: 14 + hash(k, 9) * 12, c: '#ffffff', shade: '#b8c8e8' }); c.position.set((hash(k, 7) - .3) * 360, 60 + hash(k, 8) * 40, -150 - hash(k, 6) * 150); scene.add(c); }
+
+// ---- 主役：赤い上着に毛皮のぼうし。こしのひもで そりを引く ----
+const hero = R.actor({ build: 'toon', hairStyle: 'short', hair: '#3a2a24', mouth: 'small', blush: true, cloth: 'coat', top: '#c84a3a', top2: '#f0e0b0', bottom: '#4a4a62', gloves: 'glove', glove: '#6a4a34', shoes: 'boot', shoe: '#5a3a2c', neck: 'scarf', acc: '#e8c060', belt: '#4a3428' }); scene.add(hero);
+S.furHat(hero, { c: '#a8805a' });
+const sled = S.sled({ len: 2.4 }); scene.add(sled); const rope = S.rope(); scene.add(rope);
+// 村の人：たき火のそばの子どもと、群れを見る牧人
+const kid = R.actor({ build: 'toon', s: .74, sex: 'f', hairStyle: 'twin', hair: '#2a2228', mouth: 'open', blush: true, cloth: 'coat', top: '#3a6ab0', top2: '#f0e0b0', bottom: '#4a3a3a', shoes: 'boot', shoe: '#5a3a2c' }); kid.position.set(-3.2, H(-3.2, -23), -23); scene.add(kid); S.furHat(kid);
+const herder = R.actor({ build: 'toon', hairStyle: 'long', hair: '#2a2228', beard: 'beard', mouth: 'line', cloth: 'coat', top: '#2e6a5a', top2: '#e8c060', bottom: '#3a3a4a', shoes: 'boot', shoe: '#5a3a2c', hold: 'staff' }); scene.add(herder); S.furHat(herder, { c: '#a08060' });
+const dog = PK.dog({ c: '#3a3434', s: 1 }); scene.add(dog);
+
+// ---- トナカイの群れ（主役と同じ向きへ、少しだけ速く歩く）----
+const HERD = [...Array(15)].map((_, i) => { const d = S.reindeer({ s: .85 + hash(i, 1) * .3, c: ['#8a7464', '#7a6658', '#9a8470', '#6a5a50'][i % 4], belly: i % 5 === 0 ? '#f4f0e8' : '#e8dcc8', antlerS: .7 + hash(i, 2) * .5, seed: i % 3 }); scene.add(d);
+  return { d, x0: hash(i, 3) * 34, z: -6 - hash(i, 4) * 10 - (i % 3) * 1.5, v: .06 + hash(i, 5) * .12, ph: hash(i, 6) * 9, graze: i % 5 === 3 }; });
+const birds = PK.flock({ n: 7, r: 14, h: 3, c: '#f8f8ff', s: 1.6, speed: .3 }); scene.add(birds);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 60), X0 = -6, LEN = 70, SPEED = 1.25; let sm = 0;
+const hz = x => Math.sin(x * .05) * 1.2, tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+K.loop((dt, t) => {
+  const x = X0 + (t * SPEED) % LEN, z = hz(x), y = H(x, z), dir = Math.atan2(1, hz(x + 1) - z);
+  hero.position.set(x, y, z); hero.rotation.y = dir; R.walk(hero, t * SPEED * 3.4, .8); hero.userData.J.torso.rotation.x = .12;   // 引くので少し前かがみ
+  const sx = x - 2.9, sz = hz(sx), sy = H(sx, sz); sled.position.set(sx, sy, sz); sled.rotation.y = Math.atan2(x - sx, z - sz); sled.rotation.x = -Math.atan2(y - sy, 2.9) * .6;
+  sled.updateMatrixWorld(); tmp.copy(sled.userData.hitch).applyMatrix4(sled.matrixWorld); tmp2.set(x - Math.sin(dir) * .12, y + .72, z - Math.cos(dir) * .12); rope.userData.span(tmp, tmp2);
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4; cam.position.set(x + D * .72, y + (tall ? 1.9 : 1.75), z + D * .7); cam.lookAt(x - 1.1, y + 1.4, z - 2.6);   // ななめ前の右から。主役の顔と、うしろのそり・群れ・村を入れる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z); land.follow(x, -30);
+  for (const h of HERD) { const span = 44, hx = x - 28 + (((h.x0 + t * h.v) % span) + span) % span, hzz = h.z + Math.sin(t * .2 + h.ph) * .6, hy = H(hx, hzz); h.d.position.set(hx, hy, hzz);
+    const gr = h.graze && Math.sin(t * .4 + h.ph) > -.2; h.d.rotation.y = PI / 2 + Math.sin(t * .3 + h.ph) * .15; S.reindeerPose(h.d, gr ? 'graze' : 'walk', gr ? t : t * SPEED * 3.2 + h.ph); }
+  const hx = x - 9, hzz = -17.5; herder.position.set(hx, H(hx, hzz), hzz); herder.rotation.y = PI / 2 + .2; R.walk(herder, t * SPEED * 3.4 + 2, .7);
+  const dx = x - 7 + Math.sin(t * .8) * 3, dz = -4 + Math.cos(t * .6) * 1.5; dog.position.set(dx, H(dx, dz), dz); dog.rotation.y = PI / 2 + Math.cos(t * .8) * .6; PK.beastPose(dog, 'run', t * 9);
+  R.idle(kid, t, Math.sin(t * .5) * .6); kid.rotation.y = .6; kid.userData.J.armR.rotation.z = 2.6 + Math.sin(t * 6) * .3;   // 子どもは手をふる
+  birds.position.set(x - 6, y + 10, z - 24); birds.userData.tick(t);
+  if ((sm += dt) > .35) { sm = 0; for (const [px, py, pz] of SMOKE) fx.emit('smoke', px, py, pz, { size: .45, life: 4.5, vy: .7, vx: .35, grow: 2, spread: .12, tint: '#f0f0f4' }); fx.emit('smoke', -2, H(-2, -24.5) + .3, -24.5, { size: .4, life: 3.5, vy: .8, vx: .3, grow: 2, spread: .1, tint: '#e8e4e8' }); }
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

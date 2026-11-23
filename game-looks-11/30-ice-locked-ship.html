@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-30 氷にとじこめられた船 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#08141c;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#dff4f0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-30 ─ 氷にとじこめられた船 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="pack-snow2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 月夜の凍った海。古い帆船が、もり上がった氷の板にはさまれて かたむいたまま動けずにいる。帆は色あせ、船尾の窓にだけ ぼんやり あかりが残る。からすが帆げたのまわりを回る。
+// 色の組は「月の青みどり・氷の水色・船の こげ茶」＋差し色は ランタンと船尾の窓の黄。D.mood の 'moon'。氷の割れめには黒い海がのぞき、地をはう霧が流れる。
+// 主役は R.actor の toon（赤毛の船乗り。帽子と赤い えりまき）。ランタンをさげて氷の上を船へ近づく。カメラは左うしろの低い所から、船を見上げる。帆船は pack-fantasy-town.js、氷と水は pack-fantasy-wild.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), W = PACK_FWILD(THREE, K, R), D = PACK_DARK(THREE, K, R), S = PACK_SNOW2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+const hero = R.actor({ build: 'toon', hairStyle: 'tail', hair: '#9a3e2a', mouth: 'line', brow: 'flat', cloth: 'coat', top: '#34466a', top2: '#e8dcc0', bottom: '#3a3640', gloves: 'glove', glove: '#5a4034', shoes: 'boot', shoe: '#3a2c24', neck: 'scarf', acc: '#d8483a', hat: 'cap', belt: '#5a4030' }); scene.add(hero);
+const moon = D.moon({ az: 24, el: 24, r: 26 }), mood = D.mood(scene, renderer, 'moon', { follow: hero, range: 32, dir: moon.userData.dir.toArray(), level: 1.08 }); scene.add(moon);
+
+// ---- 凍った海：水色の氷に、吹きだまりの雪。船のまわりは押しあげられた氷の板。割れめに黒い海 ----
+const SHIP = [7, -16], SRY = 1.82, cl = v => Math.max(0, Math.min(1, v));
+const H = (x, z) => Math.max(0, 1.6 - Math.hypot(x - SHIP[0], (z - SHIP[1]) * .8) / 7) * .9 + Math.sin(x * .2 + z * .13) * Math.sin(z * .17 - x * .09) * .25;
+const pathX = z => -3 + Math.sin(z * .1) * 2.2;
+const LIT = [{ x: SHIP[0] - 5.5, z: SHIP[1] + 4.5, r: 5, c: '#ffc860', k: .7 }];
+const land = R.ground({ w: 160, d: 160, cell: 2, cz: -20, H, layers: [W.tex.ice({ c: '#6aaecc', m: 4 }), T.snow({ c: '#bcdcdc' }), T.snow({ c: '#7a9cb0', seed: 2 })],
+  mix: (x, z) => [W.vn(x * .14, z * .14, 3) > .58 ? 1 : 0, Math.abs(x - pathX(z)) < .8 && z < 12 && z > -12 ? .9 : W.vn(x * .3, z * .3, 8) > .75 ? 1 : 0], shade: mood.shade(LIT) }); scene.add(land.mesh);
+// 割れめの黒い海（コマ送りの水の帯）
+const leads = [[[-30, -.05, -6], [-14, -.05, -8], [-6, -.05, -13], [0, -.05, -15]], [[14, -.05, -16], [24, -.05, -10], [40, -.05, -12]], [[-40, -.05, -34], [-20, -.05, -30], [-4, -.05, -36]]].map(p => { const f = W.flow(p, 1.4, { kind: 'water', c: '#183a52', speed: .1, lift: .02 }); scene.add(f); return f; });
+
+// ---- 帆船：氷にはさまれて かたむく（ゆれを止める）。船体の下半分は氷にうまる ----
+const ship = F.ship({ s: 1.6, c: '#5a4436', c2: '#3c5c64', cabin: '#6a5444', trim: '#8a8a7a', sail: '#9eb0ac', sail2: '#7a8a8a', flag: 'none', flagO: { c: '#4a5a60', tail: 'swallow' } });
+ship.position.set(SHIP[0], .25, SHIP[1]); ship.rotation.set(-.08, SRY, .3); scene.add(ship); const body = ship.children[0];
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+// 押しあげられた氷の板（上に雪がのる）
+{ const Gi = R.geo(), Gs = R.geo(), iceT = W.tex.ice({ c: '#8ccce4', m: 2 });
+  for (let k = 0; k < 46; k++) { const a = hash(k, 1) * PI * 2, d = 6 + hash(k, 2) * 9, x = SHIP[0] + Math.cos(a) * d * 1.25, z = SHIP[1] + Math.sin(a) * d * .8; if (Math.abs(x - pathX(z)) < 2.6 && z > -10) continue;
+    const w = 1.6 + hash(k, 3) * 2.6, h = .5 + hash(k, 4) * (d > 9 ? 2.2 : 1), th = .35 + hash(k, 5) * .3, M = R.TR(x, H(x, z) - .4, z, a + (hash(k, 6) - .5), (hash(k, 7) - .5) * 1.1, (hash(k, 8) - .5) * .8);
+    Gi.at(M).box(w, h, th, 0, 0, 0, { m: 2, c0: .7, top: false }).at(null); Gs.at(M).box(w * 1.02, .12, th * 1.1, 0, h, 0, { m: 2 }).at(null); }
+  for (let k = 0; k < 16; k++) { const u = (hash(k, 9) - .5) * 20, sd = k % 2 ? 1 : -1, x = SHIP[0] + Math.sin(SRY) * u + Math.cos(SRY) * sd * 2.6, z = SHIP[1] + Math.cos(SRY) * u - Math.sin(SRY) * sd * 2.6; Gi.at(R.TR(x, -.2, z, SRY + (hash(k, 11) - .5) * .8, sd * .35, .1)).box(3, 1 + hash(k, 12) * .5, .4, 0, 0, 0, { m: 2, c0: .7 }).at(null); }   // 船体にそって
+  fixed.push(Gi.mesh(iceT, { emissive: '#0c2a3a' }), Gs.mesh(T.snow({ c: '#c8e4e4' }))); }
+put(S.sled({ len: 2, load: false }), SHIP[0] - 7, SHIP[1] + 6, 2.2); put(R.barrel({ c: '#5a4a3a' }), SHIP[0] - 6, SHIP[1] + 4.2, 0); put(R.crate({ c: '#6a5a44', s: .7 }), SHIP[0] - 5, SHIP[1] + 5.2, .5);
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#1e4a54', haze: '#2a5a64', r: 200, h: 18, y: -1, rep: 6 }));
+// 船尾の窓のにじみ
+for (const dx of [-1.3, 1.3]) { const h = D.halo({ c: '#ffc060', r: 1.1, k: .55, flicker: true }), v = new THREE.Vector3(dx, 2.3 * 1.6, -5.6 * 1.6); ship.updateMatrixWorld(); v.applyMatrix4(ship.matrixWorld); h.position.copy(v); scene.add(h); }
+
+// ---- 動く物：帆げたを回る からす、地をはう霧、ちらつく雪、割れめの水、ほつれた旗 ----
+scene.add(D.flock({ kind: 'crow', n: 7, r: 7, h: 3, center: [SHIP[0], 15, SHIP[1]] }), D.groundFog({ n: 50, box: [60, 60], c: '#cce8e8', a: .26, h: 1.4, w: 9, wind: [.5, .15], H }), D.flakes({ kind: 'snow', n: 200, box: [26, 12, 26], vy: -.7, wind: [.4, .1], c: '#e0f4f0', size: 1.5, a: .75 }));
+const owl = D.owl({ s: 1.4 }); owl.position.set(SHIP[0] - 4.2, 1.1, SHIP[1] + 4.2); owl.rotation.y = -.4; scene.add(owl);
+const lamp = D.lantern(hero, { hand: 'L', c: '#ffc060', power: 10, range: 9, r: 3.2, k: .75 });
+const crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const Z0 = 10, LEN = 16, SPEED = 1.2;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = pathX(z), y = H(x, z), tx = pathX(z - 1) - x;
+  hero.position.set(x, y, z); hero.rotation.y = PI - Math.atan2(tx, 1); R.walk(hero, t * SPEED * 3.4, .8); D.lanternPose(hero);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.4 : 5.2; cam.position.set(x - 2.6, y + 1.3, z + Dc); cam.lookAt(x + 2.2, y + (tall ? 4.4 : 3.8), z - 8);   // 左うしろの低い所から船を見上げる
+  F.tick(t); body.position.y = -.4; body.rotation.set(0, 0, 0);   // 氷の中なので、船はゆれない（旗だけ動く）
+  for (const f of leads) f.userData.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

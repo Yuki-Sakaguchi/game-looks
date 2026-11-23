@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-22 犬ぞりの雪原 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a2a44;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f8ff;opacity:.9;text-shadow:0 1px 0 #1a3058}
+</style>
+<div id="cap">11-22 ─ 犬ぞりの雪原 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で進む）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 昼の雪原。まっさおな空の下、ゆるい丘のつづく広い雪の原を、6 ぴきの犬が引くそりで走る。前を走るもう 1 台のそり、雪うさぎ、からす、そりのうしろに雪けむり。
+// 色の組は「空の青・雪の白と青い影・もみの深緑」＋差し色の 犬の胴輪と主役の上着の赤。犬は この場面で R.geo の loft と手打ちのドット絵で作った（胴・頭・鼻先・耳・足・しっぽ）。
+// 主役は赤い上着に毛皮の帽子の そり使い（R.actor の toon）。そりのうしろの板に立ち、カメラはそりの真うしろから追う。綱は pack-fantasy-town.js、雪うさぎは pack-fantasy-wild.js
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), W = PACK_FWILD(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#2456b0'], [.5, '#4a8ad8'], [.82, '#8cc0ee'], [1, '#dcecfc']], { r: 440 })); scene.fog = new THREE.Fog('#bcd2f0', 110, 560);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0x9aaad8, amb: 1.05, sun: 0xfff0d0, power: 2.1, range: 36 }), SUN = new THREE.Vector3(-.35, .8, -.5).normalize();
+
+// ---- 道すじ（s m 進んだ所の x, z）と、ゆるい丘の雪原。道の上は そりのあとで少し固い雪 ----
+const LEN = 620, px = s => Math.sin(s * .011) * 16 + Math.sin(s * .029 + 1) * 5, PT = s => [px(s), -s], DIR = s => { const a = PT(s), b = PT(s + .5); return Math.atan2(b[0] - a[0], b[1] - a[1]); };
+const px2 = s => px(s) + 8 + Math.sin(s * .02) * 2;   // 前を走るそりの道
+const sst = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const H = (x, z) => { const d = Math.min(Math.abs(x - px(-z)), Math.abs(x - px2(-z))); return (Math.sin(x * .045) + Math.sin(z * .037 + 1) + Math.sin((x + z) * .021 + 2) * 1.3 + 1.2) * 1.6 * sst(5, 30, d); };
+const land = R.ground({ w: 180, d: 200, cell: 2, H, layers: [T.snow({ c: '#d4dcee' }), T.snow({ c: '#9cb0de', seed: 2 }), T.snow({ c: '#b8c0d6', seed: 5 })],
+  mix: (x, z) => { const s = -z, d = Math.abs(x - px(s)), d2 = Math.abs(x - px2(s)), hx = H(x + .8, z) - H(x - .8, z); return [hx > .35 ? 1 : 0, d < 1.3 || d2 < 1.1 ? 1 : 0]; },
+  shade: (x, z) => { const hx = H(x + 1, z) - H(x - 1, z), hz = H(x, z + 1) - H(x, z - 1), k = Math.max(-.25, Math.min(.12, -hx * .12 + hz * .1)); return [.86 + k, .9 + k, 1 + k * .6]; } });
+scene.add(land.mesh);
+
+// ---- 雪をかぶった もみの木の林（道からはなれた所に かたまり）と、雪から出た岩 ----
+const snowT = T.snow({ m: 2 }), fixed = [], put = (o, x, z, ry = 0) => { o.position.set(x, H(x, z) - .1, z); o.rotation.y = ry; fixed.push(o); return o; };
+const pine = (h, seed, c) => { const g = new THREE.Group(), G = R.geo().smooth(2); g.add(R.tree({ kind: 'pine', h, c, seed }));
+  for (let k = 0; k < 4; k++) { const y0 = h * (.16 + k * .19), r = h * (.25 - k * .048); G.loft(6, [[y0 + h * .13, r * .72, r * .72, 0, .72], [y0 + h * .2, r * .5, r * .5, .4, 1], [y0 + h * .37, .03, .03, 1, 1.1]], { rot: k * .5, ur: 2 }); } g.add(G.mesh(snowT)); return g; };
+for (let c = 0; c < 46; c++) { const s = c * 14 - 20 + hash(c, 1) * 10, side = hash(c, 2) > .5 ? 1 : -1, off = side > 0 ? 24 + hash(c, 3) * 40 : 9 + hash(c, 3) * 40, cx = px(s) + side * off, n = 3 + Math.floor(hash(c, 4) * 6);
+  for (let k = 0; k < n; k++) { const x = cx + (hash(c, k + 10) - .5) * 9, z = -s + (hash(c, k + 30) - .5) * 9, d = Math.min(Math.abs(x - px(-z)), Math.abs(x - px2(-z))); if (d < 5) continue; put(pine(4 + hash(c, k + 50) * 6, c + k, k % 3 ? '#2a6458' : '#326e60'), x, z, k); }
+  if (c % 3 === 0) put(R.rock({ s: 1 + hash(c, 5) * 1.6, c: '#7a84a8', seed: c }), cx + 6, -s + 4, c); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#c8d6f0', haze: '#bcd2f0', r: 240, h: 46, y: -4, rep: 3 }), R.backdrop({ c: '#7e96cc', haze: '#a8c0e8', r: 340, h: 110, y: -8, seed: 5 }));
+for (let k = 0; k < 9; k++) { const c = R.cloud({ s: 36 + hash(k, 9) * 30, c: '#ffffff', shade: '#b0c4e8', seed: k }), a = k * .7 + 3.4; c.position.set(Math.cos(a) * 320, 80 + hash(k, 8) * 60, Math.sin(a) * 320); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- 犬（この場面で作る。64×32 の手打ちの絵 1 枚：胴・頭の横・顔・鼻先・足・しっぽ・耳） ----
+const dogTex = (c, belly = '#f4f4f8', mask = true) => { const P = R.Px(64, 32), C = R.ramp(c), Wt = R.ramp(belly), RD = R.ramp('#d8382e'), K0 = '#1a1a24'; P.clip = true;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) { const a = Math.abs(x - 15.5), fur = (x * 3 + y * 5) % 7 === 0; let col = a < 4.5 ? Wt[y % 4 === 0 ? 3 : 4] : a < 6.5 ? (fur ? C[4] : Wt[3]) : a > 13 ? C[2] : fur ? C[2] : C[3];
+    if (y >= 5 && y <= 8) col = y === 5 ? RD[4] : y === 8 ? RD[1] : RD[3]; if (y < 16 && a > 14) col = RD[2]; if (y > 27 && a > 6) col = C[2]; P.set(x, y, col); }   // 胸の近くに赤い胴輪
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) P.set(32 + x, y, y > 10 ? Wt[4] : y < 2 ? C[2] : (x + y) % 6 === 0 ? C[2] : C[3]);   // 頭の横と上
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const a = Math.abs(x - 7.5); P.set(48 + x, y, mask && y < 9 && a > 1.5 && !(y > 6 && a < 3.5) ? C[3] : Wt[4]); }   // 顔（目のまわりの くまどり）
+  for (const ex of [51, 58]) P.bits(ex, 4, ['kkk', 'khk', '.k.'], { k: K0, h: '#a8d8ff' });
+  for (let y = 16; y < 24; y++) for (let x = 32; x < 48; x++) P.set(x, y, y < 18 ? (mask ? C[3] : Wt[3]) : y > 22 ? Wt[2] : Wt[4]);   // 鼻先
+  P.rect(40, 24, 8, 8, K0); P.set(41, 25, '#5a5a6a');                                                                       // 鼻
+  for (let y = 24; y < 32; y++) for (let x = 32; x < 40; x++) P.set(x, y, x > 33 && x < 38 && y > 26 ? '#e8a0a8' : C[3]);    // 耳
+  for (let y = 16; y < 32; y++) for (let x = 48; x < 56; x++) P.set(x, y, y < 21 ? C[3] : y > 29 ? Wt[2] : Wt[4]);           // 足
+  for (let y = 16; y < 32; y++) for (let x = 56; x < 64; x++) P.set(x, y, y < 20 ? Wt[4] : (x + y) % 5 === 0 ? C[2] : C[3]); // しっぽ（先が白い）
+  return T.from(P, { m: 1 }); };
+const dog = (c, belly, mask, s = 1) => { const t = dogTex(c, belly, mask), m = R.mat(t, { vc: true, smooth: true, side: true }), g = new THREE.Group(), root = new THREE.Group(), J = {}, X = 64, Y = 32; root.scale.setScalar(s); g.add(root);
+  const part = (G, parent, x, y, z) => { const me = new THREE.Mesh(G.build(), m); me.castShadow = true; const pv = new THREE.Group(); pv.position.set(x, y, z); pv.add(me); parent.add(pv); return pv; };
+  J.body = part(R.geo().smooth(1).px(0, 0, 32, 32, X, Y).at(R.TR(0, 0, 0, 0, PI / 2)).loft(6, [[-.06, .05, .06, 0, .85], [.04, .11, .12, .15], [.26, .12, .13, .5], [.47, .14, .15, .8], [.6, .1, .11, 1]], { cap: 'both', rot: 0 }), root, 0, .44, -.26);
+  const Gh = R.geo().smooth(1).at(R.TR(0, 0, 0, 0, PI / 2)).px(32, 0, 16, 16, X, Y).loft(6, [[-.1, .07, .065, 0, .85], [-.03, .1, .095, .4, 1], [.07, .092, .088, 1, 1.05]], { cap: 'bot', rot: 0 })   // 頭（6 角の輪。前は顔の絵の ふた）
+    .px(48, 0, 16, 16, X, Y).loft(6, [[.07, .092, .088, 0, 1.05], [.072, .092, .088, 1, 1.05]], { cap: 'top', capRect: true, rot: 0 })
+    .px(32, 16, 16, 8, X, Y).at(R.TR(0, -.035, 0, 0, PI / 2)).loft(6, [[.05, .055, .045, 0, .95], [.2, .04, .034, 1, 1]], { cap: 'top', rot: 0 }).at(null)          // 鼻先
+    .smooth(0).px(40, 24, 8, 8, X, Y).box(.04, .03, .02, 0, -.03, .2);
+  Gh.px(32, 24, 8, 8, X, Y); for (const sx of [-1, 1]) { const a = [sx * .1, .055, -.01], b = [sx * .02, .085, -.01], c2 = [sx * .075, .16, -.03]; Gh.tri(b, a, c2, [0, 0], [1, 0], [.5, 1]); }
+  J.head = part(Gh, J.body, 0, .1, .6);
+  const leg = (x, y, z) => part(R.geo().smooth(1).px(48, 16, 8, 16, X, Y).loft(4, [[-.39, .03, .036, 0], [-.2, .033, .038, .5], [0, .048, .055, 1]], { cap: 'bot' }), J.body, x, y, z);
+  J.fl = leg(.07, -.04, .47); J.fr = leg(-.07, -.04, .47); J.hl = leg(.075, -.02, .03); J.hr = leg(-.075, -.02, .03);
+  J.tail = part(R.geo().smooth(1).px(56, 16, 8, 16, X, Y).loft(5, [[0, .04, .04, 0], [.13, .035, .035, .5, 1, 0, -.03], [.25, .02, .02, 1, 1, 0, .02]], { cap: 'top' }), J.body, 0, .07, -.04);
+  g.userData = { J }; return g; };
+const run = (d, ph) => { const J = d.userData.J, a = Math.sin(ph); J.body.position.y = .44 + Math.abs(Math.cos(ph)) * .035; J.body.rotation.x = a * .07; J.head.rotation.x = -a * .08 - .05;
+  J.fl.rotation.x = a * .85; J.fr.rotation.x = Math.sin(ph + .5) * .85; J.hl.rotation.x = -a * .8; J.hr.rotation.x = -Math.sin(ph + .5) * .8; J.tail.rotation.set(-1.1 + Math.sin(ph * 2) * .15, 0, Math.sin(ph) * .3); };
+
+// ---- そり（木の すべり木・荷台・持ち手）と、そり使い・犬 6 ぴき・綱 ----
+R.cfg.actorBuild = 'toon';
+const furHat = (p, c = '#f4ecdc') => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, r = (f, k, v, s) => [f * Hd, HW * k, HW * k * 1.05, v, s, 0, -.03 * HW];
+  p.userData.J.head.add(R.geo().smooth(1).loft(8, [r(.56, 1.3, 0, .8), r(.7, 1.32, .3, 1), r(.96, 1.16, .6, 1.05), r(1.14, .7, .9, 1.1), r(1.2, .1, 1, 1.12)], { ur: 3, cap: 'top' }).mesh(T.thatch({ c, m: 1 }), { side: true })); return p; };
+const team = (driver, cols, cargo) => { const g = new THREE.Group(), B = R.parts(), Wd = B.g(T.planks({ c: '#8a5a38', w: 6 })), Dk = B.g(T.planks({ c: '#5a3a2a', w: 6 }));
+  for (const sx of [-1, 1]) { Dk.box(.05, .05, 2.4, sx * .32, 0, -.25, {}); Dk.at(R.TR(sx * .32, .02, .95, 0, -1)).box(.05, .05, .45, 0, 0, .2, {}).at(null);
+    for (const z of [-1.2, -.4, .5]) Wd.box(.05, .3, .05, sx * .3, .04, z, {}); Wd.box(.04, .04, 1.9, sx * .33, .52, -.3, {}); Dk.box(.05, .72, .05, sx * .3, .34, -1.25, {}); }
+  Wd.box(.68, .05, 1.8, 0, .32, -.25, { m: 1.5 }); Dk.box(.7, .05, .05, 0, 1.04, -1.25, {}); Wd.box(.62, .03, .3, 0, .06, -1.35, {});
+  B.g(T.fabric({ pattern: 'stripe', c: cargo, c2: '#e8e0cc', w: 6 })).at(R.TR(0, .55, -.15, 0, PI / 2)).loft(6, [[-.7, .2, .15, 0, .85], [-.6, .26, .2, .1, 1], [.55, .26, .2, .9, 1], [.68, .18, .13, 1, .9]], { cap: 'both' }).at(null);
+  g.add(B.group()); driver.position.set(0, .09, -1.42); g.add(driver);
+  const dogs = cols.map(([c, b, mk], i) => { const d = dog(c, b, mk, 1.22 + hash(i, 4) * .1), row = Math.floor(i / 2), sx = i % 2 ? 1 : -1; d.position.set(sx * .4, 0, 1.75 + row * 1.5); d.userData.ph = i * .7 + hash(i, 3); g.add(d); return d; });
+  const Rp = R.geo(), line = (a, b, w = .025) => Rp.quad([a[0] - w, a[1], a[2]], [b[0] - w, b[1], b[2]], [b[0] + w, b[1], b[2]], [a[0] + w, a[1], a[2]], [0, 0, 1, 6]).quad([a[0], a[1] - w, a[2]], [b[0], b[1] - w, b[2]], [b[0], b[1] + w, b[2]], [a[0], a[1] + w, a[2]], [0, 0, 1, 6]);
+  const nr = Math.ceil(cols.length / 2); line([0, .38, .95], [0, .5, 1.75 + nr * 1.5 - .3]); for (const d of dogs) { const p = d.position; line([p.x * .85, .62, p.z + .1], [0, .5, p.z - .6]); line([p.x * .85, .64, p.z + .45], [0, .5, p.z + .8]); }
+  g.add(Rp.mesh(F.tex.rope(), { side: true })); g.userData = { dogs, driver }; return g; };
+const hero = furHat(R.actor({ hairStyle: 'short', hair: '#5a3a2a', eye: '#3a6aa8', mouth: 'smile', blush: true, cloth: 'coat', sleeve: 'long', top: '#d8382e', top2: '#f4ecdc', lower: 'baggy', bottom: '#34446a', gloves: 'glove', glove: '#6a4a34', shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#f0c040', belt: '#4a3a2a' }));
+const HUSKY = [['#6a7488', '#f4f4f8', 1], ['#7a8090', '#f4f4f8', 1], ['#3a3a48', '#eeeef4', 1], ['#b07a44', '#f4ece0', 0], ['#8a8ea0', '#f4f4f8', 1], ['#e4e4ec', '#ffffff', 0]];
+const main = team(hero, HUSKY, '#2e4a8a'); scene.add(main);
+const rider = furHat(R.actor({ sex: 'f', hairStyle: 'tail', hair: '#2a2a34', mouth: 'small', cloth: 'coat', sleeve: 'long', top: '#2e6a8a', top2: '#f4ecdc', lower: 'baggy', bottom: '#4a3a3a', gloves: 'glove', glove: '#f4ecdc', shoes: 'boot', shoe: '#4a3a30' }), '#d8c8a8');
+const other = team(rider, [['#3a3a48', '#eeeef4', 1], ['#b07a44', '#f4ece0', 0], ['#7a8090', '#f4f4f8', 1], ['#5a5a6a', '#f0f0f4', 1]], '#c89a3a'); scene.add(other);
+const hold = (p, t) => { const J = p.userData.J; R.idle(p, t, 0); J.armL.rotation.set(-.62, 0, -.12); J.armR.rotation.set(-.62, 0, .12); J.foreL.rotation.x = -.55; J.foreR.rotation.x = -.55; J.torso.rotation.x = .14; J.legL.rotation.x = -.15; J.legR.rotation.x = -.15; J.shinL.rotation.x = .3; J.shinR.rotation.x = .3; };
+
+// ---- 雪うさぎ（長い耳の小さな獣）と、からす ----
+const hares = [0, 1, 2].map(i => { const h = W.critter({ c: '#f4f4fa', belly: '#ffffff', s: 1.3 }); h.userData.k = i; scene.add(h); return h; });
+const crows = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#2a2a38', belly: '#3a3a48', neck: false, s: 1.8 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 140), V = 6.2, S0 = 20, cd = new THREE.Vector3(), q = new THREE.Vector3(); let sp = 0, first = true;
+const place = (g, s, xf) => { const x = xf(s), z = -s, b = xf(s + .6); g.position.set(x, H(x, z), z); g.rotation.y = Math.atan2(b - x, -.6); };
+K.loop((dt, t) => {
+  const s = (S0 + t * V) % LEN; place(main, s, px); place(other, s + 11 + Math.sin(t * .3) * 3, px2);
+  for (const tm of [main, other]) tm.userData.dogs.forEach(d => run(d, t * 13 + d.userData.ph));
+  hold(hero, t); hold(rider, t + 1); hero.userData.J.head.rotation.y = Math.sin(t * .4) * .25;
+  const x = main.position.x, z = main.position.z, dir = new THREE.Vector3(Math.sin(main.rotation.y), 0, Math.cos(main.rotation.y));
+  if (first) { cd.copy(dir); first = false; } cd.lerp(dir, 1 - Math.exp(-dt * 2.5)).normalize(); const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.4, y = main.position.y, sd = tall ? .5 : 1.5;   // 少し右上から、犬の列までを入れる
+  cam.position.set(x - cd.x * D + cd.z * sd, y + (tall ? 3.3 : 3), z - cd.z * D - cd.x * sd); cam.lookAt(x + cd.x * 3.6 - cd.z * .2, y + (tall ? .9 : .75), z + cd.z * 3.6 + cd.x * .2);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z); land.follow(x, z - 50);
+  // 雪けむり：すべり木のうしろと、犬の足もと
+  if ((sp += dt) > .04) { sp = 0; for (const tm of [main, other]) { const r = tm.rotation.y, c = Math.cos(r), sn = Math.sin(r);
+      for (const sx of [-.32, .32]) { q.set(sx, .05, -1.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), r).add(tm.position); fx.emit('smoke', q.x, q.y + .1, q.z, { size: .5, life: 1, vy: .7, vx: (Math.random() - .5) * .8 - sn * 1.5, vz: -c * 1.5, grow: 2.2, spread: .3, tint: '#8a94a8', add: true }); }
+      const d = tm.userData.dogs[Math.floor(Math.random() * tm.userData.dogs.length)]; q.copy(d.position).applyAxisAngle(new THREE.Vector3(0, 1, 0), r).add(tm.position); fx.emit('smoke', q.x, q.y + .1, q.z, { size: .25, life: .6, vy: .5, grow: 1.6, spread: .4, tint: '#8a94a8', add: true }); } }
+  hares.forEach((h, i) => { const hs = s + 30 + i * 9 + Math.sin(t * .5 + i) * 2, hx = px(hs) - 8 - i * 3 + Math.sin(t * .7 + i * 2) * 1.5, hz = -hs - ((t * 2.4 + i * 3) % 8); h.position.set(hx, H(hx, hz), hz); h.rotation.y = PI * .85; W.critterPose(h, 'walk', t * 12 + i); });
+  crows.forEach((b, k) => { const a = t * (.3 + k * .05) + k * 1.6, r = 10 + k * 3; b.position.set(x + 12 + Math.cos(a) * r, y + 9 + k * 1.4 + Math.sin(t + k) * 1, z - 30 + Math.sin(a) * r); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .5 + k); });
+  fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>

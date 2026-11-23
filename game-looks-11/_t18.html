@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-18 巨像の谷 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#e8d8b8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff8e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-18 ─ 巨像の谷 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-sand2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 真昼の、砂岩の深い谷。両がわのがけに、目を閉じてすわる巨大な像が 2 対 彫られ、その足もとの細い道を旅人が行く。がけの上から光のすじがさし、鳥が舞う。
+// 色の組は「砂岩のだいだいベージュ・空の青」＋差し色の 旅人のみどりと、像の間にわたした小旗。像の顔・衣のひだ・ひび・こけは、手で打ったドット絵（この場面で描いた）。
+// 主役は みどりのマントの旅人（R.actor の toon）。谷の道を奥へ歩き、低い うしろからカメラが追って、像を見上げる。前を ろばを連れた人が行き、小鳥が像のひざで ついばむ。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), PK = PACK_RUINS(THREE, K, R), SD = PACK_SAND2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 800, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a64c0'], [.5, '#5a9ae0'], [.85, '#a8d0f0'], [1, '#f0e8d0']], { r: 400 })); scene.fog = new THREE.Fog('#e8d8bc', 60, 260);
+const { sun } = K.lights(scene, renderer, { sky: 0xcce0ff, ground: 0xd8a878, amb: 1.5, sun: 0xfff0d0, power: 2.6, range: 40 }), SUN = new THREE.Vector3(.55, .78, -.3).normalize();
+
+// ---- 谷：まん中の細い道、両がわは がけへ上がる砂とがれき。道のわきに小さな水の流れ ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const W = 13, H = (x, z) => sm(3, W - 1, Math.abs(x)) * 2.4 + Math.sin(z * .15 + x) * .15;
+const land = R.ground({ w: 60, d: 200, cell: 2, cz: -50, H, layers: [T.sand({ c: '#d8b07a' }), T.dirt({ c: '#b89068', pebbles: .5 }), PK.tex.rubble({ brick: 0, grass: .15 })],
+  mix: (x, z) => [Math.abs(x) < 1.6 ? 1 : 0, sm(6, 9, Math.abs(x)) * .8] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const ROCK = F.tex.sandstone({ c: '#b87a58' });
+for (let k = 0; k < 6; k++) for (const sx of [-1, 1]) { const z = 20 - k * 20; put(FW.cliff({ w: 22, h: 40 + hash(k, sx) * 10, d: 3, lean: .08, seed: k + (sx > 0 ? 9 : 0), tex: ROCK, top: T.sand({ c: '#d8b07a' }) }), sx * (W + 1.5), z, -sx * PI / 2, 0); }
+
+// ---- 巨大な座像（この場面のための手打ちの絵：顔・衣・台座の彫り） ----
+const SKIN = '#f0d0a0', face = (() => { const P = R.Px(32, 40), A = R.ramp(SKIN, 6, { contrast: .7 }), dk = R.ramp('#8a5a40'), mo = R.ramp('#7a9a58');
+  P.each((x, y) => hash(x >> 1, y >> 1, 7) > .86 ? A[2] : hash(x, y, 8) > .7 ? A[4] : A[3]);
+  P.rect(0, 0, 32, 7, A[2]); for (let x = 0; x < 32; x += 3) P.rect(x, 1, 1, 5, A[1]); P.rect(0, 6, 32, 1, A[1]);   // かぶり物のふち
+  for (const sx of [-1, 1]) { const cx = 16 + sx * 7; for (let i = -4; i <= 4; i++) P.set(cx + i, 12 - Math.round(Math.cos(i / 4) * 2), A[1]);   // まゆ（長い弧）
+    for (let i = -4; i <= 4; i++) P.set(cx + i, 11 - Math.round(Math.cos(i / 4) * 2), A[0]);
+    for (let i = -3; i <= 3; i++) { const yy = 17 + Math.round(Math.abs(i) * .4); P.set(cx + i, yy, dk[0]); P.set(cx + i, yy + 1, dk[1]); P.set(cx + i, yy - 1, A[5]); P.set(cx + i, yy - 2, A[2]); } P.set(cx - 4, 17, dk[1]); P.set(cx + 4, 17, dk[1]); }   // 閉じた目（こい 2 段の線）とまぶたの光・かげ
+  for (let y = 13; y < 26; y++) { P.set(15, y, A[5]); P.set(16, y, A[4]); P.set(17, y, A[1]); P.set(18, y, A[2]); } P.rect(13, 25, 7, 1, A[1]); P.rect(14, 26, 5, 1, A[2]); P.set(13, 24, A[2]); P.set(19, 24, A[2]);   // 鼻すじと小鼻
+  P.rect(12, 29, 9, 1, dk[0]); P.rect(13, 30, 7, 1, dk[2]); P.rect(14, 28, 5, 1, A[4]); P.set(11, 28, A[2]); P.set(21, 28, A[2]);   // くちびる（ほほえみ）
+  P.rect(13, 34, 7, 1, A[2]); for (let y = 7; y < 40; y++) { P.set(0, y, A[1]); P.set(1, y, A[2]); P.set(31, y, A[1]); P.set(30, y, A[2]); } for (let y = 20; y < 40; y++) if (hash(y, 3) > .55) P.set(5 + Math.round(Math.sin(y * .6) * 1), y, A[1]);   // あご、左ほおのひび
+  P.line(26, 3, 28, 15, A[1]); P.line(28, 15, 25, 22, A[1]); for (let k = 0; k < 16; k++) P.set(2 + (k * 7) % 6, 34 + (k % 6), mo[(k % 3) + 2]);   // ひびとこけ
+  return T.from(P, { m: 1 }); })();
+const robe = (() => { const P = R.Px(64), A = R.ramp('#ecc898', 6, { contrast: .8 }), B = R.ramp('#b87858'), mo = R.ramp('#7a9a58');
+  P.each((x, y) => { const f = (x + Math.sin(y * .1) * 6) % 12; return f < 1 ? A[1] : f < 2 ? A[2] : f > 9 ? A[4] : hash(x >> 2, y >> 2, 3) > .8 ? A[2] : A[3]; });   // たてのひだ
+  for (let x = 0; x < 64; x++) { P.set(x, 54, B[1]); P.set(x, 63, B[1]); P.set(x, 55, B[4]); for (let y = 56; y < 63; y++) P.set(x, y, ((x + (y - 56) * 2) % 8 < 3) ? B[2] : B[3]); }   // すその彫りの帯
+  for (let k = 0; k < 30; k++) { const x = hash(k, 1) * 64, y = hash(k, 2) * 50; P.set(x, y, mo[3]); P.set(x + 1, y, mo[2]); P.set(x, y + 1, mo[4]); }
+  P.line(40, 0, 44, 20, A[0]); P.line(44, 20, 41, 33, A[0]); return T.from(P, { m: 4 }); })();
+const statue = (s, hand) => { const B = R.parts(), Rb = B.g(robe).smooth(1), Sk = B.g(T.from((() => { const P = R.Px(32), A = R.ramp(SKIN, 6, { contrast: .6 }); P.each((x, y) => hash(x >> 1, y, 4) > .8 ? A[2] : A[3]); return P; })(), { m: 2 })).smooth(1), Ped = B.g(PK.tex.ancient({ kind: 'carve', c: '#c89870', moss: .3 })), Fc = B.g(face), L = (G, rings, o) => G.loft(8, rings.map(r => [r[0] * s, r[1] * s, r[2] * s, r[3], r[4] ?? 1, (r[5] || 0) * s, (r[6] || 0) * s]), o);
+  Ped.box(10 * s, 3 * s, 8 * s, 0, 0, 0, { m: 3 }); Ped.box(10.6 * s, .5 * s, 8.6 * s, 0, 3 * s, 0, { m: 3 });
+  L(Rb, [[3.5, 3.6, 2.6, 0, .8], [6, 3.2, 2.3, .3], [9.5, 2.7, 1.8, .55], [12.5, 3.2, 2, .75, 1.05], [14.6, 3.4, 1.9, .9, 1.05], [16.4, 1.4, 1.1, 1, .95]], { cap: 'top' });   // 胴（すわった こしから肩）
+  for (const sx of [-1, 1]) { Rb.at(R.TR(sx * 1.9 * s, 4.4 * s, -.6 * s, 0, PI / 2)).loft(7, [[0, 1.4 * s, 1.5 * s, 0, .9], [4 * s, 1.25 * s, 1.35 * s, 1, 1]], { cap: 'top' }).at(null);   // もも（前へ）
+    L(Rb, [[3.5, 1.5, 1.5, 0, .75, sx * 1.9, 3.3], [7, 1.15, 1.15, .6, .95, sx * 1.9, 3.4], [9.6, 1.45, 1.5, 1, 1, sx * 1.9, 3.4]], { cap: 'top' });   // すね
+    L(Sk, [[3.5, 1, 1.7, 0, .9, sx * 1.9, 4.3], [4.1, .9, 1.3, 1, 1, sx * 1.9, 4.6]], { cap: 'top' });   // 足先
+    L(Rb, [[15.6, 1, 1, 1, 1, sx * 3.6, -.2], [12.4, .95, .95, .5, .95, sx * 3.9, .3], [10.6, .85, .85, 0, .9, sx * 3.5, 1.9]], {});   // 上うで（肩からひじ）
+    if (sx === hand) L(Sk, [[10.6, .75, .75, 0, .95, sx * 3.5, 1.9], [11.2, .6, .6, .5, 1, sx * 3.1, 4.6], [12.8, .55, .7, 1, 1.05, sx * 2.9, 5.3]], { cap: 'top' });   // 手のひらを上げた手
+    else L(Sk, [[10.6, .75, .75, 0, .95, sx * 3.5, 1.9], [10.4, .65, .65, .5, 1, sx * 2.6, 4.3], [9.9, .9, .7, 1, 1.05, sx * 2.2, 5.1]], { cap: 'top' }); }   // ひざにおいた手
+  L(Sk, [[16, .9, .9, 0, .9], [17.2, .95, .9, 1, 1]], {});   // 首
+  const hy = 17.1 * s, hw = 1.65 * s, hd = 1.5 * s, top = 21.4 * s; Sk.loft(8, [[hy, hw * .8, hd * .8, 0, .9], [hy + 1.4 * s, hw, hd, .4, 1], [top - .4 * s, hw * .98, hd, .9, 1.05], [top + .2 * s, hw * .5, hd * .5, 1, 1.1]], { cap: 'top' });
+  Fc.quad([-hw * .86, hy + .1 * s, hd * .98], [hw * .86, hy + .1 * s, hd * .98], [hw * .86, top - .2 * s, hd * .98], [-hw * .86, top - .2 * s, hd * .98]);   // 顔（前の平らな面に絵をはる）
+  Ped.loft(8, [[top - .7 * s, hw * 1.05, hd * 1.05, 0, 1], [top + 1.6 * s, hw * .7, hd * .7, .7, 1.05], [top + 3 * s, .25 * s, .25 * s, 1, 1.1]], { cap: 'top' });   // とがった かぶり物
+  for (const sx of [-1, 1]) Sk.at(R.TR(sx * hw * 1.02, hy + 1.5 * s, 0, sx * PI / 2)).loft(4, [[-1 * s, .3 * s, .2 * s, 0, .9], [.8 * s, .45 * s, .25 * s, 1, 1]], { cap: 'both' }).at(null);   // 長い耳
+  return B.group(); };
+const STAT = [[-1, -18, 1], [1, -40, -1], [-1, -62, -1], [1, -76, 1]];
+{ const big = put(statue(1.35, 1), 0, -96, 0, 0); put(FW.cliff({ w: 60, h: 46, d: 3, lean: .05, seed: 30, tex: ROCK, top: T.sand({ c: '#d8b07a' }) }), 0, -104, 0, 0); }   // 谷のつきあたりの、いちばん大きな像
+const NICHE = PK.tex.ancient({ kind: 'block', c: '#8a5a48', moss: .2 });
+STAT.forEach(([sx, z, hand], i) => { const ry = -sx * PI / 2 + sx * .55; put(statue(.72, hand), sx * (W - 3.2), z, ry, 0);
+  const G = R.geo().tint(.55); G.box(13, 21, 1, 0, 0, -4.2, { m: 3 }); put(G.mesh(NICHE), sx * (W - 3.2), z, ry, 0);   // 像のうしろの、かげになった くぼみ
+  put(PK.arch({ w: 12.5, h: 19, thick: 1.8, d: 2.4, c: '#c88a60', moss: .2, seed: i }), sx * (W - 3.2), z, ry, 0); });
+
+// ---- 道の物：石の小さな ほこら、ろうそく台、旗のひも、がれき ----
+for (let i = 0; i < 30; i++) { const z = 15 - hash(i, 1) * 120, sx = i % 2 ? 1 : -1, x = sx * (3.5 + hash(i, 2) * 5); put(i % 3 ? R.rock({ s: .5 + hash(i, 3) * 1.2, c: '#c89870', seed: i }) : R.tuft({ kind: 'bush', s: .7, seed: i % 3 }), x, z, i); }
+for (const z of [-6, -28, -54]) put(PK.column({ h: 3.2, r: .35, c: '#d8b088', broken: hash(z, 1) * .5, seed: 2, ivy: 0 }), z % 4 ? 2.4 : -2.4, z, 0);
+scene.add(R.merge(fixed));
+const flags = [[-28, 12], [-48, 13], [-74, 12]].map(([z, y]) => { const b = F.bunting({ from: [-(W - 1), y, z], to: [W - 1, y + 2, z - 4], n: 14, sag: 2.5, cs: ['#3a8a5a', '#f0d070', '#c8453a', '#f4ecd8', '#3a6aa8'] }); scene.add(b); return b; });
+
+// ---- 光のすじ（がけの上から谷へ）、ただよう光の粒、鳥 ----
+const shafts = [[-2, -16, 4], [3, -36, 3.4], [-1, -60, 3]].map(([x, z, w], i) => { const sh = PK.shaft({ w, h: 30, dx: -12, dz: 4, a: .16, c: '#fff0c8', seed: i }); sh.position.set(x, 0, z); scene.add(sh); return sh; });
+const motes = PK.motes({ n: 60, area: [6, 5, 30], c: '#fff6d0' }); motes.position.set(0, .3, -30); scene.add(motes);
+const birds = PK.flock({ n: 7, r: 9, h: 4, c: '#f4ecdc', s: 1.8, speed: .3 }); birds.position.set(0, 30, -40); scene.add(birds);
+const sparrows = [0, 1, 2].map(i => { const b = R.bird({ c: '#8a6a4a', belly: '#e8d8b8', s: .9 }); scene.add(b); return b; });
+
+// ---- 人：主役と、前を行く ろば連れの人 ----
+const hero = R.actor({ build: 'toon', hairStyle: 'tufts', hair: '#6a3a2a', skin: '#e8b890', eyes: 'big', cloth: 'tunic', top: '#2e8a5a', top2: '#f0e4c8', lower: 'pants', bottom: '#e8dcc0', belt: '#8a5a34', shoes: 'boot', shoe: '#6a4a34', neck: 'cape', acc: '#2e7a50', gloves: 'glove', glove: '#8a5a34' }); scene.add(hero); F.wear(hero, 'staff', { len: 1.5, c: '#7a5a3a' });
+const pilgrim = R.actor({ build: 'toon', hairStyle: 'bald', hair: '#5a4a40', beard: 'beard', eyes: 'closed', cloth: 'robe', top: '#c8682e', top2: '#f0d890', skirt: .9, shoe: '#6a4a34' }); scene.add(pilgrim);
+const donkey = PK.beast({ kind: 'horse', c: '#8a7a6a', c2: '#c8682e', s: .75 }); scene.add(donkey);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 12, LEN = 62, SPEED = 1.6;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 - dist, x = Math.sin(z * .06) * .5, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.cos(z * .06) * .03; R.walk(hero, t * SPEED * 3.6, .85);
+  const tall = innerWidth < innerHeight, Dc = tall ? 4.2 : 5.2; cam.position.set(x + .9, y + (tall ? 1.6 : 1.4), z + Dc); cam.lookAt(x, y + (tall ? 3.6 : 3.4), z - 8);   // 低い所から見上げて、巨像の顔まで入れる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 8);
+  const pz = z - 9 - Math.sin(t * .2) * 1.5; pilgrim.position.set(-.8, H(-.8, pz), pz); pilgrim.rotation.y = PI; R.walk(pilgrim, t * 4.2, .6); pilgrim.userData.J.armL.rotation.set(-.9, 0, -.2);
+  donkey.position.set(-.6, H(-.6, pz - 1.7), pz - 1.7); donkey.rotation.y = PI; PK.beastPose(donkey, 'walk', t * 4.2);
+  sparrows.forEach((b, i) => { const st = STAT[0], bx = st[0] * (W - 3.2) + 1.6, bz = st[1] + (i - 1) * .8 + 1.4; b.position.set(bx, 7.05, bz); b.rotation.y = i * 2; R.birdPose(b, 'peck', t * 1.3 + i * 1.7); });
+  birds.userData.tick(t); motes.userData.tick(t); shafts.forEach(s => s.userData.tick?.(t)); F.tick(t); cam.position.set(0, 4, -45); cam.lookAt(0, 14, -96); crt.render(scene, cam, t);
+});
+</script>
+</html>

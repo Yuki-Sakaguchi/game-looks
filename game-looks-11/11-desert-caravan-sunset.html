@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>11-11 砂漠のキャラバン 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1018;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8cc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">11-11 ─ 砂漠のキャラバン / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-sand1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕日の砂丘。荷を積んだらくだ 4 頭の列と旅人たちが、砂丘の尾根ぞいに夕日へ向かって進む。低い日ざしで、らくだと人の長い影が手前へのび、砂の風紋が光る。
+// 色の組は「夕空と日なたの砂のだいだい・日かげの砂の藤色・空の上の紺むらさき」＋差し色の荷の布の赤と青緑。面の少ない形にドット絵のテクスチャをはり、粗い絵に描いてブラウン管に映す。
+// 主役は列のいちばんうしろを歩く旅人（R.actor の toon。頭に布をまき、つえ）。うしろから少し右上でカメラが追い、前のらくだの列が夕日の前に影絵のように浮かぶ。らくだは pack-sand1.js（A.camel）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), A = PACK_SAND1(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 46, far: 900, aa: false, fitAspect: .9, maxFov: 76 });
+scene.add(R.skyDome([[0, '#24245e'], [.3, '#4a3a7a'], [.55, '#9a5a8a'], [.74, '#e0786a'], [.9, '#f8a058'], [1, '#ffd088']], { r: 420 })); scene.fog = new THREE.Fog('#e8946a', 50, 300);
+const SUN = new THREE.Vector3(-.22, .16, -.96).normalize();
+const { sun } = K.lights(scene, renderer, { sky: 0xb898d8, ground: 0xc88a68, amb: 1.25, sun: 0xffb46a, power: 2.9, range: 30, map: 2048 });
+
+// ---- 砂丘：大きな波を 2 つ重ねる。列の道（PATH）は尾根の少し下を通る。日なたは だいだい、日かげは藤色を地面に焼きこむ ----
+const PX = z => Math.sin(z * .028) * 6 + Math.sin(z * .011 + 1) * 4;
+const H = (x, z) => { const d = x - PX(z), a = Math.sin(x * .05 + z * .03 + Math.sin(z * .04) * 1.2), b = Math.sin(x * .021 - z * .05 + 2.1);
+  return 2.2 * Math.exp(-d * d / 90) + (.5 + .5 * a) ** 1.7 * 5 * Math.min(1, Math.abs(d) / 9) + (.5 + .5 * b) * 3.2 - d * .03; };
+const SANDC = '#e6a45e', SHADE = (x, z) => { const nx = (H(x - 1.5, z) - H(x + 1.5, z)) / 3, nz = (H(x, z - 1.5) - H(x, z + 1.5)) / 3, s = Math.max(-.6, Math.min(1, (nx * SUN.x + nz * SUN.z) * 3.2 + SUN.y * 1.2)), k = (s + .6) / 1.6;
+  return [.6 + k * .55, .58 + k * .44, .78 + k * .14]; };   // 日かげは青むらさき、日なたは だいだい
+const land = R.ground({ w: 170, d: 190, cell: 2, cz: -30, H, layers: [T.sand({ c: SANDC }), T.sand({ c: '#f0bc78', seed: 2 }), T.dirt({ c: '#b88458', pebbles: .5 })],
+  mix: (x, z) => [.5 + Math.sin(x * .13 + z * .07) * .35 + (H(x, z) - 4) * .08, Math.abs(x - PX(z)) < 1.2 ? .35 + hash(Math.round(x), Math.round(z)) * .2 : 0], shade: SHADE });
+scene.add(land.mesh);
+const outer = R.ground({ w: 900, d: 900, cell: 36, layers: [T.sand({ c: '#d88e58' })], H: () => -.4 }); scene.add(outer.mesh);
+
+// ---- 道ばたの物：かれた草・岩・半分うもれた古い石の門と柱、骨のような流木 ----
+const fixed = [], put = (o, x, z, ry = 0, sink = 0) => { o.position.set(x, H(x, z) - sink, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let i = 0; i < 70; i++) { const z = 20 - hash(i, 1) * 220, x = PX(z) + (hash(i, 2) - .5) * 60; if (Math.abs(x - PX(z)) < 3) continue;
+  if (i % 3) put(R.tuft({ kind: i % 2 ? 'grass' : 'bush', s: .6 + hash(i, 3) * .5, c: '#a89a5a', seed: i % 3 }), x, z, i); else put(R.rock({ s: .4 + hash(i, 4) * .9, c: '#b07a5a', seed: i }), x, z, i, .2); }
+const stone = F.tex.sandstone({ c: '#d49a6a' });
+[[-14, -46, .3], [17, -92, -.5], [-20, -140, .2]].forEach(([x, z, ry], i) => { put(F.arch({ w: 3.6, h: 4.6, d: 1.1, th: .8, stone, kind: 'point' }), PX(z) + x, z, ry, 1.6 + i * .4); put(F.column({ h: 4, r: .4, tex: stone }), PX(z) + x + 4, z + 2, 0, .8); put(F.column({ h: 2.2, r: .4, tex: stone }), PX(z) + x - 3.6, z - 1, 0, .5); });
+scene.add(R.merge(fixed));
+
+// ---- 遠景：夕日、砂丘のなみ、地平線の町（ドームと尖塔の影） ----
+scene.add(R.backdrop({ c: '#b0685a', haze: '#f4a066', r: 260, h: 34, y: -5, rep: 3 }), R.backdrop({ c: '#c87a62', haze: '#ffc488', r: 380, h: 46, y: -6, rep: 2, seed: 3 }));
+const sunD = new THREE.Mesh(new THREE.CircleGeometry(22, 24), new THREE.MeshBasicMaterial({ color: '#fff2b8', fog: false })); sunD.position.copy(SUN).multiplyScalar(395); sunD.position.y = 30; sunD.lookAt(0, 0, 0); scene.add(sunD);
+const halo = new THREE.Mesh(new THREE.CircleGeometry(48, 24), new THREE.MeshBasicMaterial({ color: '#ffc070', fog: false, transparent: true, opacity: .35, depthWrite: false })); halo.position.copy(sunD.position).multiplyScalar(1.005); halo.lookAt(0, 0, 0); scene.add(halo);
+{ const town = []; const tp = (o, x, z, y = 0) => { o.position.set(x, y, z); town.push(o); }; const wall = T.plaster({ frame: 'none', c: '#d8a080' });
+  for (let i = 0; i < 7; i++) { const x = -120 + i * 14, z = -330 - hash(i, 3) * 20; tp(R.house({ w: 10, d: 8, h: 5 + hash(i, 5) * 4, roofKind: 'flat', wall, roof: wall, door: false, seed: i }), x, z, -3); }
+  tp(F.dome({ r: 9, c: '#3a8a8a', c2: '#e0b050' }), -80, -345, 6); tp(F.minaret({ h: 26, r: 1.6, stone: wall, c: '#3a8a8a', c2: '#e0b050' }), -100, -338, -3); tp(F.minaret({ h: 22, r: 1.4, stone: wall, c: '#3a8a8a', c2: '#e0b050' }), -58, -342, -3);
+  const g = R.merge(town); g.traverse(q => { if (q.isMesh) { q.castShadow = false; q.material = q.material.clone(); q.material.color = new THREE.Color('#8a5a7a'); } }); scene.add(g); }
+for (let i = 0; i < 7; i++) { const c = R.cloud({ s: 30 + hash(i, 9) * 26, c: '#ffc09a', shade: '#9a6a9a', seed: i }), a = -PI / 2 + (i - 3) * .32; c.position.set(Math.cos(a) * 300, 34 + hash(i, 8) * 50, Math.sin(a) * 300); c.lookAt(0, 30, 0); scene.add(c); }
+
+// ---- らくだの列（pack-sand1.js）。荷の布の色を 1 頭ずつ変え、鼻づなで前とつなぐ ----
+const CL = [{ cloth: '#c8402e', cloth2: '#e8b048', bag: '#d8c49a', rug: '#2e7a8a' }, { cloth: '#2e7a8a', cloth2: '#f0d8a0', bag: '#c8a878', rug: '#c8402e' }, { cloth: '#a8384a', cloth2: '#e8b048', bag: '#e0d0a8', rug: '#3a5a8a' }, { cloth: '#c8602e', cloth2: '#f0e0b0', bag: '#c8b088', rug: '#2e7a8a', load: true }];
+const camels = CL.map((o, i) => { const c = A.camel({ ...o, c: ['#b88050', '#a87044', '#c08a58', '#b07848'][i], s: i === 3 ? .78 : 1 }); scene.add(c); return c; });
+const ropeT = T.planks({ c: '#5a3a24' }), ropes = camels.slice(1).map(() => { const G = R.geo().loft(3, [0, .2, .4, .6, .8, 1].map(k => [k, .02, .02, k])), m = G.mesh(ropeT); m.frustumCulled = false; m.castShadow = false; m.userData.base = m.geometry.attributes.position.array.slice(); scene.add(m); return m; });
+// ---- 人（5 頭身の toon。どれもこの場面のためのオリジナル）。頭の布は ここで作って頭に付ける ----
+const wrap = (p, c, c2) => { const b = p.userData.build, Hd = b.head, HW = b.hw * Hd, m = R.geo().smooth(1).loft(8, [[.5 * Hd, HW * 1.16, HW * 1.2, 0, .78], [.72 * Hd, HW * 1.42, HW * 1.46, .3, 1], [.98 * Hd, HW * 1.34, HW * 1.38, .65, 1.06], [1.14 * Hd, HW * .72, HW * .78, 1, 1.12]], { cap: 'top', ur: 3 }).mesh(T.fabric({ c, c2: c2 || R.mix(c, '#ffffff', .3), w: 4 })); m.rotation.x = .08; p.userData.J.head.add(m); return p; };
+const act = o => { const p = R.actor({ build: 'toon', ...o }); scene.add(p); return p; };
+const hero = wrap(act({ skin: '#c88a5a', hairStyle: 'short', bangs: 'jag', hair: '#2a2024', eyes: 'sharp', cloth: 'robe', top: '#2e7a8a', top2: '#f0e0b8', skirt: .5, bottom: '#e8d8b0', lower: 'baggy', belt: '#c8402e', gloves: 'wrap', glove: '#f0e0b8', shoes: 'boot', shoe: '#7a4a32', neck: 'scarf', acc: '#c8402e', back: 'bag' }), '#f4ead2', '#c8402e'); F.wear(hero, 'staff', { len: 1.5, c: '#7a5434' });
+const leader = wrap(act({ skin: '#b87a50', hairStyle: 'short', hair: '#2a2024', beard: 'beard', eyes: 'half', cloth: 'robe', top: '#e8d8b0', top2: '#c8402e', skirt: .85, bottom: '#c8b088', shoes: 'shoe', shoe: '#6a4028', neck: 'scarf', acc: '#2e7a8a' }), '#2e7a8a');
+const mate = wrap(act({ sex: 'f', s: .94, skin: '#c89064', hairStyle: 'long', hair: '#2a2024', eyes: 'round', blush: true, cloth: 'tunic', top: '#a8384a', top2: '#f0d8a0', lower: 'skirt', skirt: .8, skirtC: '#e8d8b0', shoes: 'shoe', shoe: '#6a4028', neck: 'scarf', acc: '#e8b048' }), '#e8b048');
+const kid = act({ s: .72, skin: '#c89064', hairStyle: 'spiky', hair: '#2a2024', mouth: 'open', blush: true, cloth: 'vest', top: '#c8602e', top2: '#f0e0b8', lower: 'baggy', bottom: '#e8d8b0', shoes: 'shoe', shoe: '#6a4028', hat: 'band', acc: '#2e7a8a' });
+const birds = [0, 1, 2, 3].map(k => { const b = R.bird({ c: '#3a2a3a', belly: '#5a3a4a', neck: false, s: 1.5 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const fx = K.fx(scene, 70), SPEED = 1.15, GAP = 3.3, at = d => { const z = 10 - d, x = PX(z); return [x, H(x, z), z, Math.atan2(PX(z - .5) - x, -.5)]; };
+const TEST = new URLSearchParams(location.search).get('test');
+let dt0 = 0, cx = 0, cz = 0, cy = 0, ci = true;
+K.loop((dt, t) => {
+  const d = t * SPEED, [x, y, z, ry] = at(d);
+  hero.position.set(x + .9, H(x + .9, z), z); hero.rotation.y = ry; R.walk(hero, d * 3.4, .8);
+  // らくだ：主役の前に列。いちばん前を案内の人が鼻づなで引く
+  const pos = camels.map((c, i) => { const q = at(d + 3 + i * GAP * (i === 3 ? .95 : 1)), ord = 3 - i; c.position.set(q[0], q[1], q[2]); c.rotation.y = q[3]; A.pose(c, 'walk', d * 2.5 + i * .9); return c; });
+  const ld = at(d + 3 + 3 * GAP + 2.6); leader.position.set(ld[0] - .6, ld[1], ld[2]); leader.rotation.y = ld[3]; R.walk(leader, d * 3.4 + 1, .7); leader.userData.J.armR.rotation.x = .6; leader.userData.J.foreR.rotation.x = -.3;
+  // 鼻づな：うしろのらくだの鼻から、前のらくだの尾の付け根へ
+  const v = new THREE.Vector3(), w = new THREE.Vector3();
+  ropes.forEach((m, k) => { const back = camels[k], front = camels[k + 1]; back.userData.J.head.getWorldPosition(v); front.userData.J.tail.getWorldPosition(w); const P = m.geometry.attributes.position, B = m.userData.base; for (let i = 0; i < P.count; i++) { const u = B[i * 3 + 1], sag = Math.sin(u * PI) * .4; P.setXYZ(i, v.x + (w.x - v.x) * u + B[i * 3], v.y + (w.y - v.y) * u - sag, v.z + (w.z - v.z) * u + B[i * 3 + 2]); } P.needsUpdate = true; m.geometry.computeBoundingSphere(); });
+  const md = at(d + 3 + GAP * 1.5); mate.position.set(md[0] - 1.25, H(md[0] - 1.25, md[2]), md[2]); mate.rotation.y = md[3]; R.walk(mate, d * 3.6 + 2, .8);
+  const kd = at(d + 2.2 + Math.sin(t * .5) * .8); kid.position.set(kd[0] - 1.9, H(kd[0] - 1.9, kd[2]), kd[2]); kid.rotation.y = kd[3] + Math.sin(t * .8) * .25; R.walk(kid, t * 8, 1);
+  // カメラ：主役のうしろ、少し右上から。列と夕日が画面に入るよう、前の方を見る
+  const tall = innerWidth < innerHeight, D = tall ? 3.6 : 3.2, tx = x + (tall ? 3.8 : 5.4), tz = z + D, ty = Math.max(H(tx, tz) + 1.2, y + (tall ? 1.9 : 1.7));
+  if (ci) { cx = tx; cy = ty; cz = tz; ci = false; } cx += (tx - cx) * Math.min(1, dt * 3); cy += (ty - cy) * Math.min(1, dt * 3); cz += (tz - cz) * Math.min(1, dt * 3);
+  cam.position.set(cx, cy, cz); const la = at(d + (tall ? 4.5 : 5.5)); cam.lookAt(la[0] - (tall ? .3 : 1.2), la[1] + 1.45, la[2]);
+  if (TEST) { const c = camels[+TEST], a = c.rotation.y + PI / 2 + .5; cam.position.set(c.position.x + Math.sin(a) * 4.5, c.position.y + 1.8, c.position.z + Math.cos(a) * 4.5); cam.lookAt(c.position.x, c.position.y + 1.3, c.position.z); }
+  sun.position.set(x + SUN.x * 70, y + SUN.y * 70, z - 6 + SUN.z * 70); sun.target.position.set(x, y, z - 6);
+  land.follow(x, z - 20);
+  birds.forEach((b, k) => { const a = t * (.18 + k * .03) + k * 1.6, r = 14 + k * 4; b.position.set(x - 8 + Math.cos(a) * r, y + 14 + k * 2, z - 40 + Math.sin(a) * r * .5); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a) * .5); R.birdPose(b, 'fly', t * .45 + k); });
+  // 風で舞う砂：尾根の上と、らくだの足もと
+  if ((dt0 += dt) > .16) { dt0 = 0; const c = camels[Math.floor(Math.random() * 4)]; fx.emit('puff', c.position.x + (Math.random() - .5) * .6, c.position.y + .05, c.position.z + (Math.random() - .5) * .8, { size: .3, life: .7, vy: .2, vx: .5, grow: 1.2, tint: '#c88058' }); }
+  fx.update(dt); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
