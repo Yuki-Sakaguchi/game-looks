@@ -42,7 +42,7 @@ const fount = R.fountain({ r: 3.2, stone: Ut.marble({}), water: '#6ab8e8' }); fo
 const gt = U.tower({ h: 5, r: .35, cap: 'needle', tiers: 1 }); gt.position.set(-3.5, 2.5, -22); scene.add(gt);
 const spray = C.steam({ r: .35, rise: 1.6, n: 8, c: '#e8f4ff', a: .5, speed: .6 }); spray.position.set(-3.5, 3.4, -22); scene.add(spray);
 scene.add(R.merge(fixed));
-// 遠く：同じ高さの ほかの台の都市（日をあびる白い塔）
+// 遠く：同じ高さの ほかの台の都市（日をあびる白い塔）。下層から立つ柱が ささえる
 const far1 = U.city({ r: 130, n: 18, seed: 5, hmin: 40, hmax: 180, emissive: '#3a3a40', plate: { th: 18, pipes: 16, lamps: false } }); far1.position.set(640, 10, -700); scene.add(far1);
 const far2 = U.city({ r: 90, n: 12, seed: 8, hmin: 30, hmax: 130, emissive: '#3a3a40', plate: { th: 14, pipes: 12, lamps: false } }); far2.position.set(220, 40, -1000); scene.add(far2);
 // 左の館のうしろの 高い塔
@@ -53,7 +53,7 @@ const LOW = -300, VAR = [...Array(10)].map((_, i) => C.shack({ w: 5 + hash(i, 1)
 const lowLand = R.ground({ w: 1600, d: 1600, cell: 25, cx: 300, layers: [X.tin({ c: '#8a6a50', rust: .7 })] }); { const g = new THREE.Group(); g.position.y = LOW; g.add(lowLand.mesh); scene.add(g); }
 { const list = []; for (let k = 0; k < 1300; k++) { const x = 24 + 680 * Math.pow(hash(k, 1), 1.4), z = -560 + hash(k, 2) * 620, v = VAR[k % 10].clone(); v.position.set(x, LOW, z); v.rotation.y = Math.round(hash(k, 3) * 4) * PI / 2; v.scale.setScalar(2.6); list.push(v); }
   for (let k = 0; k < 8; k++) { const tk = C.tank({ r: 7, h: 16, c: C.PAL[k % 4] }); tk.position.set(60 + hash(k, 5) * 400, LOW, -400 + hash(k, 6) * 500); list.push(tk); }
-  for (const [x, z, r] of [[240, -330, 16], [420, -180, 18]]) { const p = C.pillar({ r, h: -LOW - 10, seed: 3, c: '#7a7690', emissive: '#2a2630', lm: 40 }); p.position.set(x, LOW, z); list.push(p); }
+  for (const [x, z, r, top] of [[640, -700, 18, -30], [220, -1000, 15, 8]]) { const p = C.pillar({ r, h: top - LOW, seed: 3, c: '#7a7690', emissive: '#2a2630', lm: 40 }); p.position.set(x, LOW, z); list.push(p); }
   scene.add(R.merge(list)); }
 scene.add(C.backdrop({ r: 900, h: 90, y: LOW - 2, haze: HAZE, c: '#6a5a50' }));
 const smog = [...Array(7)].map((_, k) => { const s = C.steam({ r: 14, rise: 70, n: 7, spread: .5, speed: .07, c: '#b8a890', a: .4 }); s.position.set(80 + hash(k, 7) * 400, LOW + 10, -350 + hash(k, 8) * 400); scene.add(s); return s; });

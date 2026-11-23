@@ -158,7 +158,7 @@ window.PACK_NEON2 = (THREE, K, R, C) => {
   // ================= 6. うずまきの線香 =================
   N.coil = (o = {}) => { const r = o.r || .35, n = o.turns || 5, g = new THREE.Group(), G = R.geo().smooth(1), tp = T.bark({ c: o.c || '#b8743a' }), pts = [];
     for (let i = 0; i <= n * 16; i++) { const u = i / (n * 16), a = u * n * PI * 2, rr = r * (1 - u * .88), y = -u * r * 1.6; pts.push([Math.cos(a) * rr, y, Math.sin(a) * rr]); }
-    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], tw = .018; G.quad([a[0], a[1] - tw, a[2]], [b[0], b[1] - tw, b[2]], [b[0], b[1] + tw, b[2]], [a[0], a[1] + tw, a[2]], [0, 0, .2, .1]); }
+    for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1], tw = o.th || .04; G.quad([a[0], a[1] - tw, a[2]], [b[0], b[1] - tw, b[2]], [b[0], b[1] + tw, b[2]], [a[0], a[1] + tw, a[2]], [0, 0, .2, .1]); }
     const wire = R.geo(); for (let k = 0; k < 3; k++) { const a = k / 3 * PI * 2; wire.quad([0, 0, 0], [0, 0, 0], [Math.cos(a) * r, -r * .05, Math.sin(a) * r], [Math.cos(a) * r * .98, -r * .02, Math.sin(a) * r * .98]); }
     g.add(G.mesh(tp, { side: true }), wire.mesh(metal(), { side: true })); g.userData.tip = pts[0]; return g; };
 

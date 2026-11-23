@@ -42,12 +42,12 @@ const urnSmoke = C.steam({ r: .55, rise: 7, n: 12, c: '#f0e8f0', a: .5, speed: .
 // 軒からさがる うずまきの線香（お堂の前と横）。先は赤くともり、細いけむり
 const coils = [], tips = [];
 for (const [x, y, z, r] of [[-3.6, 4.1, -2.1, .42], [-1.8, 4.3, -2.3, .36], [1.8, 4.3, -2.3, .36], [3.6, 4.1, -2.1, .42], [-4.9, 4.0, -4.5, .38], [4.9, 4.0, -4.5, .38], [-2.6, 3.4, -3.2, .5], [2.6, 3.4, -3.2, .5], [0, 3.3, -3.4, .55], [-1.2, 3.2, -4.4, .45], [1.2, 3.2, -4.4, .45]]) {
-  const c = N.coil({ r, turns: 5 }); c.position.set(x, y, z); scene.add(c); coils.push(c);
-  const sm = C.steam({ r: .14, rise: 2.4, n: 5, c: '#f4eef4', a: .38, speed: .25, wind: [.2, 0] }); sm.position.set(x, y - r * 1.55, z); scene.add(sm);
-  const tip = C.halo({ c: '#ff8040', r: .12, k: .9 }); tip.position.set(x, y - r * 1.6, z); scene.add(tip); }
+  const c = N.coil({ r: r * 1.45, turns: 6, c: '#e8b060', th: .05 }); c.position.set(x, y, z); scene.add(c); coils.push(c);
+  const sm = C.steam({ r: .14, rise: 2.4, n: 5, c: '#f4eef4', a: .38, speed: .25, wind: [.2, 0] }); sm.position.set(x, y - r * 2.25, z); scene.add(sm);
+  const tip = C.halo({ c: '#ff8040', r: .12, k: .9 }); tip.position.set(x, y - r * 2.3, z); scene.add(tip); }
 // 庭のすみ：石の灯ろう、植木ばち、線香立て、ベンチ
 for (const [x, z] of [[-5.5, 2.5], [5.5, 2.5]]) put(F.stoneLantern({ h: 1.6, lit: true }), x, z);
-for (const [x, z] of [[-7.5, -1], [-7.5, 3], [7.5, -1], [7.5, 3], [-4, 8], [4, 8]]) put(R.tree({ kind: 'bush', h: 1.3, c: '#4a7a4a', seed: x * z }), x, z);
+for (const [x, z] of [[-7.5, -1], [-7.5, 3], [7.5, -1], [7.5, 3], [-6, 8]]) put(R.tree({ kind: 'bush', h: 1.3, c: '#4a7a4a', seed: x * z }), x, z);
 put(R.bench({ c: '#6a3a2a' }), -6.8, 5.6, PI / 2); put(R.bench({ c: '#6a3a2a' }), 6.8, 5.6, -PI / 2);
 // 寺の門（主役のうしろ。少しだけ画面に入る）
 put(F.torii({ w: 4, h: 4.8, c: RED }), 0, 12.5);
@@ -74,11 +74,11 @@ const warm = new THREE.PointLight('#ffb070', 10, 10, 1.3); warm.position.set(0, 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const SPEED = .55, Z0 = 9, LEN = 6.2, v = new THREE.Vector3();
 K.loop((dt, t) => {
-  const u = (t * SPEED) % (LEN + 2.5), walking = u < LEN, z = Z0 - Math.min(u, LEN), x = .3, tall = innerWidth < innerHeight;
+  const u = (t * SPEED) % (LEN + 2.5), walking = u < LEN, z = Z0 - Math.min(u, LEN), x = 1.5, tall = innerWidth < innerHeight;
   hero.position.set(x, 0, z); hero.rotation.y = PI; if (walking) R.walk(hero, t * 5, .8); else R.idle(hero, t, 0);
   const J = hero.userData.J; J.armR.rotation.x = -1.1; J.foreR.rotation.x = -.9; J.armR.rotation.z = .3; if (!walking) { const b = Math.sin((u - LEN) * 2.4) * .25 + .2; J.torso.rotation.x = b; }
   // 低い所から見上げる（主役のうしろ）。ビルの壁と、上の細い空が入る
-  cam.position.set(x + 1.5, tall ? .8 : .75, z + (tall ? 3.6 : 3.4)); cam.lookAt(x - .4, tall ? 6.8 : 5.6, z - 9);
+  cam.position.set(x + 1.1, tall ? 1.0 : .95, z + (tall ? 4.2 : 4.0)); cam.lookAt(x - 1.3, tall ? 5.4 : 4.0, z - 9);
   crt.u.bright.value = Math.min(1, u / .4, Math.abs(LEN + 2.5 - u) / .4);
   sun.position.set(SUN.x * 80, SUN.y * 80, SUN.z * 80); sun.target.position.set(0, 0, -4);
   pray.forEach((p, k) => { R.idle(p, t + k, 0); const b = Math.max(0, Math.sin(t * 1.3 + k * 1.7)) * .5; p.userData.J.torso.rotation.x = b; p.userData.J.armR.rotation.x = p.userData.J.armL.rotation.x = -1.2; p.userData.J.foreR.rotation.x = p.userData.J.foreL.rotation.x = -1; p.userData.J.armR.rotation.z = .35; p.userData.J.armL.rotation.z = -.35; });

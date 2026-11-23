@@ -41,8 +41,8 @@ for (let k = 0; k < 16; k++) put(N.tower({ w: 24, d: 22, h: 90 + hash(k, 1) * 90
 { const B = R.parts(), pole = B.g(T.bark({ c: '#c8b078' })).smooth(1); for (const z of [-5.4, -2.6]) for (let x = -14; x <= 14; x += 7) pole.loft(5, [[H0, .05, .05, 0, 1, x, z], [H0 + 2.3, .045, .045, 1, 1, x, z]]); fixed.push(B.group()); }
 for (const [x, z, h] of [[-12, -6.5, 4.5], [-9, -6.8, 3.4], [6, -7, 5.2], [13, 6.5, 3.8], [10, -6.6, 4]]) put(N.antenna({ h, n: 6 }), x, z, x * .3, H0);
 for (const [x, z, r] of [[-15, 5.5, 1.1], [-12.3, 5.6, .9], [15, -5.8, 1]]) put(C.tank({ r, h: 2, c: ['#4f8f88', '#a8a49a', '#c8a04a'][Math.round(x) & 1 ? 0 : 1], legs: .9 }), x, z, 0, H0);
-put(C.shack({ w: 4, d: 3.4, floors: 1, seed: 7, shop: 'door', lit: 0, awning: 'tin', laundry: false, sign: false }), 4, 5.6, PI, H0);
-for (let k = 0; k < 7; k++) { const G = R.geo().smooth(1); G.loft(8, [[0, .22, .22, 0, .8], [.4, .3, .3, 1, 1]], { cap: 'top' }); put(G.mesh(T.brick({ c: '#c86a4a' })), -6 + k * 1.1, 7.3, 0, H0); put(R.tuft({ kind: k % 2 ? 'bush' : 'flower', s: .7 }), -6 + k * 1.1, 7.3, k, H0 + .4); }
+put(C.shack({ w: 4, d: 3.4, floors: 1, seed: 7, shop: 'door', lit: 0, awning: 'tin', laundry: false, sign: false }), -2, -7.2, 0, H0);
+for (let k = 0; k < 9; k++) { const G = R.geo().smooth(1); G.loft(8, [[0, .22, .22, 0, .8], [.4, .3, .3, 1, 1]], { cap: 'top' }); put(G.mesh(T.brick({ c: '#c86a4a' })), -14 + k * 1.1, -7.3, 0, H0); put(R.tuft({ kind: k % 2 ? 'bush' : 'flower', s: .7 }), -14 + k * 1.1, -7.3, k, H0 + .4); }
 put(R.crate({ s: .6 }), 9, 2.6, .3, H0); put(R.crate({ s: .5, kind: 'x' }), 9.6, 3.4, .8, H0); put(C.drum({ c: '#4f8f88' }), -3, 6.4, 0, H0);
 scene.add(R.merge(fixed));
 const wash = []; for (const z of [-5.4, -2.6]) for (let x = -14; x < 14; x += 7) { const l = N.laundry([x, H0 + 2.2, z], [x + 7, H0 + 2.2, z], { seed: Math.round(x * 3 + z * 7), n: 6, sag: .18 }); scene.add(l); wash.push(l); }
@@ -56,7 +56,7 @@ const flock = PK.flock({ n: 9, r: 16, h: 5, c: '#9a9aa8', s: 2.2, speed: .35 });
 const plane = N.plane({ c: '#2a6ac8' }); plane.scale.setScalar(1.15); scene.add(plane);
 
 // ---- 人：主役と、洗たく物を干す おばあさん ----
-const hero = R.actor({ hairStyle: 'short', hair: '#2a2030', eyes: 'round', mouth: 'smile', cloth: 'tunic', top: '#f4f0e8', top2: '#3a6ac8', lower: 'shorts', bottom: '#3a4a8a', shoes: 'shoe', shoe: RED, hat: 'cap', acc: RED, s: .86 }); scene.add(hero);
+const hero = R.actor({ hairStyle: 'short', hair: '#2a2030', eyes: 'round', mouth: 'smile', cloth: 'tunic', top: '#f4f0e8', top2: '#3a6ac8', lower: 'shorts', bottom: '#3a4a8a', shoes: 'shoe', shoe: RED, hat: 'cap', acc: RED, s: .95 }); scene.add(hero);
 const gran = R.actor({ sex: 'f', hairStyle: 'bun', hair: '#c8c4c8', eyes: 'closed', cloth: 'tunic', top: '#7ab0a0', top2: '#f4ecd8', lower: 'pants', bottom: '#5a5a6a', shoes: 'shoe', shoe: '#3a3a44', s: .92 }); gran.position.set(11, H0, -1.4); gran.rotation.y = PI; scene.add(gran);
 
 // ---- 主人公：屋上を -x へ歩く。カメラは低い所から 主役ごしに空を見上げる ----
@@ -65,7 +65,7 @@ const SPEED = .8, X0 = 6;
 K.loop((dt, t) => {
   const x = X0 - t * SPEED, z = -.6 + Math.sin(t * .4) * .2, tall = innerWidth < innerHeight;
   hero.position.set(x, H0, z); hero.rotation.y = -PI / 2; R.walk(hero, t * SPEED * 7.4, .9); hero.userData.J.head.rotation.x = -.3 - Math.max(0, Math.sin(t * .5)) * .2;
-  if (tall) { cam.position.set(x - 2.4, H0 + .9, z + 4.6); cam.lookAt(x + 3.6, H0 + 4.6, z - 10); } else { cam.position.set(x - 3.6, H0 + 1, z + 4.4); cam.lookAt(x + 3.4, H0 + 4.4, z - 10); }
+  if (tall) { cam.position.set(x - 2.2, H0 + .9, z + 4.2); cam.lookAt(x + 3.2, H0 + 4.6, z - 10); } else { cam.position.set(x - 3, H0 + 1, z + 3.8); cam.lookAt(x + 3.4, H0 + 4.6, z - 10); }
   sun.position.set(x + SUN.x * 60, H0 + SUN.y * 60, SUN.z * 60); sun.target.position.set(x, H0, 0);
   const u = ((t + 1) % 30), px = 60 - u * 11; plane.position.set(px, H0 + 19 - u * .3, -22 + u * .3); plane.rotation.set(0, -.18, .04); plane.visible = px > -260;
   pigeons.forEach((b, i) => R.birdPose(b, i % 3 === 2 ? 'stand' : 'peck', t * 1.2 + i * 1.7));

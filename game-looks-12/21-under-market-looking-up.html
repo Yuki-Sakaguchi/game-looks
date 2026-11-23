@@ -89,7 +89,7 @@ const steam = YT.map(([x, z]) => { const s = C.steam({ r: .4, rise: 2.2, n: 7, c
 const follow = new THREE.PointLight('#ffb468', 8, 9, 1.4); scene.add(follow);
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
-const Z0 = 14, SPEED = .95, LEN = 34;
+const Z0 = 14, SPEED = .8, LEN = 30;
 K.loop((dt, t) => {
   const dist = (t * SPEED) % LEN, z = Z0 - dist, x = .4 + Math.sin(z * .13) * .5;
   hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .13) * .06; R.walk(hero, dist * 4.4, .85); hero.userData.J.armL.rotation.z = -.12; hero.userData.J.foreL.rotation.x = -.2;

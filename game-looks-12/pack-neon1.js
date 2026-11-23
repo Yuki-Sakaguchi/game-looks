@@ -219,8 +219,8 @@ window.PACK_NEON1 = (THREE, K, R, C) => {
       G2.quad([Lf * .36, .4, 0], [Lf * .5, .6, 0], [Lf * .5 + .5, 1, sz * 6.5], [Lf * .43, 1, sz * 6.5], [0, 0, 1, 1]);   // うしろの小さなつばさ
       const E = B.g(T.metal({ c: '#c8ccd8' })).smooth(1), ex = 2.2, ez = sz * 6.2; E.at(mtx(ex, -2.2, ez, 0, 0, -PI / 2)).loft(8, [[-2.2, .95, .95, 0], [-1.8, 1.1, 1.1, .2], [1.6, .9, .9, .9], [2.2, .55, .55, 1]], { cap: 'top' }).at(null);   // エンジン
       B.g(R.mat('#14161e')).at(mtx(ex - 2.2, -2.2, ez, 0, 0, -PI / 2)).loft(8, [[0, .9, .9, 0], [.05, .9, .9, 1]], { cap: 'bot' }).at(null); }
-    const Tf = B.g(tx.wing(), { side: true }); Tf.quad([Lf * .34, 1.2, 0], [Lf * .5, 1.7, 0], [Lf * .5 + .8, 9, 0], [Lf * .44, 9, 0], [0, 0, 1, 1]);   // 尾のつばさ
-    const Tc = B.g(T.metal({ c: o.c || '#2a6ac8' }), { side: true }); Tc.quad([Lf * .4, 4.5, .03], [Lf * .49, 5, .03], [Lf * .5 + .7, 8.6, .03], [Lf * .445, 8.6, .03], [0, 0, 1, 1]); Tc.quad([Lf * .49, 5, -.03], [Lf * .4, 4.5, -.03], [Lf * .445, 8.6, -.03], [Lf * .5 + .7, 8.6, -.03], [0, 0, 1, 1]);
+    const Tf = B.g(T.metal({ c: '#e8eaf0' }), { side: true }); Tf.quad([Lf * .34, 1.2, 0], [Lf * .5, 1.7, 0], [Lf * .5 + .8, 9, 0], [Lf * .44, 9, 0], [0, 0, 1, 1]);   // 尾のつばさ
+    // 尾のつばさは無地（会社の印に見える絵は入れない）
     if (o.gear !== false) { const Gr = B.g(T.metal({ c: '#7a7e8a' })), Wh = B.g(R.mat('#22242c'), { smooth: true }); for (const [x, z] of [[-Lf / 2 + 4.5, 0], [3.5, 2.6], [3.5, -2.6]]) { Gr.box(.25, 2.2, .25, x, -rr - 2, z, { m: 1 }); for (const dz of [-.35, .35]) Wh.at(mtx(x, -rr - 2.1, z + dz, 0, PI / 2)).loft(8, [[-.15, .55, .55, 0], [.15, .55, .55, 1]], { cap: 'both' }).at(null); } }
     g.add(B.group());
     const halo = (c, r, x, y, z) => { const s = C.halo({ c, r, k: 1 }); s.position.set(x, y, z); g.add(s); return s; }, land = [halo('#fff6dc', 2.4, -2.5, -1.4, 3), halo('#fff6dc', 2.4, -2.5, -1.4, -3)], nav = [halo('#ff3a3a', 1, 6, 0, -17), halo('#3aff6a', 1, 6, 0, 17)], beacon = halo('#ff4040', 1.4, 0, -rr - .1, 0);
