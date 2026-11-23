@@ -15,7 +15,7 @@
 //   TL.person({ size, heads, hair, face, head: { …頭の引数 }, colors: { …服の色 }, bulk })  → Group（正面 +z、足もとが y=0）
 //     size  … 'normal'（4.5 頭身。既定）/ 'tall'（5 頭身。背の高い人）/ 'small'（4 頭身）/ 'child'（3.5 頭身）。heads で数を直接わたしてもよい（3.5〜5）
 //     hair  … 'swept'（流し前がみ）/ 'center'（長めのセンター分け）/ 'wolf'（ウルフ）。くわしくは HAIRS
-//     face  … 'anime'（R.actor のいまの顔）/ 'small'（目を小さめに打ちなおした顔）
+//     face  … 'anime'（R.actor のいまの顔）/ 'small'（目を小さめに打ちなおした顔。head.eyes: 'small' と書いてもよい）
 //     head  … R.actor の頭の引数（skin, hair＝かみの色, eye, eyes, brow, mouth, beard, blush）。かみ型は上の hair で決める
 //     colors … 服の色（tunic 上着, vest ベスト, linen そで, glove 手ぶくろ, pants ズボン, boot ブーツ, scarf スカーフ, belt, brass 金具, trim 刺しゅう）
 //     bulk  … 体のはばの倍率（がっしり 1.1、ほっそり .92）。tall は 1.06 が既定
@@ -216,7 +216,7 @@ window.PACK_TALE = (THREE, K, R) => {
   // ---- 体を組む ----
   const texCache = new Map();
   function person(o = {}) { const id = typeof o === 'string' ? o : o.id; if (typeof o === 'string') o = { ...cast(o), id };
-    const N = o.heads ?? SIZES[o.size || 'normal'] ?? 4.5, face = o.face || 'anime', c = { ...BODY_COLORS, ...(o.colors || {}) }, ho = { ...CAST[0].o.head, ...(o.head || {}) }, BK = o.bulk ?? (N >= 5 ? 1.06 : 1);
+    const N = o.heads ?? SIZES[o.size || 'normal'] ?? 4.5, face = o.face || (o.head?.eyes === 'small' ? 'small' : 'anime'), c = { ...BODY_COLORS, ...(o.colors || {}) }, ho = { ...CAST[0].o.head, ...(o.head || {}), ...(o.head?.eyes === 'small' ? { eyes: 'big' } : {}) }, BK = o.bulk ?? (N >= 5 ? 1.06 : 1);
     // 頭：R.actor の anime の頭を借りる（帽子なし）。頭の関節（ピボット）ごと取り出す
     const src = R.actor({ build: 'toon', ...ho, hairStyle: 'bald', bangs: 'none', hat: 'none', cloth: 'tunic' }), head0 = src.userData.J.head; head0.parent.remove(head0); head0.position.set(0, 0, 0); head0.updateMatrixWorld(true);
     if (face === 'small') smallEyes(head0, ho.eye);
