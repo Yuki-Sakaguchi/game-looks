@@ -26,14 +26,14 @@ const RED = '#e8302a';
 const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 1400, aa: false, fitAspect: .9, maxFov: 82 });
 scene.add(R.skyDome([[0, '#2a6ad0'], [.5, '#5a9ae8'], [.85, '#a8d0f4'], [1, '#e8f0f4']], { r: 1000 })); scene.fog = new THREE.Fog('#c8dcec', 140, 900);
 scene.add(R.backdrop({ c: '#5a8a6a', haze: '#b8d0e0', r: 700, h: 160, y: -10, rep: 3, seed: 5 }));   // 遠くの みどりの山
-const { sun } = K.lights(scene, renderer, { sky: 0xd8ecff, ground: 0xc8b8a0, amb: 1.5, sun: 0xfff2dc, power: 2.4, range: 26 }), SUN = new THREE.Vector3(.35, .8, .45).normalize();
+const { sun } = K.lights(scene, renderer, { sky: 0xd8ecff, ground: 0xc8b8a0, amb: 1.15, sun: 0xfff2dc, power: 2, range: 26 }), SUN = new THREE.Vector3(.35, .8, .45).normalize();
 for (let k = 0; k < 7; k++) { const c = R.cloud({ s: 70 + hash(k, 1) * 60, seed: k }); c.position.set(-400 + k * 130, 160 + hash(k, 2) * 80, -500 - hash(k, 3) * 200); scene.add(c); }
 
 // ---- 屋上の海：主役の棟（屋上が y = H0）と、まわりに ぎっしり ならぶ棟 ----
 const H0 = 33, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 const WALLC = ['#e8dcc4', '#d8d0c0', '#e0d0b8', '#c8d4d0', '#e8d4c8', '#d0c8b8'];
 put(N.tower({ w: 34, d: 16, h: H0, c: '#e4d8c0', seed: 700, roof: false, acBox: .3, cage: .6 }), 0, 0);
-for (let i = -6; i <= 6; i++) for (let j = -6; j <= 2; j++) { if (j === 0 && Math.abs(i) < 2) continue; const w = 13 + hash(i, j, 1) * 6, d = 13 + hash(i, j, 2) * 4, far = Math.max(Math.abs(i) * .6, -j), h = H0 + Math.floor((hash(i, j, 3) - .55) * 5 + far * 1.2) * 3;
+for (let i = -6; i <= 6; i++) for (let j = -6; j <= 2; j++) { if (j === 0 && Math.abs(i) < 2) continue; const w = 13 + hash(i, j, 1) * 6, d = 13 + hash(i, j, 2) * 4, far = Math.max(Math.abs(i) * .6, -j), h = H0 + Math.floor(-1.6 - hash(i, j, 3) * 3 + far * 1.1) * 3;
   put(N.tower({ w, d, h, c: WALLC[((i + 7) * 3 + j + 7) % 6], seed: 710 + (i + 7) * 13 + j + 7, acBox: Math.abs(i) + Math.abs(j) < 4 ? .25 : 0, wash: .5 }), i * 19 + (j % 2) * 5, j * 18 + (j > 0 ? 4 : 0), hash(i, j, 4) > .5 ? 0 : PI); }
 for (let k = 0; k < 16; k++) put(N.tower({ w: 24, d: 22, h: 90 + hash(k, 1) * 90, c: '#c8ccd8', seed: 800 + k, roof: false, acBox: 0, grad: [1, 1.05] }), -360 + k * 48 + hash(k, 2) * 20, -300 - hash(k, 3) * 120);   // 遠くの高層の棟（かすむ）
 
@@ -65,9 +65,9 @@ const SPEED = .8, X0 = 6;
 K.loop((dt, t) => {
   const x = X0 - t * SPEED, z = -.6 + Math.sin(t * .4) * .2, tall = innerWidth < innerHeight;
   hero.position.set(x, H0, z); hero.rotation.y = -PI / 2; R.walk(hero, t * SPEED * 7.4, .9); hero.userData.J.head.rotation.x = -.3 - Math.max(0, Math.sin(t * .5)) * .2;
-  if (tall) { cam.position.set(x - 3.2, H0 + .7, z + 3.4); cam.lookAt(x + 1.4, H0 + 7, z - 10); } else { cam.position.set(x - 3.4, H0 + .75, z + 3.2); cam.lookAt(x + 2, H0 + 4.6, z - 10); }
+  if (tall) { cam.position.set(x - 2.6, H0 + 1.3, z + 3.6); cam.lookAt(x + .6, H0 + 4.2, z - 10); } else { cam.position.set(x - 3.4, H0 + 1.5, z + 3.4); cam.lookAt(x + 2, H0 + 3.6, z - 10); }
   sun.position.set(x + SUN.x * 60, H0 + SUN.y * 60, SUN.z * 60); sun.target.position.set(x, H0, 0);
-  const u = ((t + 1) % 30), px = 70 - u * 14; plane.position.set(px, H0 + 30 - u * .5, -24 + u * .3); plane.rotation.set(0, -.18, .04); plane.visible = px > -260;
+  const u = ((t + 1) % 30), px = 60 - u * 11; plane.position.set(px, H0 + 30 - u * .5, -24 + u * .3); plane.rotation.set(0, -.18, .04); plane.visible = px > -260;
   pigeons.forEach((b, i) => R.birdPose(b, i % 3 === 2 ? 'stand' : 'peck', t * 1.2 + i * 1.7));
   R.idle(gran, t, Math.sin(t * .6) * .2); gran.userData.J.armL.rotation.set(-2.4 - Math.sin(t * 1.4) * .2, 0, .1); gran.userData.J.armR.rotation.set(-2.3 - Math.cos(t * 1.4) * .2, 0, -.1);
   flock.userData.tick(t); C.update(t, cam); N.tick(t); crt.render(scene, cam, t);
