@@ -23,19 +23,19 @@ const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), N = PACK_
 R.cfg.actorBuild = 'toon';
 const PK = '#ff5aa8', SKYH = '#ffd8b0';
 const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
-scene.add(R.skyDome([[0, '#6a8ac8'], [.5, '#b8b8d8'], [.85, '#f8c8a8'], [1, '#ffe8c0']], { r: 700 })); scene.fog = new THREE.Fog('#e8c8b8', 50, 520);
+scene.add(R.skyDome([[0, '#6a8ac8'], [.5, '#b8b8d8'], [.85, '#f8c8a8'], [1, '#ffe8c0']], { r: 700 })); scene.fog = new THREE.Fog('#f0d0c0', 70, 950);
 const { sun } = K.lights(scene, renderer, { sky: 0xe0d8f0, ground: 0x8a7a80, amb: 1.6, sun: 0xffd0a0, power: 2, range: 40 }), SUN = new THREE.Vector3(-.2, .3, -.9).normalize();
 
 // ---- 市場の通り：z の向き（-z が港）。|x|<4.5 が通り、両がわに屋台、|x|>6.5 から集合住宅。z<-46 は岸壁と海 ----
 const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
-const QZ = -46;
+const QZ = -32;
 const land = R.ground({ w: 120, d: 140, cell: 2, cz: -20, layers: [X.asphalt({ wet: .6, c: '#7a7480', wetC: '#c8b0c0' }), X.conc({ c: '#a8a0a0' }), T.cobble({ kind: 'slab', c: '#9a9098' })], mix: (x, z) => [Math.abs(x) > 4.6 ? 1 : 0, z < QZ + 6 ? 1 : 0], H: (x, z) => z < QZ ? -30 : 0 });
 scene.add(land.mesh);
 // 海（コマ送りの水）と、向こう岸の町・山
-const seaT = T.water({ c: '#7a8aa8' }), sea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 700, 28, 14).rotateX(-PI / 2), R.mat(seaT[0], {})); sea.position.set(0, -.8, QZ - 350); scene.add(sea);
+const seaT = T.water({ c: '#6a80b8' }), sea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 700, 28, 14).rotateX(-PI / 2), R.mat(seaT[0], {})); sea.position.set(0, -.8, QZ - 350); scene.add(sea);
 { const G = R.geo(); G.box(120, 1.2, 1.2, 0, -.8, QZ, { m: 3 }); fixed.push(G.mesh(X.conc({ c: '#a8a0a0' }))); }
 const WALLC = ['#a8a0a8', '#b8a898', '#a0a8b0', '#b0a0a0', '#98a0a8', '#c0b0a8'];
-for (let i = 0; i < 26; i++) { const x = -210 + i * 17 + hash(i, 1) * 6, h = 50 + hash(i, 2) * 90; put(N.tower({ w: 14, d: 14, h, c: WALLC[i % 6], seed: i + 90, lit: .06, roof: true }), x, -300 - hash(i, 3) * 30); }
+for (let i = 0; i < 26; i++) { const x = -210 + i * 17 + hash(i, 1) * 6, h = 50 + hash(i, 2) * 90; put(N.tower({ w: 14, d: 14, h, c: ['#8a8aa8', '#9a90a8', '#7a88a0'][i % 3], seed: i + 90, lit: .06, roof: true }), x, -260 - hash(i, 3) * 30); }
 scene.add(R.backdrop({ c: '#8a8aa8', haze: '#f0d0c0', r: 600, h: 200, y: -8, seed: 5 }));
 // 港の船（ゆっくりゆれる）とかもめ
 const boats = [[-14, -62, 2.6, '#e8e4dc'], [10, -70, 3.2, '#c8453a'], [-30, -95, 4, '#4a6a9a'], [24, -110, 5, '#e8e4dc']].map(([x, z, s, c], k) => { const b = R.boat({ c, sail: false }); b.scale.setScalar(s); b.position.set(x, -.9, z); b.rotation.y = k % 2 ? .4 : -.3; scene.add(b); return b; });
@@ -72,12 +72,12 @@ const gulls = [...Array(8)].map((_, k) => { const b = R.bird({ c: '#f4f4f4', bel
 const cat = R.cat({ c: '#e8a050', belly: '#fff4e0' }); cat.position.set(2.9, .3, -3.6); scene.add(cat);
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
-const SPEED = .9, Z0 = 6, LEN = 34;
+const SPEED = .9, Z0 = 6, LEN = 24;
 K.loop((dt, t) => {
   const d = (t * SPEED) % LEN, z = Z0 - d, x = .4 + Math.sin(z * .2) * .3, tall = innerWidth < innerHeight;
   hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .2) * .06; R.walk(hero, t * SPEED * 6.2, .8); const J = hero.userData.J; J.armR.rotation.x = J.armL.rotation.x = -1.1; J.foreR.rotation.x = J.foreL.rotation.x = -.9;
   // うしろの高い所から見下ろす。通りの先に港と、海の向こうの町
-  cam.position.set(x + .6, tall ? 4.4 : 3.9, z + (tall ? 5.6 : 5.2)); cam.lookAt(x, tall ? -.4 : .2, z - 9);
+  cam.position.set(x + .5, tall ? 2.9 : 2.6, z + (tall ? 4.2 : 3.8)); cam.lookAt(x, tall ? .9 : 1.4, z - 10);
   crt.u.bright.value = Math.min(1, d / .5, (LEN - d) / .5);
   sun.position.set(x + SUN.x * 80, SUN.y * 80, z + SUN.z * 80); sun.target.position.set(x, 0, z - 8); land.follow(0, z - 20);
   // 夜の看板が 1 つずつ消えていく（ちらついてから、うすく残る）
