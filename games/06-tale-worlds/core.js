@@ -43,7 +43,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     if (BND) { P.x = Math.max(BND[0], Math.min(BND[1], P.x)); P.z = Math.max(BND[2], Math.min(BND[3], P.z)); } }
 
   // ---- 村人と、話せる物 ----
-  G.npc = (o, d = {}) => { const n = { o, name: d.name || '', lines: d.lines || [['……']], k: 0, r: d.r ?? .32, wander: d.wander, path: d.path, speed: d.speed ?? 1.1, u: d.u ?? 0, home: o.position.clone(), ry0: o.rotation.y, talk: 0, idle: d.idle, head: d.head ?? (o.userData.height || 1.4), pose: d.pose };
+  G.npc = (o, d = {}) => { const J = o.userData.J, n = { human: !!(J && J.armL && J.legL && J.hips), o, name: d.name || '', lines: d.lines || [['……']], k: 0, r: d.r ?? .32, wander: d.wander, path: d.path, speed: d.speed ?? 1.1, u: d.u ?? 0, home: o.position.clone(), ry0: o.rotation.y, talk: 0, idle: d.idle, head: d.head ?? (o.userData.height || 1.4), pose: d.pose };
     npcs.push(n); return n; };
   G.sign = (x, y, z, d = {}) => { const o = new THREE.Object3D(); o.position.set(x, y, z); scene.add(o); const n = G.npc(o, { r: 0, head: d.head ?? .6, ...d }); n.thing = true; n.hidden = true; return n; };
 
@@ -102,12 +102,13 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     if (st.speed > .2) { const run = st.speed > 3.2; st.ph += dt * st.speed * (run ? 3.1 : 3.9); R.walk(hero, st.ph, run ? 1.45 : 1); if (run) J.torso.rotation.x = .2; }
     else MO.play(hero, 'stand', t); }
   function npcTick(t, dt, P) { near = null; let best = 1e9;
-    for (const n of npcs) { const o = n.o;
-      if (n.talk) { const a = Math.atan2(P.x - o.position.x, P.z - o.position.z); if (!n.thing) { o.rotation.y += Math.atan2(Math.sin(a - o.rotation.y), Math.cos(a - o.rotation.y)) * Math.min(1, dt * 6); MO.play(o, 'stand', t); } }
-      else if (n.path) { n.u = (n.u + dt * n.speed / n.path.getLength()) % 1; const p = n.path.getPointAt(n.u), tg = n.path.getTangentAt(n.u); o.position.set(p.x, n.flyY ?? H(p.x, p.z), p.z); o.rotation.y = Math.atan2(tg.x, tg.z); if (o.userData.J) R.walk(o, t * n.speed * 4.6, .9); }
-      else if (n.idle) n.idle(t, o); else if (o.userData.J && !n.thing) { R.idle(o, t + n.home.x, Math.sin(t * .5 + n.home.z) * .3); o.rotation.y += (n.ry0 - o.rotation.y) * Math.min(1, dt * 2); }
+    for (const n of npcs) { const o = n.o; try {
+      if (n.talk) { const a = Math.atan2(P.x - o.position.x, P.z - o.position.z); if (!n.thing) { o.rotation.y += Math.atan2(Math.sin(a - o.rotation.y), Math.cos(a - o.rotation.y)) * Math.min(1, dt * 6); if (n.human) MO.play(o, 'stand', t); else if (n.idle) n.idle(t, o); } }
+      else if (n.path) { n.u = (n.u + dt * n.speed / n.path.getLength()) % 1; const p = n.path.getPointAt(n.u), tg = n.path.getTangentAt(n.u); o.position.set(p.x, n.flyY ?? H(p.x, p.z), p.z); o.rotation.y = Math.atan2(tg.x, tg.z); if (n.human) R.walk(o, t * n.speed * 4.6, .9); else if (n.idle) n.idle(t, o); }
+      else if (n.idle) n.idle(t, o); else if (n.human && !n.thing) { R.idle(o, t + n.home.x, Math.sin(t * .5 + n.home.z) * .3); o.rotation.y += (n.ry0 - o.rotation.y) * Math.min(1, dt * 2); }
       const dx = o.position.x - P.x, dz = o.position.z - P.z, d = Math.hypot(dx, dz), ahead = (dx * Math.sin(st.ry) + dz * Math.cos(st.ry)) / (d || 1), sc = d - ahead * .6;
-      if (d < (n.thing ? 1.6 : 1.9) + n.r && Math.abs(o.position.y - st.y) < 1.6 && ahead > -.2 && sc < best) { best = sc; near = n; } } }
+      if (d < (n.thing ? 1.6 : 1.9) + n.r && Math.abs(o.position.y - st.y) < 1.6 && ahead > -.2 && sc < best) { best = sc; near = n; }
+      } catch (e) { if (!n.err) { n.err = 1; console.warn('村人の動きでエラー', n.name, e); } } } }   // 1 人のまちがいで ゲームぜんぶが止まらないように
 
   // ---- はじめる ----
   function run(id) {
@@ -155,5 +156,5 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       crt.render(scene, cam, t); drawHud(t);
     });
   }
-  G.run = run; G.hero = hero; G.state = st; G.H = (x, z) => H(x, z); G.dbg = (x, z) => [...boxes.filter(b => { const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .5 && Math.abs(lz) < b.hz + .5; }), ...circles.filter(c => Math.hypot(x - c.x, z - c.z) < c.r + .5)]; window.__tale = G; return G;   // __tale は確かめる用
+  G.run = run; G.hero = hero; G.state = st; G.npcs = npcs; G.act = act; G.H = (x, z) => H(x, z); G.dbg = (x, z) => [...boxes.filter(b => { const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .5 && Math.abs(lz) < b.hz + .5; }), ...circles.filter(c => Math.hypot(x - c.x, z - c.z) < c.r + .5)]; window.__tale = G; return G;   // __tale は確かめる用
 };
