@@ -45,7 +45,7 @@ const K = KIT(THREE), R = RETRO(THREE, K), T = R.tex, MO = RETRO_MOTIONS(THREE, 
 
 const HEADS = [3.5, 4, 4.5, 5], SHEET = [4, 4.5, 5], DIRS = [['正面', 0], ['ななめ前', .7], ['横', Math.PI / 2], ['うしろ', Math.PI]];
 const VIEWS = [['sheet', '3 つの頭身 × 4 つの向き'], ['row', '1 つの頭身 × 4 つの向き'], ['face', '頭のアップ（3 つのかみ型）'], ['game', '場面の中の大きさ']];
-const MOS = ['stand', 'look', 'walk', 'run', 'jump', 'wave'];
+const MOS = ['stand', 'look', 'walk', 'run', 'dash', 'jump', 'wave'];   // dash は TL.dash（ゲーム 06 の走り）
 const HAIRSET = [['swept', '流し前がみ'], ['center', '長めのセンター分け'], ['wolf', 'ウルフ']];
 const st = { hair: HAIRSET.some(h => h[0] === q.get('hair')) ? q.get('hair') : 'swept', view: VIEWS.some(v => v[0] === q.get('view')) ? q.get('view') : 'sheet', heads: HEADS.includes(+q.get('heads')) ? +q.get('heads') : 4.5, face: q.get('face') === 'small' ? 'small' : 'anime',
   motion: MOS.includes(q.get('motion')) ? q.get('motion') : 'stand', raw: !!q.get('raw'), tex: !!q.get('tex'), yaw: (+q.get('rot') || 0) * Math.PI / 180, speed: q.get('stop') ? 0 : 1, zoom: +q.get('zoom') || 1 };
@@ -93,7 +93,7 @@ const upd = [
   bar($('rBody'), HEADS.map(n => [n, n + ' 頭身' + (n === 4.5 ? '（ふつう）' : n === 5 ? '（長身）' : '')]), id => st.heads === id, id => { st.heads = id; if (st.view === 'sheet') st.view = 'row'; build(); }),
   bar($('rBody'), [['anime', '顔：いまの anime'], ['small', '顔：目を小さめ']], id => st.face === id, id => { st.face = id; build(); }),
   bar($('rHair'), HAIRSET, id => st.hair === id, id => { st.hair = id; build(); }),
-  bar($('rMo'), MO.list.filter(m => MOS.includes(m.id)).map(m => [m.id, m.name]), id => st.motion === id, id => { st.motion = id; }),
+  bar($('rMo'), [...MO.list.filter(m => MOS.includes(m.id)).map(m => [m.id, m.name]), ['dash', 'ダッシュ']], id => st.motion === id, id => { st.motion = id; }),
   bar($('rOpt'), [['crt', 'ブラウン管'], ['tex', 'テクスチャ'], ['stop', '止める']], id => id === 'crt' ? !st.raw : id === 'tex' ? st.tex : st.speed === 0, id => { if (id === 'crt') st.raw = !st.raw; if (id === 'tex') { st.tex = !st.tex; build(); } if (id === 'stop') st.speed = st.speed ? 0 : 1; }),
 ];
 const refresh = () => upd.forEach(f => f());
@@ -110,7 +110,7 @@ K.loop((dt, t) => {
     cam.position.set(cx, cy + Math.sin(pitch) * dist, Math.cos(pitch) * dist); cam.lookAt(cx, cy, 0); }
   for (const it of items) {
     if (it.side) { v.set(it.x, it.y, 0).project(cam); it.side.style.left = (it.side.classList.contains('grp') ? (v.x * .5 + .5) * innerWidth : Math.max(4, (v.x * .5 + .5) * innerWidth)) + 'px'; it.side.style.top = (-v.y * .5 + .5) * innerHeight + 'px'; continue; }
-    MO.play(it.a, st.motion, mt); it.a.rotation.y = it.rotY + (st.view === 'game' ? 0 : st.yaw);
+    if (st.motion === 'dash') TL.dash(it.a, mt * 22, 1); else MO.play(it.a, st.motion, mt); it.a.rotation.y = it.rotY + (st.view === 'game' ? 0 : st.yaw);
     if (it.el) { v.set(it.x, it.small ? it.y - .17 : it.labelY ? it.y + it.labelY : it.y + it.a.userData.height + .12, 0).project(cam); it.el.style.left = (v.x * .5 + .5) * innerWidth + 'px'; it.el.style.top = Math.max($('ui').offsetHeight + 2, (-v.y * .5 + .5) * innerHeight - (it.small ? 0 : 16)) + 'px'; } }
   (st.raw ? crtRaw : crtOn).render(scene, cam, t);
 });

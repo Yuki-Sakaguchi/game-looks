@@ -23,6 +23,7 @@
 //     userData: { J, hipY, height, heads, headH, tris, skirt, build: { thigh, shin }, kind: 'tale', id }
 //   TL.CAST   見本の人物の一覧 [{ id, name, role, o }]。いまは主人公だけ（仲間は段階 3 で足す）
 //   TL.SIZES  { normal: 4.5, tall: 5, small: 4, child: 3.5 }
+//   TL.dash(人, 位相, k)  全力で走る動き（ゲーム 06 の走り）。調整室の「ダッシュ」で見られる
 //   TL.hero(o) は TL.person({ ...主人公, ...o }) の短い書き方（段階 1 の調整室のため）
 window.PACK_TALE = (THREE, K, R) => {
   const { hash, mix, ramp, Px } = R;
@@ -281,5 +282,15 @@ window.PACK_TALE = (THREE, K, R) => {
     return g; }
   const hero = (o = {}) => person({ ...cast('hero'), id: 'hero', ...o });
 
-  return { person, hero, cast, CAST, SIZES, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
+  // ダッシュ（全力で走る）：前かがみで、ひざを高く上げ、ひじを曲げた うでを大きくふる。1 歩ごとに体がはずむ。
+  //   TL.dash(人, 位相, k)  位相は 1 秒に 22 ほど進める。k＝0 は軽く走る、1 で全力。R.walk と同じ関節の名前なので、R.actor にも使える
+  function dash(g, ph, k = 1) { const J = g.userData.J, a = Math.sin(ph), sw = .55 + .55 * k;
+    J.legL.rotation.set(-a * sw - .15 * k, 0, 0); J.legR.rotation.set(a * sw - .15 * k, 0, 0);
+    J.shinL.rotation.x = .25 + (.6 + .9 * k) * Math.max(0, Math.sin(ph + 1.1)); J.shinR.rotation.x = .25 + (.6 + .9 * k) * Math.max(0, Math.sin(ph + 1.1 + Math.PI));
+    J.armL.rotation.set(a * (.6 + .5 * k), 0, .14); J.armR.rotation.set(-a * (.6 + .5 * k), 0, -.14); J.foreL.rotation.x = -1.2 - .25 * Math.max(0, -a); J.foreR.rotation.x = -1.2 - .25 * Math.max(0, a);
+    J.torso.rotation.set(.18 + .2 * k, a * .14, 0); J.head.rotation.set(-.12 - .12 * k, -a * .08, 0);
+    const B = g.userData.build || {}, L = (B.thigh || .3) + (B.shin || .3), drop = L * (1 - Math.cos(Math.abs(a) * sw + .15 * k)) * .55;   // 足を開いたぶん、腰を下げて足を地面につける
+    J.hips.position.y = g.userData.hipY - drop - .02 * k + Math.abs(Math.cos(ph)) * .035 * k; if (J.cape) J.cape.rotation.x = -(.5 + .3 * k) - .12 * Math.sin(ph * 2); }
+
+  return { person, hero, dash, cast, CAST, SIZES, HERO, HAIRS, paintBody, pixTex, sec, SB, S6, SH, SK };
 };

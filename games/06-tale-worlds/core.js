@@ -23,7 +23,7 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   const G = { THREE, K, R, T: R.tex, TL, MO, scene, cam, renderer, hash: K.hash };
   // ---- 当たり判定 ----
   const boxes = [], circles = [], npcs = [], ticks = []; let H = () => 0, BND = null, SPAWN = [0, 0, 0], crtO = { noise: 0 }, TOUR = null, tourI = 0;
-  G.ground = f => { H = f; }; G.bounds = (x0, x1, z0, z1) => { BND = [x0, x1, z0, z1]; }; G.spawn = (x, z, ry = 0) => { SPAWN = [x, z, ry]; }; G.tick = f => ticks.push(f); G.tour = pts => { TOUR = pts; };   // ?auto=1 で歩く道（[[x, z], …] をくり返す） G.crt = o => { crtO = { noise: 0, ...o }; };
+  G.ground = f => { H = f; }; G.bounds = (x0, x1, z0, z1) => { BND = [x0, x1, z0, z1]; }; G.spawn = (x, z, ry = 0) => { SPAWN = [x, z, ry]; }; G.tick = f => ticks.push(f); G.tour = pts => { TOUR = pts; }; G.crt = o => { crtO = { noise: 0, ...o }; };   // G.tour: ?auto=1 で歩く道（[[x, z], …] をくり返す）
   G.box = (x, z, w, d, y0, y1, ry = 0, wall = false) => { boxes.push({ x, z, hx: w / 2, hz: d / 2, y0, y1, c: Math.cos(ry), s: Math.sin(ry), wall }); };
   G.circle = (x, z, r, y0 = -9, y1 = 99) => { circles.push({ x, z, r, y0, y1 }); };
   G.solid = (o, kind = 'box', op = {}) => { if (kind === 'none') return o; o.updateMatrixWorld(true); const p = new THREE.Vector3(), qu = new THREE.Quaternion(), sc = new THREE.Vector3(); o.matrixWorld.decompose(p, qu, sc); const ry = new THREE.Euler().setFromQuaternion(qu, 'YXZ').y;
@@ -99,7 +99,8 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
   // ---- 動き ----
   function heroPose(t, dt) { const J = hero.userData.J;
     if (!st.ground) { MO.reset(hero); const k = Math.min(1, st.air * 4); J.legL.rotation.x = -.7 * k; J.shinL.rotation.x = 1.1 * k; J.legR.rotation.x = .25 * k; J.shinR.rotation.x = .6 * k; J.armL.rotation.set(-.4 * k, 0, .5 * k); J.armR.rotation.set(.5 * k, 0, -.5 * k); J.foreL.rotation.x = J.foreR.rotation.x = -.6 * k; J.torso.rotation.x = .08; return; }
-    if (st.speed > .2) { const run = st.speed > 3.2; st.ph += dt * st.speed * (run ? 3.1 : 3.9); R.walk(hero, st.ph, run ? 1.45 : 1); if (run) J.torso.rotation.x = .2; }
+    if (st.speed > 3.4) { st.ph += dt * (11 + st.speed * 1.5); TL.dash(hero, st.ph, Math.min(1, (st.speed - 3.4) / 2.5)); }
+    else if (st.speed > .2) { st.ph += dt * st.speed * 3.9; R.walk(hero, st.ph, 1); }
     else MO.play(hero, 'stand', t); }
   function npcTick(t, dt, P) { near = null; let best = 1e9;
     for (const n of npcs) { const o = n.o; try {
@@ -118,17 +119,17 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
     [st.x, st.z, st.ry] = SPAWN; st.y = support(st.x, st.z, 50, 99); cam0.yaw = st.ry;
     crt = R.crt(renderer, crtO); onResize(crt.resize);
     const lightSun = scene.children.find(o => o.isDirectionalLight), SUNV = lightSun ? lightSun.position.clone().normalize() : new THREE.Vector3(.5, .7, .5);
-    let ty = 0, lastHint = 0;
+    let ty = 0, lastHint = 0, runK = 0, dust = 0; const fx = K.fx(scene, 40);
     K.loop((dt, t) => {
-      // 入力 → カメラから見た向き
+      // 入力 → カメラから見た向き。走る 7.4 m/s（全力のダッシュ）、歩く 2.2 m/s
       let ix = 0, iz = 0, running = false;
       if (!st.talking && $('menu').style.display !== 'block') { ix = (key.KeyD || key.ArrowRight ? 1 : 0) - (key.KeyA || key.ArrowLeft ? 1 : 0); iz = (key.KeyW || key.ArrowUp ? 1 : 0) - (key.KeyS || key.ArrowDown ? 1 : 0); running = !!(key.ShiftLeft || key.ShiftRight || joy.lock);
         if (joy.on) { ix = joy.x; iz = -joy.y; running = running || joy.run; }
         if (AUTO && TOUR) { let [wx, wz] = TOUR[tourI % TOUR.length]; if (Math.hypot(wx - st.x, wz - st.z) < 1.2) { tourI++; [wx, wz] = TOUR[tourI % TOUR.length]; }
-          const dx = wx - st.x, dz = wz - st.z, l = Math.hypot(dx, dz) || 1, fx = Math.sin(cam0.yaw), fz = Math.cos(cam0.yaw); iz = (dx * fx + dz * fz) / l; ix = (-dx * fz + dz * fx) / l; running = t % 9 > 5; if (Math.abs((t % 4) - 3) < dt) jump(); } }
+          const dx = wx - st.x, dz = wz - st.z, l = Math.hypot(dx, dz) || 1, fx = Math.sin(cam0.yaw), fz = Math.cos(cam0.yaw); iz = (dx * fx + dz * fz) / l; ix = (-dx * fz + dz * fx) / l; running = q.get('run') ? true : t % 9 > 5; if (!q.get('run') && Math.abs((t % 4) - 3) < dt) jump(); if (q.get('side')) { cam0.yaw = st.ry - Math.PI / 2; cam0.drag = 1; } } }   // ?run=1 ずっと走る、?side=1 横から見る（確かめる用）
       const m = Math.min(1, Math.hypot(ix, iz)), fwdX = Math.sin(cam0.yaw), fwdZ = Math.cos(cam0.yaw);   // カメラの前と右（右＝(−前z, 前x)）
       const dirX = fwdX * iz - fwdZ * ix, dirZ = fwdZ * iz + fwdX * ix;
-      const want = m * (running ? 4.6 : 2.2); st.speed += (want - st.speed) * Math.min(1, dt * (st.ground ? 10 : 3));
+      const want = m * (running ? 7.4 : 2.2); st.speed += (want - st.speed) * Math.min(1, dt * (st.ground ? 10 : 3));
       if (m > .05) { const a = Math.atan2(dirX, dirZ); st.ry += Math.atan2(Math.sin(a - st.ry), Math.cos(a - st.ry)) * Math.min(1, dt * 12); }
       const P = { x: st.x + Math.sin(st.ry) * st.speed * dt * (m > .05 ? 1 : 0), z: st.z + Math.cos(st.ry) * st.speed * dt * (m > .05 ? 1 : 0) };
       push(P, st.y, 1.1, .42, .3); const g = support(P.x, P.z, st.y, .42);
@@ -137,11 +138,14 @@ window.TALE_GAME = (THREE, K, R, TL, MO, opts = {}) => {
       if (st.ground) st.y += (g - st.y) * Math.min(1, dt * 18); else { st.vy -= 15 * dt; st.y += st.vy * dt; st.air += dt; const g2 = support(st.x, st.z, st.y, .2); if (st.y <= g2 && st.vy <= 0) { st.y = g2; st.ground = true; st.vy = 0; } }
       if (st.y < -30) { [st.x, st.z, st.ry] = SPAWN; st.y = support(st.x, st.z, 50, 99); st.vy = 0; }
       hero.position.set(st.x, st.y, st.z); hero.rotation.y = st.ry; heroPose(t, dt);
+      if (st.ground && st.speed > 4.5 && (dust += dt) > .11) { dust = 0; fx.emit('smoke', st.x - Math.sin(st.ry) * .3, st.y + .05, st.z - Math.cos(st.ry) * .3, { size: .28, life: .45, vy: .4, grow: 1.4, spread: .1, tint: '#d8cbb0' }); }   // 走ると足もとに土ぼこり
+      fx.update(dt);
       shadow.position.set(st.x, support(st.x, st.z, st.y + .05, .1) + .04, st.z);
       // カメラ：うしろから追う。動いているあいだは、ゆっくり主人公のうしろへ回る
       cam0.drag = Math.max(0, cam0.drag - dt); if (m > .05 && cam0.drag <= 0 && iz > -.3) cam0.yaw += Math.atan2(Math.sin(st.ry - cam0.yaw), Math.cos(st.ry - cam0.yaw)) * Math.min(1, dt * 1.6 * m);
       if (key.KeyQ) cam0.yaw += dt * 2; if (key.KeyC) cam0.yaw -= dt * 2;
-      const tall = innerWidth < innerHeight, D = cam0.dist * (tall ? .9 : 1); ty += (st.y - ty) * Math.min(1, dt * 6);
+      const fast = Math.max(0, Math.min(1, (st.speed - 3.4) / 3.5)); runK += (fast - runK) * Math.min(1, dt * 3); const tall = innerWidth < innerHeight, D = cam0.dist * (tall ? .9 : 1) * (1 + .18 * runK);
+      { const U = cam.userData; if (U.set === undefined || Math.abs(cam.fov - U.set) > .01) U.fov0 = cam.fov; const f = U.fov0 + 7 * runK; cam.fov = U.set = f; cam.updateProjectionMatrix(); }   // 走ると画角が少し広がる（画面の大きさが変わったら、もとの画角を取りなおす） ty += (st.y - ty) * Math.min(1, dt * 6);
       const tx = st.x, tz = st.z; camP.set(tx - Math.sin(cam0.yaw) * Math.cos(cam0.pitch) * D, ty + 1.0 + Math.sin(cam0.pitch) * D, tz - Math.cos(cam0.yaw) * Math.cos(cam0.pitch) * D);
       { let k = 1; for (let i = 1; i <= 10; i++) { const f = i / 10, x = tx + (camP.x - tx) * f, y = ty + 1 + (camP.y - ty - 1) * f, z = tz + (camP.z - tz) * f;   // カメラと主人公のあいだに かべがあれば、カメラを近づける
           if (boxes.some(b => { if (y < b.y0 || y > b.y1 + .2) return false; const [lx, lz] = local(b, x, z); return Math.abs(lx) < b.hx + .15 && Math.abs(lz) < b.hz + .15; })) { k = Math.max(.3, (i - 1.5) / 10); break; } }
