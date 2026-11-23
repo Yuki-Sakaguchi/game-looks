@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-26 ごみの山の村と遠くの光る塔 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#3a2c4a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe8c8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-26 ─ ごみの山の村と遠くの光る塔 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-under2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方。鉄くずとタイヤが積もってできた丘に、拾い物の板とトタンで作った家が だんだんに建つ村。てっぺんの道で子どもたちが たこをあげ、そのずっと向こう、地平線の上に「上の都市」の巨大な台と、白と金に光る塔の群れがうかぶ。
+// 色の組は「さびた鉄のこげ茶・夕焼けの だいだいと すみれ色」＋差し色は上の都市の白と金（下の村の窓の あかりの だいだいと、遠くの塔の白さで対比を作る）。
+// 主役は赤い たこをあげて坂道を下りる少年（R.actor の toon、子どもの大きさ）。右ななめうしろの高めからカメラが追い、坂の村の屋根を見下ろしつつ、遠くの塔を見る。上の都市は pack-under2.js（U.〜）、下の村は pack-city.js（C.〜）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), PK = PACK_RUINS(THREE, K, R), U = PACK_UNDER2(THREE, K, R), T = R.tex, X = C.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const HAZE = '#c88070';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 1100, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#241e48'], [.45, '#4a3a70'], [.72, '#8a4a6a'], [.9, '#c86a68'], [1, '#f0a078']], { r: 1000 })); scene.fog = new THREE.Fog(HAZE, 55, 330);
+const { sun } = K.lights(scene, renderer, { sky: 0xb8a0d8, ground: 0x8a5a48, amb: 1.4, sun: 0xffb070, power: 2.2, range: 34 }), SUN = new THREE.Vector3(.75, .32, -.55).normalize();
+
+// ---- 地面：ごみが積もった丘。z = 2 から奥へ、だん（7 m ごとに 3.4 m 下がる）になって下る。まん中の道（|x| < 2.4）だけは なだらかな坂 ----
+const sm = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const STEP = 6, DROP = 1.7, Z0 = 2, NK = 11, U_ = z => Math.max(0, (Z0 - z) / STEP), TER = z => { const u = U_(z), k = Math.floor(u), f = u - k; return -DROP * (Math.min(k, NK) + (k < NK ? sm(0, .3, f) : 0)); };
+const RAMP = z => -DROP * Math.min(NK, U_(z) + .15), PW = x => sm(4.2, 2.4, Math.abs(x));   // 道のなだらかな坂と、道の重み
+const H = (x, z) => TER(z) * (1 - PW(x)) + RAMP(z) * PW(x) + (Math.sin(x * .31 + z * .2) * .2 + Math.cos(x * .13) * .25) * (1 - PW(x)) + sm(10, 46, Math.abs(x)) * 15;   // 両がわは ごみの山がもり上がる（村は谷の両がわの斜面にも広がる）
+const land = R.ground({ w: 140, d: 120, cell: 1.5, cz: -30, H, layers: [T.dirt({ c: '#8a6a50', pebbles: .8 }), X.scrap({ c: '#7a5a48' }), T.planks({ c: '#8a6a4a' })],
+  mix: (x, z) => { const f = U_(z) % 1; return [PW(x) > .5 ? 0 : (f < .32 && z < Z0) ? 1 : hash(Math.round(x / 4), Math.round(z / 4)) > .8 ? 1 : 0, Math.abs(x) < 1.3 ? 1 : 0]; } });
+scene.add(land.mesh);
+{ const far = R.ground({ w: 1000, d: 800, cell: 25, cz: -450, H: () => -DROP * NK - .4, layers: [T.dirt({ c: '#7a5a50', m: 30 })] }); scene.add(far.mesh); }
+scene.add(R.backdrop({ c: '#6a4450', haze: HAZE, r: 330, h: 12, y: -DROP * NK - 4 }));
+
+// ---- 村：拾い物の板・トタン・つぎはぎの家を、坂の だん ごとに道の両がわへ。窓に夕方のあかり、屋根に せんたく物・アンテナ・水そう ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const CS = ['#b5603c', '#4f8f88', '#c8a04a', '#8a6a50', '#a8a49a', '#6f7f9a'], vents = [];
+for (let k = 0; k < NK; k++) for (const sd of [-1, 1]) for (let j = 0; j < 5; j++) { const w = 4.2 + hash(j, k, sd + 5) * 1.8, x = sd * (5 + w / 2 + j * 6.6 + (hash(j, k, sd) - .5) * 1.4), z = Z0 - k * STEP - 3.9, y = -DROP * (k + 1) + sm(10, 46, Math.abs(x)) * 15 - .25; if (hash(j, k, sd + 3) < .15) continue;
+  const fl = 1 + Math.floor(hash(j, k, sd + 4) * (j < 2 ? 1.6 : 2.4)), s = C.shack({ w, d: 3.6, floors: fl, seed: j * 7 + k * 3 + (sd > 0 ? 50 : 0), cs: CS, lit: .7, shop: ['door', 'window', 'open', 'door', 'noren'][(j + k) % 5], awning: hash(j, k, sd + 6) > .55 ? 'tin' : false, laundry: hash(j, k, sd + 7) > .45, antenna: hash(j, k, sd + 8) > .55, tank: hash(j, k, sd + 9) > .7 });
+  put(s, x, z, j === 0 ? -sd * .35 : (hash(j, k, 2) - .5) * .25, y); if (hash(j, k, sd + 10) > .5) vents.push([x - sd, y + (s.userData.h || 3 * fl) + .2, z]); }
+for (let i = 0; i < 40; i++) { const x = (i % 2 ? 1 : -1) * (3 + hash(i, 1) * 34), z = Z0 - hash(i, 2) * 64, f = U_(z) % 1; if (f > .34 && f < .9) continue; put(C.scrap({ s: .7 + hash(i, 3) * 1.1, seed: i, cs: ['#7a5a48', '#8a6a50', '#b5603c', '#6a5a52', '#4f8f88'] }), x, z, i); }
+for (const [x, z, n] of [[-3.4, -3, 4], [3.6, -9, 3], [-3.5, -17, 5], [3.4, -24, 3], [3.2, 3, 2], [-3.4, -34, 3]]) put(C.tires({ n, kind: n > 3 ? 'stack' : 'pile', seed: x }), x, z, x);
+for (const [x, z, c] of [[3.2, -1.4, '#c8402e'], [-3.2, -11, '#4f8f88'], [3.3, -15.6, '#c8a04a'], [-3.3, -25, '#6f7f9a']]) put(C.drum({ c, mark: 'band' }), x, z, x);
+put(PK.wreck({ c: '#5a8ab0', kind: 'van', moss: .1 }), -9, 4.5, .4); put(PK.wreck({ c: '#c8a04a', moss: 0 }), 10, 4, 2.6); put(C.trike({ c: '#c8402e', load: 'drum' }), 3.4, -5.6, PI + .3);
+scene.add(R.merge(fixed));
+const smoke = vents.slice(0, 8).map(([x, y, z], i) => { const s = C.steam({ r: .7, rise: 5, n: 9, speed: .25, c: '#c8a8b0', a: .38, wind: [.6, -.1], phase: i }); s.position.set(x, y, z); scene.add(s); return s; });
+
+// ---- 地平線の上の「上の都市」：巨大な台を太い柱が支え、その上に白と金の塔の群れ。夕日を受けて白く光る ----
+const UP = [30, -720]; { const up = U.upper({ r: 170, y: 56, th: 28, towers: 20, tall: .46, glow: true, tint: .9, haze: '#ffb898', hazeK: .1, seed: 3, hang: 8, dotSize: 2 }); up.position.set(UP[0], -DROP * NK, UP[1]); scene.add(up);
+  { const pl = R.merge([[-80, 30], [70, -40], [10, 90], [-30, -100], [110, 60]].map(([dx, dz], i) => { const p = C.pillar({ r: 16, h: 60, seed: i, c: '#6a5060', emissive: '#2a1c2a', lm: 80 }); p.position.set(UP[0] + dx, -DROP * NK - 3, UP[1] + dz); return p; })); pl.traverse(m => { if (m.material) { m.material = m.material.clone(); m.material.fog = false; m.material.color.set('#c89890'); } }); scene.add(pl); }   // 柱は霧に消さず、夕方の空気の色で
+  const h1 = U.halo({ c: '#ffd8b0', r: 220, k: .08 }); h1.position.set(UP[0], 150, UP[1] - 80); scene.add(h1); }
+const sunDisc = U.halo({ c: '#ffd890', r: 60, k: .7 }); sunDisc.position.set(SUN.x * 900, 50, SUN.z * 900); scene.add(sunDisc);
+const birds = PK.flock({ n: 9, r: 14, h: 5, c: '#3a2c40', s: 1.6, speed: .25 }); birds.position.set(-14, 16, -46); scene.add(birds);
+
+// ---- 人：主役の少年、ほかの子どもたち（たこ・走る・すわる）、坂の家の前の大人 ----
+const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, H(x, z), z); p.rotation.y = ry; scene.add(p); return p; };
+const hero = act({ s: .86, hairStyle: 'spiky', hair: '#3a2a24', mouth: 'open', blush: true, cloth: 'jacket', sleeve: 'long', top: '#2f6a8a', top2: '#e8d8b8', lower: 'shorts', bottom: '#6a5440', shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#e8a040', gloves: 'wrap', glove: '#c8b090', back: 'bag' });
+const kids = [{ sex: 'f', hairStyle: 'twin', hair: '#6a3a24', top: '#c8402e', bottom: '#4a4a5a', lower: 'skirt', skirt: .5, skirtC: '#5a6a3a' }, { hairStyle: 'short', hair: '#2a2228', top: '#c8a04a', bottom: '#4a5a6a', lower: 'shorts' }, { sex: 'f', hairStyle: 'bob', hair: '#2a2228', top: '#4f8f88', bottom: '#8a5a44', lower: 'pants' }, { hairStyle: 'tufts', hair: '#8a5a34', top: '#e8e0cc', top2: '#b5603c', bottom: '#4a4a5a', lower: 'shorts', hat: 'cap', acc: '#4f8f88' }]
+  .map((o, i) => act({ s: .66 + (i % 2) * .06, mouth: i % 2 ? 'smile' : 'open', blush: true, cloth: 'tunic', shoes: 'shoe', shoe: '#5a4a3a', ...o }));
+const adults = [[-5.2, -15.9, .5, { sex: 'f', hairStyle: 'bun', hair: '#4a3428', cloth: 'tunic', sleeve: 'long', top: '#8a5a7a', top2: '#e8d8c0', lower: 'skirt', skirt: .8, skirtC: '#4a4a5a' }], [5.4, -9.9, -.4, { hairStyle: 'short', hair: '#8a8a8a', beard: 'mustache', cloth: 'overall', top: '#5a6a8a', top2: '#e8d8c0', hat: 'cap', acc: '#b5603c' }], [-5.4, -27.9, .3, { sex: 'f', hairStyle: 'long', hair: '#2a2228', cloth: 'coat', top: '#b5603c', top2: '#e8d8c0' }]]
+  .map(([x, z, ry, o]) => { const p = act(o, x, z, ry); p.position.y = TER(z); return p; });
+const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); scene.add(cat);
+// たこ：主役のと、ほかの子のと、家の屋根から上がるの
+const KC = [['#d8402c', '#f0d060'], ['#3a6ac8', '#f0e8d8'], ['#f0c020', '#3aa050'], ['#e8e0cc', '#c8402e']];
+const kites = KC.map(([c, c2], i) => { const k = U.kite({ c, c2, s: i ? 1.1 : 1.3, tail: 7 }); scene.add(k, k.userData.line); return k; });
+const roofKite = new THREE.Vector3(9, -DROP * 3 + 4.6, -14);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const LEN = 30, SPEED = 1.05, hand = new THREE.Vector3(), kpos = new THREE.Vector3();
+const kiteAt = (i, base, t) => kpos.set(base.x + [1.2, -4, 5, 2][i] + Math.sin(t * .4 + i * 2) * 1.4, base.y + 7 + i * .8 + Math.sin(t * .7 + i) * .6, base.z - 11 - i * 1.5);
+K.loop((dt, t) => {
+  const z = 5 - (t * SPEED + 4) % LEN, x = Math.sin(z * .15) * .5, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + .15; R.walk(hero, t * SPEED * 4.8, .8);
+  { const J = hero.userData.J; J.armR.rotation.set(-2.2 + Math.sin(t * 1.3) * .15, 0, -.25); J.foreR.rotation.x = -.3; J.head.rotation.set(-.3, .25, 0); }
+  const tall = innerWidth < innerHeight, Dc = tall ? 3.6 : 4.4;
+  cam.position.set(x + 1.1, y + (tall ? 2.9 : 2.7), z + Dc); cam.lookAt(x - .3, y + (tall ? 1.4 : .5), z - 12);   // 右うしろの高めから。坂の村の屋根を見下ろし、その先の地平線に光る塔
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 8);
+  // 主役のたこ
+  hero.updateMatrixWorld(true); hand.setFromMatrixPosition(hero.userData.J.foreR.matrixWorld); hand.y -= .25;
+  kites[0].position.copy(kiteAt(0, hero.position, t)); kites[0].userData.string(hand);
+  // ほかの子：2 人は たこを持って いっしょに坂を下りる、1 人は かけまわる、1 人は タイヤの上で手をふる
+  kids.forEach((p, i) => { const J = p.userData.J;
+    if (i < 2) { const kz = z - [2.2, 4.6][i], kx = [-1.4, 1.2][i]; p.position.set(kx, H(kx, kz), kz); p.rotation.y = PI + [.2, -.2][i]; R.walk(p, t * SPEED * 5 + i * 2, .8); J.armR.rotation.set(-2.2, 0, -.2); J.head.rotation.x = -.3;
+      p.updateMatrixWorld(true); hand.setFromMatrixPosition(J.foreR.matrixWorld); hand.y -= .2; kites[i + 1].position.copy(kiteAt(i + 1, p.position, t)); kites[i + 1].userData.string(hand); }
+    else if (i === 2) { const a = t * 1.3, kz = z - 1.5 + Math.sin(a) * 2, kx = Math.cos(a) * 1.6; p.position.set(kx, H(kx, kz), kz); p.rotation.y = -a + PI; MO_run(p, t); }
+    else { p.position.set(-3.5, H(-3.5, -17) + 1.05, -17); p.rotation.y = .6; R.idle(p, t, Math.sin(t * .5) * .4); J.legL.rotation.x = J.legR.rotation.x = -1.4; J.shinL.rotation.x = J.shinR.rotation.x = 1.3; J.armL.rotation.set(-2.6 - Math.sin(t * 4) * .4, 0, .3); } });
+  kites[3].position.set(roofKite.x - 3 + Math.sin(t * .5) * 2, roofKite.y + 9 + Math.sin(t * .8), roofKite.z - 12); kites[3].userData.string(roofKite);
+  adults.forEach((p, i) => { R.idle(p, t + i * 2, Math.sin(t * .4 + i) * .5); if (i === 0) { p.userData.J.armL.rotation.set(-2.4 + Math.sin(t * 4) * .4, 0, .4); } });
+  { const cz = z - 3 - ((t * .9) % 6); cat.position.set(.9, H(.9, cz), cz); cat.rotation.y = PI; R.catPose(cat, 'walk', t * 7); }
+  birds.userData.tick(t); U.update(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+function MO_run(p, t) { R.walk(p, t * 12, 1.3); p.userData.J.armL.rotation.x -= .3; p.userData.J.armR.rotation.x -= .3; }
+</script>
+</html>

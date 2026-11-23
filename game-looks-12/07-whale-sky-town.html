@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-07 空を泳ぐくじらの町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#9ad8d0;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-07 ─ 空を泳ぐくじらの町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="pack-book2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の昼。長さ 140 m の 青いくじらが、雲の海の上の空を泳ぐ。その背中に草と石だたみの土がのり、かたむいた家・風車・木の小さな町がある。くじらの尾は町のうしろで大きく持ち上がり、ゆっくり上下する。遠くにも くじらが 2 頭。
+// 色の組は「くじらの藍・雲のクリーム・空の青みどりからレモン色」＋差し色の 屋根の赤と主役の だいだい。くじらの皮（白い腹のすじ・ふじつぼ）と雲のもこもこは手で打ったドット絵。
+// 主役は だいだいの上着の子（R.actor の toon）。町の道をくじらの頭のほうへ歩き、カメラは前から少し上で 主役の顔と、うしろの町・尾・遠くのくじらを見る。町の人・かもめ・風車・旗・雲が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), B = PACK_BOOK2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1700, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a9ac8'], [.45, '#5ac8c8'], [.8, '#c8ecc0'], [1, '#fff4b0']], { r: 1400 })); scene.fog = new THREE.Fog('#f0f0c8', 260, 1300);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8f0ff, ground: 0xf0e8c8, amb: 1.45, sun: 0xfff4d8, power: 2.3, range: 40 }), SUN = new THREE.Vector3(.35, .8, .5).normalize();
+
+// ---- くじらの皮：上は藍に明るい点、横は ふじつぼ、腹はクリームのすじ（よこ＝ぐるり 1 周、たて＝体の長さ 20 m） ----
+const skin = (() => { const P = R.Px(128, 64), A = R.ramp('#3a5aa0', 6, { contrast: .8 }), W = R.ramp('#f4ecd8', 6, { contrast: .6 }), Bc = R.ramp('#c8c0b0');
+  P.each((x, y) => { const u = x / 128, belly = Math.abs(u - .5) < .17, edge = Math.abs(Math.abs(u - .5) - .17) < .02; if (belly) return (x % 6 === 0) ? W[1] : (x % 6 === 1) ? W[4] : W[3]; if (edge) return A[1];
+    const n = K.hash(x >> 2, y >> 2, 3); return n > .82 ? A[2] : u > .25 && u < .75 ? A[2 + (n > .4 ? 1 : 0)] : n < .15 ? A[4] : A[3]; });
+  for (let k = 0; k < 60; k++) { const x = Math.floor(hash(k, 1) * 128), y = Math.floor(hash(k, 2) * 64), u = x / 128; if (Math.abs(u - .5) < .2) continue; const side = Math.abs(u - .5) < .3; if (side) P.bits(x, y, ['.bb.', 'bccb', '.bb.'], { b: Bc[2], c: Bc[4] }); else { P.set(x, y, A[5]); P.set(x + 1, y, A[4]); } }   // ふじつぼと光の点
+  return T.from(P, { m: 1 }); })();
+const eyeT = (() => { const P = R.Px(16), W = '#f8f4e8', D = '#1a2040'; P.disc(8, 8, 7, '#2a3a70'); P.disc(8, 8, 5.6, W); P.disc(7.5, 8.5, 3.8, D); P.set(6, 7, '#ffffff'); P.set(7, 7, '#ffffff'); P.set(6, 6, '#ffffff'); for (let i = 2; i < 14; i++) P.set(i, 2 - Math.round(Math.sin(i / 13 * PI) * 1), '#1a2a58'); return T.from(P, { m: 1, cut: true }); })();
+
+// ---- くじら（体の輪：[尾からの z, 半はば, 半高さ, 中心の高さ]）。尾びれと胸びれは動く ----
+const PROF = [[0, 2.4, 2.8, 36], [8, 4, 4.5, 26], [22, 9, 9, 10], [46, 19, 14, 0], [72, 23, 16.5, 0], [98, 23, 16.5, -1], [118, 20, 15, -2], [130, 15, 12.5, -3], [138, 8, 8, -4], [141, 1, 1.5, -4]];
+const prof = z => { for (let i = 0; i < PROF.length - 1; i++) { const a = PROF[i], b = PROF[i + 1]; if (z <= b[0] || i === PROF.length - 2) { const k = Math.max(0, Math.min(1, (z - a[0]) / (b[0] - a[0]))), s = k * k * (3 - 2 * k) * .5 + k * .5; return [a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s, a[3] + (b[3] - a[3]) * s]; } } };
+const whale = (s = 1) => { const g = new THREE.Group(), S16 = Math.cos(PI / 16), G = R.geo().smooth(1);
+  G.loft(16, PROF.map(([z, hw, hh, cy], i) => [z, hw / S16, hh / S16, z / 20, [.8, .85, .95, 1, 1, 1, 1, .95, .9, .85][i], 0, -cy]), { ur: 1, rot: .5 });
+  const body = G.mesh(skin); body.geometry.rotateX(PI / 2); body.castShadow = s > .9; g.add(body);
+  for (const sx of [-1, 1]) { const [hw, hh, cy] = prof(128), E = R.geo().normal([sx, 0, 0]); E.quad([sx * hw * .93, cy + hh * .05 - 1.6, 128 + 1.8 * sx], [sx * hw * .93, cy + hh * .05 - 1.6, 128 - 1.8 * sx], [sx * hw * .9, cy + hh * .05 + 1.6, 128 - 1.8 * sx], [sx * hw * .9, cy + hh * .05 + 1.6, 128 + 1.8 * sx]); const e = E.mesh(eyeT, { offset: true }); e.castShadow = false; g.add(e); }   // 目
+  // 尾びれ（2 つの葉の形。ねもとで上下にふる）
+  const fl = new THREE.Group(); fl.position.set(0, 36, 1); fl.scale.setScalar(1.35); g.add(fl);
+  { const G2 = R.geo(), pts = [[0, 0], [5, -2.5], [12, -4.5], [20, -4], [17, -7.5], [11, -10.5], [5, -10], [0, -6.5]], th = .6;
+    for (const sx of [-1, 1]) { const P = pts.map(([x, z]) => [x * sx, z]); for (let i = 1; i < P.length - 1; i++) for (const up of [1, -1]) { const a = [P[0][0], up * th, P[0][1]], b = [P[i][0], up * th * .3, P[i][1]], c = [P[i + 1][0], up * th * .3, P[i + 1][1]]; const U = q => [.04 + Math.abs(q[0]) / 19 * .16, -q[1] / 8]; (up * sx > 0) ? G2.tri(a, c, b, [.04, 0], U(P[i + 1]), U(P[i])) : G2.tri(a, b, c, [.04, 0], U(P[i]), U(P[i + 1])); } } fl.add(G2.mesh(skin, { side: true })); }
+  // 胸びれ（細長い板。ふちに こぶ）
+  const fins = [-1, 1].map(sx => { const p = new THREE.Group(), [hw, , cy] = prof(100); p.position.set(sx * hw * .92, cy - 4, 100); g.add(p); const G3 = R.geo(), L = 34;
+    for (let i = 0; i < 6; i++) { const a = i / 6, b = (i + 1) / 6, wa = 5 * (1 - a * .6), wb = 5 * (1 - b * .6); G3.quad([sx * L * a, -L * a * .35, wa * .5], [sx * L * b, -L * b * .35, wb * .5], [sx * L * b, -L * b * .35, -wb * .5], [sx * L * a, -L * a * .35, -wa * .5], [.5 - .1, a * 2, .5 + .1, b * 2]); }
+    p.add(G3.mesh(skin, { side: true })); return [p, sx]; });
+  g.scale.setScalar(s); g.userData.tick = t => { fl.rotation.x = 1.05 + Math.sin(t * .55) * .22; fins.forEach(([p, sx]) => { p.rotation.z = sx * Math.sin(t * .55 + 1) * .16; p.rotation.y = -sx * .3; }); }; return g; };
+const big = whale(1); scene.add(big);
+
+// ---- 背中の町：くじらの背の形にそった土（草と石だたみ）。家は道の両がわ ----
+const PX = z => 8.2 + Math.sin(z * .07) * .7;   // 道は右のふち（+x）ぞい。右は さくの外が空
+const topY = (x, z) => { const [hw, hh, cy] = prof(z); const S = Math.cos(PI / 16); return cy + hh / S * Math.sqrt(Math.max(0, 1 - (x * S / hw) ** 2)); };
+const land = R.ground({ w: 30, d: 74, cell: 1.5, cz: 80, H: (x, z) => topY(Math.max(-14, Math.min(14, x)), Math.max(44, Math.min(117, z))) + .08 - (Math.abs(x) > 13.5 || z < 45 || z > 116 ? .6 : 0),
+  layers: [T.grass({ c: '#6aa858', flowers: .25, fc: ['#ffffff', '#ffd860', '#f8a8c0'] }), T.cobble({ c: '#d8c8a8', kind: 'round' })], mix: (x, z) => [Math.abs(x - PX(z)) < 1.7 || (Math.abs(x + 3.2 + Math.sin(z * .05)) < 1.3) ? 1 : 0, 0] }); scene.add(land.mesh);
+const fixed = [], put = (o, x, z, ry = 0, y = topY(x, z) - .25) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const WALL = [T.plaster({ c: '#f4e4c0' }), T.plaster({ c: '#f8d0c0', seed: 2, frame: 'box', wood: '#8a5a3a' }), T.boards({ c: '#a8d0e0' }), T.plaster({ c: '#f8f0a8', seed: 4 })];
+const ROOF = [T.shingle({ c: '#d0483a' }), T.roof({ c: '#e8a040', kind: 'scale' }), T.shingle({ c: '#3a6ab0', seed: 2 }), T.roof({ c: '#c84a6a', kind: 'wave' })];
+[[2.5, 50], [-3.5, 54], [3, 60], [-2.5, 66], [2.8, 74], [-3.8, 78], [3.2, 86], [-2.8, 92], [2.6, 100], [-3.6, 104], [3, 112], [-9.5, 60], [-10, 72], [-9, 86], [-10.5, 98], [-9.5, 110]].forEach(([x, z], i) => {
+  const h = 3.6 + hash(i, 1) * 3.4 + (Math.abs(x) > 9 ? 1.5 : 0), ln = (hash(i, 2) - .5) * 1.6;
+  put(B.house({ w: 3 + hash(i, 3) * 1.4, d: 3.2, h, lean: ln, bulge: .1 + hash(i, 4) * .1, roofH: 2.6 + hash(i, 5) * 3, roofLean: -ln * 1.6 + (hash(i, 6) - .5), wall: WALL[i % 4], roof: ROOF[(i + 1) % 4], wins: 2, seed: i }), x, z, x > 0 && x < 4 ? PI / 2 + (hash(i, 7) - .5) * .4 : x > 0 ? -PI / 2 : PI / 2); });
+const mill = put(F.windmill({ h: 7, stone: T.plaster({ c: '#f0e8d8' }), roof: '#3a6ab0', c: '#f8f0e0', speed: .8 }), -9.5, 50, PI / 2 + .3);
+for (const [x, z, k] of [[5.6, 57, 0], [-6.4, 82, 1], [5.4, 80, 2], [-6.6, 104, 0], [5.8, 107, 1], [-6, 66, 2], [-13, 78, 0], [-13, 92, 2]]) put(R.tree({ kind: k === 2 ? 'pine' : 'round', h: 4 + hash(x, z) * 2, c: ['#4a9a4a', '#6aa848', '#3a8a5a'][k], flowers: k === 1 ? .4 : 0, fc: ['#ffffff'], seed: k }), x, z, x);
+for (const z of [58, 74, 90, 106]) put(R.lamp({ h: 3, c: '#3a4a6a' }), 5.6, z + 3, 0);
+for (let z = 46; z < 116; z += 3.6) put(R.fence({ len: 3.6, kind: 'picket', h: .9, c: '#f4ecd8' }), 12.4, z + 1.8, PI / 2, topY(12.4, z + 1.8) - .1);
+for (let i = 0; i < 34; i++) { const z = 48 + hash(i, 1) * 66, x = hash(i, 2) > .3 ? 10 + hash(i, 3) * 2 : -12 + hash(i, 3) * 6; put(R.tuft({ kind: i % 3 ? 'flower' : 'grass', s: .8, seed: i % 3 }), x, z, i); }
+for (const z of [55, 101]) for (const sx of [-1, 1]) put(F.flag({ kind: 'pennant', pole: 4.5, w: 1.6, h: .8, c: sx > 0 ? '#d0483a' : '#f8f0a8', c2: '#3a6ab0' }), sx * 12.8, z, 0);
+const bunt = [[63, 5], [88, 5.4]].map(([z, y]) => F.bunting({ from: [3, topY(3, z) + y, z], to: [12.4, topY(12.4, z) + y - 1, z + 1], n: 12, sag: 1, cs: ['#d0483a', '#f8f0a8', '#3a6ab0', '#e8a040'] }));
+scene.add(...bunt);
+scene.add(R.merge(fixed));
+
+// ---- 雲の海（ずっと下。もこもこを ならべ、うしろへ流す）と、そらの雲 ----
+const sea = R.ground({ w: 2400, d: 2400, cell: 40, cz: -400, H: () => -62, layers: [B.tex.puff({ c: '#fff0d8', m: 24 })] }); scene.add(sea.mesh);
+const seaPuffs = []; for (let r = 0; r < 24; r++) for (let c = 0; c < 18; c++) { const x = -800 + c * 95 + (r % 2) * 45 + hash(c, r % 4) * 30, z = -1300 + r * 70; if (Math.abs(x) < 60 && z > -20 && z < 170) continue; const p = B.puff({ s: 46 + hash(c, r % 4, 2) * 30, n: 3, c: (c + r) % 3 ? '#fff4e0' : '#f8e8d0', seed: (c + r % 4) % 7, flat: .2 }); p.position.set(x, -64, z); p.rotation.y = hash(c, r % 4, 3) * 6; seaPuffs.push(p); }
+const seaG = R.merge(seaPuffs); scene.add(seaG);
+const sky = []; for (let k = 0; k < 10; k++) { const p = B.puff({ s: 18 + hash(k, 1) * 16, n: 5, c: '#ffffff', seed: k }), a = -1.5 + hash(k, 2) * 3, r = 180 + hash(k, 3) * 300; p.position.set(Math.sin(a) * r, 10 + hash(k, 4) * 60, 60 - Math.cos(a) * r); scene.add(p); sky.push([p, p.position.z]); }
+// ---- 遠くを泳ぐ くじら ----
+const far = [[.7, 120, -4, -250, -.6], [.5, 300, 30, -480, -.35], [.4, -200, 30, -520, .3]].map(([s, x, y, z, ry]) => { const w = whale(s); w.position.set(x, y, z); w.rotation.y = ry; scene.add(w); return [w, x, y, z, ry, s]; });
+
+// ---- 人：主役（前へ歩く）、町の人、子ども、ねこ。空には かもめ ----
+const act = (o, x = 0, z = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, topY(x, z), z); scene.add(p); return p; };
+const hero = act({ hairStyle: 'bob', hair: '#4a2a1a', eyes: 'big', mouth: 'smile', blush: true, cloth: 'jacket', top: '#f08a2a', top2: '#fff4d8', lower: 'shorts', bottom: '#3a5aa0', shoes: 'boot', shoe: '#6a3a2a', back: 'pack', acc: '#c85a2a' });
+const folk = [act({ sex: 'f', hairStyle: 'bun', hair: '#8a4a2a', cloth: 'tunic', top: '#3a6ab0', top2: '#f8f0e0', lower: 'skirt', skirt: .9, shoes: 'shoe', shoe: '#5a3a2a' }),
+  act({ hairStyle: 'short', hair: '#c8c0b0', beard: 'mustache', cloth: 'coat', top: '#6a8a4a', top2: '#f0e8d0', bottom: '#4a4a5a', hat: 'cap', acc: '#d0483a' }),
+  act({ sex: 'f', hairStyle: 'twin', hair: '#e8c070', cloth: 'tunic', top: '#d0483a', top2: '#fff4d8', lower: 'skirt', skirt: .6, shoes: 'shoe' })];
+F.wear(folk[0], 'basket', { hand: 'L', c: '#c8945a', fc: ['#f8a8c0', '#ffd860'] });
+const kid = act({ s: .72, hairStyle: 'spiky', hair: '#2a2a3a', mouth: 'open', cloth: 'tunic', top: '#f8f0a8', top2: '#3a6ab0', lower: 'shorts', shoes: 'shoe', shoe: '#3a6ab0' });
+const cat = R.cat({ c: '#f0a860', belly: '#fff4e0' }); scene.add(cat);
+const gulls = [...Array(7)].map((_, k) => { const b = R.bird({ c: '#f8f8f0', belly: '#ffffff', s: 2.2 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 62, LEN = 36, SPEED = 1.35;
+K.loop((dt, t) => {
+  const z = Z0 + (t * SPEED) % LEN, x = PX(z), y = topY(x, z) + .08, tall = innerWidth < innerHeight;
+  hero.position.set(x, y, z); hero.rotation.y = Math.cos(z * .07) * .08; R.walk(hero, t * SPEED * 3.6, .85);
+  const D = tall ? 4.8 : 4.9; cam.position.set(x + (tall ? 1.3 : 2.5), y + (tall ? 2.4 : 2.2), z + D); cam.lookAt(x - (tall ? 2.4 : 4.5), y + (tall ? 3.4 : 2.6), z - 20);
+  sun.position.set(x + SUN.x * 70, y + SUN.y * 70, z + SUN.z * 70); sun.target.position.set(x, y, z - 6);
+  big.userData.tick(t); far.forEach(([w, x0, y0, z0, ry, s], k) => { w.position.set(x0 + Math.sin(ry) * t * 6, y0 + Math.sin(t * .4 + k) * 2, z0 + Math.cos(ry) * t * 6); w.userData.tick(t + k * 2); });
+  seaG.position.z = -((t * 7) % 280); sea.mesh.position.z = -400 - ((t * 7) % 48);   // くじらは頭の +z へ進むので、雲の海は -z へ流れる
+  sky.forEach(([p, z0], k) => { p.position.z = z0 - t * 7; });
+  folk.forEach((p, k) => { const L = 30, u = (t * (1 + k * .15) + k * 11) % L, dir = k % 2 ? 1 : -1, pz = 50 + (dir > 0 ? u : L - u) + k * 12, px = k === 1 ? PX(pz) - .8 : -3.2 - Math.sin(pz * .05); p.position.set(px, topY(px, pz), pz); p.rotation.y = dir > 0 ? 0 : PI; R.walk(p, t * 4.2 + k, .75); });
+  const ka = t * 1.2; kid.position.set(-7 + Math.cos(ka) * 2, 0, 76 + Math.sin(ka) * 2.4); kid.position.y = topY(kid.position.x, kid.position.z); kid.rotation.y = -ka; R.walk(kid, t * 9, 1);
+  cat.position.set(10.6, topY(10.6, 79), 79); cat.rotation.y = .9; R.catPose(cat, 'sit', t);
+  gulls.forEach((b, k) => { const a = t * .35 + k * .9, r = 14 + (k % 3) * 6; b.position.set(14 + Math.cos(a) * r, 22 + (k % 3) * 4 + Math.sin(t * 1.3 + k) * .8, 64 + Math.sin(a) * r * .8); b.rotation.y = -a; R.birdPose(b, 'fly', t * .7 + k); });
+  F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

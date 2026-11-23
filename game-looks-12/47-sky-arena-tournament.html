@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-47 空の円形の大会場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#dce6f6;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#2e3458;opacity:.85;text-shadow:0 1px 0 #ffffff}
+</style>
+<div id="cap">12-47 ─ 空の円形の大会場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="pack-cyber2.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雲の上に浮かぶ、巨大な円形の大会場。すりばちの観客席に何万ものアバターがならび、色の波がめぐる。まん中の丸い舞台では 2 人が試合をし、上に浮かぶ光の板が得点を映す。下は雲の海。
+// 色の組は「白とうすい灰むらさき（会場の板）・空の水色」＋差し色の 観客の色の点と、得点の もも色と水色。白がとばないよう、席の段・目地・下がわの影を 2〜3 段で打った。
+// 主役は ねこの耳とマントの選手（R.actor の toon、白とレモン色）。入場の橋を舞台へ歩き、うしろの やや高い所からカメラが追って、向こうの観客席の大きな壁を見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), CY = PACK_CYBER2(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 1400, aa: false, fitAspect: .9, maxFov: 84 });
+scene.add(R.skyDome([[0, '#7aa4e0'], [.4, '#a8c4ee'], [.75, '#dce6f6'], [1, '#f4f2f2']], { r: 1000 })); scene.fog = new THREE.Fog('#e4eaf6', 140, 1300);
+const { sun } = K.lights(scene, renderer, { sky: 0xf4f6ff, ground: 0xc4c6e4, amb: 1.4, sun: 0xfff4e0, power: 1.5, range: 40 }), SUN = new THREE.Vector3(.35, .8, .45).normalize();
+const AC = 0, AZ = -70;   // 会場のまん中
+
+// ---- 観客席の絵（64×32 ＝ 3 m × 1.5 m。4 ドットごとの段に、頭と体の点。2 コマで手を上げる人が変わる） ----
+const CROWD = ['#f2a0c4', '#7ad0ec', '#eed070', '#9ad88a', '#b8a8e8', '#f4f0ec', '#e89a7a', '#5a6aa0'], SKIN = ['#f0c49c', '#d8a07a', '#f8dcc0', '#f4f0f4'];
+const crowdTex = (f, sd) => { const P = R.Px(64, 32), S = R.ramp('#d8dae8', 6, { contrast: .5 });
+  P.each((x, y) => { const r = y % 8; return r === 0 ? S[5] : r === 1 ? S[2] : S[3]; });
+  for (let row = 0; row < 4; row++) for (let i = 0; i < 16; i++) { const x = i * 4 + (row % 2) * 2, y0 = row * 8 + 2, h = hash(i, row, sd); if (h > .9) continue;
+    const C = R.ramp(CROWD[Math.floor(hash(i, row, sd + 1) * CROWD.length)], 6, { contrast: .7 }), sk = SKIN[Math.floor(hash(i, row, sd + 2) * 4)], up = hash(i, row, sd + 3 + f * 7) > .62;
+    P.rect(x, y0 + 3, 3, 3, C[3]); P.set(x, y0 + 3, C[5]); P.set(x + 2, y0 + 5, C[1]); P.rect(x, y0 + 1, 2, 2, sk); P.set(x + 2, y0 + 1, C[2]);   // 体・頭（かみ・ぼうし）
+    if (up) { P.set(x - 1, y0, C[4]); P.set(x + 3, y0, C[4]); P.set(x - 1, y0 + 1, C[3]); P.set(x + 3, y0 + 1, C[3]); } }
+  const tx = T.from(P, { m: 15 }); tx.minFilter = THREE.NearestFilter; tx.generateMipmaps = false; tx.needsUpdate = true; return tx; };   // 遠くでも点のまま（にじませると色がまざって 1 色になる）
+const CROWD_T = [0, 1].map(f => crowdTex(f, 0)), WAVE_T = [0, 1].map(f => crowdTex(f, 4));
+
+// ---- 会場：すりばちの観客席、内がわの白いかべ、上のふちの光の帯、下へすぼまる底。まん中に丸い舞台 ----
+const fixed = [], put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const sec = R.ngon(56, .5), TILE = CY.tex.tile({ seed: 2 }), WALLT = CY.tex.wall({ seed: 3, lit: .2 }), UND = CY.tex.under({ seed: 4 });
+const arena = new THREE.Group(); arena.position.set(AC, 0, AZ); scene.add(arena);
+const crowdMat = R.mat(CROWD_T[0], { vc: true, side: true }), waveMat = R.mat(WAVE_T[0], { vc: true, color: '#fff0f8', side: true });
+{ const Bp = R.parts(), Tl = Bp.g(TILE, { side: true }), Wl = Bp.g(WALLT, { side: true }), Un = Bp.g(UND), Gl = Bp.g(CY.tex.beam(), { glow: true, color: '#7ad0ec', side: true });   // すりばちの内がわから見るので両面
+  Wl.loft(sec, [[-3, 46, 46, -1, .9], [4, 46, 46, 4 / 3, 1]], { ur: 96 });   // 内がわのかべ（窓の帯）
+  Tl.loft(sec, [[4, 46, 46, 0, 1], [4, 48, 48, 1, 1]], { ur: 96 });
+  const tiers = [[4, 48], [22, 72], [26, 74], [48, 104], [52, 106], [74, 134]];   // [高さ, 半径]。席の面と、とちゅうの通路の段
+  const Gc = R.geo(), Gw = R.geo();
+  for (let k = 0; k < tiers.length - 1; k++) { const [y0, r0] = tiers[k], [y1, r1] = tiers[k + 1], seat = k % 2 === 0, L = Math.hypot(y1 - y0, r1 - r0), urn = Math.round(2 * PI * r0 / 3);
+    if (seat) { for (let s = 0; s < 8; s++) { const G = s % 4 === 1 ? Gw : Gc; G.loft(sec, [[y0, r0, r0, 0, .9], [y1, r1, r1, L / 7.5, 1.04]], { ur: Math.round(urn * 3 / 15), seg: [s * 7, s * 7 + 7] }); } }   // 8 つの区画。1 つおきの区画は色の波
+    else { Tl.loft(sec, [[y0, r0, r0, 0, .85], [y1, r1, r1, 1, 1]], { ur: urn / 4 }); Gl.loft(sec, [[y0 + .1, r0 - .05, r0 - .05, 0], [y0 + .7, r0 - .05, r0 - .05, 1]], { ur: 56 }); } }
+  Wl.loft(sec, [[74, 134, 134, 0, .9], [82, 136, 136, 8 / 3, 1]], { ur: 140 }); Tl.loft(sec, [[82, 136, 136, 0, 1], [82, 140, 140, 1, 1]], { ur: 140 }); Gl.loft(sec, [[80, 136.4, 136.4, 0], [81.2, 136.4, 136.4, 1]], { ur: 56 });   // 上のふちと光の帯
+  Un.loft(sec, [[-60, 30, 30, -20, .75], [-30, 90, 90, -10, .85], [-3, 132, 132, 0, .95], [82, 140, 140, 28, 1]], { ur: 140 });   // 外がわと、下へすぼまる底（外から見える）
+  Un.loft(sec, [[-60, 30, 30, 0, .75], [-61, 4, 4, 0, .7]], { cap: 'bot' });
+  arena.add(Bp.group()); const mc = new THREE.Mesh(Gc.build(), crowdMat), mw = new THREE.Mesh(Gw.build(), waveMat); mc.receiveShadow = mw.receiveShadow = true; arena.add(mc, mw); }
+// 舞台（浮かぶ丸い島。ふちに光の帯）と、主役の入場の橋
+const stage = CY.isle({ r: 16, depth: 14, n: 16, seed: 5, rim: '#f2a0c4', side: CY.tex.under({ c: '#eceef8', seed: 5 }), top: CY.tex.tile({ n: 2, seed: 6, accent: ['#f2a0c4', '#7ad0ec'] }) }); stage.position.set(AC, 0, AZ); scene.add(stage);
+scene.add(CY.lines([[[AC - 10, .06, AZ], [AC + 10, .06, AZ]], [[AC, .06, AZ - 10], [AC, .06, AZ + 10]]], { w: .4, c: '#7ad0ec', k: .9 }));
+{ const ring = []; for (let k = 0; k < 24; k++) { const a = k / 24 * 2 * PI, b = (k + 1) / 24 * 2 * PI; ring.push([[AC + Math.cos(a) * 10, .07, AZ + Math.sin(a) * 10], [AC + Math.cos(b) * 10, .07, AZ + Math.sin(b) * 10]]); } scene.add(CY.lines(ring, { w: .35, c: '#f2a0c4', k: .9 })); }
+{ const Bp = R.parts(), z0 = AZ + 15, z1 = AZ + 46, Wd = 3.2; Bp.g(CY.tex.tile({ n: 2, seed: 8, accent: ['#eed070'] })).quad([-Wd / 2, 0, z1], [Wd / 2, 0, z1], [Wd / 2, 0, z0], [-Wd / 2, 0, z0], [0, 0, Wd / 3, (z1 - z0) / 3]);
+  Bp.g(UND).box(Wd, .8, z1 - z0, 0, -.8, (z0 + z1) / 2, { m: 3, top: false, bottom: true, c0: .85 }); for (const sx of [-1, 1]) Bp.g(CY.tex.tile({ n: 4, c: '#d4d6e2', seed: 9 })).box(.12, .9, z1 - z0, sx * Wd / 2, 0, (z0 + z1) / 2, { m: 1.5, c0: .9 });
+  put(Bp.group(), AC, 0, 0); scene.add(CY.lines([[[AC - 1.5, .95, AZ + 15], [AC - 1.5, .95, AZ + 48]], [[AC + 1.5, .95, AZ + 15], [AC + 1.5, .95, AZ + 48]]], { w: .1, c: '#eed070', mode: 'cross' })); }
+// 入場門（橋の手前の、光る輪のアーチ）
+{ const pts = []; for (let k = 0; k <= 16; k++) { const a = k / 16 * PI; pts.push([AC + Math.cos(a) * 3, Math.sin(a) * 4.5, AZ + 30]); } const segs = []; for (let k = 0; k < 16; k++) segs.push([pts[k], pts[k + 1]]); scene.add(CY.lines(segs, { w: .3, c: '#eed070', mode: 'cross' })); }
+scene.add(R.merge(fixed));
+
+// ---- 上に浮かぶ 4 枚の光の得点板と、空にわたる光の輪。下の雲の海、遠くの浮かぶ塔 ----
+const boards = [0, 1, 2, 3].map(k => { const a = k / 4 * 2 * PI + PI / 4, b = CY.board({ w: 22, h: 16.5, kind: 'score', score: [3, 2], c: '#f4f0f8', bg: '#3a4070', c1: '#f08aac', c2: '#5ab8e8' }); b.position.set(AC + Math.sin(a) * 26, 30, AZ + Math.cos(a) * 26); b.rotation.order = 'YXZ'; b.rotation.y = a + PI; b.rotation.x = .25; scene.add(b); return b; });
+{ const segs = []; for (const tilt of [.5, -.5]) { for (let k = 0; k < 48; k++) { const a = k / 48 * PI, b = (k + 1) / 48 * PI, f = (q) => { const x = Math.cos(q) * 150, y = Math.sin(q) * 120; return [AC + x * Math.cos(tilt), y, AZ + x * Math.sin(tilt)]; }; segs.push([f(a), f(b)]); } } scene.add(CY.lines(segs, { w: 1.6, c: '#9ad8f4', mode: 'cross', k: .7, fog: false })); }
+for (let k = 0; k < 14; k++) { const a = hash(k, 1) * 2 * PI, r = 260 + hash(k, 2) * 360, c = R.cloud({ s: 120 + hash(k, 3) * 120, c: '#f8f8fc', shade: '#b8bcd8', seed: k }); c.position.set(AC + Math.cos(a) * r, -70 - hash(k, 4) * 40, AZ + Math.sin(a) * r); c.rotation.x = -PI / 2 + .3; c.lookAt(AC, 200, AZ); scene.add(c); }
+{ const P = R.Px(64), A = R.ramp('#eceef8', 6, { contrast: .5 }); P.each((x, y) => { const v = R.tn(x, y, 16, 16, 64, 64, 3) * .7 + R.tn(x, y, 8, 8, 64, 64, 5) * .3; return v > .62 ? A[5] : v > .55 ? ((x + y) & 1 ? A[5] : A[4]) : v > .4 ? A[4] : v > .34 ? ((x + y) & 1 ? A[4] : A[2]) : A[2]; });   // 雲の海（下に広がる）
+  const ct = T.from(P, { m: 60 }), G = R.geo().normal([0, 1, 0]), S = 130; for (let i = -10; i < 10; i++) for (let j = -10; j < 10; j++) G.quad([i * S, 0, (j + 1) * S], [(i + 1) * S, 0, (j + 1) * S], [(i + 1) * S, 0, j * S], [i * S, 0, j * S], [i * S / 60, -(j + 1) * S / 60, (i + 1) * S / 60, -j * S / 60]);
+  const sea = G.mesh(ct); sea.position.set(AC, -110, AZ); scene.add(sea); }
+for (const [x, z, h, r] of [[-380, -620, 200, 16], [420, -700, 260, 20], [-640, -300, 160, 12], [560, -260, 150, 12]]) { const tw = CY.tower({ r, h, n: 8, steps: 4, c: '#7ad0ec', seed: x }); const isle = CY.isle({ r: r * 2.2, depth: r * 3, seed: z }); isle.add(tw); isle.position.set(x, -40, z); scene.add(isle); }
+
+// ---- 人：主役、舞台の 2 人の選手、審判。前の席には大きく見える観客 ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ hairStyle: 'spiky', hair: '#f4f0f4', eye: '#c8a020', eyes: 'sharp', cloth: 'coat', sleeve: 'long', top: '#f4f0f8', top2: '#eed070', lower: 'pants', bottom: '#4a4e7a', shoes: 'boot', shoe: '#eed070', gloves: 'glove', glove: '#4a4e7a', neck: 'cape', acc: '#eed070', belt: '#4a4e7a', shoulder: 'both' }); scene.add(hero);
+CY.wear(hero, 'ears', { kind: 'cat', c: '#f4f0f4', c2: '#eed070' }); CY.wear(hero, 'tail', { kind: 'cat', c: '#f4f0f4', c2: '#eed070' });
+const red = R.actor({ hairStyle: 'tail', hair: '#e8607a', sex: 'f', cloth: 'tunic', top: '#f08aac', top2: '#f8f0f4', bottom: '#f4f0f8', shoes: 'boot', shoe: '#c84a6a', gloves: 'glove', glove: '#f4f0f8' }); scene.add(red); CY.wear(red, 'ears', { kind: 'fox', c: '#e8607a', c2: '#f8f0f4' }); CY.wear(red, 'tail', { kind: 'fox', c: '#e8607a', c2: '#f8f0f4' });
+const blue = R.actor({ hairStyle: 'short', hair: '#3a4a8a', cloth: 'vest', top: '#5ab8e8', top2: '#f4f0f8', bottom: '#3a4a8a', shoes: 'boot', shoe: '#3a4a8a', gloves: 'glove', glove: '#f4f0f8', shoulder: 'left' }); scene.add(blue); CY.wear(blue, 'ears', { kind: 'bear', c: '#3a4a8a', c2: '#5ab8e8' });
+const ref = R.actor({ hairStyle: 'bald', hair: '#888', beard: 'beard', cloth: 'robe', top: '#f4f0f8', top2: '#5a6aa0', skirt: .85, shoe: '#5a6aa0' }); scene.add(ref); CY.wear(ref, 'halo', { c: '#eed070' });
+const fx = K.fx(scene, 60);
+
+const crt = R.crt(renderer, { noise: 0, bloom: .15 }); onResize(crt.resize);
+const Z0 = AZ + 31, ZEND = AZ + 17.5, SPEED = 1.3, LOOP = (Z0 - ZEND) / SPEED + 6; let sp = 0;
+K.loop((dt, t) => {
+  const tt = t % LOOP, z = Math.max(ZEND, Z0 - tt * SPEED), moving = z > ZEND, x = AC;
+  hero.position.set(x, 0, z); hero.rotation.y = PI; if (moving) R.walk(hero, tt * SPEED * 3.6, .85); else R.idle(hero, t, 0);
+  const tall = innerWidth < innerHeight, D = tall ? 4.6 : 5.6; cam.position.set(x + 1.3, tall ? 2.3 : 2.1, z + D); cam.lookAt(x - .1, tall ? 5.2 : 4.4, z - 14);   // うしろの やや高い所から、向こうの観客席の壁と得点板まで入れる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z - 10);
+  // 試合：2 人が向き合い、ふみこみ、はね、うでをふる
+  { const ph = t * 1.6, a = Math.sin(ph) * 2.2, jump = Math.max(0, Math.sin(t * 3.1)) * .5; red.position.set(AC - 3 + Math.max(0, Math.sin(ph * 2)) * 1.2, jump, AZ + a * .4); red.rotation.y = PI / 2; blue.position.set(AC + 3 - Math.max(0, -Math.sin(ph * 2)) * 1.2, Math.max(0, Math.sin(t * 3.1 + 1.6)) * .5, AZ - a * .4); blue.rotation.y = -PI / 2;
+    R.walk(red, t * 6, .7); R.walk(blue, t * 6 + 1, .7); red.userData.J.armR.rotation.set(-1.4 - Math.max(0, Math.sin(ph * 2)) * 1.2, 0, .2); blue.userData.J.armL.rotation.set(-1.4 - Math.max(0, -Math.sin(ph * 2)) * 1.2, 0, -.2);
+    if ((sp += dt) > .45) { sp = 0; fx.emit('spark', AC + (hash(t, 1) - .5) * 1.5, 1.2 + hash(t, 2), AZ + (hash(t, 3) - .5), { size: 1.2, life: .6, spread: 4, add: true, tint: hash(t, 4) > .5 ? '#f08aac' : '#7ad0ec' }); } }
+  ref.position.set(AC + 6, 0, AZ - 6); ref.rotation.y = -PI / 4; R.idle(ref, t, Math.sin(t * 1.6) * .4); ref.userData.J.armR.rotation.set(-2.6, 0, .3);
+  // 観客の波：手を上げる人の絵を入れかえ、色の帯（もも色がかった列）が会場をめぐる
+  const f = Math.floor(t * 3) % 2; crowdMat.map = CROWD_T[f]; waveMat.map = WAVE_T[1 - f]; arena.rotation.y = t * .05;
+  boards.forEach((b, k) => { b.position.y = 30 + Math.sin(t * .8 + k * 1.6) * .8; });
+  fx.update(dt); CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

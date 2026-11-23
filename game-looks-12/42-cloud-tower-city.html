@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-42 雲の上の巨大なビル群 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#ece4ea;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff;opacity:.92;text-shadow:0 1px 0 #4a3a5a,0 0 3px #4a3a5a}
+</style>
+<div id="cap">12-42 ─ 雲の上の巨大なビル群 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-cyber1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝の、白い雲の海の上。高さ 200〜400 m の さまざまな形の白い塔が立ちならび、そのあいだを光の線と小さな乗りものが行きかう。雲の上にわたした細い光の橋を、アバターが歩く。
+// 色の組は「白い塔・雲の青むらさきの影・朝の もも色がかった空」＋差し色の 水色（光の線と窓）。塔は窓の列とひれの段、雲は丸いかたまりの影で、白をとばさずに読ませる。
+// 主役は ねこの耳と頭の輪の青年（白いコートに水色）。橋を奥へ歩き、カメラは低い右うしろから見上げて、雲の上にそびえる塔の群れを入れる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), FW = PACK_FWILD(THREE, K, R), CY = PACK_CYBER1(THREE, K, R, FW), { hash } = K, PI = Math.PI, AC = CY.AC;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 1600, aa: false, fitAspect: .9, maxFov: 82 });
+scene.add(R.skyDome([[0, '#8ea8d8'], [.4, '#b8c0e4'], [.72, '#e4d4e4'], [.9, '#f4d8d0'], [1, '#f8e8dc']], { r: 1100 })); scene.fog = new THREE.Fog('#ecdfe6', 120, 1100);
+const { sun } = K.lights(scene, renderer, { sky: 0xe8e4ff, ground: 0xe0c8d4, amb: 1.5, sun: 0xffe8d4, power: 1.8, range: 26 }), SUN = new THREE.Vector3(.5, .45, .7).normalize();
+
+// ---- 雲の海（ゆるい起伏）。橋の下 30 m ほど ----
+const CY0 = -30, sea = R.ground({ w: 1400, d: 1400, cell: 14, H: (x, z) => CY0 + Math.sin(x * .02 + z * .013) * 4 + Math.sin(x * .051 - z * .03) * 2.5, layers: [CY.tex.cloudsea({ seed: 1 }), CY.tex.cloudsea({ seed: 4, c: '#e6e0ee' })], mix: (x, z) => [Math.sin(x * .01) * Math.cos(z * .013) > .2 ? 1 : 0, 0] }); scene.add(sea.mesh);
+for (let i = 0; i < 26; i++) { const c = R.cloud({ s: 60 + hash(i, 1) * 80, c: '#f8f4f6', shade: '#cfc4dc', seed: i % 3 }), a = (hash(i, 2) - .5) * 2.4, d = 160 + hash(i, 3) * 600; c.position.set(Math.sin(a) * d, CY0 + 10 + hash(i, 4) * 25, -Math.cos(a) * d); c.lookAt(0, c.position.y, 60); scene.add(c); }
+
+// ---- 光の橋：雲の上の細い通路（白い板＋光の手すり）。下へ柱がのびる ----
+const LEN = 260, BW = 4.6, fixed = [];
+{ const B = R.parts(), G = B.g(CY.tex.floor({ kind: 'path', ac: AC.sky, seed: 3, m: 3.2 })), S = B.g(CY.tex.panel({ kind: 'fin', ac: AC.sky, m: 3 }));
+  G.box(BW, .3, LEN, 0, -.3, -LEN / 2 + 20, { m: 3.2 }); S.box(BW + .5, .5, LEN, 0, -.8, -LEN / 2 + 20, { m: 3 });
+  fixed.push(B.group()); }
+for (let z = 10; z > -LEN + 20; z -= 24) { const B = R.parts(), S = B.g(CY.tex.panel({ kind: 'fin', ac: AC.sky, m: 3, seed: 2 })); CY.prism(S, [[-34, 1.2, 1.2], [-3, .7, .7], [-.6, 1.5, .9]], 6, { m: 3 }); const g = B.group(); g.position.z = z; fixed.push(g);
+  for (const sx of [-1, 1]) { const P = R.parts(), Q = P.g(CY.tex.panel({ kind: 'band', ac: AC.sky, m: 2 })); CY.prism(Q, [[0, .09, .09], [1.1, .09, .09], [1.25, .16, .16]], 6, { m: 2, cap: true }); const p = P.group(); p.position.set(sx * (BW / 2 - .1), 0, z); fixed.push(p); } }
+for (const sx of [-1, 1]) scene.add(CY.line([[sx * (BW / 2 - .1), 1.15, 20], [sx * (BW / 2 - .1), 1.15, -LEN + 20]], { c: AC.sky, w: .1, speed: 3, rep: 5 }));
+scene.add(CY.line([[0, -.02, 20], [0, -.02, -LEN + 20]], { c: AC.mint, w: .3, speed: 6, rep: 8 }));
+
+// ---- 巨大な塔の群れ（左右と奥。高さ 150〜420 m） ----
+const KINDS = ['slab', 'round', 'twist', 'spire', 'stack', 'halo'], ACS = [AC.sky, AC.mint, AC.pink, AC.lemon, AC.lilac], tops = [];
+const TW = [[-70, -120, 300, 22, 'twist'], [80, -160, 360, 26, 'halo'], [-150, -300, 420, 34, 'round'], [30, -420, 380, 30, 'spire'], [190, -320, 300, 28, 'slab'], [-260, -180, 260, 24, 'stack'], [-40, -260, 220, 18, 'slab'], [140, -60, 180, 16, 'round'],
+  [-110, -40, 150, 14, 'spire'], [320, -500, 420, 40, 'twist'], [-380, -480, 380, 36, 'halo'], [-20, -700, 500, 50, 'round'], [260, -160, 240, 20, 'stack'], [-220, -620, 340, 30, 'slab'], [110, -620, 300, 26, 'spire']];
+TW.forEach(([x, z, h, r, kind], i) => { const t = CY.tower({ kind, h, r, m: 18, seed: i, ac: ACS[i % 5], c: i % 3 ? '#e4e6ee' : '#e8e2ea' }); t.position.set(x, CY0 - 10, z); t.rotation.y = hash(i, 7) * PI; scene.add(t); tops.push([x, CY0 - 10 + t.userData.h, z, ACS[i % 5]]); });
+// 塔のあいだの光の線（ゆるくたれる）と、それにそって行く乗りもの
+const lanes = [], pods = [];
+[[0, 1], [1, 3], [2, 6], [0, 7], [4, 3], [5, 2], [8, 0], [1, 12], [6, 3], [10, 2], [9, 4]].forEach(([a, b], i) => { const A = TW[a], Bq = TW[b], ya = CY0 + A[2] * (.35 + hash(i, 1) * .35), yb = CY0 + Bq[2] * (.35 + hash(i, 2) * .35), pts = [];
+  for (let k = 0; k <= 16; k++) { const u = k / 16; pts.push([A[0] + (Bq[0] - A[0]) * u, ya + (yb - ya) * u - Math.sin(u * PI) * 18, A[1] + (Bq[1] - A[1]) * u]); }
+  scene.add(CY.line(pts, { c: ACS[i % 5], w: 1.4, speed: 30, rep: 40 })); lanes.push(pts);
+  for (let j = 0; j < 2; j++) { const p = CY.pod({ s: 2.6, ac: ACS[(i + j) % 5] }); scene.add(p); pods.push([p, i, j]); } });
+// 橋の上を低く横切る線（近くを乗りものが行く）
+[[-140, 18, -30, 160, 26, -70], [150, 34, 0, -170, 22, -110]].forEach(([x0, y0, z0, x1, y1, z1], i) => { const pts = []; for (let k = 0; k <= 16; k++) { const u = k / 16; pts.push([x0 + (x1 - x0) * u, y0 + (y1 - y0) * u - Math.sin(u * PI) * 6, z0 + (z1 - z0) * u]); }
+  scene.add(CY.line(pts, { c: [AC.mint, AC.pink][i], w: .8, speed: 24, rep: 30 })); lanes.push(pts); const li = lanes.length - 1; for (let j = 0; j < 3; j++) { const p = CY.pod({ s: 2, ac: [AC.mint, AC.pink][i] }); scene.add(p); pods.push([p, li, j / 1.5]); } });
+const at = (pts, u) => { u = ((u % 1) + 1) % 1; const f = u * (pts.length - 1), i = Math.floor(f), k = f - i, a = pts[i], b = pts[Math.min(pts.length - 1, i + 1)]; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; };
+// 遠くを横切る、空の大きな案内の板
+const sky1 = CY.board({ w: 46, h: 28, ac: AC.sky, kind: 'map', seed: 9 }); sky1.position.set(-60, 120, -230); sky1.rotation.y = .5; scene.add(sky1);
+const sky2 = CY.board({ w: 30, h: 18, ac: AC.pink, kind: 'chart', seed: 10 }); sky2.position.set(110, 80, -140); sky2.rotation.y = -.6; scene.add(sky2);
+scene.add(R.merge(fixed));
+
+// ---- 人：主役と、先を行く 2 人。橋の手すりに とまる光の小鳥 ----
+const hero = CY.avatar({ sex: 'm', hairStyle: 'tufts', hair: '#3a3a5a', eyes: 'sharp', cloth: 'coat', top: '#f2f2f8', top2: '#78b4f0', lower: 'pants', bottom: '#5a6a9a', shoes: 'boot', shoe: '#f4f4f8', gloves: 'glove', glove: '#78b4f0', ears: 'cat', earC: '#3a3a5a', earIn: '#c8d4f4', tail: 'cat', tailC: '#3a3a5a', ring: AC.sky, seed: 1 }); scene.add(hero);
+const pals = [
+  CY.avatar({ sex: 'f', hairStyle: 'long', hair: '#f4f0f8', cloth: 'robe', top: '#f4d8e8', top2: '#f08cb8', skirt: .7, ears: 'bunny', earC: '#ffffff', icon: 'heart', iconC: AC.pink, seed: 2 }),
+  CY.avatar({ sex: 'm', hairStyle: 'spiky', hair: '#f0d468', cloth: 'jacket', top: '#f0d468', top2: '#ffffff', lower: 'shorts', bottom: '#78b4f0', ears: 'fox', earC: '#f0d468', tail: 'fox', tailC: '#f0d468', icon: 'note', iconC: AC.lemon, s: .8, seed: 3 })];
+pals.forEach(p => scene.add(p));
+const motes = FW.motes({ n: 40, box: [24, 10, 40], c: '#ffd8e8', size: .18, rise: .3, drift: 1, y: -2 }); scene.add(motes);
+const crt = R.crt(renderer, { noise: 0, bloom: .12 }); onResize(crt.resize);
+K.loop((dt, t) => {
+  const z = 12 - (t * 1.5) % 200, x = -.5; hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * 5.4, .9);
+  pals.forEach((p, i) => { const pz = z - 5 - i * 1.2; p.position.set(-.5 + i * .9, 0, pz); p.rotation.y = PI; R.walk(p, t * 5.4 + i * 2, .8); });
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? 1.3 : 1.55), tall ? .75 : .6, z + (tall ? 3.4 : 4.2)); cam.lookAt(x - 1.6, tall ? 6.5 : 5.4, z - 14);   // 低い右うしろから、見上げる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z); sea.follow(x, z);
+  pods.forEach(([p, i, j]) => { const pts = lanes[i], u = t * (.02 + hash(i, j) * .02) + j * .5, a = at(pts, u), b = at(pts, u + .01); p.position.set(...a); p.lookAt(...b); });
+  motes.userData.tick(t, x, z); CY.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>

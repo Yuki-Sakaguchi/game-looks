@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-21 上を見上げる下層の市場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2030;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#ffe9c8;opacity:.88;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">12-21 ─ 上を見上げる下層の市場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="pack-under1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夕方、人であふれる下層の市場。頭の上を、上の都市をのせた巨大な台の裏（鉄板・はり・たれた配管）がおおい、その切れ目の向こうに、白と金の塔の都市と、しずむ夕日がのぞく。
+// 色の組は「青むらさきの鉄の かげ・さびと つぎはぎの色」＋「夕焼けの もも・だいだい」、差し色は上の都市の 白と金。下は裸電球とちょうちんで あたたかく。
+// 主役は赤いスカーフに かごを さげた娘（R.actor の toon）。人ごみを奥へ歩き、低い うしろからカメラが追って、台の裏と その向こうの塔を見上げる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), U = PACK_UNDER1(THREE, K, R, C), T = R.tex, X = C.tex, L = C.LIGHT, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 2000, aa: false, fitAspect: .9, maxFov: 82 }), HAZE = '#c07a7a';
+scene.add(R.skyDome([[0, '#3a2c68'], [.45, '#8a4a7a'], [.78, '#e07868'], [.92, '#ffb070'], [1, '#ffe0a0']], { r: 1500 })); scene.fog = new THREE.Fog(HAZE, 60, 1700);
+const { sun } = K.lights(scene, renderer, { sky: 0xa090d0, ground: 0x8a5a50, amb: 1.6, sun: 0xffb080, power: 1.1, range: 30 }), SUN = new THREE.Vector3(.1, .3, -1).normalize();
+// 夕日（塔のあいだに しずむ）
+{ const s = new THREE.Mesh(new THREE.CircleGeometry(40, 20), new THREE.MeshBasicMaterial({ color: '#ffe8a8', fog: false })); s.position.set(-110, 430, -1400); scene.add(s); const hl = C.halo({ c: '#ff9a60', r: 150, k: .5 }); hl.position.copy(s.position); scene.add(hl); }
+
+// ---- 市場の通り（-z へのびる）。店とあかりの一覧 ----
+const LOTS = [], lights = [], WD = [4.6, 5.4, 4.2, 6, 4.8];
+for (const s of [-1, 1]) for (let z = 24, i = 0; z > -90; i++) { const w = WD[(i + (s > 0 ? 2 : 0)) % 5]; LOTS.push({ z: z - w / 2, s, w, i: LOTS.length }); z -= w + .3; }
+for (const l of LOTS) lights.push({ x: l.s * 3.2, z: l.z, r: 5, c: L.bulb, k: .75 }, { x: l.s * 2.4, z: l.z + 1, r: 3.4, c: [L.pink, L.cyan, L.amber][l.i % 3], k: .4 });
+for (let z = 20; z > -86; z -= 7) lights.push({ x: 0, z, r: 4.4, c: '#ff9a4a', k: .4 });
+const land = R.ground({ w: 40, d: 230, cell: 1.5, cz: -40, layers: [X.asphalt({ wet: .3, c: '#5a5064' }), X.conc({ c: '#9a8c84' }), X.plate({ c: '#70708a', n: 2 })],
+  mix: (x, z) => [Math.abs(x) > 3.3 ? 1 : 0, Math.abs(x) < 3 && hash(Math.round(x / 3), Math.round(z / 5)) > .8 ? 1 : 0], shade: C.lightShade(lights, [.6, .52, .62]) }); scene.add(land.mesh);
+
+// ---- 店：つぎはぎの家（2〜4 階）。のれん・店先・ほろ、ネオン、せんたく物 ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const KIND = ['noren', 'open', 'window', 'noren', 'open', 'shutter'], ICON = ['cup', 'fish', 'bottle', 'moon', 'star', 'wave', 'gear', 'heart'];
+for (const { z, s, w, i } of LOTS) { const fl = 2 + Math.floor(hash(i, 3) * 2.5), kind = KIND[i % 6];
+  put(C.shack({ w, d: 4.6, floors: fl, seed: i + 3, shop: kind, shopC: ['#2f4a8a', '#b8302a', '#2f7a5a', '#6a3a7a'][i % 4], goods: ['food', 'goods', 'parts'][i % 3], lit: .8, awning: kind === 'shutter' ? false : ['#c2453a', 'tin', '#2f7a8a', '#c8a04a'][i % 4], laundry: i % 3 === 1, antenna: i % 4 === 2, tank: i % 5 === 3,
+    sign: i % 2 ? { kind: ICON[i % 8], c: [L.pink, L.cyan, L.amber][i % 3], c2: L.amber, shape: ['tall', 'sq'][i % 2], side: s, flicker: i % 7 === 3 } : false }), s * 5.6, z, s > 0 ? -PI / 2 : PI / 2); }
+// 通りの屋台（湯気）と荷物
+const YT = [[-2.6, -4, '#c2453a'], [2.7, -12, '#2f7a8a'], [-2.6, -21, '#c8a04a'], [2.7, -30, '#c2453a'], [-2.6, -40, '#2f7a8a'], [2.7, -50, '#c8a04a']];
+YT.forEach(([x, z, c], i) => put(C.yatai({ c, kind: ['wave', 'ring', 'dots'][i % 3], noren: ['#2f4a8a', '#b8302a', '#2f7a5a'][i % 3], seed: i }), x, z, x > 0 ? -PI / 2 : PI / 2));
+for (let k = 0; k < 14; k++) { const z = 10 - k * 6.5, x = (k % 2 ? 1 : -1) * (3.4 + hash(k, 1) * .4); put([R.crate({ s: .6, kind: 'x' }), C.drum({ c: C.PAL[k % 3] }), R.barrel({ h: .9 }), C.tires({ n: 2 })][k % 4], x, z + 2.5, k); }
+// 通りをわたる裸電球・ちょうちん・布の旗
+for (let z = 18, k = 0; z > -86; z -= 7, k++) { fixed.push(C.bulbs([-3.4, 5.4 + (k % 2) * .6, z], [3.4, 5.4, z - 1], { n: 6, sag: .7, cs: k % 3 ? [L.bulb] : [L.bulb, L.pink, L.bulb, L.cyan] }));
+  if (k % 2) fixed.push(C.lanterns([-3.4, 6.6, z - 3.5], [3.4, 6.8, z - 3.5], { n: 5, sag: .8, kinds: ['red', 'white'] })); }
+// 頭の上の配管（通りにそって・横切って）
+fixed.push(C.pipe([[-4.2, 9.4, 30], [-4.2, 9.4, -95]], .4, { c: '#6e7890', joint: 6 }), C.pipe([[4, 10.6, 30], [4, 10.6, -95]], .3, { c: C.PAL[0], joint: 5, band: '#e8e4d8' }));
+for (const z of [6, -26, -58]) fixed.push(C.pipe([[-30, 13, z], [-6, 13, z], [-4, 11, z], [4, 11, z], [6, 14, z], [30, 14, z]], .5, { c: C.PAL[1], joint: 5, bend: 1.2 }));
+scene.add(R.merge(fixed));
+
+// ---- 上：頭の上をおおう巨大な台（下の面 y=30）。-z のはしで切れ、その向こうに上の都市 ----
+const SY = 40, EDGE = -34;
+const HOLES = [[0, -12], [-24, 6], [22, -26]], hole = (x, z) => HOLES.some(([hx, hz]) => Math.abs(x - hx) < 5 && Math.abs(z - hz) < 5);
+const slab = U.slab({ w: 240, d: 150, th: 9, cell: 10, edge: 'b', glow: '#9a8098', hole: (x, z) => hole(x, z + (EDGE + 75)) }); slab.position.set(0, SY, EDGE + 75); scene.add(slab);
+for (const [x, z] of HOLES) { const s = C.shaft({ w: 8, h: SY, a: .22, lean: .08, c: '#ffc890' }); s.position.set(x, 0, z); scene.add(s); }
+// 台からたれる配管と、そのはしの あかり
+{ const P = []; for (let k = 0; k < 26; k++) { const x = (hash(k, 1) - .5) * 120, z = EDGE + 4 + hash(k, 2) * 120, len = 4 + hash(k, 3) * 10; if (Math.abs(x) < 9) continue; P.push(C.pipe([[x, SY + 1, z], [x, SY - len, z], ...(k % 3 ? [] : [[x + 3, SY - len - 2, z]])], .3 + hash(k, 4) * .35, { c: ['#6e7890', '#a85a30', '#5a5e78'][k % 3], joint: 4 })); } scene.add(R.merge(P)); }
+scene.add(U.lights([...Array(24)].map((_, k) => [-110 + k * 9.6, SY - .6, EDGE - .4]), { c: '#fff0c8', r: .7 }));
+// 台を支える巨大な柱（通りの左右の奥）
+scene.add(R.merge([[-34, -20, 5], [36, 8, 5.5], [-40, 40, 5]].map(([x, z, r], i) => { const p = C.pillar({ r, h: SY + .5, seed: i, c: '#6c6890', emissive: '#3a2a48', lm: 40 }); p.position.set(x, 0, z); return p; })));
+// 上の都市：遠くの高い台の上の 白い塔の群れ（夕日を受ける）
+const city = U.city({ r: 120, n: 22, seed: 4, hmin: 50, hmax: 230, glow: '#ffe4cc', light: [.4, .5, .8], plate: { th: 14, pipes: 18, lampC: '#ffe8b0' } }); city.position.set(-20, 150, -520); scene.add(city);
+const city2 = U.city({ r: 70, n: 10, seed: 9, hmin: 40, hmax: 150, glow: '#f8d0c0', light: [.4, .5, .8], plate: { th: 9, pipes: 10 } }); city2.position.set(230, 120, -440); scene.add(city2);
+// 遠くの下層（つぎはぎの町なみ）
+scene.add(C.backdrop({ r: 300, h: 50, y: -2, haze: '#a06070', c: '#4a3850' }));
+// 上の都市から下へ のびる 光る索道のケーブルと、それを行き来する ゴンドラの あかり
+const rope = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(60, 0, -150), new THREE.Vector3(30, 140, -420)]), new THREE.LineBasicMaterial({ color: '#2a2030' })); scene.add(rope);
+const gond = U.lights([[0, 0, 0], [0, 0, 0]], { c: '#fff4d0', r: 1.4 }); scene.add(gond);
+
+// ---- 人ごみ ----
+const npc = o => { const p = R.actor(o); scene.add(p); return p; };
+const SK = ['#e8b890', '#c8906a', '#f0c8a0', '#a8704a'], HAIR = ['#2a2a34', '#6a3a2a', '#8a6a4a', '#b8b4b0', '#3a2a24'], TOPS = ['#5a6a8a', '#8a5a3a', '#3f7a6a', '#a8743a', '#6a4a6a', '#7a7a5a', '#b05a4a'];
+const STY = ['short', 'bun', 'tail', 'spiky', 'bob', 'bald', 'tufts'], CL = ['coat', 'tunic', 'jacket', 'vest', 'overall', 'robe'];
+const crowd = [...Array(30)].map((_, i) => { const f = i % 2, kid = i % 7 === 5; const p = npc({ sex: f ? 'f' : 'm', hairStyle: STY[i % 7], hair: HAIR[i % 5], skin: SK[i % 4], eyes: ['big', 'half', 'round', 'sharp'][i % 4], beard: !f && i % 5 === 2 ? 'beard' : undefined, cloth: CL[i % 6], top: TOPS[i % 7], top2: '#e8dcc0', bottom: ['#4a4a5a', '#5a4a3a', '#3a4a5a'][i % 3], lower: f && i % 3 ? 'skirt' : 'pants', skirt: .7, skirtC: TOPS[(i + 3) % 7], shoes: 'shoe', hat: i % 6 === 1 ? 'cap' : i % 6 === 4 ? 'band' : undefined, acc: TOPS[(i + 2) % 7], back: i % 4 === 3 ? 'bag' : i % 5 === 1 ? 'pack' : undefined, s: kid ? .72 : .95 + hash(i, 5) * .1 });
+  return { p, lane: (hash(i, 1) - .5) * 4.4, dir: i % 3 ? 1 : -1, sp: .8 + hash(i, 2) * .6, ph: hash(i, 3) * 120, kid, idle: i % 6 === 0 }; });
+const vendors = YT.map(([x, z], i) => { const p = npc({ hairStyle: ['bald', 'bun', 'short'][i % 3], hair: HAIR[i % 5], beard: i % 2 ? 'mustache' : undefined, eyes: 'closed', cloth: 'tunic', top: '#f0e8d8', top2: TOPS[i % 7], bottom: '#4a4a5a', hat: 'band', acc: '#f0e8d8', sex: i % 3 === 1 ? 'f' : 'm' }); p.position.set(x + (x > 0 ? 1.15 : -1.15), 0, z); p.rotation.y = x > 0 ? -PI / 2 : PI / 2; return p; });
+const hero = npc({ sex: 'f', hairStyle: 'bob', hair: '#3a2420', bangs: 'straight', eyes: 'big', mouth: 'smile', blush: true, cloth: 'jacket', sleeve: 'long', top: '#c8a04a', top2: '#f4ecd8', lower: 'skirt', skirt: .55, skirtC: '#3f5a7a', tights: '#4a3a44', shoes: 'boot', shoe: '#5a3a2a', neck: 'scarf', acc: '#d8402e', s: 1 });
+{ const B = R.parts(), W = B.g(T.crate({ kind: 'plain', c: '#b8884a' })); W.loft(8, [[-.34, .15, .1, 0, .8], [-.1, .2, .13, .5, 1], [-.06, .21, .14, .6, 1.1]], { cap: 'bot' }); W.loft(6, [[-.06, .02, .02, 0], [.12, .02, .02, 1]], {}); const bk = B.group();
+  const fr = new THREE.Mesh(new THREE.SphereGeometry(.07, 6, 4), R.mat('#e85a3a')); fr.position.set(.05, -.06, .03); bk.add(fr); const fr2 = fr.clone(); fr2.material = R.mat('#e8c040'); fr2.position.set(-.06, -.07, -.02); bk.add(fr2);
+  bk.position.set(0, -.42, .05); hero.userData.J.foreL.add(bk); }   // 手にさげた かご（くだもの）
+const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); scene.add(cat);
+const crows = [0, 1, 2, 3, 4].map(i => { const b = R.bird({ c: '#3a3040', belly: '#5a4a5a', s: 1.6 }); scene.add(b); return b; });
+const steam = YT.map(([x, z]) => { const s = C.steam({ r: .4, rise: 2.2, n: 7, c: '#ffe8d8', a: .45 }); s.position.set(x, 1.3, z); scene.add(s); return s; });
+const follow = new THREE.PointLight('#ffb468', 8, 9, 1.4); scene.add(follow);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 14, SPEED = .95, LEN = 34;
+K.loop((dt, t) => {
+  const dist = (t * SPEED) % LEN, z = Z0 - dist, x = .4 + Math.sin(z * .13) * .5;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.cos(z * .13) * .06; R.walk(hero, dist * 4.4, .85); hero.userData.J.armL.rotation.z = -.12; hero.userData.J.foreL.rotation.x = -.2;
+  const tall = innerWidth < innerHeight, D = tall ? 3.8 : 4.4; cam.position.set(x + .5, tall ? 1.05 : .95, z + D); cam.lookAt(x - .2, tall ? 6.6 : 6, z - 12);   // 低い所から見上げる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60 + 10, z - 60); sun.target.position.set(x, 0, z); follow.position.set(x, 2.8, z + 1);
+  crowd.forEach((c, i) => { const p = c.p; if (c.idle) { const zz = Z0 - ((c.ph * .6) % 75); p.position.set(c.lane > 0 ? 2.1 : -2.1, 0, zz); p.rotation.y = c.lane > 0 ? -PI / 2 + .5 : PI / 2 - .5; R.idle(p, t + i, Math.sin(t * .5 + i) * .3); return; }
+    const sp = c.sp * (c.kid ? 1.8 : 1), u = ((t * sp + c.ph) % 96), zz = c.dir > 0 ? 20 - u : -76 + u; let lx = c.lane; if (Math.abs(zz - z) < 2.5 && Math.abs(lx - x) < .9) lx += lx > x ? .9 : -.9;
+    p.position.set(lx, 0, zz); p.rotation.y = c.dir > 0 ? PI : 0; R.walk(p, t * sp * 4.4 + i, c.kid ? 1.2 : .8); });
+  vendors.forEach((v, i) => { R.idle(v, t + i * 2, Math.sin(t * .4 + i) * .3); v.userData.J.armR.rotation.x = -.9 - Math.sin(t * 3 + i) * .2; v.userData.J.foreR.rotation.x = -.7; });
+  const cu = (t * .7) % 30; cat.position.set(-3.2, .0, 6 - cu); cat.rotation.y = PI; R.catPose(cat, 'walk', t * 8);
+  crows.forEach((b, i) => { const a = t * .25 + i * 1.3; b.position.set(Math.sin(a) * 26 + (i - 2) * 6, SY - 6 - i * 1.4 + Math.sin(a * 2) * 1.5, EDGE - 10 + Math.cos(a) * 14); b.rotation.y = a + PI / 2; R.birdPose(b, 'fly', t * 3 + i); });
+  for (let k = 0; k < 2; k++) { const u = ((t * .03 + k * .5) % 1); gond.userData.set(k, 60 - 30 * u, 140 * u, -150 - 270 * u); }
+  C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

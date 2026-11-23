@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>12-02 さかさまの町 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a2a6a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4e0;opacity:.92;text-shadow:0 1px 0 #2a1a4a}
+</style>
+<div id="cap">12-02 ─ さかさまの町 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="pack-book1.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 絵本の中の夕方。空いっぱいに、もう 1 つの町がさかさまに浮かび、屋根を下に向けて地面の町と向き合う。通りの先では、上と下の 2 本の塔が先をあわせるように のびる。間を鳥と風船がわたる。
+// 色の組は「むらさきの空・夕やけの もも色と だいだい・石とれんがの あたたかい灰色」＋差し色の 窓のあかりの黄。家は R.house を pack-book1.js の warp で少しゆがめ、上の町は同じ町を まるごと回して さかさまにした。
+// 主役は長いかみの旅人（R.actor の toon）。石だたみの通りをこちらへ歩き、前の低い所からカメラが 見上げて、空の町まで入れる。町の人・ねこ・風船・鳥・旗・あかりが動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), B1 = PACK_BOOK1(THREE, K, R), T = R.tex, X = B1.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 62, far: 900, aa: false, fitAspect: .9, maxFov: 86 });
+scene.add(R.skyDome([[0, '#2a2a78'], [.35, '#6a3a9a'], [.62, '#d05a98'], [.82, '#ff9a70'], [.94, '#ffd080'], [1, '#fff0b0']], { r: 600 })); scene.fog = new THREE.Fog('#a070b8', 110, 620);
+const { sun } = K.lights(scene, renderer, { sky: 0xd0a0ff, ground: 0xffa070, amb: 1.35, sun: 0xffa868, power: 2.2, range: 34 }), SUN = new THREE.Vector3(.35, .22, 1).normalize();
+const under = new THREE.DirectionalLight(0xffa890, 1.5); under.position.set(-.3, -1, .4); scene.add(under);   // 上の町の下向きの面を照らす、夕やけの照りかえし
+
+// ---- 町を 1 つ作る関数（地面の町と、空のさかさまの町で使う） ----
+const SY = 90;   // 空の町の地面の高さ
+const town = (sd, flip, tz, th) => { const g = new THREE.Group(), fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+  const IW = 46, land = R.ground({ w: flip ? IW * 2 : 140, d: flip ? 216 : 260, cell: 2, cz: flip ? 96 : 60, H: () => 0, layers: [T.cobble({ c: flip ? '#d8b8c0' : '#a8908a', kind: 'round' }), T.grass({ c: flip ? '#7aa860' : '#6a8a5a', flowers: .25, fc: ['#ffe070', '#ffffff'] }), T.brickFloor({ c: '#b87a5a' })],
+    mix: (x, z) => [(Math.abs(x) > 12 && Math.abs(x) < 15) || (flip && Math.abs(x) > 15 && Math.abs(Math.abs(x) - 31) > 3) ? 1 : 0, Math.abs(x) < 2.4 ? 1 : 0] }); g.add(land.mesh);
+  if (flip) { const G = R.geo(), D = 9; for (const [a, b] of [[[-IW, -12], [IW, -12]], [[IW, -12], [IW, 204]], [[IW, 204], [-IW, 204]], [[-IW, 204], [-IW, -12]]]) { const n = Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 6); for (let i = 0; i < n; i++) { const p0 = [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n], p1 = [a[0] + (b[0] - a[0]) * (i + 1) / n, a[1] + (b[1] - a[1]) * (i + 1) / n], d0 = D * (.5 + hash(i, a[0], 3)), d1 = D * (.5 + hash(i + 1, a[0], 3));   // 浮いた町のふちの、土と岩の厚み
+      G.quad([p0[0], -d0, p0[1]], [p1[0], -d1, p1[1]], [p1[0], .05, p1[1]], [p0[0], .05, p0[1]], [0, 0, 2, Math.max(d0, d1) / 3], [.7, .7, 1, 1]); } } fixed.push(G.mesh(T.rock({ c: '#8a6a7a', moss: .4 }), { side: true })); }
+  const WALLS = [T.plaster({ c: '#f0e0c8', frame: 'cross', wood: '#6a4a3a' }), T.brick({ c: '#b86a4a' }), T.plaster({ c: '#d8e8f0', frame: 'box', wood: '#4a4a6a' }), T.stone({ c: '#c8b8a0' }), T.plaster({ c: '#f8d0c0', frame: 'beam', wood: '#5a3a3a' })];
+  const ROOFS = [T.roof({ c: '#4a6ab0', kind: 'slate' }), T.roof({ c: '#c84a3a', kind: 'scale' }), T.shingle({ c: '#5a8a5a' }), T.roof({ c: '#8a4a8a', kind: 'wave' })];
+  const winW = T.window({ bars: 'cross', curtain: '#f4e8d8', box: true }), winL = T.window({ bars: 'cross', lit: 1, curtain: '#ffd080' });
+  for (const rx of flip ? [6.6, 19, 34] : [6.6]) for (const sx of [-1, 1]) for (let i = 0; i < (rx > 7 ? 14 : 18); i++) { const k = i + (sx > 0 ? 40 : 0) + sd + Math.round(rx * 7), z = -10 + i * (rx > 7 ? 13 : 9) + hash(k, 1) * 2 + (rx > 20 ? 5 : 0), w = 5 + hash(k, 2) * 2.4, h2 = hash(k, 3) > .3 ? 2.4 + hash(k, 4) * 1.6 + (rx > 7 ? 2 : 0) : 0, x = sx * (rx + hash(k, 5) * 1.2);
+    const hs = R.house({ w, d: 5, h: 2.8, h2, h3: 0, wall: WALLS[k % 5], wall2: WALLS[(k + 2) % 5], roof: ROOFS[k % 4], pitch: .9 + hash(k, 6) * .5, win: winW, winLit: winL, lit: .65, door: T.door({ style: 'plank', c: ['#5a3a2a', '#3a5a7a', '#7a3a3a'][k % 3], lit: 1 }), chimney: k % 3 === 0, seed: k, sign: k % 5 === 1 ? T.sign({ kind: ['mug', 'bread', 'star'][k % 3] }) : undefined });
+    put(B1.warp(hs, { lean: [(hash(k, 7) - .5) * .12, 0], twist: (hash(k, 8) - .5) * .3, bulge: .06, wave: .3, seed: k, step: rx > 7 ? 1.4 : .8 }), x + sx * 2.5, z, rx > 7 && hash(k, 9) > .5 ? sx * PI / 2 : -sx * PI / 2); }
+  for (let i = 0; i < 12; i++) { const z = -6 + i * 14; for (const sx of [-1, 1]) put(R.lamp({ h: 3.4, arm: .6 }), sx * 4.2, z + (sx > 0 ? 7 : 0), sx > 0 ? -PI / 2 : PI / 2); }
+  for (let i = 0; i < (flip ? 30 : 10); i++) { const z = hash(i, 9, sd) * 180, sx = i % 2 ? 1 : -1; put(R.tree({ kind: 'round', h: 4.5 + hash(i, 4) * 2, c: '#4a7a52', flowers: .2, fc: ['#ffd0e0'], seed: i }), sx * (13.5 + (flip ? [0, 13, 15][i % 3] : 0)), z, i); }
+  for (let i = 0; i < 6; i++) put(R.barrel({ c: '#8a5a3a' }), (i % 2 ? 1 : -1) * 4.9, 3 + i * 19, i);
+  const tw = F.tower({ kind: 'round', r: th[2], h: th[0], stone: F.tex.ashlar({ c: flip ? '#c8a8b8' : '#c8b0a0' }), roof: F.tex.slate({ c: flip ? '#3a6ab8' : '#c84a5a', kind: 'fish' }), top: 'cone', roofH: th[1], wins: true, lit: .8 }); put(tw, 0, tz);
+  g.add(R.merge(fixed)); for (let i = 0; i < 3; i++) g.add(F.bunting({ from: [-6, 4.6, 10 + i * 26], to: [6, 4.8, 12 + i * 26], n: 10, sag: .8, cs: ['#ffe070', '#f05a7a', '#5ac0e0', '#ffffff'] }));
+  return g; };
+const ground = town(0, false, 196, [30, 12, 5]); scene.add(ground);
+const SS = 1.8, SKZ = 457, sky = town(7, true, (SKZ - 196) / SS, [16, 7, 3.2]); sky.rotation.x = PI; sky.scale.setScalar(SS); sky.position.set(0, SY, SKZ);   // 上の町は 1.8 倍の大きさ scene.add(sky);   // まるごと回して、さかさまに（z は向こうへ反転するので、ずらして合わせる）
+sky.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
+
+// ---- 間をわたる物：風船・鳥・雲 ----
+const balloons = [...Array(16)].map((_, i) => { const b = B1.balloon({ r: .7 + hash(i, 1) * .5, c: ['#f05a6a', '#f8d050', '#5ac0e0', '#b070e0', '#7ad070', '#fff4ea'][i % 6], c2: i % 3 ? null : '#fff4ea', len: 2, seed: i }); scene.add(b); return b; });
+const flocks = [0, 1, 2].map(k => { const f = PK.flock({ n: 7, r: 9 + k * 3, h: 2, c: k === 1 ? '#3a2a4a' : '#fff4f0', s: 1.7, speed: .3 + k * .07 }); f.position.set(-6 + k * 9, 18 + k * 12, 30 + k * 30); scene.add(f); return f; });
+for (let k = 0; k < 8; k++) { const c = R.cloud({ s: 34 + hash(k, 9) * 30, c: '#ffd0b8', shade: '#a86aa8', seed: k }); c.position.set(-120 + k * 34, 58 + (hash(k, 8) - .5) * 14, 160 + hash(k, 7) * 120); c.rotation.y = PI; scene.add(c); }
+
+// ---- 人とねこ（人は 5 頭身の toon） ----
+R.cfg.actorBuild = 'toon';
+const hero = R.actor({ sex: 'f', hairStyle: 'long', hair: '#2a2a4a', eye: '#3a6ab0', eyes: 'round', mouth: 'small', blush: true, cloth: 'coat', sleeve: 'long', top: '#f8d050', top2: '#fff4e0', lower: 'skirt', skirt: .6, skirtC: '#3a3a6a', tights: '#4a3a5a', shoes: 'boot', shoe: '#6a3a2a', neck: 'scarf', acc: '#e23a4e', back: 'bag', belt: '#6a3a2a' }); scene.add(hero);
+const folk = [R.actor({ hairStyle: 'bald', hair: '#c8c0b8', beard: 'mustache', cloth: 'coat', top: '#3a5a8a', top2: '#f4ecd8', lower: 'pants', bottom: '#4a3a3a', shoes: 'shoe', hat: 'cap', acc: '#3a3a4a' }), R.actor({ sex: 'f', hairStyle: 'bob', hair: '#8a3a2a', s: .82, eyes: 'big', cloth: 'tunic', top: '#e85a8a', lower: 'skirt', skirtC: '#ffffff', shoe: '#3a3a4a' })];
+folk.forEach(f => scene.add(f));
+const skyFolk = [0, 1, 2].map(i => { const p = R.actor({ hairStyle: ['spiky', 'tail', 'short'][i], hair: '#4a3a2a', cloth: 'tunic', top: ['#5ac0e0', '#f8a040', '#7ad070'][i], lower: 'pants', bottom: '#4a4a6a' }); sky.add(p); return p; });   // 上の町を、さかさまに歩く人
+const cat = R.cat({ c: '#3a3040', belly: '#e8e0e8' }); scene.add(cat);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 52, SPEED = 1.2;
+K.loop((dt, t) => {
+  const z = Z0 - t * SPEED, x = Math.sin(t * .2) * .4; hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.7, .8); hero.userData.J.head.rotation.x = -.25;   // こちらへ歩きながら、空を見上げる
+  const tall = innerWidth < innerHeight; cam.position.set(x - 1.1, .75, z - (tall ? 4.6 : 5.6)); cam.lookAt(x + .3, tall ? 6.4 : 5.3, z + 14);   // 前の低い所から見上げる
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z);
+  folk.forEach((f, i) => { const fz = z + 4 + ((t * 1.1 + i * 9) % 22), fx = i ? 2.6 : -2.8; f.position.set(fx, 0, fz); f.rotation.y = 0; R.walk(f, t * 4 + i, .6); });
+  skyFolk.forEach((p, i) => { const lz = (SKZ - z - 30) / SS + ((t * 1.2 + i * 11) % 40) - 20, lx = [-2.5, 1, 3][i]; p.position.set(lx, 0, lz); p.rotation.y = i % 2 ? 0 : PI; R.walk(p, t * 4 + i, .6); });
+  { const cx = x + 1.6 + Math.sin(t * .5); cat.position.set(cx, 0, z + 2.2); cat.rotation.y = PI + Math.cos(t * .5) * .6; R.catPose(cat, 'walk', t * 5); }
+  balloons.forEach((b, i) => { const by = (t * (1.2 + hash(i, 4) * .8) + hash(i, 5) * 60) % 64; b.position.set(-12 + hash(i, 6) * 24 + Math.sin(t * .3 + i) * 2, by, z + 6 + hash(i, 7) * 60); });
+  flocks.forEach(f => f.userData.tick(t)); F.tick(t); B1.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
