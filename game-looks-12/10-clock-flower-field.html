@@ -50,29 +50,28 @@ scene.add(R.merge(fl));
 
 // ---- 砂時計の木（木わくの柱、ガラスのふくらみ、上から下へ落ちる砂） ----
 const glassT = (() => { const P = R.Px(16, 32), A = R.ramp('#c8e8f0', 6, { contrast: .5 }); P.each((x, y) => x === 3 || x === 4 ? A[5] : x === 12 ? A[4] : (x + y) % 11 === 0 ? A[4] : A[3]); return T.from(P, { m: 2 }); })();
-const glassM = R.mat(glassT, { side: true }).clone(); glassM.transparent = true; glassM.opacity = .38; glassM.depthWrite = false;
+const glassM = R.mat(glassT, { side: true }).clone(); glassM.transparent = true; glassM.opacity = .3; glassM.depthWrite = false;
 const sandT = T.sand({ c: '#f0c060' }), woodT = T.planks({ c: '#7a4a32' }), glasses = [];
 const hourglass = (x, z, s, i) => { const g = new THREE.Group(), y = H(x, z); g.position.set(x, y - .1, z); g.rotation.y = hash(i, 1) * 3; g.scale.setScalar(s); scene.add(g); const P = R.parts();
   P.g(woodT).smooth(0).loft(8, [[0, 1.5, 1.5, 0, .8], [.4, 1.5, 1.5, .3, 1]], { cap: 'top' }).loft(8, [[5.6, 1.5, 1.5, 0, .9], [6, 1.5, 1.5, .3, 1.05], [6.2, 1.1, 1.1, .45, 1.1]], { cap: 'both' });
   const Wd = P.g(woodT).smooth(1); for (let k = 0; k < 3; k++) { const a = k / 3 * PI * 2 + .3; Wd.loft(5, [[.4, .13, .13, 0, .9, Math.cos(a) * 1.25, Math.sin(a) * 1.25], [3, .1, .1, 1, 1, Math.cos(a) * 1.1, Math.sin(a) * 1.1], [5.6, .13, .13, 2, 1, Math.cos(a) * 1.25, Math.sin(a) * 1.25]]); }
   // 葉のかたまりを てっぺんに（砂時計の「木」）
-  P.g(T.leaves({ c: '#4a8a4a', shape: 'tile' })).smooth(2).loft(7, [[6, .8, .8, 0, .7], [6.8, 2.2, 2.2, .5, .9], [7.8, 2.4, 2.4, 1, 1.05], [8.8, 1.6, 1.6, 1.5, 1.1], [9.4, .2, .2, 2, 1.15]], { ur: 3 });
-  g.add(P.group()); const gl = R.geo().smooth(1).loft(10, [[.4, .9, .9, 0, 1], [1.4, 1.05, 1.05, .3, 1], [2.6, .25, .25, .5, 1], [3, .12, .12, .55, 1], [3.4, .25, .25, .6, 1], [4.6, 1.05, 1.05, .8, 1], [5.6, .9, .9, 1, 1]], { ur: 2 }); const gm = new THREE.Mesh(gl.build(), glassM); gm.renderOrder = 2; g.add(gm);
+  P.g(T.leaves({ c: '#4a8a4a', shape: 'tile' })).smooth(2).loft(7, [[6.1, .5, .5, 0, .7], [6.6, 1.5, 1.5, .5, .9], [7.3, 1.6, 1.6, 1, 1.05], [8, 1, 1, 1.5, 1.1], [8.4, .15, .15, 2, 1.15]], { ur: 3 });
+  g.add(P.group()); const gl = R.geo().smooth(1).loft(10, [[.4, .7, .7, 0, 1], [1.1, 1.1, 1.1, .2, 1], [2, .8, .8, .4, 1], [2.8, .18, .18, .5, 1], [3.2, .18, .18, .55, 1], [4, .8, .8, .7, 1], [4.9, 1.1, 1.1, .85, 1], [5.6, .7, .7, 1, 1]], { ur: 2 }); const gm = new THREE.Mesh(gl.build(), glassM); gm.renderOrder = 2; g.add(gm);
   const top = R.geo().smooth(1).loft(8, [[0, .05, .05, 0, 1], [1, .95, .95, 1, 1.1]], { cap: 'top' }).mesh(sandT), bot = R.geo().smooth(1).loft(8, [[0, .95, .95, 0, .9], [1, .05, .05, 1, 1.05]], { cap: 'bot' }).mesh(sandT), fall = R.geo().loft(4, [[0, .04, .04, 0, 1], [1, .04, .04, 1, 1]]).mesh(R.mat('#f0c060', { glow: true }));
   top.position.y = 3.05; bot.position.y = .42; fall.position.y = .42; g.add(top, bot, fall); glasses.push({ top, bot, fall, ph: hash(i, 2) * 10 }); };
-[[-9, -6, .8], [10, -14, .9], [-12, -30, 1.1], [13, -40, 1], [-7, -52, .9], [9, -66, 1.2], [-15, -78, 1.3], [16, -92, 1.3], [-11, -110, 1.5]].forEach(([dx, z, s], i) => hourglass(RX(z) + dx, z, s, i));
+[[-6, -6, 1.1], [7, -16, 1.3], [-8, -30, 1.5], [10, -42, 1.4], [-7, -54, 1.3], [9, -68, 1.6], [-14, -80, 1.7], [16, -94, 1.7], [-11, -112, 1.9]].forEach(([dx, z, s], i) => hourglass(RX(z) + dx, z, s, i));
 for (let i = 0; i < 40; i++) { const z = 20 - hash(i, 1) * 140, x = RX(z) + (hash(i, 2) > .5 ? 1 : -1) * (2.4 + hash(i, 3) * 20); put(R.tuft({ kind: 'flower', s: .8, fc: ['#f8f0d0', '#f0c040', '#a878d8'], seed: i % 3 }), x, z, i); }
 scene.add(R.merge(fixed));
 scene.add(R.backdrop({ c: '#7a6a9a', haze: '#f0a878', r: 330, h: 34, y: -2, rep: 3 }));
 
 // ---- 空の巨大な振り子（どこにもつながらない糸の先で、ゆっくりゆれる） ----
-const pend = new THREE.Group(); pend.position.set(-10, 230, -300); scene.add(pend);
+const pend = new THREE.Group(); pend.position.set(8, 230, -240); scene.add(pend);
 { const bobT = (() => { const P = R.Px(64), A = R.ramp('#e8b048', 6, { contrast: .85 }), Dk = R.ramp('#8a5a2a'); P.clip = true; P.each((x, y) => { const d = Math.hypot(x + .5 - 32, y + .5 - 32); if (d > 31.5) return null; if (d > 29) return A[1]; if (d > 27) return A[(x + y) < 64 ? 5 : 2]; const l = (32 - x) * .6 + (32 - y) * .8; return d < 6 ? Dk[3] : (d > 22 && d < 24) ? Dk[2] : l > 18 ? A[5] : l > 4 ? A[4] : l > -12 ? A[3] : A[2]; });
     for (let k = 0; k < 12; k++) { const a = k / 12 * PI * 2; P.disc(32 + Math.cos(a) * 18, 32 + Math.sin(a) * 18, 1.5, Dk[1]); } P.disc(32, 32, 3, A[5]); return T.from(P, { m: 1, cut: true }); })();
-  const G = R.geo(), Rb = 26; G.quad([-Rb, -Rb, 0], [Rb, -Rb, 0], [Rb, Rb, 0], [-Rb, Rb, 0]); const bob = G.mesh(R.mat(bobT, { side: true, cut: true, fog: false })); bob.position.y = -190; bob.castShadow = false; pend.add(bob);
+  const G = R.geo(), Rb = 40; G.quad([-Rb, -Rb, 0], [Rb, -Rb, 0], [Rb, Rb, 0], [-Rb, Rb, 0]); const bob = G.mesh(R.mat(bobT, { side: true, cut: true, fog: false })); bob.position.y = -190; bob.castShadow = false; pend.add(bob);
   const edge = R.geo().smooth(1).loft(16, [[-2.5, Rb * .98, Rb * .98, 0, .7], [2.5, Rb * .98, Rb * .98, 1, .9]], { ur: 8 }).mesh(R.mat(R.tex.metal({ c: '#c8883a' }), { fog: false })); edge.geometry.rotateX(PI / 2); edge.position.y = -190; edge.position.z = -.3; pend.add(edge);
   const rod = R.geo().loft(4, [[-168, .9, .9, 0, 1], [60, .9, .9, 20, 1]]).mesh(R.mat(R.tex.metal({ c: '#8a6a4a' }), { fog: false })); pend.add(rod); }
-const motes = FW.motes({ n: 40, box: [18, 4, 30], c: '#fff0c0', size: 1.2, rise: .2 }); scene.add(motes);
 const butterflies = [...Array(5)].map((_, k) => { const g = R.bird({ c: ['#f0c040', '#a878d8', '#f8f0e0'][k % 3], belly: '#ffffff', s: .7 }); scene.add(g); return g; });
 
 // ---- 主役と、前を行く ねこ ----
@@ -83,14 +82,13 @@ const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
 const Z0 = 16, SPEED = 1.35;
 K.loop((dt, t) => {
   const tall = innerWidth < innerHeight, z = Z0 - t * SPEED, x = RX(z), y = H(x, z) + .07, x2 = RX(z - .5), ang = Math.atan2(x2 - x, -.5);
-  hero.position.set(x, y, z); hero.rotation.y = ang + PI; R.walk(hero, t * SPEED * 3.6, .85);
-  const cx = RX(z + 5) * .6 + x * .4; cam.position.set(cx + 1.2, y + (tall ? 4.4 : 3.9), z + (tall ? 4.4 : 5)); cam.lookAt(RX(z - 8), y + (tall ? 1.2 : 1.6), z - 12);
+  hero.position.set(x, y, z); hero.rotation.y = ang; R.walk(hero, t * SPEED * 3.6, .85);
+  const cx = RX(z + 5) * .6 + x * .4; cam.position.set(cx + 1, y + (tall ? 3.1 : 2.8), z + (tall ? 3.9 : 4.3)); cam.lookAt(RX(z - 6) * .7 + x * .3, y + .55, z - 7);
   sun.position.set(x + SUN.x * 60 * -1, 40, z + 50); sun.target.position.set(x, y, z - 6); land.follow(x, z - 50);
-  const cz = z - 3.2 - Math.sin(t * .8) * .4, cxx = RX(cz) + .4; cat.position.set(cxx, H(cxx, cz) + .07, cz); cat.rotation.y = Math.atan2(RX(cz - .5) - RX(cz), -.5) + PI; R.catPose(cat, 'walk', t * 1.2);
+  const cz = z - 3.2 - Math.sin(t * .8) * .4, cxx = RX(cz) + .4; cat.position.set(cxx, H(cxx, cz) + .07, cz); cat.rotation.y = Math.atan2(RX(cz - .5) - RX(cz), -.5); R.catPose(cat, 'walk', t * 1.2);
   hands.forEach(([m, sp, ph]) => { m.rotation.z = -(ph + t * sp); });
   glasses.forEach(({ top, bot, fall, ph }) => { const q = ((t + ph) % 12) / 12; top.scale.set(1 - q * .9, 1 - q * .95, 1 - q * .9); bot.scale.set(.3 + q * .7, .1 + q * .9, .3 + q * .7); fall.scale.set(1, 2.6 - bot.scale.y * .6, 1); });
   pend.rotation.z = Math.sin(t * .45) * .28;
-  motes.userData.tick?.(t, x, z); motes.position.set(x, y, z - 10);
   butterflies.forEach((b, k) => { const a = t * 1.1 + k * 1.6; b.position.set(x + Math.cos(a) * (2 + k * .6), y + 1.2 + Math.sin(t * 3 + k) * .3, z - 3 - k * 1.5 + Math.sin(a) * 1.4); b.rotation.y = -a; R.birdPose(b, 'fly', t * 2 + k); });
   F.tick(t); crt.render(scene, cam, t);
 });

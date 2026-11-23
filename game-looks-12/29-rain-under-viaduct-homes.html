@@ -46,8 +46,12 @@ scene.add(D.streaks(lights.filter((_, i) => i % 2 === 0).map(l => ({ x: l.x, z: 
 // ---- 頭の上：上の都市の台の裏（天井のように手前までおおう）。家なみの向こうのふちから、雨水のたき ----
 const UR = 300, UY = 34, RIM = -46; { const up = U.upper({ r: UR, y: UY, th: 26, towers: 0, glow: true, tint: .9, seed: 2, hang: 0, lamps: .9, dotSize: 2, underGlow: '#2a2c44', underTint: .9 }); up.position.set(0, 0, RIM + UR); scene.add(up); }
 const FALLS = [[-46, 9], [-24, 6], [-4, 12], [18, 7], [40, 10], [64, 7]].map(([x, w], i) => { const f = U.cascade({ w, h: UY - 1, speed: 1.6 + i * .1, a: .85 }); f.position.set(x, UY - 1.4, RIM + UR - Math.sqrt(UR * UR - x * x) + 1); scene.add(f); const h = U.halo({ c: '#c8d8ff', r: w * 1.3, k: .18 }); h.position.set(x, UY - 3, f.position.z + 1); scene.add(h); return f; });
+// 台のふち（下から見える 厚みのところ）：あかりの窓の帯と、作業灯の列
+{ const G = R.geo(), cz = RIM + UR, zr = x => cz - Math.sqrt(UR * UR - x * x), pts = []; for (let x = -140; x < 140; x += 6) { G.quad([x, UY - 4.5, zr(x)], [x + 6, UY - 4.5, zr(x + 6)], [x + 6, UY - .2, zr(x + 6)], [x, UY - .2, zr(x)], [0, 0, 2, 1.4]); for (let k = 0; k < 2; k++) pts.push(x + k * 3, UY - 5, zr(x + k * 3) + .4); }
+  const m = G.mesh(U.tex.marbleWin({ lit: .7, seed: 4 }), { glow: true, fog: false, side: true, color: '#8890b0' }); scene.add(m);
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); const pm = new THREE.Points(pg, new THREE.PointsMaterial({ color: '#fff4d0', size: 3, sizeAttenuation: false, fog: false })); scene.add(pm); }
 // 台のふちの向こう：雨にかすむ、別の上の都市の塔の群れ（遠くで白く光る）
-{ const far = U.upper({ r: 160, y: 46, th: 22, towers: 16, tall: .8, glow: true, tint: .75, haze: '#5a6488', hazeK: .35, seed: 9, hang: 4, dotSize: 2 }); far.position.set(60, 0, -560); scene.add(far); const h = U.halo({ c: '#d8e0ff', r: 200, k: .1 }); h.position.set(60, 150, -620); scene.add(h); }
+{ const far = U.upper({ r: 160, y: 46, th: 22, towers: 16, tall: .8, glow: true, tint: .9, haze: '#6a74a0', hazeK: .25, seed: 9, hang: 4, dotSize: 2 }); far.position.set(60, 0, -560); scene.add(far); const h = U.halo({ c: '#d8e0ff', r: 200, k: .1 }); h.position.set(60, 150, -620); scene.add(h); }
 // 屋根の雨どいから落ちる細い水
 const drips = gut.map(([x, y, z]) => { const f = U.cascade({ w: .35, h: y, speed: 2.2, a: .6 }); f.position.set(x, y, z); scene.add(f); return f; });
 const rain = D.rain({ n: 900, box: [30, 14, 22], speed: 22, slant: [.12, .06], a: .5 }); scene.add(rain);
@@ -56,7 +60,7 @@ const rain = D.rain({ n: 900, box: [30, 14, 22], speed: 22, slant: [.12, .06], a
 const act = (o, x = 0, z = 0, ry = 0) => { const p = R.actor({ build: 'toon', ...o }); p.position.set(x, 0, z); p.rotation.y = ry; scene.add(p); return p; };
 const UC = [['#2a4a7a', null], ['#4a6a3a', '#8a6a4a'], ['#e8e0cc', null], ['#5a3a6a', '#c8a040'], ['#3a3a44', null], ['#2f7a8a', '#d8402c']];
 const walkers = UC.map(([c, patch], i) => { const p = act({ sex: i % 2 ? 'm' : 'f', hairStyle: ['long', 'short', 'bun', 'tufts', 'tail', 'bald'][i], hair: ['#2a2228', '#5a3a28', '#8a8a8a'][i % 3], cloth: ['coat', 'jacket', 'coat', 'tunic', 'coat', 'jacket'][i], sleeve: 'long', top: ['#5a5a6a', '#6a4a3a', '#3a4a5a', '#7a6a4a', '#4a5a4a', '#6a5a6a'][i], top2: '#d8ccb0', bottom: '#2a2a3a', lower: i % 2 ? 'pants' : 'skirt', skirt: .8, skirtC: '#3a3a4a', shoes: 'boot', back: i % 3 === 0 ? 'bag' : undefined, s: i === 4 ? .72 : 1 });
-  U.umbrella(p, { c, patch, seed: i }); p.userData.dir = i % 2 ? 1 : -1; p.userData.v = .9 + hash(i, 1) * .5; p.userData.off = i * 13; p.userData.z = [1.2, -1, .4, -1.6, 1.8, -.3][i]; return p; });
+  U.umbrella(p, { c, patch, seed: i }); p.userData.dir = i % 2 ? 1 : -1; p.userData.v = .9 + hash(i, 1) * .5; p.userData.off = i * 5.1 + 2; p.userData.z = [-1.4, -.9, -1.8, -1.1, -1.6, -.6][i]; return p; });
 const shelter = [act({ hairStyle: 'spiky', hair: '#3a2a20', mouth: 'open', blush: true, cloth: 'overall', top: '#c8a04a', top2: '#e8dcc0', lower: 'shorts', shoes: 'shoe', s: .7 }, 6.2, -2.7, .4), act({ sex: 'f', hairStyle: 'twin', hair: '#6a3a24', mouth: 'smile', blush: true, cloth: 'tunic', top: '#4f8f88', lower: 'skirt', skirt: .5, shoes: 'shoe', s: .68 }, 7.1, -2.8, -.5)];
 const cat = R.cat({ c: '#e8a050', belly: '#f4ecd8' }); cat.position.set(-7.8, .02, -2.6); cat.rotation.y = .5; scene.add(cat);
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
@@ -67,7 +71,7 @@ K.loop((dt, t) => {
   { const J = hero.userData.J; J.armR.rotation.set(-1.25, 0, .25); J.foreR.rotation.x = -1.05; J.head.rotation.set(-.15, .35 + Math.sin(t * .4) * .2, 0); }   // かさを持つ うで、ときどき台のほうを見上げる
   const tall = innerWidth < innerHeight;
   cam.position.set(x + (tall ? .2 : .9), tall ? 1.1 : 1.1, tall ? 5 : 6.2); cam.lookAt(x + (tall ? .2 : .9), tall ? 5 : 4.2, -6);   // 路地の横から。家なみと、その上の台のふちと たきまで
-  walkers.forEach((p, i) => { const u = p.userData, span = 70, k = ((t * u.v * u.dir + u.off) % span + span) % span, wx = x - 35 + k; p.position.set(wx, 0, u.z); p.rotation.y = u.dir * PI / 2; R.walk(p, t * u.v * 4.6 + i, .7); const J = p.userData.J; J.armR.rotation.set(-1.25, 0, .25); J.foreR.rotation.x = -1.05; });
+  walkers.forEach((p, i) => { const u = p.userData, span = 30, k = ((t * u.v * u.dir + u.off) % span + span) % span, wx = x - 15 + k; p.position.set(wx, 0, u.z); p.rotation.y = u.dir * PI / 2; R.walk(p, t * u.v * 4.6 + i, .7); const J = p.userData.J; J.armR.rotation.set(-1.25, 0, .25); J.foreR.rotation.x = -1.05; });
   shelter.forEach((p, i) => { R.idle(p, t + i * 3, Math.sin(t * .5 + i) * .4 + (i ? -.3 : .3)); if (i === 0) { p.userData.J.armL.rotation.set(-2.6 - Math.sin(t * 2) * .2, 0, .3); p.userData.J.head.rotation.x = -.4; } });
   R.catPose(cat, 'sit', t);
   U.update(t); D.tick(t, cam); C.update(t, cam); mood.tick?.(t, cam); crt.render(scene, cam, t);
