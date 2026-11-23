@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10-12 ダンジョンを進む剣のアクションのボス戦 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;top:8px;right:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#eaf4ff;opacity:.85;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">10-12 ─ ダンジョンを進む剣のアクションのボス戦 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で 40 秒のひと回り）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="pack-battle.js"></script>
+<script src="boss-12.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// テイスト B。04 の続き（ゲームの中盤）。地下 12 階の、水にかこまれた白い石の大広間で、装備の育った少年レンと新しい仲間ミナが、交代しながら広間の主「イワガマ」（岩の大ガエル）と戦う。
+// 色の組は「白い石」と「水の青」。さし色は少年の赤いマントと金のよろい、ミナのだいだいの服、ボスの青緑の岩はだと うす黄色のおなか。いかるとボスの のど・目・水晶が だいだいに光る。
+// 新しい仕組み：仲間との交代（左下に 2 人の顔と「こうたい」のボタンの絵）／武器の属性（レンは かみなり＝弱点、ミナは こおり＝足止め）と弱点の表示／ボスの攻撃の予告の輪（床の赤い輪）。
+// 部品は retro.js（R.〜）・pack-fantasy-wild.js（W.〜）・pack-battle.js（B.〜）・boss-12.js（B12.〜。ボスの形と絵）
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), W = PACK_FWILD(THREE, K, R), B = PACK_BATTLE(THREE, K, R), B12 = BOSS_12(THREE, K, R), MO = RETRO_MOTIONS(THREE, R), T = R.tex, X = W.tex, { hash } = K, PI = Math.PI;
+R.cfg.actorBuild = 'toon';
+const cl = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = k => k * k * (3 - 2 * k), seg = (t, a, b) => ease(cl((t - a) / (b - a))), bump = (t, a, b, e = .2) => Math.min(seg(t, a, a + e), 1 - seg(t, b - e, b)), V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 220, aa: false, fitAspect: .9, maxFov: 68 });
+scene.background = new THREE.Color('#0e2238'); scene.fog = new THREE.Fog('#1e4466', 24, 74);
+K.lights(scene, renderer, { sky: 0xd4ecff, ground: 0x86aacc, amb: 1.2, sun: 0xeef8ff, power: 1.25, range: 20, map: 2048, pos: [5, 18, 12] });
+
+// ---- 白い石の島（22 m 四方）と、まわりの水。水晶のあかりを床に焼きこむ ----
+const PH = 11, HALL = 17, WHITE = '#d4dde8', inIsle = (x, z) => Math.abs(x) < PH && Math.abs(z) < PH;
+const LAMP = [[-9.6, -9.6], [9.6, -9.6], [-9.6, 9.6], [9.6, 9.6], [-9.6, 0], [9.6, 0]];
+const bake = W.bake([...LAMP.map(([x, z]) => ({ x, y: 1.6, z, c: '#8ae8ff', r: 9, k: .9 })), { x: 0, y: 3, z: -3, c: '#ffffff', r: 12, k: .35 }], [.5, .58, .74]);
+const land = R.ground({ w: 40, d: 40, cell: 1.6, layers: [X.dungeon({ kind: 'floor', c: WHITE, moss: 0 }), T.cobble({ kind: 'slab', c: '#86b0dc', moss: 0 }), T.cobble({ c: '#eef2f6', n: 6, moss: 0 })],
+  H: (x, z) => inIsle(x, z) ? 0 : -1.4, mix: (x, z) => { const q = Math.max(Math.abs(x), Math.abs(z)), r = Math.hypot(x, z + 2); return [Math.abs(q - 9.8) < .7 || Math.abs(r - 6.4) < .45 ? 1 : 0, r < 2.6 ? .9 : 0]; }, shade: (x, z) => inIsle(x, z) ? bake(x, z, 0) : [.3, .42, .6] });
+scene.add(land.mesh);
+const waterT = T.water({ c: '#3aa4e0' }), waterM = R.mat(waterT[0], { color: '#e8f8ff' });
+{ const G = R.geo().normal([0, 1, 0]), n = 12, s = 3, y = -.3; for (let j = -n; j < n; j++) for (let i = -n; i < n; i++) { if (Math.abs(i * s + 1.5) < PH - 1.6 && Math.abs(j * s + 1.5) < PH - 1.6) continue; G.quad([i * s, y, j * s + s], [i * s + s, y, j * s + s], [i * s + s, y, j * s], [i * s, y, j * s]); } const m = new THREE.Mesh(G.build(), waterM); m.receiveShadow = true; scene.add(m); }
+const fixed = [], ticks = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const wall = (len, x, z, ry) => put(W.dungeonWall({ len, h: 10, thick: .8, c: '#aebfd6', moss: 0 }), x, z, ry, -1);
+wall(HALL * 2 + 1, 0, -HALL, 0); wall(HALL * 2 + 1, -HALL, 0, PI / 2); wall(HALL * 2 + 1, HALL, 0, PI / 2); wall(HALL * 2 + 1, 0, HALL, 0);
+for (const sx of [-1, 1]) for (const z of [-11.8, -4, 4, 11.8]) put(W.column({ h: 10, r: .7, c: '#e4eaf2', moss: 0, seed: z + sx }), sx * 12.6, z, 0, -1);
+for (const x of [-4.2, 4.2]) put(W.column({ h: 10, r: .7, c: '#e4eaf2', moss: 0, seed: x }), x, -12.6, 0, -1);
+scene.add(R.merge(fixed));
+for (const [x, z, ry] of [[-9, -HALL + .5, 0], [9, -HALL + .5, 0], [0, -HALL + .5, 0], [-HALL + .5, -6, PI / 2], [HALL - .5, -6, -PI / 2], [-HALL + .5, 6, PI / 2], [HALL - .5, 6, -PI / 2]]) { const f = W.waterfall({ w: x === 0 ? 6 : 3.6, h: 8.6, c: '#9ad8f8' }); f.position.set(x, -.3, z); f.rotation.y = ry; scene.add(f); ticks.push(f.userData.tick); }
+LAMP.forEach(([x, z], i) => { const c = W.crystal({ h: 1.9, r: .34, n: 5, c: '#6ae0ff', seed: i, glow: true, halo: true, light: false }); c.position.set(x, 0, z); scene.add(c); if (c.userData.tick) ticks.push(c.userData.tick); });
+const motes = W.motes({ n: 90, box: [26, 7, 26], c: '#c8f4ff', rise: .25 }); scene.add(motes);
+const heroL = new THREE.PointLight('#fff4e0', 9, 7, 1.3), flash = new THREE.PointLight('#fff8d0', 0, 14, 1.2), sacL = new THREE.PointLight('#ffa040', 0, 12, 1.3); scene.add(heroL, flash, sacL);
+
+// ---- 少年レン（04 の主役が強くなった姿：金のよろいと肩当て、赤いマント、育って光る大きな剣、大きな たて）と、新しい仲間ミナ（こおりの やり）----
+const ren = R.actor({ hairStyle: 'spiky', hair: '#a8582a', eye: '#3a7a5a', brow: 'thick', cloth: 'armor', sleeve: 'short', top: '#f0e6cc', top2: '#d8483a', lower: 'pants', bottom: '#3a6a8a', belt: '#7a4a30', gloves: 'gauntlet', glove: '#e8c860', shoes: 'boot', shoe: '#7a4a30', shoulder: 'left', gear: '#ecc85a', neck: 'cape', acc: '#d8382e', skirtC: '#d8382e' });
+const mina = R.actor({ sex: 'f', hairStyle: 'twin', hair: '#2f6a62', eye: '#b0603a', mouth: 'smile', blush: true, cloth: 'tunic', sleeve: 'long', top: '#f09a2a', top2: '#fff0c0', lower: 'skirt', skirt: .5, bottom: '#8a3a2a', belt: '#5a3a2a', gloves: 'glove', glove: '#fff0c0', shoes: 'boot', shoe: '#6a3a2a', hat: 'band', acc: '#fff0c0', hold: 'spear' });
+scene.add(ren, mina);
+const glowBar = (len, c, w = .09) => { const G = R.geo(), y0 = len * .2; G.quad([-w, y0, 0], [w, y0, 0], [w, len, 0], [-w, len, 0]); G.quad([0, y0, -w], [0, y0, w], [0, len, w], [0, len, -w]); const m = new THREE.Mesh(G.build(), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: .75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide })); return m; };
+const sword = B.arm(ren, B.weapon('greatsword', { c: '#eef4ff', c2: '#e8c050', gem: '#ffe860', s: .78 })), swordGlow = glowBar((sword.userData.tip || 1.2) * .96, '#ffe860', .07); sword.add(swordGlow);
+B.arm(ren, B.weapon('shield', { c: '#eef0f6', c2: '#d8382e', s: 1.5 }));
+const spearGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.ball(), color: '#8ae8ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); spearGlow.scale.setScalar(.5); scene.add(spearGlow);
+
+// ---- ボス「イワガマ」と、足止めの氷・舌の予告 ----
+const boss = B12.make({ s: 1 }), BJn = boss.userData.J, GL = boss.userData.glow; scene.add(boss);
+const blob = R.blob(4, .45); blob.position.y = .03; scene.add(blob);
+const iceG = new THREE.Group(); { const t = B.spriteTex.ice('#8adcff'), G = R.geo().smooth(0); for (let i = 0; i < 9; i++) { const a = i / 9 * PI * 2, r = 3.6 + hash(i, 3) * 1, h = 1.6 + hash(i, 4) * 1.8; G.at(R.TR(Math.cos(a) * r, 0, Math.sin(a) * r + .6, i, Math.sin(a) * .3, -Math.cos(a) * .3)).loft(4, [[0, .5, .5, 0, .8], [h * .55, .38, .38, .6, 1], [h, .02, .02, 1, 1.2]], {}); } const m = G.mesh(R.mat(t, { glow: true })); m.castShadow = false; iceG.add(m); iceG.visible = false; scene.add(iceG); }
+const warnM = new THREE.MeshBasicMaterial({ color: '#ff2a2a', transparent: true, opacity: .3, depthWrite: false, fog: false, side: THREE.DoubleSide }), edgeM = new THREE.MeshBasicMaterial({ color: '#ff5a4a', fog: false, side: THREE.DoubleSide });
+const ringMesh = (r, n = 20) => { const G = R.geo().normal([0, 1, 0]), E = R.geo(), y = .07, p = (a, q) => [Math.sin(a) * q, y, Math.cos(a) * q]; for (let i = 0; i < n; i++) { const a = i / n * PI * 2, b = (i + 1) / n * PI * 2; G.quad(p(a, 0), p(b, 0), p(b, r * .5), p(a, r * .5)); G.quad(p(a, r * .5), p(b, r * .5), p(b, r), p(a, r)); for (const q of [r, r * .55]) E.quad(p(a, q - .08), p(b, q - .08), p(b, q + .08), p(a, q + .08)); }
+  const g = new THREE.Group(); g.add(new THREE.Mesh(G.build(), warnM), new THREE.Mesh(E.build(), edgeM)); g.visible = false; scene.add(g); return g; };
+const warnBig = ringMesh(5.2, 24), warnS = [0, 1, 2].map(() => ringMesh(2.3, 14)), warnLine = (() => { const G = R.geo().normal([0, 1, 0]), E = R.geo(), y = .07; for (let i = 0; i < 6; i++) { G.quad([-.9, y, i / 6], [.9, y, i / 6], [.9, y, (i + 1) / 6], [-.9, y, (i + 1) / 6]); for (const sx of [-.9, .9]) E.quad([sx - .07, y, i / 6], [sx + .07, y, i / 6], [sx + .07, y, (i + 1) / 6], [sx - .07, y, (i + 1) / 6]); } const g = new THREE.Group(); g.add(new THREE.Mesh(G.build(), warnM), new THREE.Mesh(E.build(), edgeM)); g.visible = false; scene.add(g); return g; })();
+const spit = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.ball(), color: '#6ad0ff', transparent: true, fog: false })); s.visible = false; scene.add(s); return s; });
+
+// ---- 時間割り ----
+// ?t=秒 で途中から始める。?view=front / side / top は、ボスを近くから見る確かめ用
+const LOOP = 40, QS = new URLSearchParams(location.search), T0 = +(QS.get('t') || 0), VIEW = QS.get('view');
+const BK = [[0, 0, -4.5], [9.3, 0, -4.5], [10.2, 0, -3.6], [23, 0, -3.6], [23.8, 0, -4.5], [40, 0, -4.5]], BHOP = [[8.6, 9.3, 10.2], [22.4, 23, 23.8]];
+const RK = [[0, -1.2, 9], [1.4, -1.2, 5.5], [2.3, -1.2, 5.5], [2.75, -.9, 1.3], [6.3, -.9, 1.3], [6.6, -1, 2.6], [8.7, -1, 2.6], [9.5, -2.8, 7.6], [10.4, -2.8, 7.6], [10.8, -1.2, 2.2], [12.4, -1.2, 2.2], [13, -3.8, 7.6], [18.2, -3.8, 7.6], [18.8, -.6, 3.8], [19.6, -.6, 3.8], [20, -.4, 2.6], [20.7, -.4, 2.6], [21.4, -1.6, 6.6], [24, -1.6, 6.6], [24.6, -1, 4.6], [27.6, -1, 4.6], [28.2, -3.4, 6.4], [29.3, -3.4, 6.4], [29.9, -.5, 2.6], [31.4, -.5, 2.6], [32, -1.4, 4.8], [40, -1.4, 4.8]];
+const MK = [[0, 1.4, 9.8], [1.6, 1.4, 6.6], [12.4, 2.6, 7.2], [13, 1.3, 2.2], [15, 1.3, 2.2], [15.6, 1.8, 3.6], [18.2, 1.8, 3.6], [18.8, 3.6, 7.4], [22, 3.6, 7.4], [24, 3.2, 6.2], [27.6, 3.2, 6.2], [28.1, 1.2, 1.6], [29.2, 1.2, 1.6], [29.8, 3.2, 5.4], [32, 1.2, 5.2], [40, 1.2, 5.2]];
+const ACT = [[0, 0], [12.4, 1], [18.2, 0], [27.6, 1], [29.2, 0]], COMBOS = [2.8, 4.6, 10.6], HITS = [.15, .6, 1.1], DMG = [62, 68, 124], THRUST = [13.2, 13.8, 14.4], GUARD = [[6, 6.9], [25.2, 26.1]];
+const LEAPS = [[19.4, 20.1, 486], [29.6, 30.3, 333]], SPIT = [[25.4, -1, 4.6], [25.8, 3.2, 6.2], [26.2, -4.6, 1.6]], FROZEN = [[15.4, 20.5], [28.4, 31]];
+const kf = (Kf, tt, out) => { let i = 0; while (i < Kf.length - 2 && tt >= Kf[i + 1][0]) i++; const a = Kf[i], b = Kf[i + 1], k = cl((tt - a[0]) / (b[0] - a[0])); return out.set(a[1] + (b[1] - a[1]) * k, 0, a[2] + (b[2] - a[2]) * k); };
+const at = (L, tt) => { let s = L[0]; for (const l of L) if (tt >= l[0]) s = l; return s; };
+
+// ---- 画面の表示・効果・経験値のつぶ ----
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const H = B.hud(scene, cam, crt), F = B.fx(scene, cam);
+const ORB = [...Array(24)].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: B.spriteTex.ball(), color: '#9af0ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); s.visible = false; s.userData.dyn = true; scene.add(s); return { s, on: false, age: 0, from: V(), v: V() }; });
+const S0 = { hp: [412, 286], hpShow: [412, 286], bhp: 1, bShow: 0, xp: .42, xpShow: .42, lv: 7, shake: 0, hurtT: [9, 9], flinch: 9, flashT: 9, flashK: 0, msg: null, lvT: -9, gain: 9, items: [6, 2, 9, 3], sel: -1, selT: 9 }, S = { ...S0, quiet: false };
+let prev = 1e9, snap = true, byaw = 0, BMAX = 1; const yaws = [PI, PI];
+const tmp = V(), tmp2 = V(), tmp3 = V(), rp = V(), mp = V(), rv = V(), mv = V(), bp = V(), act = V(), head = V(), tipW = V();
+const say = (text, t, len = 2) => { S.msg = { text, until: t + len }; };
+const hitB = (n, kind) => { S.bhp = Math.max(0, S.bhp - n); if (S.quiet) return; BJn.headA.getWorldPosition(tmp); const big = n > 150; H.pop(tmp.setY(tmp.y + (big ? 1.6 : .9) + hash(n, S.bhp) * .5), n, { scale: big ? 2 : 1, c: kind === 'bolt' ? '#ffe860' : kind === 'ice' ? '#a8ecff' : '#ffffff', life: big ? 1.1 : .6 }); S.flinch = 0; S.shake = Math.max(S.shake, big ? .9 : .3);
+  if (kind === 'bolt') { F.spark(tmp.setY(3.4), { c: '#fff4a0', n: big ? 16 : 7, s: big ? 2.4 : 1.4 }); if (big) { F.bolt(tmp3.set(bp.x, 0, bp.z + 2.6), { s: 2.2, h: 11 }); H.pop(tmp.setY(tmp.y + 1.5), 'じゃくてん！', { text: true, c: '#ffe860', life: 1.1 }); S.flashT = 0; S.flashK = 30; flash.position.set(bp.x, 4, bp.z + 4); } } else F.spark(tmp.setY(2.6), { c: '#c8f4ff', n: 8, s: 1.5 }); };
+const hitP = (i, n) => { S.hp[i] = Math.max(0, S.hp[i] - n); if (S.quiet) return; S.hurtT[i] = 0; const p = i ? mp : rp; H.pop(tmp.set(p.x, 1.7, p.z), n, { c: '#ff9a8a' }); S.shake = Math.max(S.shake, .5); };
+const spill = (p, n) => { if (S.quiet) { S.xp += n * .03; return; } for (let i = 0; i < n; i++) { const o = ORB.find(q => !q.on); if (!o) { S.xp += .03; continue; } const a = hash(i, n, 1) * PI * 2, sp = 2 + hash(i, n, 2) * 3.6; o.on = true; o.age = -i * .04; o.from.copy(p); o.v.set(Math.cos(a) * sp, 3 + hash(i, n, 3) * 3, Math.sin(a) * sp); } };
+const EV = [
+  [1.2, () => { if (S.quiet) return; F.ring(bp, { c: '#c8f4ff', s: 4.5, life: .8 }); F.dust(bp, { n: 12, s: 3, c: '#e8f4ff' }); S.shake = .8; }],
+  ...COMBOS.flatMap(t0 => HITS.map((h, j) => [t0 + h, () => { if (!S.quiet) F.slash(tmp.set(rp.x + Math.sin(yaws[0]) * .9, j === 2 ? 1.2 : 1, rp.z + Math.cos(yaws[0]) * .9), { ry: yaws[0], tilt: j === 2 ? 1.25 : j ? -.25 : .25, flip: j === 1, s: j === 2 ? 1.7 : 1.4, c: '#fff4a0' }); hitB(DMG[j], 'bolt'); }])),
+  [5.6, t => say('したが くるぞ！', t, 1.6)], [6.35, () => { hitP(0, 12); if (S.quiet) return; F.spark(tmp.set(rp.x, 1, rp.z - .6), { c: '#c8e8ff', n: 12, s: 1.6 }); H.pop(tmp.setY(1.9), 'ガード', { text: true, c: '#a8d8ff' }); S.shake = .7; }],
+  [8.5, t => say('とびかかる かまえ！', t, 1.7)], ...BHOP.map(([, , c]) => [c, () => { if (S.quiet) return; F.ring(bp, { c: '#c8f4ff', s: 5, life: .7 }); F.dust(bp, { n: 16, s: 3.6, c: '#e8f8ff' }); S.shake = 1.3; }]),
+  [12.4, t => say('こうたい！ ミナ', t, 1.6)], ...THRUST.map(tm => [tm + .12, () => hitB(44, 'ice')]),
+  [15.35, () => { hitB(160, 'ice'); if (S.quiet) return; for (let i = 0; i < 4; i++) F.ice(tmp.set(bp.x + (i - 1.5) * 2.2, 0, bp.z + 3.4 + (i % 2) * .8), { s: 2 }); S.shake = .8; }], [15.5, t => say('イワガマは こおりついた！', t, 2)],
+  [18.2, t => say('こうたい！ レン', t, 1.5)], ...LEAPS.map(([, b, n], i) => [b, () => { hitB(n, 'bolt'); if (i) return; }]),
+  [20.6, t => { say('イワガマが いかりだした！', t, 2.2); if (S.quiet) return; F.ring(bp, { c: '#ffb060', s: 6, life: .9 }); F.spark(tmp.set(bp.x, 2.5, bp.z + 3), { c: '#c8f4ff', n: 18, s: 3 }); S.shake = 1; }],
+  [24.1, t => say('みずの たまが ふってくる！', t, 1.8)], ...SPIT.map(([tm, x, z], i) => [tm, () => { if (!S.quiet) { tmp.set(x, 0, z); F.ring(tmp, { c: '#8ae0ff', s: 2.4, life: .6 }); F.dust(tmp, { n: 8, s: 2.2, c: '#e8f8ff' }); F.spark(tmp.setY(.6), { c: '#c8f4ff', n: 12, s: 2 }); S.shake = Math.max(S.shake, .6); } if (i === 0 && !S.quiet) H.pop(tmp.set(rp.x, 1.9, rp.z), 'ガード', { text: true, c: '#a8d8ff' }); if (i === 1) hitP(1, 38); }]),
+  [27.6, t => say('こうたい！ ミナ', t, 1.4)], [28.35, () => { hitB(180, 'ice'); if (S.quiet) return; for (let i = 0; i < 3; i++) F.ice(tmp.set(bp.x + (i - 1) * 2.6, 0, bp.z + 3.6), { s: 2 }); }],
+  [30.6, () => hitB(333, 'bolt')], [31, () => hitB(999, 'bolt')],
+  [31.6, t => say('イワガマを たおした！', t, 3)], [33, () => { spill(tmp.set(bp.x, 2.2, bp.z + 2), 22); if (S.quiet) return; F.dust(bp, { n: 18, s: 5, c: '#e8f8ff' }); F.ring(bp, { c: '#c8f4ff', s: 6, life: 1 }); S.shake = 1.2; S.flashT = 0; S.flashK = 26; flash.position.set(bp.x, 3, bp.z + 3); }]
+].sort((a, b) => a[0] - b[0]);
+BMAX = COMBOS.length * (DMG[0] + DMG[1] + DMG[2]) + THRUST.length * 44 + 160 + 180 + LEAPS[0][2] + LEAPS[1][2] + 333 + 999; S0.bhp = BMAX;
+function reset() { F.clear(); Object.assign(S, S0, { hp: [...S0.hp], hpShow: [...S0.hpShow], hurtT: [9, 9], items: [...S0.items] }); for (const o of ORB) { o.on = false; o.s.visible = false; } snap = true; }
+
+// ---- ボスの動き ----
+const C1 = new THREE.Color('#ffd040'), C2 = new THREE.Color('#ff7a30'), C0 = new THREE.Color('#283038'), tc = new THREE.Color(), ICE = new THREE.Color('#b8ecff'), WH = new THREE.Color('#ffffff');
+function poseBoss(tt, t, dt) {
+  kf(BK, tt, bp); const yt = Math.atan2(act.x - bp.x, act.z - bp.z), dy = ((yt - byaw + PI * 3) % (PI * 2)) - PI, fz = FROZEN.reduce((m, [a, b]) => Math.max(m, bump(tt, a, b, .25)), 0), rage = seg(tt, 20.6, 22), dead = seg(tt, 31, 32.6);
+  byaw += dy * (snap ? 1 : 1 - Math.exp(-dt * 2)) * (1 - fz);
+  let y = 0, squash = (1 - seg(tt, .2, 1.2)) * .8, leg = 0, lean = bump(tt, 1, 2.2, .3) * .22, mouth = bump(tt, 1, 2.3, .3) * .9, tongue = 0, shake = bump(tt, 1, 2.2) + bump(tt, 20.6, 22) + bump(tt, 31, 33) * 1.2 + fz * .15;
+  for (const [a, b, c] of BHOP) { if (tt >= a && tt < b) squash = seg(tt, a, b - .1); else if (tt >= b && tt < c) { const k = (tt - b) / (c - b); y = Math.sin(k * PI) * 2.6; leg = Math.sin(k * PI); lean += .25 * Math.cos(k * PI); } else if (tt >= c && tt < c + .5) squash = (1 - (tt - c) / .5) * .9; }
+  // 舌：予告（5.5〜6.2）→ のびる（6.2〜6.45）→ もどる
+  if (tt > 5.5 && tt < 7) { mouth = Math.max(mouth, bump(tt, 5.5, 7, .3)); tongue = tt < 6.2 ? 0 : tt < 6.4 ? (tt - 6.2) / .2 * 3.6 : Math.max(0, 3.6 * (1 - (tt - 6.4) / .45)); }
+  for (const [tm] of SPIT) mouth = Math.max(mouth, bump(tt, tm - 1.25, tm - .75, .15)); mouth = Math.max(mouth, dead * .5);
+  B12.pose(boss, { t: t * (1 - fz), mouth, sac: rage * (1 - dead) * (.8 + bump(tt, 24, 25.6, .4) * .2), eye: 1 - dead * .9 - bump(tt, 19.6, 20.5, .1) * .7, cry: rage, squash: squash + dead * .7, leg, lean, shake, tongue });
+  S.flinch += dt; const fl = Math.max(0, 1 - S.flinch / .3); boss.position.set(bp.x - Math.sin(byaw) * fl * .3, y - seg(tt, 32.6, 33.1) * .6, bp.z - Math.cos(byaw) * fl * .3); boss.rotation.y = byaw; boss.visible = tt < 33.1; boss.scale.setScalar(1 - seg(tt, 32.7, 33.1) * .35); boss.updateMatrixWorld(true); BJn.headA.getWorldPosition(head);
+  blob.visible = boss.visible; blob.position.set(bp.x, .03, bp.z); blob.scale.setScalar(1 - y * .1);
+  boss.userData.mat.color.copy(WH).lerp(ICE, fz * .75).lerp(tc.set('#ffd8c0'), rage * .35 * (1 - fz)).multiplyScalar(1 + fl * .5).lerp(C0, dead * .5);
+  const pul = .85 + Math.sin(t * 4) * .15; GL.eye.color.copy(C1).lerp(tc.set('#ff5030'), rage).lerp(C0, dead); GL.sac.color.setScalar(.5).lerp(tc.set('#ffffff').multiplyScalar(pul * 1.15), rage).lerp(C0, dead); GL.cry.color.setScalar(.8).lerp(tc.set('#ffb070').multiplyScalar(pul * 1.2), rage).lerp(C0, dead); GL.mouth.color.setScalar(1 - dead * .6);
+  sacL.position.set(bp.x + Math.sin(byaw) * 4.6, 1.6 + y, bp.z + Math.cos(byaw) * 4.6); sacL.intensity = rage * (1 - dead) * (12 + Math.sin(t * 4) * 4);
+  iceG.visible = fz > .02; iceG.position.set(bp.x, 0, bp.z); iceG.scale.set(1, Math.max(.02, fz), 1);
+}
+
+// ---- レンとミナの動き ----
+function posePair(tt, t, dt) {
+  const a = at(ACT, tt)[1]; kf(RK, tt, rp); kf(RK, tt + .05, rv).sub(rp); kf(MK, tt, mp); kf(MK, tt + .05, mv).sub(mp); act.copy(a ? mp : rp);
+  [[ren, rp, rv, 0], [mina, mp, mv, 1]].forEach(([h, p, v, i]) => { const J = h.userData.J, sp = v.length() / .05, yt = sp > 1.2 && !(i === 0 && tt > 2.3 && tt < 12.4) ? Math.atan2(v.x, v.z) : Math.atan2(bp.x - p.x, bp.z + 2.9 - p.z), dy = ((yt - yaws[i] + PI * 3) % (PI * 2)) - PI; yaws[i] += dy * (snap ? 1 : 1 - Math.exp(-dt * 12)); h.position.copy(p); h.rotation.set(0, yaws[i], 0);
+    if (tt > 34 && tt < 39.6) { MO.play(h, 'cheer', t + i * .4); if (i === 0) { J.armL.rotation.set(-.6, 0, .2); J.foreL.rotation.x = -1; } }
+    else if (sp > .5) MO.play(h, sp > 2.6 ? 'run' : 'walk', t);
+    else { MO.play(h, 'stand', t + i); MO.squat(h, .16); J.legL.rotation.x -= .3; J.legR.rotation.x += .25; J.shinR.rotation.x += .2; }
+    if (i === 0) { if (!(tt > 34 && tt < 39.6)) { J.armR.rotation.set(-.75, 0, -.3); J.foreR.rotation.x = -.95; J.armL.rotation.set(-.7, 0, .12); J.foreL.rotation.x = -1.05; }
+      const cb = COMBOS.find(c => tt >= c && tt < c + 1.5), gd = GUARD.find(g => tt >= g[0] && tt < g[1]), lp = LEAPS.find(l => tt >= l[0] - .5 && tt < l[1] + .5) || (tt > 30.3 && tt < 31.4 ? [30.5, 31, 0] : null);
+      if (cb !== undefined) { const u = tt - cb, k = u < .45 ? 0 : u < .9 ? 1 : 2, q = k < 2 ? (u - k * .45) / .45 : (u - .9) / .6, w = ease(cl((q - .1) / .28)), lunge = Math.sin(cl(q) * PI); MO.squat(h, .22 + lunge * .1); J.legL.rotation.x -= .45; J.legR.rotation.x += .4;
+        if (k === 0) { J.armR.rotation.set(-1.35, 0, -1.2 + w * 2); J.foreR.rotation.x = -.25; J.torso.rotation.set(.18, .6 - w * 1.2, 0); } else if (k === 1) { J.armR.rotation.set(-1.35, 0, .8 - w * 2); J.foreR.rotation.x = -.25; J.torso.rotation.set(.18, -.6 + w * 1.2, 0); } else { J.armR.rotation.set(-3 + w * 2.5, 0, -.15); J.foreR.rotation.x = -.6 + w * .45; J.torso.rotation.set(-.3 + w * .75, 0, 0); h.position.y = Math.sin(cl(q / .5) * PI) * .4; } }
+      if (gd) { const k = Math.min(seg(tt, gd[0], gd[0] + .2), 1 - seg(tt, gd[1] - .2, gd[1])); MO.squat(h, .18 + k * .25); J.armL.rotation.set(-.7 - k * .75, 0, .12 - k * .6); J.foreL.rotation.x = -1.05 - k * .35; J.armR.rotation.set(-.75 + k, 0, -.3 - k * .2); J.torso.rotation.set(k * .22, -k * .35, 0); }
+      if (lp) { const [l0, l1] = lp, c = seg(tt, l0 - .5, l0), k = cl((tt - l0) / (l1 - l0)), w = ease(cl((k - .6) / .4)); MO.squat(h, .3 * c * (1 - k)); J.armR.rotation.set(-.75 - c * 2.3 + w * 2.6, 0, -.15); J.foreR.rotation.x = -.5 + w * .3; J.armL.rotation.set(-.7 - c * 1.6 + w * 1.4, 0, .1); J.torso.rotation.set(-.3 * c + w * .8, 0, 0); if (tt >= l0 && tt < l1 + .3) { const q = cl((tt - l0) / (l1 - l0 + .3)); h.position.y = Math.sin(q * PI) * 2.6; h.position.x += Math.sin(yaws[0]) * Math.sin(q * PI) * 1.2; h.position.z += Math.cos(yaws[0]) * Math.sin(q * PI) * 1.2; } } }
+    else { const th = THRUST.find(c => tt >= c - .15 && tt < c + .4) ?? (tt > 15 && tt < 15.7 ? 15.25 : tt > 28.1 && tt < 28.8 ? 28.3 : undefined); J.armR.rotation.set(-.9, 0, -.25); J.foreR.rotation.x = -.5;
+      if (th !== undefined) { const k = cl((tt - th + .15) / .55), w = k < .35 ? -ease(k / .35) * .5 : ease(cl((k - .35) / .2)); MO.squat(h, .25 + Math.max(0, w) * .12); J.legL.rotation.x -= .5; J.legR.rotation.x += .45; J.armR.rotation.set(-1.45 - w * .1, 0, -.1); J.foreR.rotation.x = -1.2 + Math.max(0, w) * 1.1 - Math.min(0, w) * .4; J.torso.rotation.set(.1 + Math.max(0, w) * .3, -.5 + Math.max(0, w) * .7, 0); h.position.x += Math.sin(yaws[1]) * Math.max(0, w) * .5; h.position.z += Math.cos(yaws[1]) * Math.max(0, w) * .5; } }
+    S.hurtT[i] += dt; { const k = cl(S.hurtT[i] / .5); if (k < 1) { const q = Math.sin(k * PI); J.torso.rotation.x -= q * .45; J.head.rotation.x -= q * .3; h.position.y += q * .12; } } });
+  const ap = a ? mp : rp; heroL.position.set(ap.x, 2.4, ap.z + 1); swordGlow.material.opacity = .55 + Math.sin(t * 9) * .2 + (LEAPS.some(l => tt > l[0] - .6 && tt < l[1] + .4) ? .4 : 0);
+  mina.updateMatrixWorld(true); mina.userData.J.foreR.getWorldPosition(tipW); spearGlow.position.set(tipW.x, tipW.y - .1, tipW.z); spearGlow.scale.setScalar(.3 + Math.sin(t * 8) * .05 + (a ? .1 : 0));
+}
+function moveExtras(tt, t) {
+  warnM.opacity = Math.floor(t * 7) % 2 ? .36 : .18; warnBig.visible = warnLine.visible = false;
+  for (const [a, b, c] of BHOP) if (tt > a && tt < c) { warnBig.visible = true; kf(BK, c, tmp); warnBig.position.set(tmp.x, 0, tmp.z); }
+  if (tt > 5.5 && tt < 6.4) { warnLine.visible = true; warnLine.position.set(bp.x + Math.sin(byaw) * 3, 0, bp.z + Math.cos(byaw) * 3); warnLine.rotation.y = byaw; warnLine.scale.set(1, 1, 3.6); }
+  SPIT.forEach(([tm, x, z], i) => { const w = warnS[i], s = spit[i]; w.visible = tt > 24.2 + i * .25 && tt < tm; w.position.set(x, 0, z); s.visible = tt > tm - .8 && tt < tm; if (s.visible) { const k = (tt - tm + .8) / .8; BJn.mouthA.getWorldPosition(tmp); s.position.set(tmp.x + (x - tmp.x) * k, tmp.y * (1 - k) + Math.sin(k * PI) * 5 + .4, tmp.z + (z - tmp.z) * k); s.scale.setScalar(1.3 + Math.sin(t * 30) * .15); } });
+}
+function moveOrbs(tt, dt) { S.gain += dt; const tg = tmp3.set(rp.x, .9, rp.z); for (const o of ORB) { if (!o.on) continue; o.age += dt; if (o.age < 0) continue; const a = o.age, fa = Math.min(a, .7), s = o.s; s.visible = true; s.position.copy(o.from).addScaledVector(o.v, fa * .6); s.position.y = Math.max(.15, o.from.y + o.v.y * fa - 9 * fa * fa);
+  let sc = .3; if (a > .7) { const k = ease(cl((a - .7) / .5)); s.position.lerp(tg, k); sc = .3 - k * .14; } s.scale.setScalar(sc * (1 + Math.sin(a * 30) * .15)); if (a >= 1.2) { o.on = false; s.visible = false; S.xp += .03; S.gain = 0; } }
+  if (S.xp >= .999) { S.xp -= 1; S.lv++; S.lvT = tt; if (!S.quiet) { F.heal(tmp.copy(rp), { c: '#ffe070', h: 1.8 }); F.ring(tmp.copy(rp), { c: '#ffe070', s: 1.3 }); } } }
+
+// ---- 画面の表示 ----
+const WIN = { c: '#2c5a8a', c2: '#12243c', edge: '#f0f8ff' }, SLOT = [['drop', '#7ad8ff'], ['star', '#ffe070'], ['potion', '#ff8a7a'], ['bulb', '#ffd070']], SP = [[19, 0], [38, 19], [19, 38], [0, 19]];
+const FACES = [{ hair: '#a8582a', eye: '#3a7a5a', bg: '#8a2a24' }, { hair: '#2f6a62', eye: '#b0603a', bg: '#b86a1a' }], NAMES = ['レン', 'ミナ'], HPMAX = [412, 286];
+function drawHud(tt, t, dt) {
+  H.begin(); const tall = H.tall, ac = at(ACT, tt), swT = tt - ac[0], sw = ac[0] > 0 && swT < .8, rage = tt > 21.4, fz = FROZEN.some(([a, b]) => tt > a && tt < b), dead = S.bhp <= 0;
+  for (let i = 0; i < 2; i++) { S.hpShow[i] += (S.hp[i] - S.hpShow[i]) * Math.min(1, dt * 2.5); if (Math.abs(S.hpShow[i] - S.hp[i]) < .5) S.hpShow[i] = S.hp[i]; } S.xpShow += (S.xp - S.xpShow) * Math.min(1, dt * 4); if (S.xpShow > S.xp) S.xpShow = S.xp; S.selT += dt;
+  const bT = tt < 2.2 ? S.bhp * seg(tt, .5, 2.2) : S.bhp; S.bShow += (bT - S.bShow) * Math.min(1, dt * (tt < 2.4 ? 20 : 2)); if (Math.abs(S.bShow - bT) < 2) S.bShow = bT;
+  // 上：ボスの名前つきの体力バー。右に「じゃくてん：かみなり」「みず は きかない」の札
+  { const r = H.place('上', tall ? H.W - 12 : 232, 27, 0, tall ? 31 : 13); H.win(r.x, r.y, r.w, r.h, WIN); const nw = H.text('イワガマ', r.x + 6, r.y + 3, { size: 10, c: rage ? '#ffb070' : B.PAL.gold }); if (!tall) H.text(fz ? 'こおりづけ' : rage ? 'いかり' : 'ちていの ぬし', r.x + 12 + nw, r.y + 5, { size: 8, c: fz ? '#a8ecff' : '#e8f4ff' });
+    const x = r.x + r.w - 64; H.rect(x, r.y + 3, 37, 10, '#080814'); H.rect(x + 1, r.y + 4, 35, 8, Math.floor(t * 3) % 2 ? '#8a6a12' : '#5a4a1a'); H.text('よわい', x + 2, r.y + 4, { size: 8, c: '#ffffff', shadow: false }); H.icon('bolt', x + 29, r.y + 5, { c: '#ffe860' });
+    H.rect(x + 39, r.y + 3, 20, 10, '#080814'); H.rect(x + 40, r.y + 4, 18, 8, '#2a3a50'); H.icon('drop', x + 42, r.y + 5, { c: '#7ad8ff' }); H.text('×', x + 50, r.y + 4, { size: 8, c: '#ff8a7a', shadow: false });
+    H.bar(r.x + 5, r.y + 16, r.w - 10, 7, bT / BMAX, { v2: S.bShow / BMAX, c: rage ? '#ff7a30' : '#58d8c0', ticks: 4 }); }
+  // 右上：階の数
+  { const r = H.place('右上', 58, 15, 0, tall ? 61 : 43); H.win(r.x, r.y, r.w, r.h, WIN); H.text('ちか 12かい', r.x + r.w / 2, r.y + 3, { size: 8, align: 'c', c: B.PAL.gold }); }
+  // 左下：2 人の顔・体力・属性、「こうたい」のボタンの絵、育った武器のゲージ（LV と、ふえた わざ）
+  { const r = H.place('左下', 122, 62, 0, 0); H.win(r.x, r.y, r.w, r.h, WIN);
+    for (let i = 0; i < 2; i++) { const y = r.y + 4 + i * 17, on = ac[1] === i; if (on) { H.rect(r.x + 2, y - 1, 84, 16, sw && Math.floor(t * 12) % 2 ? '#ffffff' : '#ffe070', .9); H.rect(r.x + 3, y, 82, 14, '#1c3a5c'); } H.face(r.x + 4, y, { ...FACES[i], hurt: S.hurtT[i] < .5 }); if (!on) H.rect(r.x + 4, y, 14, 14, '#0c1420', .45);
+      H.text(NAMES[i], r.x + 21, y - 1, { size: 8, c: on ? '#ffffff' : '#a8b8d0' }); H.icon(i ? 'drop' : 'bolt', r.x + 39, y + 1, { c: i ? '#a8ecff' : '#ffe860' }); H.bar(r.x + 21, y + 9, 42, 5, S.hp[i] / HPMAX[i], { v2: S.hpShow[i] / HPMAX[i], c: on ? B.PAL.hp : '#4a9a6a' }); H.num(String(Math.round(S.hp[i])), r.x + 82, y + 8, { small: true, align: 'r', c: on ? '#ffffff' : '#a8b8d0' }); if (!on) H.text('まち', r.x + 82, y - 1, { size: 8, align: 'r', c: '#7a8aa8' }); }
+    { const bx = r.x + 104, by = r.y + 14, lit = sw && Math.floor(t * 12) % 2; H.ring(bx, by, 8, 1, { c: lit ? '#ffffff' : '#ffe070', back: '#080814', th: 2 }); H.rect(bx - 4, by - 3, 8, 6, lit ? '#ffe070' : '#2c5a8a'); H.rect(bx - 3, by - 2, 6, 1, '#ffffff'); H.rect(bx + 2, by - 3, 1, 3, '#ffffff'); H.rect(bx - 3, by + 1, 6, 1, '#ffffff'); H.rect(bx - 3, by, 1, 3, '#ffffff'); H.text('こうたい', bx, by + 11, { size: 8, align: 'c', c: lit ? '#ffffff' : '#c8d8f0', shadow: false, scale: 1 }); }
+    const y = r.y + 39; H.rect(r.x + 4, y, r.w - 8, 1, '#f0f8ff', .35); H.icon('sword', r.x + 5, y + 4, { c: tt - S.lvT < 2.6 && Math.floor(t * 10) % 2 ? '#ffe070' : '#eef4ff', scale: 2 }); H.text('らいのつるぎ', r.x + 22, y + 2, { size: 8, c: B.PAL.gold }); H.num('LV' + S.lv, r.x + r.w - 6, y + 4, { align: 'r', small: true, c: tt - S.lvT < 2.6 ? '#ffffff' : B.PAL.gold });
+    H.bar(r.x + 22, y + 13, 44, 5, S.xpShow, { c: S.gain < .25 ? '#ffffff' : '#ffd040' }); H.text('わざ', r.x + 70, y + 11, { size: 8, c: '#c8d8f0' }); for (let i = 0; i < 4; i++) { H.rect(r.x + 89 + i * 6, y + 13, 5, 5, '#080814'); H.rect(r.x + 90 + i * 6, y + 14, 3, 3, i < 3 || S.lv > 7 ? '#ffe070' : '#3a4a60'); } }
+  // 右下：道具のショートカット
+  { const r = H.place('右下', 56, 56, 0, 0); SLOT.forEach(([ic, c], i) => { const x = r.x + SP[i][0], y = r.y + SP[i][1]; H.win(x, y, 18, 18, WIN); H.icon(ic, x + 5, y + 4, { c }); H.num('x' + S.items[i], x + 16, y + 11, { small: true, align: 'r', c: '#e8f4ff' }); }); }
+  if (S.msg && tt < S.msg.until) H.msg(S.msg.text, '左上', { dy: tall ? 61 : 43, ...WIN });
+  H.banner('イワガマ', (tt - .25) / 2.05, { sub: 'ちていの ぬし', c: '#2c5a8a', y: tall ? H.H * .56 : 126 });
+  H.banner('つららづき', (tt - 14.9) / 1.5, { sub: 'ミナ：こおりで あしどめ', c: '#2a6a8a', scale: 1, y: tall ? H.H * .3 : 66 }); H.banner('らいめいぎり', (tt - 19) / 1.6, { sub: 'レン：かみなり', c: '#8a6a1a', scale: 1, y: tall ? H.H * .3 : 66 });
+  H.banner('ひょうらいざん', (tt - 29.3) / 2, { sub: 'こうたいわざ：こおり ＋ かみなり', c: '#8a3a6a', y: tall ? H.H * .3 : 66 });
+  if (tt - S.lvT < 2.6) H.banner('ぶきが そだった！', (tt - S.lvT) / 2.6, { sub: 'らいのつるぎ LV' + S.lv + '  わざが ふえた', c: '#7a4a1a', scale: 1, y: tall ? H.H * .3 : 66 });
+  H.end(dt);
+}
+
+// ---- カメラ：戦っている人のうしろ、少し高め。交代すると、次の人へ ゆっくり回りこむ ----
+const hc = V(), bc = V(), cp = V(), cpT = V(), ct = V(), dir = V();
+function moveCam(tt, t, dt) {
+  const tall = innerWidth < innerHeight, k1 = snap ? 1 : 1 - Math.exp(-dt * 3.5); bc.lerp(bp, k1); hc.lerp(act, snap ? 1 : 1 - Math.exp(-dt * 4)); dir.set(hc.x - bc.x, 0, hc.z - bc.z).normalize();
+  const far = bump(tt, 8.4, 10.8, .6) * .6 + bump(tt, 19.2, 20.6, .4) * .5 + bump(tt, 29.4, 34, .6) * .6, D = (tall ? 4.4 : 4.6) + far * 2.2, sd = tall ? 0 : .5, h = 2.3 + far * .5; cpT.set(hc.x + dir.x * D + dir.z * sd, h, hc.z + dir.z * D - dir.x * sd); cpT.x = cl(cpT.x, -15.5, 15.5); cpT.z = cl(cpT.z, -15.5, 15.5); cp.lerp(cpT, snap ? 1 : 1 - Math.exp(-dt * 4));
+  ct.set(cp.x - dir.x * 16, h + 16 * ((tall ? -.17 : -.08) + far * .05), cp.z - dir.z * 16);
+  if (VIEW) { cp.set(bp.x + (VIEW === 'side' ? 11 : 5), VIEW === 'top' ? 12 : 3.4, bp.z + (VIEW === 'side' ? 2 : 9)); ct.set(bp.x, 2.2, bp.z + 1); }
+  S.shake = Math.max(0, S.shake - dt * 1.8); cam.position.set(cp.x + Math.sin(t * 71) * S.shake * .08, cp.y + Math.sin(t * 93) * S.shake * .08, cp.z); cam.lookAt(ct);
+}
+
+reset();
+K.loop((dt, t) => {
+  const tt = (t + T0) % LOOP; if (tt < prev) { reset(); if (prev > 1e8 && T0 > 0) { S.quiet = true; for (const [tm, fn] of EV) if (tm <= T0) fn(tm); S.quiet = false; if (S.xp >= .999) { S.xp -= 1; S.lv++; } S.hpShow = [...S.hp]; S.xpShow = S.xp; S.bShow = S.bhp; S.msg = null; prev = T0; } else prev = -1; }
+  kf(BK, tt, bp); posePair(tt, t, dt); poseBoss(tt, t, dt);
+  for (const [tm, fn] of EV) if (tm > prev && tm <= tt) fn(tm);
+  prev = tt; moveExtras(tt, t); moveOrbs(tt, dt); moveCam(tt, t, dt); snap = false;
+  S.flashT += dt; flash.intensity = Math.max(0, 1 - S.flashT / .3) * S.flashK; R.flip(waterM, waterT, t, 5); for (const f of ticks) f(t); motes.userData.tick(t, act.x, act.z);
+  crt.u.bright.value = Math.min(1, tt / .4, (LOOP - tt) / .5);
+  F.update(dt); if (!VIEW) drawHud(tt, t, dt); else { H.begin(); H.end(dt); } crt.render(scene, cam, t);
+});
+</script>
+</html>
