@@ -31,7 +31,7 @@ for (let z = 30, i = 0; z > -90; z -= 5.2 + hash(i, 1) * 1.5, i++) { STALL.push(
 for (let z = 30, k = 0; z > -90; z -= 6, k++) lights.push({ x: 0, z, r: 3.6, c: '#ff6a3a', k: .45 });
 const land = R.ground({ w: 60, d: 260, cell: 1.5, cx: -10, cz: -30, H: (x, z) => x > BANK ? -2.6 : 0, layers: [T.cobble({ c: '#6a5a58', kind: 'slab' }), X.conc({ c: '#7a6a64' }), T.dirt({ c: '#5a4a40' })],
   mix: (x, z) => [x > BANK - .7 ? 1 : 0, x < -7 ? 1 : 0], shade: C.lightShade(lights, [.42, .38, .54]) }); scene.add(land.mesh);
-const WF = T.water({ c: '#5a4228' }), river = R.ground({ w: 60, d: 900, cell: 3, cx: 31, cz: -300, layers: [WF[0]], shade: (x, z) => [.75, .62, .55] }); river.mesh.position.y = -1.3; river.mat.emissive.set('#3a2412'); scene.add(river.mesh);
+const WF = T.water({ c: '#5a4228' }), river = R.ground({ w: 60, d: 900, cell: 3, cx: 31, cz: -300, layers: [WF[0]], shade: (x, z) => [.75, .62, .55] }); river.mat.emissive.set('#3a2412'); { const g = new THREE.Group(); g.position.y = -1.3; g.add(river.mesh); scene.add(g); }
 const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
 { const G = R.geo(), tc = X.conc({ c: '#7a6a64', seed: 2 }); for (let z = -120; z < 40; z += 6) G.quad([BANK, -2.6, z + 6], [BANK, -2.6, z], [BANK, 0, z], [BANK, 0, z + 6], [0, 0, 2, .87]); fixed.push(G.mesh(tc)); }
 fixed.push(C.fence({ len: 150, h: .9, kind: 'mesh' })); fixed[fixed.length - 1].position.set(BANK - .2, 0, -40); fixed[fixed.length - 1].rotation.y = PI / 2;
