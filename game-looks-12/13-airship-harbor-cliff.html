@@ -70,7 +70,7 @@ const crew = [{ bulk: 1.15, hairStyle: 'bald', hair: '#5a4a3a', beard: 'beard', 
   .map((o, k) => { const p = R.actor(o); scene.add(p); if (k < 2) F.wear(p, 'box', k ? { kind: 'x', c: '#8a9a6a' } : {}); return p; });
 
 const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
-const fx = K.fx(scene, 80), SPEED = 1.35, X0 = -30, LEN = 70; let sm = 0;
+const fx = K.fx(scene, 80), SPEED = 1.0, X0 = -30, LEN = 70; let sm = 0;
 K.loop((dt, t) => {
   const LP = 24, z = 33 - (t * SPEED) % LP, x = 14.6, y = 0;   // 桟橋の先から、がけの町へ歩いてもどる
   hero.position.set(x, y, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.6, .85);
