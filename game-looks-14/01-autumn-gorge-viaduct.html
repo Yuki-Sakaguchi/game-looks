@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-01 紅葉の渓谷と石の鉄橋 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a1416;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff4e0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-01 ─ 紅葉の渓谷と石の鉄橋 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-11/pack-wa1.js"></script>
+<script src="../game-looks-11/pack-wa2.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 晩秋の昼下がり。紅葉で赤とだいだいにそまった深い谷の底を、川ぞいの小道が奥へ続く。谷の高い所には石の鉄橋（アーチが 7 つ）がかかり、汽車が けむりを引いてゆっくりわたる。
+// 色の組は「紅葉の赤とだいだい・石のクリーム・空の青」＋差し色の 主役の青緑のスカーフ。がけと地面は R.ground の高さ、鉄橋は R.parts の面に石の絵をはり、汽車はこのページで打つ。
+// 主役は旅の人（第 13 集の TL.person、4.5 頭身）。うしろから追い、少し見上げるカメラで、主役と鉄橋の両方を入れる。落ち葉が舞い、川が流れ、さぎが立ち、茶屋の人が落ち葉をはく。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), W = PACK_WA1(THREE, K, R), WA = PACK_WA2(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, TR = R.TR;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 700, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2e64b4'], [.5, '#78a8dc'], [.84, '#f0c8a0'], [1, '#ffe4b8']], { r: 420 })); scene.fog = new THREE.Fog('#f0c8a4', 100, 420);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e0ff, ground: 0xb86a48, amb: 1.4, sun: 0xffd8a0, power: 2.5, range: 36, map: 2048 }), SUN = new THREE.Vector3(-.45, .62, .5).normalize();
+
+// ---- 谷の形。谷の底（y=0）を川がうねり、左右は がけ と紅葉の斜面で 40 m ほど上がる ----
+const VC = z => 1 + Math.sin(z * .025) * 4, RX = z => VC(z) + 5 + Math.sin(z * .06 + 1) * 1.6, PX = z => VC(z) - 5 + Math.sin(z * .05) * 1.2;
+const H = (x, z) => { const u = Math.abs(x - VC(z)) - 11; if (u < 0) return Math.abs(x - RX(z)) < 4.5 ? -.5 : 0; const st = Math.floor(u / 5), k = u - st * 5; return Math.min(44, st * 6.5 + (k > 3.2 ? (k - 3.2) * 3.6 : 0) + u * .25 + Math.sin(z * .08 + x * .3) * 1.2); };
+const leafG = T.grass({ c: '#a2843c', flowers: .75, fc: ['#d8502a', '#e8962e', '#c4382a', '#f0c048'], seed: 2 }), cliff = T.rock({ c: '#a8907a', moss: .25 }), pebble = T.dirt({ c: '#a8987e', pebbles: 1 });
+const land = R.ground({ w: 150, d: 240, cell: 2, cz: -60, H, layers: [leafG, cliff, pebble], mix: (x, z) => { const u = Math.abs(x - VC(z)) - 11, k = ((u % 5) + 5) % 5; return [u > 0 && k > 3 ? 1 : 0, Math.abs(x - RX(z)) < 6.2 && u < 0 ? 1 : 0]; } }); scene.add(land.mesh);
+const WF = T.water({ c: '#3a8aa0' }), river = R.strip([...Array(60)].map((_, i) => { const z = 30 - i * 5; return [RX(z), -.45, z]; }), 8.6, WF[0], { lift: 0 }); river.material = river.material.clone(); scene.add(river);
+scene.add(R.strip([...Array(60)].map((_, i) => { const z = 30 - i * 5; return [PX(z), 0, z]; }), 2.2, T.dirt({ c: '#b08a5e', pebbles: .5 })));
+
+// ---- 石の鉄橋（谷を x の向きにわたる。上の面が y=DY） ----
+const ZB = -96, DY = 30, BW = 4.4, SPAN = 13, NA = 7;
+{ const B = R.parts(), St = B.g(T.stone({ c: '#b49a82', moss: .25, seed: 3 })), Dk = B.g(T.stone({ c: '#9a8a7a', seed: 5 })), x0 = -SPAN * NA / 2 + VC(ZB), PW = 3.2, r = (SPAN - PW) / 2, ys = DY - 2.4 - r;
+  for (let i = 0; i <= NA; i++) { const x = x0 + i * SPAN, yb = Math.min(H(x - PW / 2, ZB), H(x + PW / 2, ZB)) - 2; St.box(PW, ys - yb, BW, x, yb, ZB, { m: 3 }); St.box(PW + .8, .5, BW + .8, x, ys - .4, ZB, { m: 3 }); }
+  for (let i = 0; i < NA; i++) { const xm = x0 + (i + .5) * SPAN, N = 10;
+    for (let k = 0; k < N; k++) { const a0 = PI - k / N * PI, a1 = PI - (k + 1) / N * PI, p0 = [xm + Math.cos(a0) * r, ys + Math.sin(a0) * r], p1 = [xm + Math.cos(a1) * r, ys + Math.sin(a1) * r], u0 = p0[0] / 3, u1 = p1[0] / 3, top = DY - .6;
+      for (const s of [1, -1]) { const z = ZB + s * BW / 2; s > 0 ? St.quad([p0[0], p0[1], z], [p1[0], p1[1], z], [p1[0], top, z], [p0[0], top, z], [u0, p0[1] / 3, u1, top / 3]) : St.quad([p1[0], p1[1], z], [p0[0], p0[1], z], [p0[0], top, z], [p1[0], top, z], [u1, p1[1] / 3, u0, top / 3]); }
+      Dk.quad([p1[0], p1[1], ZB + BW / 2], [p0[0], p0[1], ZB + BW / 2], [p0[0], p0[1], ZB - BW / 2], [p1[0], p1[1], ZB - BW / 2], [0, 0, .5, BW / 3], .65); } }
+  const L = SPAN * NA + 4; St.box(L, .6, BW + .5, VC(ZB), DY - .6, ZB, { m: 3 }); for (const s of [-1, 1]) St.box(L, .9, .35, VC(ZB), DY, ZB + s * (BW / 2 + .05), { m: 3 });
+  scene.add(R.merge([B.group()])); }
+
+// ---- 汽車（前が +x。遠くから見るので形は少なく、ボイラーの帯・窓のあかりは手で打つ） ----
+const Px = R.Px, ramp = R.ramp, from = (P, m = 1) => T.from(P, { m });
+const BK = ramp('#2e2e3a'), BRS = ramp('#c8963a'), MR = ramp('#7a2e30'), CR = ramp('#f0e0c0');
+const boilerT = (() => { const P = Px(32, 16); P.each((x, y) => y < 2 ? BK[1] : y === 2 ? BRS[4] : (x % 8 === 0 ? BRS[3] : y < 7 ? BK[4] : BK[2])); return from(P, 2); })();
+const coachT = (() => { const P = Px(64, 32); P.each((x, y) => y < 3 ? BK[2] : y < 15 ? CR[3] : y < 17 ? BRS[4] : y < 29 ? (x % 16 === 0 ? MR[1] : y === 17 ? MR[4] : MR[3]) : BK[1]);
+  for (let k = 0; k < 4; k++) { const x = k * 16 + 3; P.rect(x, 5, 10, 8, CR[0]); P.rect(x + 1, 6, 8, 6, k % 2 ? '#ffd890' : '#f0b860'); P.rect(x + 1, 6, 8, 1, '#fff4d8'); } return from(P, 3); })();
+const train = new THREE.Group(); train.scale.setScalar(1.25); scene.add(train);
+{ const B = R.parts(), Bo = B.g(boilerT), Mt = B.g(T.metal({ c: '#34343e' })), Rd = B.g(T.metal({ c: '#a83a30' })), Wh = B.g(T.wheel({ kind: 'wood', c: '#a83a30' })), Cs = B.g(coachT, { side: true }), Rf = B.g(T.metal({ c: '#5a5058' }));
+  Bo.at(TR(0, 2.1, 0, 0, 0, -PI / 2)).loft(10, [[0, .85, .85, 0, 1], [5.2, .85, .85, 2, 1]], { cap: 'top' }).at(null);
+  Mt.at(TR(4.3, 2.6, 0)).loft(8, [[0, .3, .3, 0, .9], [1.1, .24, .24, .5, 1], [1.4, .38, .38, .8, 1.1]], { cap: 'top' }).at(null).at(TR(2.6, 2.8, 0)).loft(8, [[0, .4, .4, 0, 1], [.5, .2, .2, .6, 1.1]], { cap: 'top' }).at(null);
+  Mt.box(2.4, 2.4, 2.4, -1.2, 1.2, 0, { m: 2 }); Rf.box(2.8, .2, 2.7, -1.2, 3.6, 0, { m: 2 }); B.g('#ffd080', { glow: true }).quad([-2.41, 2.4, 1.21], [-.2, 2.4, 1.21], [-.2, 3.2, 1.21], [-2.41, 3.2, 1.21]);
+  Rd.box(8.2, .5, 2.2, 1.2, .6, 0, { m: 1.5 }); Mt.box(3.6, 1.6, 2.4, -4.4, .9, 0, { m: 2 });
+  for (const s of [-1, 1]) [4.2, 2.6, 1.2, -.3, -3.4, -5.2].forEach((x, k) => { const r = k > 1 && k < 4 ? .75 : .45; Wh.at(TR(x, r, s * 1.15, 0, s * PI / 2)).loft(10, [[0, r, r, 0, 1]], { cap: 'top', capRect: true }).at(null); });
+  for (let c = 0; c < 4; c++) { const xa = -6.6 - c * 11.4, xb = xa - 10.8, w = 1.35, y0 = .9, y1 = 3.1;
+    for (const s of [-1, 1]) Cs.quad([s > 0 ? xb : xa, y0, s * w], [s > 0 ? xa : xb, y0, s * w], [s > 0 ? xa : xb, y1, s * w], [s > 0 ? xb : xa, y1, s * w], [0, 0, 3.6, 1]);
+    Rf.box(10.8, .35, 2.9, (xa + xb) / 2, y1, 0, { m: 2 }); Mt.box(10.8, .5, 2.4, (xa + xb) / 2, .4, 0, { m: 2 }); }
+  train.add(B.group()); }
+const smoke = C.steam({ n: 16, r: 1.8, rise: 10, a: .85, speed: .16, c: '#8a7e88', spread: 1.2, wind: [-4, .4] }); smoke.position.set(4.3, 4, 0); train.add(smoke);
+
+// ---- 斜面の紅葉と、川ぞいの物（茶屋・ベンチ・大岩・草） ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const LEAF = ['#c8402a', '#d8602a', '#e8902e', '#b8302e', '#f0b23a', '#d8502a'];
+for (let i = 0; i < 230; i++) { const z = 24 - hash(i, 1) * 200, sg = hash(i, 2) > .5 ? 1 : -1, u = 11.5 + hash(i, 3) ** .7 * 34, x = VC(z) + sg * u; if (Math.abs(z - ZB) < 4) continue;
+  const pine = hash(i, 4) > .84; put(R.tree({ kind: pine ? 'pine' : 'round', h: (pine ? 7 : 4.5) + hash(i, 5) * 3, c: pine ? '#2e5a48' : LEAF[i % 6], seed: i }), x, z, hash(i, 6) * 6, H(x, z) - .2); }
+for (let i = 0; i < 18; i++) { const z = 16 - i * 7.3 - hash(i, 7) * 3, x = PX(z) - 2.6 - hash(i, 8) * 3; put(R.tree({ kind: hash(i, 9) > .5 ? 'round' : 'bush', h: hash(i, 9) > .5 ? 4.2 + hash(i, 1) * 1.5 : 1.4, c: LEAF[(i + 2) % 6], seed: i + 40 }), x, z, i); }
+for (let i = 0; i < 40; i++) { const z = 22 - hash(i, 11) * 130, sg = hash(i, 12) > .55 ? 1 : -1, x = sg > 0 ? RX(z) + 4.6 + hash(i, 13) * 2 : RX(z) - 4.8 - hash(i, 13) * .8; put(i % 3 ? R.tuft({ kind: i % 2 ? 'reed' : 'grass', s: 1, c: '#b8a050' }) : R.rock({ s: .6 + hash(i, 14) * 1.2, c: '#a8a090', moss: .3, seed: i }), x, z, i, Math.max(0, H(x, z))); }
+const ZT = -22, XT = PX(ZT) - 6.5; put(R.house({ w: 5, d: 4, h: 2.4, wall: T.plaster({ frame: 'beam', wood: '#5a3a28' }), roof: T.thatch({ c: '#a88a58' }), roofKind: 'hip', ridge: 'z', lit: .6, seed: 4 }), XT, ZT, PI / 2, 0);
+put(R.bench({ c: '#6a4a30' }), XT + 3.4, ZT - 2.6, PI / 2, 0); put(R.bench({ c: '#6a4a30' }), XT + 3.4, ZT + 2.4, PI / 2, 0);
+put(W.hokora({ s: 1 }), PX(-58) - 2.4, -58, PI / 2, 0); put(R.rock({ s: 2.4, c: '#a8a090', moss: .4, seed: 9 }), RX(-44) + 1, -44, 0, -.4);
+for (let i = 0; i < 64; i++) { const z = 20 - i * 2.1 - hash(i, 21) * 1.5, sg = i % 2 ? 1 : -1, x = PX(z) + sg * (1.8 + hash(i, 22) * 1.6); if (sg > 0 && Math.abs(x - RX(z)) < 5) continue; put(hash(i, 23) > .55 ? R.tree({ kind: 'bush', h: .7 + hash(i, 24) * .6, c: LEAF[(i + 1) % 6], seed: i }) : R.tuft({ kind: 'grass', s: .55, c: '#c8a050', seed: i % 3 }), x, z, i, 0); }
+scene.add(R.merge(fixed));
+// 茶屋の赤い大がさ（野点がさ）
+{ const B = R.parts(); B.g(T.fabric({ c: '#c8302a', c2: '#e8c8a0', pattern: 'stripe', w: 4 }), { side: true }).loft(12, [[2.5, 1.7, 1.7, 0, .85], [2.85, 1.1, 1.1, .5, 1], [3.05, .08, .08, 1, 1.1]], { ur: 6 }); B.g(T.planks({ c: '#8a6a40' })).loft(5, [[0, .04, .04, 0, 1], [3.1, .035, .035, 1, 1]], { cap: 'top' }); const g = B.group(); g.position.set(XT + 3.6, 0, ZT); scene.add(g); }
+scene.add(R.backdrop({ c: '#b0604a', haze: '#f4d0b0', r: 330, h: 70, y: 20, rep: 3, seed: 2 }), R.backdrop({ c: '#9a5a4a', haze: '#e8b898', r: 250, h: 40, y: -3, rep: 5, seed: 11 }), R.backdrop({ c: '#8a5a52', haze: '#f0c8a8', r: 300, h: 50, y: 24, rep: 4, seed: 7 }));
+for (let i = 0; i < 6; i++) { const c = R.cloud({ s: 34 + hash(i, 8) * 26, c: '#fff8f0', shade: '#d0c0d8', seed: i }), a = -PI / 2 + (i - 2.5) * .45; c.position.set(Math.cos(a) * 290, 100 + hash(i, 9) * 50, Math.sin(a) * 290); c.lookAt(0, 60, 0); scene.add(c); }
+
+// ---- 人と鳥（第 13 集の 4.5 頭身。この場面のためのオリジナル） ----
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#3a9aa0' } }); scene.add(hero);
+const keeper = TL.person({ size: 'small', hair: 'center', outfit: 'apron', hat: 'kerchief', hatC: '#e8d8b8', head: { hair: '#4a3a34', skin: '#f0c8a0', eyes: 'round', mouth: 'smile' }, colors: { tunic: '#6a4a5a', apron: '#e8dcc0', pants: '#4a3a40' } }); scene.add(keeper);
+const broom = (() => { const B = R.parts(), Wd = B.g(T.planks({ c: '#a8844a' })); Wd.loft(4, [[0, .025, .025, 0, 1], [1.2, .025, .025, 1, 1]]); B.g(T.thatch({ c: '#c8a860' })).loft(5, [[-.45, .16, .06, 0, .8], [0, .05, .04, .5, 1]]); return B.group(); })(); keeper.userData.J.foreR.add(broom); broom.position.set(0, -.3, .05); broom.rotation.x = .9;
+const sagi = [0, 1, 2].map(i => { const b = W.sagi({ s: 1.3 }); scene.add(b); return b; });
+const kites = [0, 1].map(i => { const b = R.bird({ c: '#6a4a3a', belly: '#c8a888', neck: false, s: 2 }); scene.add(b); return b; });
+const red = WA.petals(scene, { n: 110, box: [26, 12, 30], c: '#e05a2a', size: 2, fall: .7, wind: [.9, .4] }), gold = WA.petals(scene, { n: 50, box: [26, 12, 30], c: '#f4b23a', size: 1.8, fall: .55, wind: [1.1, .2] });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 12, LEN = 32, SPEED = 1.2;
+K.loop((dt, t) => {
+  const z = Z0 - (t * SPEED) % LEN, x = PX(z), dx = PX(z - .5) - x;
+  hero.position.set(x, 0, z); hero.rotation.y = PI + Math.atan2(-dx, .5) * .8; R.walk(hero, t * SPEED * 3.8, .8);
+  const tall = innerWidth < innerHeight, D = tall ? 4 : 3.9; cam.position.set(x - .5, tall ? 2.1 : 2.2, z + D); cam.lookAt(x + .6, tall ? 4.6 : 1.4, z - 8);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z - 8); land.follow(x, z - 50);
+  train.position.set(VC(ZB) - 70 + (t * 3.4 + 62) % 160, DY, ZB);
+  keeper.position.set(XT + 2.2 + Math.sin(t * .3) * .6, 0, ZT + 1 + Math.sin(t * .2) * 1.2); keeper.rotation.y = PI / 2 + Math.sin(t * .5) * .5; R.idle(keeper, t, 0);
+  keeper.userData.J.armR.rotation.set(-.5 + Math.sin(t * 3.2) * .35, 0, -.3 + Math.sin(t * 3.2) * .25); keeper.userData.J.torso.rotation.x = .25;
+  sagi.forEach((b, i) => { const sz = -8 - i * 17, fly = i === 2; if (fly) { const a = t * .25; b.position.set(RX(sz) + Math.cos(a) * 8, 6 + Math.sin(t * .7) * 1.2, sz - 20 + Math.sin(a) * 14); b.rotation.y = -a; } else { b.position.set(RX(sz) + 2.6 - i * 1.4, -.45, sz); b.rotation.y = i * 1.7 + Math.sin(t * .3 + i) * .3; } W.sagiPose(b, fly ? 'fly' : 'stand', t + i); });
+  kites.forEach((b, i) => { const a = t * (.18 + i * .05) + i * 2; b.position.set(VC(ZB) + Math.cos(a) * 22, 40 + i * 6, ZB + 20 + Math.sin(a) * 16); b.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); R.birdPose(b, 'fly', t * .3 + i); });
+  red.tick(t, x, z - 8, 0); gold.tick(t + 3, x, z - 8, 0); R.flip(river.material, WF, t, 4);
+  C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
