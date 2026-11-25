@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-03 冬の雨の朝の大温室 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1c2428;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#eef4ee;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-03 ─ 冬の雨の朝の大温室 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-11/pack-jungle1.js"></script>
+<script src="../game-looks-11/pack-steam2.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script src="pack-greenhouse.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 冬の雨の朝。外は灰青の冷たい雨と、葉を落とした木。白い鉄とガラスの大きな温室の中だけが、あたたかい緑と湯気でいっぱい。
+// 色の組は「葉の緑・白い鉄・ガラスと空の灰青」＋差し色は あかりの だいだいと、花と こいの赤。ガラスには雨つぶが流れる（コマ送り）。
+// 主役は雨やどりに入ってきた旅の人（第 13 集の TL.person）。うしろから追い、かまぼこ屋根の身廊の先に、ドームの館と 天井までとどく大やしを見せる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), RU = PACK_RUINS(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), J = PACK_JUNGLE1(THREE, K, R), S = PACK_STEAM2(THREE, K, R), TL = PACK_TALE(THREE, K, R), GH = PACK_GREENHOUSE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 700, aa: false, fitAspect: .9, maxFov: 82 });
+scene.add(R.skyDome([[0, '#3a4658'], [.5, '#5a6a7e'], [1, '#8a96a2']], { r: 420 })); scene.fog = new THREE.Fog('#7a8896', 40, 200);
+const { sun } = K.lights(scene, renderer, { sky: 0xe4f0ff, ground: 0x6a8a5a, amb: 1.55, sun: 0xf0f4ff, power: .9, range: 30, map: 2048 }), SUN = new THREE.Vector3(-.25, .9, .2).normalize();
+
+// ---- 温室（身廊は z=10〜-12.7、はば 13 m、高さ 8.7 m。奥のドームは半径 13 m、てっぺんまで 24 m） ----
+const gl = GH.glass({ c: '#b8d0d4' }), H = GH.house({ nave: [10, -12.74], ax: 6.5, ay: 4.2, ah: 4.5, dome: { z: -24, r: 13, h: 9.5, rise: 11 }, glass: gl }), DZ = H.D.z;
+scene.add(H.glass); gl.mat.color.set('#a4b4bc');
+
+// ---- 地面：中は黒い土の花だんと、れんがの小道。ドームの中は池をかこむ輪の道。外は ぬれた冬の芝 ----
+const POND = 5.2, ISLE = 1.7, pond = (x, z) => { const r = Math.hypot(x, z - DZ); return r < POND && r > ISLE; };
+const Hf = (x, z) => { const r = Math.hypot(x, z - DZ); return r < POND && r > ISLE ? -.55 : 0; };
+const land = R.ground({ w: 140, d: 140, cell: 1, cz: -10, H: Hf, layers: [T.grass({ c: '#5a6a4a', seed: 2 }), T.dirt({ c: '#4a3a2e', pebbles: .2 }), T.brickFloor({ c: '#a8705a' })],
+  mix: (x, z) => { const ins = H.inside(x, z), r = Math.hypot(x, z - DZ), path = (Math.abs(x) < 1.3 && z > DZ + 7) || (r > 6.1 && r < 7.7); return [ins ? 1 : 0, ins && path ? 1 : 0]; },
+  shade: (x, z) => H.inside(x, z) ? [1.08, 1.02, .9] : [.74, .8, .9] }); scene.add(land.mesh);
+const water = T.water({ c: '#3a6a5a' }), wm = R.mat(water[0]), wg = new THREE.RingGeometry(ISLE, POND, 28, 1); wg.rotateX(-PI / 2); const wmesh = new THREE.Mesh(wg, wm); wmesh.position.set(0, -.2, DZ); scene.add(wmesh);
+
+// ---- 動かない物：骨組み、花だんの石のふち、池の石がき、ベンチ、植物 ----
+const fixed = [H.iron], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const curbT = T.stone({ c: '#a8a49a', moss: .3, seed: 3 });
+{ const G = R.geo(); for (const s of [-1, 1]) G.box(.22, .22, 10 - (DZ + 7.9), s * 1.4, 0, (10 + DZ + 7.9) / 2, { m: 2 });
+  const ring = (r, h, w) => { for (let i = 0; i < 32; i++) { const a0 = i / 32 * PI * 2, a1 = (i + 1) / 32 * PI * 2, p = (a, rr, y) => [Math.sin(a) * rr, y, DZ + Math.cos(a) * rr]; G.quad(p(a0, r, -.6), p(a1, r, -.6), p(a1, r, h), p(a0, r, h), [0, 0, 1, .4]); G.quad(p(a0, r, h), p(a1, r, h), p(a1, r - w, h), p(a0, r - w, h), [0, 0, 1, .15]); } };
+  ring(POND + .3, .28, .3); ring(ISLE, .3, -.25); ring(6.1, .2, .2); ring(7.9, .2, .2); fixed.push(G.mesh(curbT)); }
+const P1 = { banana: '#4e9a3c', monstera: '#3a7a3a', fern: '#5a9a3e', strap: '#4a8a46' };
+// 身廊の両がわの花だん
+for (const s of [-1, 1]) for (let i = 0; i < 8; i++) { const z = 8.5 - i * 2.6 - hash(i, s) * 1.2, x = s * (2.6 + hash(i, s, 2) * 3), k = hash(i, s, 3);
+  if (i % 4 === 1) put(J.palm({ h: 5.2 + k * 2, n: 9, len: 3.4, c: '#5a9a3a', lean: .25, seed: i + (s > 0 ? 20 : 0) }), s * 4.6, z, i);
+  else if (k > .55) put(J.plant({ kind: 'banana', c: P1.banana, h: 1.4 + k, len: 2.6, seed: i * 3 + s }), x, z, i);
+  else put(J.plant({ kind: 'monstera', c: P1.monstera, h: .5, seed: i * 5 + s }), x, z, i);
+  put(J.plant({ kind: 'fern', c: P1.fern, seed: i * 7 + s, len: 1.2 }), s * (1.9 + hash(i, 4) * .4), z - 1.4, i);
+  if (i % 2 === 0) for (let j = 0; j < 3; j++) put(R.tuft({ kind: 'flower', s: 1.2 }), s * (1.9 + j * .35), z + .6 + j * .3, i + j);
+  if (i % 3 === 2) put(J.plant({ kind: 'strap', c: P1.strap, tip: '#f0702a', seed: i, n: 12 }), s * 2.2, z + .4, i); }
+// ドームの館：池のまわりの花だんと、木生しだ。まん中の島に 天井までとどく大やし
+for (let i = 0; i < 22; i++) { const a = i / 22 * PI * 2 + .1, r = 9.2 + hash(i, 1) * 2.8, x = Math.sin(a) * r, z = DZ + Math.cos(a) * r; if (z > DZ + 6 && Math.abs(x) < 2.4) continue;
+  if (i % 3 === 0) put(J.plant({ kind: 'fern', c: '#5a9a3e', h: 2.4 + hash(i, 2) * 1.2, len: 2.2, n: 11, seed: i }), x, z, i);
+  else if (i % 3 === 1) put(J.plant({ kind: 'banana', c: P1.banana, h: 2 + hash(i, 3), len: 3, seed: i }), x, z, i);
+  else put(J.palm({ h: 6 + hash(i, 4) * 3, n: 9, len: 3.8, c: '#4e9a3a', seed: i + 60 }), x, z, i);
+  put(J.plant({ kind: hash(i, 5) > .5 ? 'monstera' : 'fern', c: P1.monstera, seed: i + 90 }), Math.sin(a) * 8.4, DZ + Math.cos(a) * 8.4, i); }
+const BP = 2.2, bigPalm = J.palm({ h: 8, n: 13, len: 3.4, c: '#5aa040', lean: .1, seed: 7, bark: '#a89a7a' }); bigPalm.scale.setScalar(BP); put(bigPalm, -2.2, DZ - .3, .4);   // 大やしは 2.2 倍（幹も太く）
+for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2; put(J.plant({ kind: 'strap', c: '#4a8a46', tip: '#e8402a', seed: i + 3, n: 10 }), Math.sin(a) * 1.1, DZ + Math.cos(a) * 1.1, a, .3); }
+// 池の はすの葉（たいらな丸い葉。切れこみ 1 つ）
+{ const P = R.Px(32), Lc = R.ramp('#5a9a4a'); P.clip = true; P.each((x, y) => { const dx = x - 15.5, dy = y - 15.5, r = Math.hypot(dx, dy); if (r > 15 || (dx > 0 && Math.abs(dy) < dx * .25)) return null; return r > 13.5 ? Lc[1] : (Math.abs(Math.atan2(dy, dx) * 8 % 1) < .12 ? Lc[4] : Lc[3]); });
+  const lt = T.from(P, { m: 1, cut: true }), G = R.geo().normal([0, 1, 0]); for (let i = 0; i < 16; i++) { const a = hash(i, 1, 5) * PI * 2, r = ISLE + .6 + hash(i, 2, 5) * (POND - ISLE - 1.2), s = .35 + hash(i, 3, 5) * .35, x = Math.sin(a) * r, z = DZ + Math.cos(a) * r, q = hash(i, 4, 5) * 6;
+    const p = (u, v) => [x + Math.cos(q) * u - Math.sin(q) * v, -.17, z + Math.sin(q) * u + Math.cos(q) * v]; G.quad(p(-s, -s), p(s, -s), p(s, s), p(-s, s)); } fixed.push(G.mesh(lt, { cut: true })); }
+// つりかご（あばらから つるす。たれる つる）と、ベンチ
+for (let z = 8; z > -12; z -= 6) for (const s of [-1, 1]) { const x = s * 3.4, y = 6.9; const p = GH.pot({ r: .28, h: .3, c: '#b8643a' }); put(p, x, z, 0, y); put(J.hang({ len: 1.8, n: 4, w: .6, c: '#4a8a3a', flowers: s > 0, fc: '#f05a7a', seed: z }), x, z, 0, y + .2);
+  const G = R.geo(); GH.bar(G, [x, y + .3, z], [x, H.AY + H.AH * Math.sin(Math.acos(Math.abs(x) / H.AX)) - .05, z], .02); fixed.push(G.mesh(T.metal({ c: '#4a4a4a' }))); }
+put(R.bench({ w: 1.7, c: '#6a7a5a' }), -1.95, -4, PI / 2);
+put(GH.pot({ r: .5, h: .6 }), 1.9, 2, 0); put(J.plant({ kind: 'strap', c: '#4a8a46', tip: '#f4d04a', seed: 9 }), 1.9, 2, 0, .55);
+
+// ---- 外：葉を落とした木と、遠くのかすんだ木立 ----
+for (let i = 0; i < 26; i++) { const s = i % 2 ? 1 : -1, x = s * (11 + hash(i, 1) * 26), z = 22 - i * 4.2 - hash(i, 2) * 4; if (Math.hypot(x, z - DZ) < 17) continue; put(D.deadTree({ h: 7 + hash(i, 3) * 5, seed: i, c: '#5a5a62', twigs: 3 }), x, z, i); }
+scene.add(R.merge(fixed));
+
+// ---- あかり：棟からつるした真ちゅうのランプ（だいだい）。光は少しだけ ----
+for (let z = 7; z > -12; z -= 6) { const l = S.lamp({ kind: 'hang', glow: '#ffd08a' }); l.position.set(0, H.AY + H.AH - .05, z); scene.add(l); }
+for (const z of [3, -5, -12]) { const L = new THREE.PointLight(0xffb870, 14, 14, 1.4); L.position.set(0, 6.6, z); scene.add(L); }
+
+// ---- 雨（温室の外だけ）、ガラスの雨つぶ（コマ送り）、中の湯気（池と、じょうろ） ----
+const rain = GH.rain({ n: 1500, area: [-40, 40, -60, 34], h: 26, a: .5, skip: (x, z) => Math.abs(x) < 7.5 && z < 11 && z > -14 || Math.hypot(x, z - DZ) < 14 }); scene.add(rain);
+const mist = [[-3, DZ + 3], [3, DZ - 2], [0, DZ + 4.4]].map(([x, z], i) => { const s = C.steam({ n: 10, r: 1.1, rise: 2.4, spread: 1.6, speed: .12, c: '#f4fff8', a: .12, phase: i * .4 }); s.position.set(x, -.2, z); scene.add(s); return s; });
+const haze = D.groundFog({ n: 30, box: [30, 30], y: .2, h: 1.2, w: 5, c: '#e8f4ec', a: .16, wind: [.15, .05] }); scene.add(haze);
+
+// ---- 人・ねこ・鳥・ちょう・こい（どれも この場面のためのオリジナル） ----
+const hero = TL.person({ ...TL.cast('hero'), sword: false, colors: { ...TL.cast('hero').colors, scarf: '#e8402a' } }); scene.add(hero);
+const gardener = TL.person({ size: 'tall', hair: 'center', outfit: 'worker', hat: 'straw', head: { hair: '#7a5a3a', skin: '#e8b890', beard: true }, colors: { tunic: '#4a6a5a', pants: '#4a6a5a', boot: '#3a3a3a' } }); gardener.position.set(2.5, 0, -7.4); gardener.rotation.y = PI / 2 + .7; scene.add(gardener);
+const can = GH.can({ c: '#5a8a7a' }); scene.add(can); const drip = GH.drip({ n: 16, h: .9 }); scene.add(drip);
+const reader = TL.person({ size: 'normal', hair: 'swept', hat: 'beret', hatC: '#8a3a3a', head: { hair: '#d8d0c8', skin: '#f0c8a0', eyes: 'closed' }, colors: { tunic: '#5a5a7a', pants: '#3a3a4a', scarf: '#e8dcc8' } }); reader.position.set(-1.95, 0, -4); reader.rotation.y = PI / 2; scene.add(reader);
+const kid = TL.person({ size: 'child', hair: 'wolf', head: { hair: '#3a2a2a', skin: '#f0c8a0', eyes: 'round', mouth: 'smile' }, colors: { tunic: '#e8c040', pants: '#3a5a8a', scarf: '#3a7ab0' } }); scene.add(kid);
+const cat = R.cat({ c: '#e8a050', belly: '#f8ecd8' }); cat.position.set(1.9, .58, 2.7); cat.rotation.y = -PI / 2; scene.add(cat);
+const parrots = [['#e8402a', '#2a7ad0', '#f4d04a'], ['#3aa85a', '#f4d04a', '#e8402a']].map(([c, c2, c3]) => { const p = J.parrot({ c, c2, c3, s: 1.1 }); scene.add(p); return p; });
+const bfly = RU.butterflies({ n: 9, area: [8, 2.2, 30], fc: ['#f4d04a', '#f0802a', '#f8f0e0', '#8ac8f0'], s: .1 }); bfly.position.set(0, 1.4, -4); bfly.scale.set(1, 1, .7); scene.add(bfly);
+const kois = [0, 1, 2, 3, 4].map(i => { const k = GH.koi({ s: .55 + hash(i, 1) * .2, c: i % 3 === 2 ? '#e8402a' : '#f0782a', seed: i }); scene.add(k); return k; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const Z0 = 0, LEN = 15, SPEED = .95;
+const T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で、歩きの とちゅうから見る
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SPEED) % LEN, x = .15;
+  hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.8, .75);
+  const tall = innerWidth < innerHeight; cam.position.set(x - .6, tall ? 1.5 : 1.25, z + (tall ? 3.6 : 4.1)); cam.lookAt(x + .2, tall ? 3.6 : 3.1, z - 8);   // 低い所から少し見上げ、主役の全身と、ドームの大やしを入れる
+  sun.position.set(x + SUN.x * 50, SUN.y * 50, z + SUN.z * 50); sun.target.position.set(x, 0, z - 8); land.follow(0, z - 30);
+  // 庭師：じょうろで花だんに水をやる（ゆっくり かたむける）
+  R.idle(gardener, t, .3); const Jg = gardener.userData.J, tilt = .5 + Math.sin(t * .7) * .3; Jg.armR.rotation.x = -.9; Jg.foreR.rotation.x = -.2;
+  gardener.updateMatrixWorld(true); const hp = new THREE.Vector3(); Jg.foreR.getWorldPosition(hp); can.position.set(hp.x - .05, hp.y - .38, hp.z + .1); can.rotation.set(0, gardener.rotation.y + PI / 2, -tilt);
+  can.updateMatrixWorld(true); const sp = new THREE.Vector3(...can.userData.spout).applyMatrix4(can.matrixWorld); drip.position.copy(sp); drip.userData.on = tilt > .45 ? 1 : .3;
+  R.idle(reader, t * .3, Math.sin(t * .2) * .2);
+  const ka = t * .25; kid.position.set(Math.sin(ka) * 6.6, 0, DZ + Math.cos(ka) * 6.6); kid.rotation.y = ka + PI / 2; R.walk(kid, t * 6, .9);
+  R.catPose(cat, 'sit', t);
+  parrots.forEach((p, i) => { if (i === 0) { const top = bigPalm.userData.top.map(v => v * BP); p.position.set(top[0] - 2.2 + 2.2, top[1] - 2.4, DZ - .3 + top[2]); p.rotation.y = 1; J.parrotPose(p, 'perch', t); }
+    else { const a = t * .32; p.position.set(Math.sin(a) * 9, 10 + Math.sin(t * .7) * 1.5, DZ + Math.cos(a) * 9); p.rotation.y = a + PI / 2; J.parrotPose(p, 'fly', t); } });
+  kois.forEach((k, i) => { const a = t * (.18 + i * .03) * (i % 2 ? -1 : 1) + i * 1.3, r = 2.6 + (i % 3) * .7; k.position.set(Math.sin(a) * r, -.24, DZ + Math.cos(a) * r); k.rotation.y = a + (i % 2 ? -PI / 2 : PI / 2); });
+  bfly.userData.tick(t); rain.userData.tick(t); drip.userData.tick(t); R.flip(gl.mat, gl.frames, t, 3); R.flip(wm, water, t, 3);
+  S.tick(t); C.update(t, cam); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
