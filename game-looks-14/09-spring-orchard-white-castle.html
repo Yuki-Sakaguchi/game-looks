@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-09 花の果樹園の丘と白い城 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#a8c8e8;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-09 ─ 花の果樹園の丘と白い城 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 春の昼まえ。花ざかりの果樹園の丘を、谷へ下りていく土の道。谷の底には川と小さな村、向こうの台地の急な斜面の上に、白い石の城がそびえる。
+// 色の組は「花のうす紅と白・若葉の黄みどり・空の青」＋差し色は城の屋根の青。果樹は R.tree の葉を花の色で打ち、花びらは このページで打った 8 ドットの絵をまく。
+// 主役は第 13 集の TL.person（4.5 頭身）。坂を下りるのをうしろ右から追う。花びら、ちょう、風車、実を見る村の人、犬、鳥が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a64c8'], [.55, '#5a9ae0'], [.86, '#a8d0f0'], [1, '#e8f0f0']], { r: 440 })); scene.fog = new THREE.Fog('#c8dcec', 90, 430);
+const { sun } = K.lights(scene, renderer, { sky: 0xd8e8ff, ground: 0xb8c890, amb: 1.4, sun: 0xfff4e0, power: 2.5, range: 36, map: 2048 }), SUN = new THREE.Vector3(.45, .75, .4).normalize();
+
+// ---- 地形：手前は南向きの丘（z が小さいほど下る）、谷の底に川、向こうはがけで台地へ上がる ----
+const sst = (a, b, v) => { const k = Math.max(0, Math.min(1, (v - a) / (b - a))); return k * k * (3 - 2 * k); };
+const RZ = -104, PATH = z => Math.sin(z * .045) * 2.2;
+const H = (x, z) => { const hill = z > -50 ? (z + 50) * .2 : 0, down = -24 * sst(-50, -96, z), up = 27 * sst(-110, -136, z) + (z < -110 ? (Math.sin(x * .13) * 2.4 + Math.sin(x * .31 + 1) * 1.2) * sst(-108, -122, z) * (1 - sst(-128, -140, z)) : 0), side = (Math.sin(x * .035 + 1) * 3 + Math.sin(x * .09 + z * .03) * 1.2) * Math.min(1, Math.abs(x - PATH(z)) / 24);
+  return hill + down + up + side * (z > -96 ? 1 : .4) + (z < -134 ? Math.sin(x * .02) * 3 + Math.sin(z * .03) * 2 : 0); };
+const land = R.ground({ w: 300, d: 320, cell: 2, H, layers: [T.grass({ c: '#8ab84a', flowers: .35, fc: ['#ffffff', '#f8e070', '#f0b0c8'] }), T.dirt({ c: '#b89468', pebbles: .3 }), T.rock({ c: '#b0a088' })],
+  mix: (x, z) => { const sl = Math.abs(H(x, z + 1) - H(x, z - 1)); return [Math.abs(x - PATH(z)) < 1.4 + Math.sin(z * .7) * .2 && z > -60 ? 1 : 0, sl > 2.6 && R.tn(Math.floor(x + 500), Math.floor(z + 500), 6, 4, 1200, 1200, 7) > .38 ? 1 : 0]; },
+  shade: (x, z) => { const hz = H(x, z - 1) - H(x, z + 1), k = Math.max(-.2, Math.min(.1, hz * .1)); return [1 + k * .5, 1 + k * .4, 1 + k * .2]; } });
+scene.add(land.mesh);
+const WF = T.water({ c: '#4a9ac8' }), river = R.strip([...Array(40)].map((_, i) => { const x = -160 + i * 8; return [x, H(x, RZ) + .2, RZ + Math.sin(x * .03) * 3]; }), 11, WF[0], { lift: 0 }); river.material = river.material.clone(); scene.add(river);
+
+// ---- 果樹園：花ざかりの木を、道の両がわにすじで植える。木の下の草は濃い ----
+const fixed = [], put = (o, x, z, ry = 0, dy = 0) => { o.position.set(x, H(x, z) + dy, z); o.rotation.y = ry; fixed.push(o); return o; };
+const TREES = [];
+for (let row = -6; row <= 6; row++) for (let k = 0; k < 13; k++) { const z = 14 - k * 6.2 + (row & 1) * 3.1, x = PATH(z) + row * 6 + (row > 0 ? 1.2 : -1.2); if (row === 0 || z < -68 || hash(row, k) < .1) continue;
+  const white = hash(row, k, 2) < .35; put(R.tree({ kind: 'round', h: 3.8 + hash(row, k, 3) * 1.3, c: white ? '#f4f0e8' : '#f2b8cc', flowers: .7, fc: white ? ['#ffffff', '#f8e8b0'] : ['#ffffff', '#f88aa8'], seed: (row + k) & 7 }), x, z, hash(row, k, 4) * TAU); TREES.push([x, z]); }
+// 柵・木箱
+for (const s of [-1, 1]) for (let k = 0; k < 20; k++) { const z = 12 - k * 3.1; if (s > 0 && k % 7 === 3) continue; put(R.fence({ len: 3, kind: 'rail', c: '#8a6a4a' }), PATH(z) + s * 2.6, z, PI / 2 - Math.atan((PATH(z + .5) - PATH(z - .5)))); }
+for (let k = 0; k < 4; k++) { const [x, z] = TREES[(k * 17 + 5) % TREES.length]; put(R.crate({ s: .6, c: '#a87a4a' }), x + 1.4, z + .6, k); }
+scene.add(R.merge(fixed));
+
+// ---- 谷の村・風車・向こうのがけの滝・台地の城 ----
+for (let k = 0; k < 6; k++) { const x = -36 + k * 13 + hash(k, 1) * 4, z = RZ + 12 + hash(k, 2) * 6, h = R.house({ w: 5, d: 4.4, h: 3.4, wall: T.plaster({ frame: 'cross', c: '#f0e8d8' }), roof: T.roof({ c: ['#c8563a', '#4a78b8'][k % 2] }), chimney: k % 2 === 0, seed: k }); h.position.set(x, H(x, z), z); h.rotation.y = hash(k, 3) - .5; scene.add(h); }
+const mill = F.windmill({ h: 9, roof: '#c8563a', c: '#f4ecdc', speed: .6 }); mill.position.set(-26, H(-26, -36), -36); mill.rotation.y = .5; scene.add(mill);
+const castle = F.castle({ s: 2.4, stone: F.tex.ashlar({ c: '#ece6da' }), roof: F.tex.slate({ c: '#3a6ac0', c2: '#5a8ad8' }), c: '#3a6ac0', crest: 'sun' }); castle.position.set(14, H(14, -170), -170); scene.add(castle);
+for (const [x, z, r, h] of [[-8, -150, 2.4, 16], [40, -158, 2, 13]]) { const tw = F.tower({ kind: 'round', r, h, stone: F.tex.ashlar({ c: '#ece6da' }), roof: F.tex.slate({ c: '#3a6ac0', c2: '#5a8ad8' }), top: 'cone', roofH: r * 2.4, flag: { kind: 'pennant', w: 2.4, h: .6, c: '#3a6ac0', c2: '#f4ecdc' } }); tw.position.set(x, H(x, z), z); scene.add(tw); }
+for (let k = 0; k < 22; k++) { const x = -90 + k * 9 + hash(k, 5) * 5, z = -142 - hash(k, 6) * 14; if (Math.abs(x - 14) < 30 && z < -150) continue; const tr = R.tree({ kind: k % 3 ? 'round' : 'tall', h: 6 + hash(k, 7) * 3, c: k % 4 ? '#6aa04a' : '#f2b8cc', flowers: k % 4 ? .2 : .7, fc: ['#ffffff', '#f8e070'], seed: k & 7 }); tr.position.set(x, H(x, z), z); scene.add(tr); }
+scene.add(R.backdrop({ c: '#8aa8c8', haze: '#c8dcec', r: 330, h: 50, y: 0, rep: 3, seed: 5 }), R.backdrop({ c: '#a8bcd8', haze: '#d8e4ee', r: 400, h: 100, y: -4, seed: 2 }));
+for (let k = 0; k < 8; k++) { const c = R.cloud({ s: 30 + hash(k, 8) * 24, c: '#ffffff', shade: '#c8d8f0', seed: k }), a = -PI / 2 - 1.4 + k * .4; c.position.set(Math.cos(a) * 340, 80 + hash(k, 9) * 50, Math.sin(a) * 340); c.lookAt(0, 50, 0); scene.add(c); }
+
+// ---- 花びら（8 ドットの手打ちの絵を、主役のまわりにまく。風で流れて、くるくる回る） ----
+const petT = (() => { const P = R.Px(8); P.each((x, y) => { const d = Math.hypot((x - 3.5) * 1.3, y - 3.5); return d < 3 ? (x + y < 5 ? '#ffffff' : d > 2.2 ? '#f088a8' : '#f8c0d0') : null; }); return T.from(P, { m: 1, cut: true }); })();
+const petG = new THREE.PlaneGeometry(.2, .2), petM = R.mat(petT, { side: true, glow: false }), petals = [...Array(150)].map((_, i) => { const m = new THREE.Mesh(petG, petM); m.userData.s = [hash(i, 1), hash(i, 2), hash(i, 3)]; scene.add(m); return m; });
+
+// ---- 人・犬・ちょう・鳥 ----
+const SK = ['#f0c8a0', '#d8a07a', '#f8d8b8'], HR = ['#5a3a24', '#2a2024', '#8a5a34'];
+const folk = (o, i) => TL.person({ hair: ['center', 'wolf', 'swept'][i % 3], head: { hair: HR[i % 3], skin: SK[i % 3], eyes: 'round', mouth: 'smile' }, ...o });
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#3a6ac0' } }); scene.add(hero);
+const pickers = [[5, 'straw', '#e8a040'], [17, 'kerchief', '#f4ecdc'], [31, 'straw', '#c8563a'], [44, 'beret', '#3a6ac0']].map(([ti, hat, c], i) => { const [x, z] = TREES[ti % TREES.length], p = folk({ outfit: i % 2 ? 'apron' : 'traveler', hat, hatC: c, colors: { tunic: ['#5a9a4a', '#3a6ac0', '#c8563a', '#e8d8b8'][i] } }, i); p.position.set(x + 1.1, H(x + 1.1, z + 1), z + 1); p.rotation.y = -2.4 + i; scene.add(p); return p; });
+const walkers = [0, 1, 2].map(i => { const p = folk([{ size: 'child', colors: { tunic: '#f0b8cc' } }, { outfit: 'robe', hat: 'hood', hatC: '#e8d8b8', colors: { tunic: '#7a6aa8' } }, { hat: 'straw', colors: { tunic: '#5a9a4a' } }][i], i + 1); scene.add(p); return p; });
+const dog = PK.dog({ c: '#c89a68', collar: '#c8563a' }); scene.add(dog);
+const bfs = [[1.5, 0], [-3, -14], [3, -26], [-2, -38]].map(([x, z]) => { const b = PK.butterflies({ n: 4, area: [5, 1.4, 5], fc: ['#fff8d8', '#ffe27a', '#ffffff'] }); b.position.set(PATH(z) + x, H(PATH(z) + x, z) + .3, z); scene.add(b); return b; });
+const flock = PK.flock({ n: 6, r: 14, h: 4, speed: .22, squash: .5, c: '#f6f2e8' }); flock.position.set(-10, -2, -95); scene.add(flock);
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.15, Z0 = 12, LOOP = 54, T0 = +(new URLSearchParams(location.search).get('t') || 0), D = new THREE.Vector3();   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0;
+  const z = Z0 - (t * SP) % LOOP, x = PATH(z) + .3, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.atan(PATH(z - 1) - PATH(z)) * .8; R.walk(hero, t * SP * 3.8, .8);
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .8 : 1.1), y + (tall ? 1.9 : 2.3), z + (tall ? 3.2 : 3.9)); cam.lookAt(x - (tall ? .4 : .6), y + (tall ? 2.6 : -.6), z - 16);
+  sun.position.set(x + SUN.x * 70, y + SUN.y * 70, z + SUN.z * 70); sun.target.position.set(x, y, z - 10); land.follow(x, z - 50);
+  walkers.forEach((p, i) => { const back = i !== 1, d = (t * (1 + i * .1) + i * 17) % 60, pz = back ? -50 + d : 12 - d, px = PATH(pz) + (back ? -.8 : .9); p.position.set(px, H(px, pz), pz); p.rotation.y = back ? Math.atan(PATH(pz + 1) - PATH(pz)) : PI; R.walk(p, t * 4 + i, .8); });
+  { const d = (t * 1.6) % 40, dz = 6 - d, dx = PATH(dz) - 1.2 + Math.sin(t * .8) * .6; dog.position.set(dx, H(dx, dz), dz); dog.rotation.y = PI + Math.sin(t * .8) * .3; PK.beastPose(dog, 'walk', t * 1.6); }
+  pickers.forEach((p, i) => { R.idle(p, t + i * 1.3, Math.sin(t * .4 + i) * .4); const J = p.userData.J; J.armR.rotation.x = -2.4 + Math.sin(t * 1.4 + i) * .3; J.armL.rotation.x = -1.6 + Math.sin(t * 1.1 + i * 2) * .3; J.head.rotation.x = -.35; });
+  petals.forEach((m, i) => { const [a, b, c] = m.userData.s, w = (t * (.8 + a * .5) + c * 40) % 40; D.set(x - 10 + a * 22 + w * .45, y + 6 - ((t * (.5 + b * .4) + b * 9) % 7.5), z - 16 + b * 24 + Math.sin(t + i) * .6); m.position.copy(D); m.rotation.set(t * (1 + a) + i, t * (1.3 + b), t * .7 + c * 6); });
+  bfs.forEach(b => b.userData.tick(t)); flock.userData.tick(t); R.flip(river.material, WF, t, 4);
+  F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
