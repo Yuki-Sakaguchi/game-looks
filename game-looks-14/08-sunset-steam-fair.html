@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-08 夕焼けの丘の蒸気の移動遊園地 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1a2a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0dc;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-08 ─ 夕焼けの丘の蒸気の移動遊園地 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-11/pack-steam2.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 秋の夕焼け。町はずれの草の丘に、旅の遊園地が来ている。夕日を背にした大きな観覧車、回るメリーゴーランド、しまのテントと屋台。どれも真ちゅうの蒸気機関で動き、けむりが夕空へのぼる。
+// 色の組は「あかね色の空・草の黄みどり・ペンキの白と赤」＋差し色は電球の黄色。観覧車・テント・電球のつなは このページで面を組み、手で打ったテクスチャをはる。屋台・旗・馬は既存の部品。
+// 主役は第 13 集の TL.person（4.5 頭身）。入口から観覧車へ向かって歩くのを、うしろ右から追う。観覧車とかご、メリーゴーランド、けむり、人、旗、鳥が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), S2 = PACK_STEAM2(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 900, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#2a2c6e'], [.42, '#7a4a86'], [.72, '#e27a5a'], [.9, '#f8b060'], [1, '#ffe0a0']], { r: 440 })); scene.fog = new THREE.Fog('#e89a72', 70, 380);
+const { sun } = K.lights(scene, renderer, { sky: 0xa890d0, ground: 0x9a6a48, amb: 1.3, sun: 0xffa868, power: 2.4, range: 34, map: 2048 }), SUN = new THREE.Vector3(-.62, .3, -.72).normalize();
+// 夕日（空のひくい所に光る円盤）
+{ const P = R.Px(32); P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); return d < 13 ? (d < 9 ? '#fff4c8' : '#ffd890') : null; }); const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), R.mat(T.from(P, { m: 1, cut: true }), { glow: true })); m.scale.setScalar(34); m.position.copy(SUN).multiplyScalar(400); m.position.y = 70; m.lookAt(0, 0, 0); m.material.fog = false; scene.add(m); }
+
+// ---- 丘の草地。まん中に人がふみかためた土の道、観覧車の前は広場 ----
+const FER = [9, -64], CAR = [-8, -22], H = (x, z) => Math.sin(x * .03 + 1) * 2.2 * Math.min(1, Math.max(0, (Math.abs(x) - 14) / 30)) + Math.sin(z * .02) * 1.2 * Math.min(1, Math.max(0, (Math.abs(x) - 14) / 30)) + Math.sin(x * .4 + z * .23) * .05;
+const land = R.ground({ w: 240, d: 260, cell: 2, H, layers: [T.grass({ c: '#8aa848', flowers: .2, fc: ['#f8e0a0', '#f0a0a0'] }), T.dirt({ c: '#b08a5a', pebbles: .3 }), T.grass({ c: '#6a8a3a', seed: 3 })],
+  mix: (x, z) => { const path = Math.abs(x - Math.sin(z * .05) * .6) < 2.6 || Math.hypot(x - CAR[0], z - CAR[1]) < 7.2 || (Math.hypot(x - FER[0], (z - FER[1]) * 1.6) < 14 && z > FER[1] - 2); return [path ? 1 : 0, !path && K.hash(Math.floor(x / 6), Math.floor(z / 6), 4) < .25 ? 1 : 0]; } });
+scene.add(land.mesh);
+
+// ---- 手で打つテクスチャ：電球（光る点）、観覧車のかご、テントの屋根 ----
+const bulbT = (() => { const P = R.Px(8); P.each((x, y) => { const d = Math.hypot(x - 3.5, y - 3.5); return d < 2 ? '#fffbe0' : d < 3.4 ? '#ffd060' : null; }); return T.from(P, { m: 1, cut: true }); })();
+const cabT = c => { const P = R.Px(32), C = R.ramp(c), W = R.ramp('#f0e8d6'); P.each((x, y) => { if (y < 5) return C[y === 0 ? 5 : y === 4 ? 1 : 4]; if (y < 17) { if (x < 3 || x > 28) return W[x === 2 || x === 28 ? 2 : 4]; if (y === 5 || y === 16) return W[y === 5 ? 2 : 5];
+    return y === 6 || x === 3 ? '#4a3a54' : (x + y) % 13 === 3 ? '#ffe0a0' : y > 12 ? '#c08050' : '#e8a070'; } if (y === 17) return '#e8c060'; if (y > 29) return C[1]; return x === 0 ? C[5] : x === 31 ? C[2] : (x - 2) % 8 === 0 ? C[2] : (y === 22 || y === 23) && x > 5 && x < 26 ? W[4] : C[3]; }); return T.from(P, { m: 1 }); };
+const tentT = (c, c2) => { const P = R.Px(64, 32), A = R.ramp(c), B = R.ramp(c2); P.each((x, y) => { const S = (x >> 3) % 2 ? B : A, k = x & 7, n = R.tn(x, y, 8, 8, 64, 32, 3); if (y > 27) return y === 28 ? '#e8c060' : (x % 8 < 4 ? A[2] : '#e8c060'); return k === 0 ? S[4] : k === 7 ? S[1] : y < 2 ? S[2] : n > .74 ? S[4] : n < .22 ? S[2] : (y + x) % 17 === 0 ? S[2] : S[3]; }); return T.from(P, { m: 2 }); };
+const paintT = PK.tex.truss({ kind: 'beam', c: '#f0e6d4', paint: '#f0e6d4' }), redT = S2.tex.brass({ c: '#c8463a', rivets: true, m: 1.5 }), brassT = S2.tex.brass({ c: '#c89a48', m: 1.5 });
+// 電球を 1 つ置く（十字の 2 枚の板。どこから見ても点に見える）
+const bulb = (G, x, y, z, s = .32) => { G.quad([x - s, y - s, z], [x + s, y - s, z], [x + s, y + s, z], [x - s, y + s, z], [0, 0, 1, 1]); G.quad([x, y - s, z - s], [x, y - s, z + s], [x, y + s, z + s], [x, y + s, z - s], [0, 0, 1, 1]); };
+
+// ---- 観覧車：白いペンキの鉄骨の輪 2 枚、スポーク、輪のふちの電球、つるしたかご。足は赤い鉄板の 2 本の A 字 ----
+const ferris = new THREE.Group(), FR = 15, HUB = FR + 3, NC = 14; ferris.position.set(FER[0], 0, FER[1]); ferris.rotation.y = -.3; scene.add(ferris);
+const wheel = new THREE.Group(); wheel.position.y = HUB; ferris.add(wheel); wheel.userData.dyn = true; const cabs = [];
+{ const B = R.parts(), Gt = B.g(paintT, { side: true }), Gb = B.g(bulbT, { glow: true, cut: true, side: true }), Gh = B.g(brassT).smooth(1), P = (a, r, z) => [Math.cos(a) * r, Math.sin(a) * r, z], NS = 28;
+  for (let k = 0; k < NS; k++) { const a0 = k / NS * TAU, a1 = (k + 1) / NS * TAU; for (const z of [-1, 1]) { Gt.quad(P(a0, FR - 1.1, z), P(a0, FR, z), P(a1, FR, z), P(a1, FR - 1.1, z), [0, 0, 1, 2]); bulb(Gb, ...P(a0, FR + .15, z * 1.05)); bulb(Gb, ...P((a0 + a1) / 2, FR - 1.25, z * 1.05), .24); }
+    if (k % 2 === 0) for (const z of [-1, 1]) { const ex = -Math.sin(a0) * .32, ey = Math.cos(a0) * .32; Gt.quad([-ex, -ey, z * .6], [ex, ey, z * .6], [Math.cos(a0) * (FR - 1) + ex, Math.sin(a0) * (FR - 1) + ey, z], [Math.cos(a0) * (FR - 1) - ex, Math.sin(a0) * (FR - 1) - ey, z], [0, 0, 1, 10]); }
+    if (k % 4 === 0) for (let r = 3; r < FR - 1; r += 2.4) bulb(Gb, ...P(a0, r, 1.1), .22); }
+  Gh.at(R.TR(0, 0, -1.4, 0, PI / 2)).loft(8, [[0, 1.1, 1.1, 0, .9], [2.8, 1.1, 1.1, 1, 1]], { cap: 'both', ur: 2 }); Gh.at(null); wheel.add(B.group());
+  const CC = ['#c8463a', '#e8a83a', '#3a7ab0', '#4a9a6a', '#c86a9a', '#e8d8b8'];
+  for (let k = 0; k < NC; k++) { const pv = new THREE.Group(), a = k / NC * TAU; pv.position.set(...P(a, FR - .4, 0)); const cab = R.geo().loft(6, [[-2.2, .5, .5, 0, .8], [-2, .78, .78, .1, .9], [-1.4, .82, .82, .46, 1], [-.92, .82, .82, .84, 1], [-.78, .9, .9, .88, 1.05], [-.5, .14, .14, 1, 1.1]], { ur: 6, cap: 'both' }).mesh(cabT(CC[k % CC.length])); cab.scale.setScalar(1.5); pv.add(cab); wheel.add(pv); cabs.push(pv); }
+  const L = R.parts(), Gr = L.g(redT, { side: true }), Gl = L.g(bulbT, { glow: true, cut: true, side: true });
+  for (const z of [-1.7, 1.7]) for (const s of [-1, 1]) { const x0 = s * 7.5, n = 6; for (let i = 0; i < n; i++) { const u0 = i / n, u1 = (i + 1) / n, p = u => [x0 * (1 - u), HUB * u, z * (1.6 - .6 * u)];
+      Gr.quad([p(u0)[0] - .45, p(u0)[1], p(u0)[2]], [p(u0)[0] + .45, p(u0)[1], p(u0)[2]], [p(u1)[0] + .4, p(u1)[1], p(u1)[2]], [p(u1)[0] - .4, p(u1)[1], p(u1)[2]], [0, 0, 1, 2]); bulb(Gl, p(u0)[0] + .55 * s, p(u0)[1] + 1, p(u0)[2], .2); } }
+  Gr.box(17, .6, 5.6, 0, 0, 0, { m: 2 }).box(6, 2.4, 3, 0, 0, 3.6, { m: 2 }); ferris.add(L.group()); }
+// 観覧車をまわす蒸気機関と、その煙突
+const eng = S2.engine({ h: 3.4, r: .9, c: '#c89a48', iron: '#4a4a62', gear: true, gearR: 1.1, speed: .6 }); eng.position.set(FER[0] - 9, 0, FER[1] + 7); eng.rotation.y = .6; scene.add(eng);
+
+// ---- メリーゴーランド：既存の部品（馬・柱・しまの屋根）を回す。屋根のふちに電球 ----
+const carousel = PK.carousel({ r: 4.6, n: 8, c: '#c8463a', c2: '#f4e8d4', fc: ['#c8463a', '#3a7ab0', '#e8a83a'], missing: 0, torn: 0, seed: 1 }); carousel.position.set(CAR[0], 0, CAR[1]); carousel.userData.dyn = true; scene.add(carousel);
+{ const G = R.geo(); for (let k = 0; k < 24; k++) { const a = k / 24 * TAU; bulb(G, Math.cos(a) * 5.05, 3.05, Math.sin(a) * 5.05, .2); } const m = G.mesh(bulbT, { glow: true, cut: true, side: true }); carousel.add(m); }
+
+// ---- テント・屋台・電球のつな・旗 ----
+const fixed = [], put = (o, x, z, ry = 0) => { o.position.set(x, H(x, z), z); o.rotation.y = ry; fixed.push(o); return o; };
+const bigTent = (r, h, c, c2) => { const B = R.parts(), G = B.g(tentT(c, c2), { side: true }); G.loft(12, [[0, r, r, 0, .8], [h * .42, r, r, .5, 1]], { ur: 6 }); G.loft(12, [[h * .42, r * 1.08, r * 1.08, 0, .85], [h * .62, r * .62, r * .62, .5, 1], [h, .15, .15, 1, 1.15]], { ur: 6 });
+  B.g(T.window({ lit: 1, curtain: '#ffc070', bars: 'none', frame: '#ffb060', glass: '#ffb060' }), { glow: true }).quad([-1.1, 0, r + .05], [1.1, 0, r + .05], [1.1, 2.8, r + .05], [-1.1, 2.8, r + .05], [.1, 0, .9, 1]);
+  const g = B.group(), f = F.flag({ kind: 'pennant', pole: 1.6, w: 1.8, h: .5, c: c2 === '#f4e8d4' ? c : c2, c2: '#f4e8d4', crest: 'none' }); f.position.y = h; g.add(f); return g; };
+const t1 = bigTent(7, 10, '#c8463a', '#f4e8d4'); t1.position.set(-20, 0, -58); t1.rotation.y = .5; scene.add(t1);
+const t2 = bigTent(4.2, 7, '#3a7ab0', '#f4e8d4'); t2.position.set(17, 0, -30); t2.rotation.y = -1.2; scene.add(t2);
+const t3 = bigTent(3.6, 6, '#e8a83a', '#c8463a'); t3.position.set(-16, 0, -12); t3.rotation.y = 1.1; scene.add(t3);
+const SC = [['#c8463a', '#f4e8d4'], ['#3a7ab0', '#f4e8d4'], ['#e8a83a', '#c8463a'], ['#4a9a6a', '#f4e8d4']], STALLS = [];
+for (let i = 0; i < 8; i++) { const s = i % 2 ? 1 : -1, z = -2 - Math.floor(i / 2) * 9 - (s > 0 ? 4 : 0); if (s < 0 && Math.abs(z - CAR[1]) < 7) continue; put(R.stall({ w: 2.8, c: SC[i % 4][0], c2: SC[i % 4][1], seed: i, fc: ['#e2503c', '#f2a23a', '#f8e8c0', '#f0d050'] }), s * 6, z, s > 0 ? -PI / 2 : PI / 2); STALLS.push([s, z]);
+  if (i % 3 === 0) { put(R.barrel({ h: .9, c: '#8a6444' }), s * 7.6, z + 2); put(R.crate({ s: .7, c: '#a87a4a' }), s * 7.4, z - 2.2, i); } }
+// 電球のつな：道の両がわの柱から、ジグザグに道をわたす。三角の小旗もいっしょに
+const flagT = (() => { const P = R.Px(32, 8), CS = ['#c8463a', '#f4e8d4', '#e8a83a', '#3a7ab0']; P.each((x, y) => { const i = x >> 3, k = x & 7; return Math.abs(k - 3.5) < 4 - y * .5 ? (y === 0 ? '#6a4a3a' : R.ramp(CS[i])[k < 2 ? 4 : 3]) : null; }); return T.from(P, { m: 1, cut: true }); })();
+{ const B = R.parts(), Gp = B.g(T.bark({ c: '#7a5a42' })).smooth(1), Gb = B.g(bulbT, { glow: true, cut: true, side: true }), Gf = B.g(flagT, { side: true, cut: true });
+  const posts = []; for (let k = 0; k < 9; k++) { const z = 6 - k * 8; for (const s of [-1, 1]) { const x = s * 4.4; Gp.at(R.TR(x, H(x, z), z)).loft(5, [[0, .12, .12, 0, .8], [5.4, .09, .09, 2, 1]], { cap: 'top' }); posts.push([x, H(x, z) + 5.3, z]); } } Gp.at(null);
+  const line = (a, b, sag, flags) => { const n = 10; for (let i = 0; i <= n; i++) { const u = i / n, p = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * PI) * sag, a[2] + (b[2] - a[2]) * u]; bulb(Gb, ...p, .2); if (flags && i < n) { const q = [a[0] + (b[0] - a[0]) * (u + .05), a[1] + (b[1] - a[1]) * (u + .05) - Math.sin((u + .05) * PI) * sag, a[2] + (b[2] - a[2]) * (u + .05)], w = .3; Gf.quad([q[0] - w * (b[0] - a[0]) / 8, q[1] - .55, q[2] - w * (b[2] - a[2]) / 8], [q[0] + w * (b[0] - a[0]) / 8, q[1] - .55, q[2] + w * (b[2] - a[2]) / 8], [q[0] + w * (b[0] - a[0]) / 8, q[1], q[2] + w * (b[2] - a[2]) / 8], [q[0] - w * (b[0] - a[0]) / 8, q[1], q[2] - w * (b[2] - a[2]) / 8], [(i % 4) / 4, 0, (i % 4 + 1) / 4, 1]); } } };
+  for (let k = 0; k < 8; k++) { line(posts[k * 2], posts[k * 2 + 3], .9, k % 2 === 0); line(posts[k * 2], posts[k * 2 + 2], .5, true); line(posts[k * 2 + 1], posts[k * 2 + 3], .5, true); }
+  line([-4.4, H(-4.4, -58) + 5.3, -58], [FER[0] + Math.cos(-.3) * -6, 7.5, FER[1] + 3], 1.4, true); scene.add(B.group()); }
+scene.add(R.merge(fixed));
+// 遠く：低い山なみと、夕日に光る雲
+scene.add(R.backdrop({ c: '#8a6a8a', haze: '#e8a080', r: 300, h: 26, y: -2, rep: 3, seed: 4 }), R.backdrop({ c: '#6a5a8a', haze: '#d89888', r: 380, h: 56, y: -4, seed: 9 }));
+for (let k = 0; k < 7; k++) { const c = R.cloud({ s: 34 + hash(k, 8) * 26, c: '#ffc8a0', shade: '#9a6a9a', seed: k }), a = -PI / 2 - 1.5 + k * .48; c.position.set(Math.cos(a) * 340, 70 + hash(k, 9) * 50, Math.sin(a) * 340); c.lookAt(0, 50, 0); scene.add(c); }
+
+// ---- 人（4.5 頭身の TL.person）と鳥 ----
+const SK = ['#e8b890', '#c88a60', '#f0c8a0'], HR = ['#3a2a22', '#6a3a24', '#2a2024'];
+const folk = (o, i) => TL.person({ hair: ['center', 'wolf', 'swept'][i % 3], head: { hair: HR[i % 3], skin: SK[i % 3], eyes: 'round', mouth: 'smile' }, ...o });
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#c8463a' } }); scene.add(hero);
+const LOOK = [{ outfit: 'apron', hat: 'kerchief', hatC: '#f4e8d4', colors: { tunic: '#3a7ab0' } }, { hat: 'beret', hatC: '#c8463a', colors: { tunic: '#e8d8b8' } }, { outfit: 'robe', colors: { tunic: '#7a4a86' } }, { size: 'child', hat: 'cap', hatC: '#e8a83a', colors: { tunic: '#c8463a' } }, { hat: 'straw', colors: { tunic: '#4a9a6a' } }, { size: 'child', colors: { tunic: '#3a7ab0' } }];
+const sellers = STALLS.map(([s, z], i) => { const p = folk(LOOK[i % 3], i); p.position.set(s * 7.2, 0, z); p.rotation.y = s > 0 ? -PI / 2 : PI / 2; scene.add(p); return p; });
+const walkers = [0, 1, 2, 3, 4, 5].map(i => { const p = folk(LOOK[(i + 1) % LOOK.length], i + 1); scene.add(p); return p; });
+const watchers = [0, 1, 2].map(i => { const p = folk(LOOK[[3, 1, 5][i]], i); p.position.set(CAR[0] + 5.5 + i * .9, 0, CAR[1] + 3 - i * 1.4); p.rotation.y = -2.2; scene.add(p); return p; });
+const birds = [0, 1, 2, 3, 4].map(() => { const b = R.bird({ c: '#3a2a3a', belly: '#6a4a5a', neck: false, s: 1.5 }); scene.add(b); return b; });
+
+const fx = K.fx(scene, 200), crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.2, Z0 = 8, LOOP = 44, T0 = +(new URLSearchParams(location.search).get('t') || 0), q = new THREE.Vector3(); let em = 0;   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0;
+  const z = Z0 - (t * SP) % LOOP, x = .9 + Math.sin(z * .05) * .6, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.cos(z * .05) * .03; R.walk(hero, t * SP * 3.8, .8);
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .8 : 1), y + (tall ? 1.55 : 1.9), z + (tall ? 3 : 3.6)); cam.lookAt(x - (tall ? .5 : .7), y + (tall ? 3.6 : .5), z - 14);
+  sun.position.set(x + SUN.x * 70, SUN.y * 70, z + SUN.z * 70); sun.target.position.set(x, 0, z - 10); land.follow(x, z - 40);
+  const wa = t * .12; wheel.rotation.z = wa; cabs.forEach((c, i) => { c.rotation.z = -wa + Math.sin(t * .9 + i * 1.7) * .04; });
+  carousel.rotation.y = t * .5; carousel.children.forEach((c, i) => { if (c.userData && c.userData.J) c.position.y = .7 + Math.sin(t * 2.4 + i) * .3; });
+  walkers.forEach((p, i) => { const back = i % 2 === 1, d = (t * (1 + i * .07) + i * 11) % 66, pz = back ? -60 + d : 6 - d, px = back ? 3 + (i % 3) * .3 : -2.4 - (i % 3) * .3; p.position.set(px, 0, pz); p.rotation.y = back ? 0 : PI; R.walk(p, t * 4 + i, .8); });
+  sellers.forEach((p, i) => { R.idle(p, t + i * 1.3, Math.sin(t * .5 + i) * .5); if (i % 2) p.userData.J.armR.rotation.x = -1.3 - Math.max(0, Math.sin(t * 2 + i)) * .6; }); watchers.forEach((p, i) => R.idle(p, t + i, Math.sin(t * .4 + i) * .4));
+  birds.forEach((b, k) => { const a = t * .12 + k * .35, r = 60; b.position.set(-30 + Math.cos(a) * r, 34 + k * 2 + Math.sin(t + k), -110 + Math.sin(a) * 20); b.rotation.y = -a; R.birdPose(b, 'fly', t * .6 + k); });
+  if ((em += dt) > .07) { em = 0; eng.updateMatrixWorld(); q.set(...eng.userData.vent); eng.localToWorld(q);
+    fx.emit('smoke', q.x, q.y, q.z, { size: .8, life: 3.2, vy: 1.9, vx: .5, vz: .2, grow: 2.2, spread: .25, tint: '#fff0e4', add: false }); }
+  fx.update(dt); S2.tick(t); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
