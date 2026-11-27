@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-06 朝霧の湖の水上集落と大水門 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1c2224;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f4f2e8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-06 ─ 朝霧の湖の水上集落と大水門 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-11/pack-wa1.js"></script>
+<script src="../game-looks-11/pack-wa2.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝霧の湖。くいの上に建つ家々を板の道がつなぎ、その先の霧の中に、湖をせきとめる巨大な石の水門が 白い滝を 5 本 落としている。
+// 色の組は「霧の白みどり・水の灰青・古い木の茶」＋差し色の ちょうちんの だいだいと主役の赤いスカーフ。水門は このページで面を組み、切り石と滝は既存の部品。
+// 主役は第 13 集の TL.person（4.5 頭身）。板の道をうしろから追う。舟をこぐ漁師、くいにとまる白さぎ、煙突のけむり、ゆれる水、地をはう霧が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), W = PACK_WA1(THREE, K, R, F), WA = PACK_WA2(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TR = R.TR;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 700, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#8aa0ac'], [.55, '#b8c6c4'], [.86, '#dcdccc'], [1, '#ece6d2']], { r: 400 })); scene.fog = new THREE.Fog('#d2d6c8', 16, 250);
+const { sun } = K.lights(scene, renderer, { sky: 0xe4ece8, ground: 0x8a9a90, amb: 1.7, sun: 0xffe8c4, power: 1.5, range: 30, map: 2048 }), SUN = new THREE.Vector3(-.55, .35, -.75).normalize();
+const sunDisc = D.moon({ r: 14, az: -36, el: 16, c: '#fff6dc', halo: 3, k: .5 }); scene.add(sunDisc);
+
+// ---- 湖の水（ます目に割った面。水のコマ送り）と、浅い所の湖底 ----
+const WY = 0, WF = T.water({ c: '#6a8a8c' }), water = (() => { const G = R.geo().normal([0, 1, 0]), n = 30, s = 12; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const x0 = -n * s / 2 + i * s, z0 = -150 + j * s * .8, x1 = x0 + s, z1 = z0 + s * .8; G.quad([x0, WY, z1], [x1, WY, z1], [x1, WY, z0], [x0, WY, z0], [x0 / 4, -z1 / 4, x1 / 4, -z0 / 4]); } return G.mesh(WF[0]); })();
+water.castShadow = false; water.receiveShadow = true; water.material = water.material.clone(); scene.add(water);
+
+// ---- 板の道：主役の通る道（x=0、-z へ）と、家へわたる短い道。くい・手すり ----
+const DY = 1.1, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const plank = T.planks({ c: '#8a7058', w: 6 }), post = T.bark({ c: '#5a4a3a' });
+{ const B = R.parts(), Dk = B.g(plank), Ps = B.g(post), Rl = B.g(T.planks({ c: '#6a5440' }));
+  const walk = (x0, z0, x1, z1, w) => { const L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L, nx = -uz * w / 2, nz = ux * w / 2, n = Math.ceil(L / 2);
+    for (let k = 0; k < n; k++) { const a = k / n, b = (k + 1) / n, sag = (hash(k, x0, 4) - .5) * .06, P = (u, s) => [x0 + (x1 - x0) * u + nx * s, DY + sag * s, z0 + (z1 - z0) * u + nz * s]; Dk.quad(P(a, -1), P(a, 1), P(b, 1), P(b, -1), [0, 0, w / 3, L / n / 3]); }
+    for (let k = 0; k <= n; k += 1) for (const s of [-1, 1]) { const px = x0 + (x1 - x0) * k / n + nx * s * .9, pz = z0 + (z1 - z0) * k / n + nz * s * .9; Ps.loft(5, [[-2, .12, .12, 0, .8, px, pz], [DY + (k % 2 ? .05 : .9), .1, .1, 1, 1, px + (hash(k, s) - .5) * .1, pz]], { cap: 'top' }); }
+    for (const s of [-1, 1]) if (w < 3) for (let k = 0; k < n; k++) { const a = k / n, b = (k + 1) / n; if (hash(k, s, x0) < .3) continue; const P = (u, y) => [x0 + (x1 - x0) * u + nx * s * .9, y, z0 + (z1 - z0) * u + nz * s * .9]; Rl.quad(P(a, DY + .78), P(b, DY + .78), P(b, DY + .9), P(a, DY + .9), [0, 0, L / n / 3, .05]); } };
+  walk(0, 16, 0, -86, 2.4);
+  // くいの上の家：道の両がわ。家までの短い板の道と、家の下のくい
+  const SIDE = []; for (let i = 0; i < 12; i++) { const s = i % 2 ? 1 : -1, z = 6 - i * 7.4 - (s > 0 ? 2.5 : 0), x = s * (7.2 + hash(i, 2) * 2.6); SIDE.push([x, z, s, i]); walk(s * 1.1, z + .6, x - s * 2.4, z + .6, 1.4);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) Ps.loft(5, [[-2, .16, .16, 0, .8, x + a * 2.1, z + b * 2], [DY + .1, .15, .15, 1, 1, x + a * 2.1, z + b * 2]], {});
+    Dk.quad([x - 3, DY, z + 3.2], [x + 3, DY, z + 3.2], [x + 3, DY, z - 2.8], [x - 3, DY, z - 2.8], [0, 0, 2, 2]); }
+  fixed.push(B.group()); window.SIDE = SIDE; }
+const WALL = [T.boards({ c: '#7a6a58' }), T.plaster({ frame: 'beam', c: '#d8d0bc', wood: '#5a4a3a' }), T.boards({ c: '#5a6a68' })], ROOF = [T.thatch({ c: '#9a8a64' }), T.shingle({ c: '#5a5a58' }), T.thatch({ c: '#8a7a5a', seed: 2 })];
+const lanterns = []; for (const [x, z, s, i] of window.SIDE) { put(R.house({ w: 5, d: 4.4, h: 2.6 + (i % 3) * .3, wall: WALL[i % 3], roof: ROOF[i % 3], pitch: .95, eave: .55, ridge: 'x', win: T.window({ bars: 'cross', frame: '#4a3a30', curtain: '#e8dcc0' }), winLit: T.window({ bars: 'cross', lit: 1, frame: '#4a3a30', curtain: '#ffe0a0' }), lit: .5, chimney: i % 2 === 0, door: T.door({ style: 'plank', c: '#5a4030' }), wins: { f: 1, b: 1, l: 1, r: 1 }, seed: i + 4 }), x, z - .2, s > 0 ? -PI / 2 : PI / 2, DY);
+  const ch = WA.chochin({ c: '#e8803a', mark: i % 2 ? 'wave' : 'ring', r: .22, h: .44 }); ch.position.set(x - s * 2.7, DY + 2.4, z + 1.6); scene.add(ch); lanterns.push(ch);
+  if (i % 3 === 1) { const net = R.geo().quad([-1.4, 0, 0], [1.4, 0, 0], [1.4, 1.6, 0], [-1.4, 1.6, 0], [0, 0, 2, 1.2]).mesh(F.tex.rope({ kind: 'net' }), { side: true, cut: true }); put(net, x, z + 3.1, 0, DY + .3); } }
+// 遠くの島の木と、岸の葦
+for (let i = 0; i < 60; i++) { const x = (hash(i, 1) - .5) * 160, z = 20 - hash(i, 2) * 150; if (Math.abs(x) < 16) continue; put(R.tuft({ kind: 'reed', s: 1.4 + hash(i, 3), c: '#7a8a5a', seed: i % 3 }), x, z, i, 0); }
+for (const [x, z, r] of [[-38, -40, 9], [44, -62, 11], [-58, -88, 12], [30, -20, 6]]) { put(R.rock({ s: r * .5, c: '#6a7268', seed: x }), x, z, 0, -1); for (let k = 0; k < 6; k++) put(R.tree({ kind: k % 2 ? 'pine' : 'tall', h: 6 + hash(k, x) * 6, c: '#4a6a58', seed: k }), x + (hash(k, 1, x) - .5) * r, z + (hash(k, 2, x) - .5) * r, k, r * .25); }
+scene.add(R.merge(fixed));
+
+// ---- 大水門：湖をせきとめる切り石のかべ（はば 140 m・高さ 30 m）。5 つのアーチから滝。上に見張りの塔 ----
+const DZ = -108, DH = 30, falls = [];
+{ const B = R.parts(), St = B.g(F.tex.ashlar({ c: '#5e6a6c', moss: .5 }), { side: true }), Dk = B.g(F.tex.ashlar({ c: '#4e5a5c', moss: .8 }));
+  const gates = [-36, -18, 0, 18, 36], gw = 7, gh = 15;
+  for (let x = -70; x < 70; x += 4) { const inG = gates.find(g => Math.abs(x + 2 - g) < gw / 2 + .1), y0 = inG !== undefined ? gh : -2; St.quad([x, y0, DZ], [x + 4, y0, DZ], [x + 4, DH, DZ], [x, DH, DZ], [x / 6, y0 / 6, (x + 4) / 6, DH / 6]); }
+  for (const g of gates) { for (let k = 0; k < 6; k++) { const a0 = k / 6 * PI, a1 = (k + 1) / 6 * PI, P = (a, r) => [g + Math.cos(a) * r, gh - 2.2 + Math.sin(a) * 2.2 * (r / (gw / 2)), DZ + .05]; St.quad(P(a1, gw / 2 + .9), P(a0, gw / 2 + .9), P(a0, gw / 2), P(a1, gw / 2), [0, 0, 1, .3]); }
+    for (const s of [-1, 1]) St.box(2.2, DH + 4, 3, g + s * (gw / 2 + 1.1), -2, DZ + 1.4, { m: 6 });
+    Dk.quad([g - gw / 2, -2, DZ - 3], [g + gw / 2, -2, DZ - 3], [g + gw / 2, gh + 1, DZ - 3], [g - gw / 2, gh + 1, DZ - 3], [0, 0, gw / 6, (gh + 3) / 6]); for (const s of [-1, 1]) Dk.quad([g + s * gw / 2, -2, DZ - 3], [g + s * gw / 2, -2, DZ], [g + s * gw / 2, gh, DZ], [g + s * gw / 2, gh, DZ - 3], [0, 0, .5, gh / 6]); }   // アーチの奥のかべ（滝の白が読めるよう暗く）   // 柱の出っぱり
+  Dk.box(144, 2, 6, 0, DH, DZ - 2, { m: 6 }); for (let x = -70; x <= 70; x += 3) Dk.box(1.4, 1.4, 1.4, x, DH + 2, DZ + .6, { m: 3 });   // 上の通路と のこぎり形
+  scene.add(B.group());
+  for (const g of gates) { const f = FW.waterfall({ w: gw - .4, h: gh, c: '#b8d0d4', lip: 1.4 }); f.position.set(g, 0, DZ - 1.2); scene.add(f); falls.push(f); }
+  for (const x of [-58, 58]) { const tw = F.tower({ kind: 'square', r: 4, h: 14, stone: F.tex.ashlar({ c: '#7a8282', moss: .5 }), roof: F.tex.slate({ c: '#4a5a60' }), top: 'cone', roofH: 7, lit: 1, flag: { c: '#c8503a', c2: '#e8dcc0', crest: 'wave' } }); tw.position.set(x, DH + 1, DZ - 2); scene.add(tw); } }
+scene.add(R.backdrop({ c: '#9aa8a4', haze: '#d2d6c8', r: 260, h: 60, y: -4, rep: 2, seed: 4 }));
+
+// ---- 人・舟・白さぎ・けむり・霧 ----
+const SK = ['#f0c8a0', '#d8a880', '#e8b890'], HR = ['#2a2420', '#5a3a2a', '#8a8a88'];
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#c8382e' } }); scene.add(hero);
+const folk = (o, i) => { const p = TL.person({ hair: ['center', 'wolf', 'swept'][i % 3], head: { hair: HR[i % 3], skin: SK[i % 3], eyes: 'round', mouth: 'smile' }, ...o }); scene.add(p); return p; };
+const locals = window.SIDE.slice(0, 8).filter((_, i) => i % 2 === 0).map(([x, z, s], i) => { const p = folk([{ outfit: 'apron', hat: 'kerchief', hatC: '#e8dcc0', colors: { tunic: '#5a6a7a', apron: '#e8dcc0' } }, { outfit: 'worker', hat: 'straw', colors: { tunic: '#6a5a44' } }, { outfit: 'robe', colors: { tunic: '#7a5a5a' } }, { size: 'child', colors: { tunic: '#c8803a' } }][i], i); p.position.set(x - s * 2.6, DY, z + 2.4); p.rotation.y = s > 0 ? -PI / 2 : PI / 2; return p; });
+const boats = [0, 1, 2].map(i => { const g = new THREE.Group(), b = R.boat({ c: ['#7a5a40', '#6a5a4a', '#8a6a48'][i] }); g.add(b); const p = TL.person({ hair: 'wolf', hat: 'straw', head: { hair: '#2a2420', skin: SK[i], eyes: 'round' }, outfit: 'worker', colors: { tunic: ['#5a6a7a', '#7a6a50', '#4a5a5a'][i] } }); p.position.set(0, .2, -.6); p.scale.setScalar(.95); g.add(p); g.userData.p = p;
+  const oar = R.geo().loft(4, [[0, .03, .03, 0, 1], [2.4, .03, .03, 1, 1]], {}).mesh(T.planks({ c: '#8a6a48' })); oar.position.set(.3, 1.1, -.4); oar.rotation.set(-.9, 0, -.4); g.add(oar); g.userData.oar = oar; scene.add(g); return g; });
+const herons = [[-3.4, -18], [-4.2, -40], [5.2, -60]].map(([x, z], i) => { const b = W.sagi({ s: 1.2 }); b.position.set(x, .1, z); b.rotation.y = i * 2 + 1; scene.add(b); return b; });
+const flyer = W.sagi({ s: 1.5 }); scene.add(flyer);
+for (const [x, z, s, i] of window.SIDE) if (i % 2 === 0) { const sm = C.steam({ n: 8, r: .5, rise: 4, spread: .5, speed: .2, c: '#eef0ea', a: .5, wind: [.6, .2] }); sm.position.set(x + 1.2, DY + 5.6, z - .2); scene.add(sm); }
+scene.add(D.groundFog({ n: 44, box: [70, 90], H: () => .1, c: '#e8ece4', a: .32, h: 1.8, w: 10, wind: [.4, .1] }));
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.2, Z0 = 12, LOOP = 90, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, x = Math.sin(t * .4) * .15;
+  hero.position.set(x, DY, z); hero.rotation.y = PI; R.walk(hero, t * SP * 3.8, .8);
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .7 : 1), DY + (tall ? 1.8 : 2.2), z + (tall ? 3.3 : 4.2)); cam.lookAt(x - (tall ? .3 : .6), DY + (tall ? 2.5 : 1.3), z - 12);
+  sun.position.set(x + SUN.x * 60, SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, 0, z - 6);
+  R.flip(water.material, WF, t, 3);
+  locals.forEach((p, i) => { R.idle(p, t + i * 2, Math.sin(t * .4 + i) * .5); if (i === 1) p.userData.J.armR.rotation.x = -1.2 - Math.max(0, Math.sin(t * 1.5)) * .5; });
+  boats.forEach((g, i) => { const bz = -10 - i * 22 - (t * (.6 + i * .15)) % 30, bx = (i % 2 ? 1 : -1) * (4.2 + i * 1.5); g.position.set(bx, Math.sin(t * 1.3 + i) * .05, bz); g.rotation.set(Math.sin(t * 1.1 + i) * .03, PI, Math.sin(t * .9 + i) * .04); const k = Math.sin(t * 2.2 + i); g.userData.oar.rotation.set(-.9 + k * .25, k * .3, -.4); R.idle(g.userData.p, t + i, 0); g.userData.p.userData.J.armR.rotation.x = -1 + k * .4; });
+  herons.forEach((b, i) => W.sagiPose(b, 'stand', t + i)); { const a = t * .22; flyer.position.set(Math.cos(a) * 16 - 4, 13 + Math.sin(t * .7), z - 40 + Math.sin(a) * 8); flyer.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a)); W.sagiPose(flyer, 'fly', t); }
+  lanterns.forEach((c, i) => { c.rotation.z = Math.sin(t * 1.4 + i) * .06; });
+  F.tick(t); falls.forEach(f => f.userData.tick && f.userData.tick(t)); C.update(t, cam); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
