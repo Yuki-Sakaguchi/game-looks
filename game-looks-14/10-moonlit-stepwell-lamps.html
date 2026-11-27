@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-10 満月の夜の階段井戸と灯明 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c1030;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-10 ─ 満月の夜の階段井戸と灯明 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-ruins.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 満月の夜。地面を四角くほり下げた、さかさまのピラミッドのような巨大な階段井戸。何十段もの石の段のふちに、小さな灯明が数えきれないほどならぶ。人々は灯明を手に、底の水へ下りていく。
+// 色の組は「夜空のあい色・砂岩の黄土・灯明のだいだい」＋差し色は水にうつる月の白。段・彫りのかべ・水は このページで面を組み、砂岩と彫りのテクスチャ（第 8 集）をはる。
+// 主役は第 13 集の TL.person（4.5 頭身）。まん中の長い石段を下りるのを、うしろ上から追う。灯明のゆらぎ、水にうかべた灯明、下りる人・ひざをつく人、こうもり が動く。静かで、何も起きない場面。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), PK = PACK_RUINS(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TAU = PI * 2;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 56, far: 700, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#0a0e2c'], [.55, '#18205a'], [.88, '#34407e'], [1, '#5a5a8a']], { r: 400 })); scene.fog = new THREE.Fog('#1a2050', 60, 260); renderer.setClearColor('#1a2050');
+const { sun } = K.lights(scene, renderer, { sky: 0x8a98e8, ground: 0x6a5048, amb: 1.25, sun: 0xb8c4ff, power: .9, range: 40, map: 2048 }), MOON = new THREE.Vector3(-.2, .42, -.88).normalize();
+scene.add(K.stars(260, 360, 1.3));
+// 満月（空に光る円盤。うすい海の模様を打つ）
+const moonT = (() => { const P = R.Px(32); P.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); if (d > 14) return null; const n = R.tn(x, y, 8, 8, 32, 32, 2); return d > 12.6 ? '#e8e4d0' : n > .66 ? '#d8d4c4' : '#fffcec'; }); return T.from(P, { m: 1, cut: true }); })();
+{ const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), R.mat(moonT, { glow: true })); m.scale.setScalar(26); m.position.copy(MOON).multiplyScalar(330); m.lookAt(0, 0, 0); m.material.fog = false; scene.add(m); }
+
+// ---- 寸法：井戸の中心は (0, CZ)。段は N 段、1 段で RH 下がり IN 内へ。主役は手前（+z）のまん中の石段を下りる ----
+const CZ = -38, A = 34, N = 9, RH = 1.6, IN = 3.2, SW = 2.2, a = k => A - k * IN, yk = k => -k * RH, BOT = yk(N);
+const sand = F.tex.sandstone({ c: '#c8a070' }), carve = PK.tex.ancient({ kind: 'carve', c: '#c09868', moss: .08 }), blockT = PK.tex.ancient({ kind: 'block', c: '#c8a474', moss: .05 });
+// 世界の座標から UV を決めて三角 2 枚をはる（上の面は x,z、かべは かべに沿った長さと y）
+const wq = (G, p, uvf) => { const u = p.map(uvf); G.tri(p[0], p[1], p[2], u[0], u[1], u[2]); G.tri(p[0], p[2], p[3], u[0], u[2], u[3]); };
+const W = new THREE.Group(); W.position.z = CZ; scene.add(W);
+// 4 つの辺を、+z の辺を基準に回して作る（rot: 0 = 手前、1 = 右、2 = 奥、3 = 左）
+const rotP = (r, [x, y, z]) => { for (let i = 0; i < r; i++) [x, z] = [z, -x]; return [x, y, z]; };
+const LAMPS = [], STAIRS = [];
+{ const B = R.parts(), Gt = B.g(sand, { side: true }), Gr = B.g(carve, { side: true }), Gs = B.g(blockT, { side: true });
+  const top = p => [p[0] / 3, p[2] / 3];
+  for (let r = 0; r < 4; r++) for (let k = 0; k < N; k++) { const o = a(k), i = a(k + 1), y = yk(k), y2 = yk(k + 1), P = q => rotP(r, q);
+    const cut = r === 0 ? SW : 0;                       // 手前の辺は、まん中の石段のぶんをあける
+    for (const s of cut ? [-1, 1] : [0]) { const xo0 = s ? s * cut : -o, xo1 = s ? s * o : o, xi0 = s ? s * cut : -i, xi1 = s ? s * i : i, L = s < 0 ? [xo1, xo0, xi0, xi1] : [xo0, xo1, xi1, xi0];
+      wq(Gt, [P([L[0], y, o]), P([L[1], y, o]), P([L[2], y, i]), P([L[3], y, i])], p => { const w = rotP((4 - r) % 4, p); return top(w); });
+      const r0 = s < 0 ? xi1 : xi0, r1 = s < 0 ? xi0 : xi1; wq(Gr, [P([r0, y2, i]), P([r1, y2, i]), P([r1, y, i]), P([r0, y, i])], p => { const w = rotP((4 - r) % 4, p); return [w[0] / 3, (w[1] - y2) / 3 * 2]; }); }
+    // 段のふちに灯明（内がわのへりから 0.35 m）。石段のぶんはあける
+    for (let x = -i + .8; x < i - .8; x += 1.45) { if (r === 0 && Math.abs(x) < SW + .4) continue; LAMPS.push(P([x, y + .08, i + .35])); }
+    // 左右と奥の辺には、段と段をつなぐ小さな石段をジグザグに
+    if (r !== 0 && k < N) { const sx = (k % 2 ? 1 : -1) * (i * .45), n = 6; for (let j = 0; j < n; j++) { const h = RH * (j + 1) / n, d = IN * .62 / n; Gs.at(R.TR(...P([sx, y2, i + IN * .62 - (j + .5) * d]), r * -PI / 2)).box(1.8, h, d, 0, 0, 0, { m: 2 }); } Gs.at(null); } }
+  // まん中の長い石段（手前の辺）と、その両わきの石のかべ
+  const run = a(0) - a(N), steps = Math.round(-BOT / .3), sd = run / steps; for (let j = 0; j < steps; j++) { const z0 = a(0) - j * sd, y0 = -j * .3; Gs.box(SW * 2, .3, sd, 0, y0 - .3, z0 - sd / 2, { m: 2 }); Gs.box(SW * 2, .01, .01, 0, y0, z0, {}); }
+  for (const s of [-1, 1]) for (let k = 0; k < N; k++) { const z0 = a(k), z1 = a(k + 1), x = s * SW, yt = yk(k); wq(Gr, [[x, yt - (a(0) - z0) / run * -BOT - 0, z0], [x, yt - (a(0) - z1) / run * -BOT + 0, z1], [x, yt, z1], [x, yt, z0]].map(p => [p[0], Math.min(p[1], yt), p[2]]), p => [p[2] / 3, p[1] / 3 * 2]); }
+  // 底の水のまわりの石のふち
+  for (let r = 0; r < 4; r++) wq(Gt, [rotP(r, [-a(N), BOT, a(N)]), rotP(r, [a(N), BOT, a(N)]), rotP(r, [a(N) - .8, BOT, a(N) - .8]), rotP(r, [-a(N) + .8, BOT, a(N) - .8])], top);
+  W.add(B.group()); }
+// 灯明：十字の 2 枚の板（光る）。ゆらぎは 3 組に分けて明るさを変える
+const lampT = (() => { const P = R.Px(8, 8); P.each((x, y) => { if (y > 5) return x > 1 && x < 6 ? (y === 6 ? '#c8783a' : '#8a4a2a') : null; const d = Math.hypot((x - 3.5) * 1.6, y - 3.2 - (5 - y) * .1); return d < 1.4 ? '#fff8d0' : d < 2.6 && y < 6 ? '#ffb040' : null; }); return T.from(P, { m: 1, cut: true }); })();
+const lampMats = [0, 1, 2].map(() => R.mat(lampT, { glow: true, side: true }));
+{ const Gs = [R.geo(), R.geo(), R.geo()], s = .22; LAMPS.forEach((p, i) => { const G = Gs[i % 3], [x, y, z] = p; G.quad([x - s, y, z], [x + s, y, z], [x + s, y + s * 2, z], [x - s, y + s * 2, z], [0, 0, 1, 1]); G.quad([x, y, z - s], [x, y, z + s], [x, y + s * 2, z + s], [x, y + s * 2, z - s], [0, 0, 1, 1]); }); Gs.forEach((G, k) => { const m = G.mesh(lampMats[k]); W.add(m); }); }
+// 灯明のあかり（段に光の帯が落ちるように、PointLight を いくつか）
+const PLs = []; for (const [x, k, z] of [[-6, 2, 1], [6, 4, 1], [0, 6, 1], [-12, 7, -1], [12, 7, -1], [0, 8, -1], [-18, 3, -1], [18, 3, -1]]) { const L = new THREE.PointLight(0xffa850, 34, 22, 1.5); L.position.set(x, yk(k) + 1.4, z * a(k + 1) * .9); W.add(L); PLs.push(L); }
+
+// ---- 底の水（コマ送り）、月のうつり、うかべた灯明 ----
+const WF = T.water({ c: '#1a4a6a' }), wg = R.geo().normal([0, 1, 0]); { const h = a(N) - .8, n = Math.ceil(h * 2 / 2.5), st = h * 2 / n; for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const x0 = -h + i * st, z0 = -h + j * st; wg.quad([x0, 0, z0 + st], [x0 + st, 0, z0 + st], [x0 + st, 0, z0], [x0, 0, z0], [i / 2, j / 2, (i + 1) / 2, (j + 1) / 2]); } }
+const water = wg.mesh(WF[0]); water.material = water.material.clone(); water.position.y = BOT - .25; W.add(water);
+{ const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), R.mat(moonT, { glow: true })); m.rotation.x = -PI / 2; m.scale.set(2.6, 3.8, 1); m.position.set(-1.2, BOT - .2, -a(N) * .5); m.material.opacity = .5; m.material.transparent = true; W.add(m); }
+const floats = [...Array(22)].map((_, i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(.45, .45), lampMats[i % 3]); m.userData.s = [hash(i, 1), hash(i, 2), hash(i, 3)]; W.add(m); return m; });
+
+// ---- 井戸のまわりの地面と、奥の楼閣（3 段のアーチの回廊と、上の小さなドーム） ----
+const land = R.ground({ w: 260, d: 260, cell: 2, H: (x, z) => Math.abs(x) < A - .01 && Math.abs(z - CZ) < A - .01 ? -40 : 0, layers: [T.cobble({ kind: 'slab', c: '#b89a74' }), T.sand({ c: '#a88860' })], mix: (x, z) => [0, Math.abs(x) > 50 || Math.abs(z - CZ) > 50 ? 1 : 0] });
+// 井戸の穴の中は、地面の高さを深く下げて段の下にかくす（穴のふちは 2 m の ます目にそろえてある）
+scene.add(land.mesh);
+const hall = new THREE.Group(); hall.position.set(0, 0, CZ - A - 2); scene.add(hall);
+{ for (let fl = 0; fl < 3; fl++) for (let k = -4; k <= 4; k++) { const ar = F.arch({ w: 4.2, h: 5, d: 2.4, th: .7, stone: blockT }); ar.position.set(k * 4.9, fl * 5.6, 0); hall.add(ar); }
+  const B = R.parts(); B.g(blockT).box(46, .6, 3.4, 0, 5, 0, { m: 3 }).box(46, .6, 3.4, 0, 10.6, 0, { m: 3 }).box(46, .8, 3.6, 0, 16.2, 0, { m: 3 }); B.g(carve).box(46, 16.8, .6, 0, 0, -1.8, { m: 3 }); hall.add(B.group());
+  for (const x of [-18, 0, 18]) { const dm = F.dome({ r: x ? 2.4 : 3.6, c: '#d8b888', c2: '#c8463a', kind: 'onion', finial: true }); dm.position.set(x, 17, 0); hall.add(dm); } }
+for (const s of [-1, 1]) { const tw = F.minaret({ h: 22, r: 1.6, stone: blockT, c: '#d8b888' }); tw.position.set(s * 28, 0, CZ - A - 4); scene.add(tw); }
+// 遠くの木のかげと、町のあかり
+for (let k = 0; k < 18; k++) { const ang = k / 18 * TAU, r = 70 + hash(k, 3) * 30, x = Math.sin(ang) * r, z = CZ + Math.cos(ang) * r; if (z > 0 && Math.abs(x) < 30) continue; const t = R.tree({ kind: k % 3 ? 'round' : 'tall', h: 7 + hash(k, 4) * 4, c: '#3a5a4a', seed: k & 7 }); t.position.set(x, 0, z); scene.add(t); }
+scene.add(R.backdrop({ c: '#232a5a', haze: '#2a3266', r: 300, h: 18, y: -1, rep: 3, seed: 3 }));
+
+// ---- 人：灯明を手に下りる人、段にひざをつく人、主役。こうもり ----
+const SK = ['#c88a60', '#a86e46', '#e0a878'], HR = ['#1a1418', '#2a1e1a', '#3a2a22'], CL = ['#c8463a', '#e8a83a', '#f4ecdc', '#3a7ab0', '#c86a9a'];
+const folk = (o, i) => TL.person({ hair: ['center', 'wolf', 'swept'][i % 3], head: { hair: HR[i % 3], skin: SK[i % 3], eyes: 'round', mouth: 'smile' }, ...o });
+const handLamp = p => { const m = new THREE.Mesh(new THREE.PlaneGeometry(.3, .3), lampMats[0]); m.position.set(0, -.25, .12); p.userData.J.foreR.add(m); };
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#e8a83a' } }); scene.add(hero); handLamp(hero);
+const goers = [0, 1, 2, 3].map(i => { const p = folk({ outfit: 'robe', hat: i % 2 ? 'hood' : undefined, hatC: CL[(i + 2) % 5], colors: { tunic: CL[i % 5] } }, i); handLamp(p); scene.add(p); return p; });
+const kneel = [[-14, 2, 0], [10, 3, 0], [-6, 5, 2], [16, 1, 1], [4, 6, 3], [-20, 4, 1]].map(([x, k, r], i) => { const p = folk({ outfit: i % 2 ? 'robe' : 'apron', size: i === 3 ? 'child' : 'normal', colors: { tunic: CL[(i + 1) % 5] } }, i); const w = rotP(r, [x, yk(k + 1), a(k + 1) + .9]); p.position.set(w[0], w[1], w[2] + CZ); p.rotation.y = PI - r * PI / 2 + PI; scene.add(p); return p; });
+const bats = [0, 1, 2].map(() => { const b = R.bird({ c: '#1a1424', belly: '#2a2234', neck: false, s: 1.2 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const RUN = a(0) - a(N), SP = .9, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+const onStair = d => { const z = a(0) - d, y = Math.max(BOT, -Math.min(d, RUN) / RUN * -BOT); return [z, y]; };
+K.loop((dt, t) => {
+  t += T0;
+  const d = -4 + (t * SP) % (RUN + 8), [lz, ly] = d < 0 ? [a(0) - d, 0] : onStair(d), x = .4, z = lz + CZ, y = d < 0 ? 0 : ly;
+  hero.position.set(x, y, z); hero.rotation.y = PI; R.walk(hero, t * SP * 4, .7); hero.userData.J.armR.rotation.x = -.7; hero.userData.J.foreR.rotation.x = -.6;
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .6 : .8), y + (tall ? 2.8 : 3), z + (tall ? 3.5 : 3.8)); cam.lookAt(x - .3, y - (tall ? 1.4 : 2.2), z - 14);
+  sun.position.set(x + MOON.x * 70, MOON.y * 70, z + MOON.z * 70); sun.target.position.set(x, BOT, CZ); land.follow(x, z - 30);
+  goers.forEach((p, i) => { const dd = ((t * .7 + i * 9.5) % (RUN + 6)) - 2, [gz, gy] = dd < 0 ? [a(0) - dd, 0] : onStair(dd), gx = (i % 2 ? 1.3 : -1.4); p.position.set(gx, dd < 0 ? 0 : gy, gz + CZ); p.rotation.y = PI; R.walk(p, t * 3 + i, .6); p.userData.J.armR.rotation.x = -.7; p.userData.J.foreR.rotation.x = -.6; });
+  kneel.forEach((p, i) => { R.idle(p, t + i, 0); const J = p.userData.J; p.userData.J.hips.position.y = p.userData.hipY * .62; J.legL.rotation.x = -1.4; J.shinL.rotation.x = 1.9; J.legR.rotation.x = -.2; J.shinR.rotation.x = 1.5; J.armR.rotation.x = -.9 + Math.sin(t * .7 + i) * .15; J.armL.rotation.x = -.5; J.head.rotation.x = .25; });
+  lampMats.forEach((m, k) => { const f = .82 + Math.sin(t * 7 + k * 2.1) * .06 + Math.sin(t * 13.3 + k) * .05; m.color.setRGB(f, f * .96, f * .9); });
+  PLs.forEach((L, i) => { L.intensity = 34 * (.9 + Math.sin(t * 6 + i * 1.7) * .06 + Math.sin(t * 11 + i) * .04); });
+  floats.forEach((m, i) => { const [p, q, r] = m.userData.s, h = a(N) - 1.4, fx = -h + ((p * 2 * h + t * .25 * (q - .5)) % (2 * h) + 2 * h) % (2 * h), fz = -h + ((q * 2 * h + t * .18) % (2 * h)); m.position.set(fx, BOT - .05, fz); m.rotation.y = t * .2 + r * 6; });
+  bats.forEach((b, k) => { const ang = t * (.5 + k * .1) + k * 2, rr = 14 + k * 4; b.position.set(Math.cos(ang) * rr, 10 + k * 2 + Math.sin(t * 2 + k), CZ + Math.sin(ang) * rr); b.rotation.y = -ang; R.birdPose(b, 'fly', t * 1.5 + k); });
+  R.flip(water.material, WF, t, 3); F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
