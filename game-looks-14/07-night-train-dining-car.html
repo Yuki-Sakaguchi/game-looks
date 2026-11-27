@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-07 夜行列車の食堂車 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0c0e18;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fff0d8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-07 ─ 夜行列車の食堂車 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-7/retro-motions.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-8/pack-fantasy-wild.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 真夜中の夜行列車の食堂車。客はまばらで、白いテーブルかけの上の小さなランプだけが あたたかく光る。窓の外は月夜の野原で、電信柱が音もなく流れていく。何も起きない、静かな場面。
+// 色の組は「マホガニーの板・緑のビロード・クリーム色の天井」＋窓の外の紺と月の白。差し色は ランプの だいだいと、通路の赤いじゅうたん。板・ビロード・テーブルかけは このページで打った。
+// 主役は第 13 集の TL.person（4.5 頭身）。通路をうしろから追う。すわった客、トレイを運ぶ給仕、ゆれるランプ、湯気、窓の外の柱と遠くの町のあかりが動く。車両は少しだけゆれる。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), MO = RETRO_MOTIONS(THREE, R), F = PACK_FTOWN(THREE, K, R), FW = PACK_FWILD(THREE, K, R), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TR = R.TR, Px = R.Px, ramp = R.ramp;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 62, far: 900, aa: false, fitAspect: .9, maxFov: 86 });
+scene.add(FW.starDome({ r: 420, stops: [[0, '#0a0e2c'], [.55, '#1c2a60'], [1, '#3a4a84']], n: 260 })); scene.fog = new THREE.Fog('#1c2648', 60, 380);
+const hemi = new THREE.HemisphereLight(0x7a80b0, 0x4a3028, .85); scene.add(hemi);
+const moonL = new THREE.DirectionalLight(0xb8c8ff, .7); moonL.position.set(-60, 50, -20); scene.add(moonL);
+const moon = D.moon({ r: 20, az: -70, el: 22, c: '#f0f0ff', halo: 2.4, k: .35 }); scene.add(moon);
+
+// ---- このページで打つテクスチャ ----
+const MH = ramp('#6a3426'), BR = ramp('#c8963a'), GV = ramp('#2e5a48'), CR = ramp('#cbb894'), RD = ramp('#8a2a30');
+// かべの板（64×32 ＝ 2 m × 1 m）。わくの中に 2 枚の鏡板、上と下に真ちゅうの細い帯
+const panelT = (() => { const P = Px(64, 32); P.each((x, y) => { const lx = x % 32; if (y < 2) return y ? BR[2] : BR[4]; if (y > 29) return y === 30 ? BR[3] : BR[1];
+    const inX = lx > 3 && lx < 28, inY = y > 5 && y < 26; if (inX && inY) { if (lx === 4 || y === 6) return MH[1]; if (lx === 27 || y === 25) return MH[4]; const g = (x * 3 + Math.floor(y / 3) * 7 + Math.sin(y * .7 + lx * .2) * 3) % 9; return g < 1 ? MH[2] : g > 7 ? MH[4] : MH[3]; }
+    if (inX && (y === 5 || y === 26) || (inY && (lx === 3 || lx === 28))) return y === 26 || lx === 28 ? MH[5] : MH[0]; return (x + y * 5) % 11 === 0 ? MH[1] : MH[2]; }); return T.from(P, { m: 2 }); })();
+// 天井（クリーム色のしっくいに、細い金の線と通風の穴）
+const ceilT = (() => { const P = Px(32, 32); P.each((x, y) => { if (y === 0) return BR[3]; if (y === 1) return CR[1]; if (y % 16 === 8 && x > 12 && x < 20) return (x & 1) ? CR[1] : CR[0]; return hash(x, y, 2) > .9 ? CR[3] : CR[4]; }); return T.from(P, { m: 1.6 }); })();
+// 緑のビロード（ボタンどめの くぼみ）
+const velvetT = (() => { const P = Px(32, 32); P.each((x, y) => { const ax = (x + (Math.floor(y / 8) % 2) * 4) % 8, ay = y % 8, d = Math.hypot(ax - 4, ay - 4); if (d < 1) return GV[0]; if (d < 2.2) return (ax < 4) ? GV[1] : GV[2]; return d > 3.6 ? GV[4] : GV[3]; }); return T.from(P, { m: .8 }); })();
+// テーブルかけ（白に赤と金の細いふち）
+const clothT = (() => { const P = Px(32, 32); P.each((x, y) => { const e = Math.min(x, y, 31 - x, 31 - y); if (e === 2) return RD[2]; if (e === 3) return BR[4]; return (x * 7 + y * 3) % 13 === 0 ? CR[3] : CR[5]; }); return T.from(P, { m: 1 }); })();
+// 通路のじゅうたん
+const carpetT = F.tex.carpet({ c: '#7a2a30', c2: '#c8963a', c3: '#2e5a48' });
+
+// ---- 車両：はば 3.4 m・高さ 2.7 m・長さ 30 m（z=+6 から -24）。窓はあなを開けたまま（ガラスは うすい反射の板） ----
+const HWc = 1.7, ZA = 6, ZB = -24, WIN = [.85, 1.92], car = new THREE.Group(); scene.add(car); const bays = [];
+{ const B = R.parts(), Pn = B.g(panelT, { side: true }), Ce = B.g(ceilT, { side: true }), Fl = B.g(T.planks({ c: '#4a3026', w: 6 })), Cp = B.g(carpetT), Br = B.g(S2brass()), Cu = B.g(T.fabric({ c: '#8a2a30', c2: '#c8963a', pattern: 'stripe', w: 6 }), { side: true });
+  function S2brass() { const P = Px(8, 16); P.each((x, y) => x < 2 ? BR[5] : x > 5 ? BR[1] : BR[3]); return T.from(P, { m: .5 }); }
+  for (let z = ZA; z > ZB; z -= 2.5) { for (let x = -HWc; x < HWc - .01; x += HWc / 2) Fl.quad([x, 0, z], [x + HWc / 2, 0, z], [x + HWc / 2, 0, z - 2.5], [x, 0, z - 2.5], [0, 0, .3, 1]); Cp.quad([-.55, .02, z], [.55, .02, z], [.55, .02, z - 2.5], [-.55, .02, z - 2.5], [0, 0, 1, 1.25]); }   // 床とじゅうたんは 2.5 m ごとに割る
+  for (let z = ZA; z > ZB; z -= 2.5) { const z1 = z - 2.5, wz0 = z - .55, wz1 = z1 + .55; bays.push(z - 1.25);
+    for (const s of [-1, 1]) { const X = s * HWc, q = (a, b, c, d, uv) => s > 0 ? Pn.quad(b, a, d, c, uv) : Pn.quad(a, b, c, d, uv);
+      q([X, 0, z], [X, 0, z1], [X, WIN[0], z1], [X, WIN[0], z], [0, 0, 1.25, WIN[0] / 1]);   // 窓の下
+      q([X, WIN[1], z], [X, WIN[1], z1], [X, 2.15, z1], [X, 2.15, z], [0, 0, 1.25, .3]);       // 窓の上
+      q([X, WIN[0], z], [X, WIN[0], wz0], [X, WIN[1], wz0], [X, WIN[1], z], [0, 0, .27, .95]); q([X, WIN[0], wz1], [X, WIN[0], z1], [X, WIN[1], z1], [X, WIN[1], wz1], [0, 0, .27, .95]);
+      Br.box(.06, .05, wz0 - wz1 + .1, X - s * .04, WIN[0] - .03, (wz0 + wz1) / 2, {}); Br.box(.05, .05, wz0 - wz1, X - s * .03, WIN[1], (wz0 + wz1) / 2, {});   // 窓わく
+      for (const [za, zb] of [[wz0 + .02, wz0 - .26], [wz1 + .26, wz1 - .02]]) Cu.quad([X - s * .07, WIN[0] + .05, za], [X - s * .07, WIN[0] + .05, zb], [X - s * .07, WIN[1] + .06, zb], [X - s * .07, WIN[1] + .06, za], [0, 0, .5, 1.6]);   // しぼったカーテン
+      Cu.quad([X - s * .08, WIN[1] - .14, wz0], [X - s * .08, WIN[1] - .14, wz1], [X - s * .08, WIN[1] + .06, wz1], [X - s * .08, WIN[1] + .06, wz0], [0, 0, 2, .3]);
+      Br.box(.04, .04, 2.5, s * (HWc - .3), 2.05, z - 1.25, {}); Br.box(.04, .04, 2.5, s * (HWc - .05), 2.05, z - 1.25, {});   // あみだなの真ちゅうの棒
+    }
+    for (let k = 0; k < 6; k++) { const a0 = k / 6 * PI, a1 = (k + 1) / 6 * PI, P = (a, zz) => [Math.cos(a) * HWc, 2.15 + Math.sin(a) * .55, zz]; Ce.quad(P(a0, z1), P(a1, z1), P(a1, z), P(a0, z), [k / 3, 0, (k + 1) / 3, 1.5]); }
+  }
+  for (const [zz, s] of [[ZA, 1], [ZB, -1]]) { Pn.quad(s > 0 ? [HWc, 0, zz] : [-HWc, 0, zz], s > 0 ? [-HWc, 0, zz] : [HWc, 0, zz], s > 0 ? [-HWc, 2.7, zz] : [HWc, 2.7, zz], s > 0 ? [HWc, 2.7, zz] : [-HWc, 2.7, zz], [0, 0, 1.7, 1.35]); }
+  car.add(B.group()); }
+// 奥のとびら（ガラスの窓から、となりの車両のあかり）
+const door = R.geo().quad([-.5, 0, ZB + .03], [.5, 0, ZB + .03], [.5, 2.05, ZB + .03], [-.5, 2.05, ZB + .03]).mesh(T.door({ style: 'glass', lit: 1, c: '#5a2a20' }), { glow: false }); car.add(door);
+
+// ---- テーブルと いす：窓ごとに 1 組（両がわ）。テーブルの上に 小さなランプ・グラス・皿 ----
+const fixed = [], lamps = [], cups = [];
+{ const B = R.parts(), Cl = B.g(clothT), Vv = B.g(velvetT), Wd = B.g(T.planks({ c: '#5a3020' })), Br = B.g(F.tex.ornate({ c: '#c8963a' }));
+  bays.forEach((bz, i) => { for (const s of [-1, 1]) { const tx = s * 1.12;
+    Cl.box(.9, .05, .78, tx, .74, bz, { m: 1 }); Cl.box(.92, .2, .8, tx, .56, bz, { m: 1, top: false }); Wd.box(.12, .55, .12, tx, 0, bz, {});
+    for (const dz of [-1, 1]) { const sz = bz + dz * .85; Vv.box(1.05, .14, .5, s * 1.18, .36, sz, { m: .8 }); Wd.box(1.05, .36, .46, s * 1.18, 0, sz, { m: 1 }); Vv.box(1.05, .58, .14, s * 1.18, .5, sz + dz * .26, { m: .8 }); Wd.box(1.08, .08, .2, s * 1.18, 1.08, sz + dz * .26, {}); }
+  } });
+  car.add(B.group()); }
+bays.forEach((bz, i) => { for (const s of [-1, 1]) { const g = R.parts(), Sh = g.g(T.lamp({}), { glow: true }), Bs = g.g(F.tex.ornate({ c: '#c8963a' }));
+    Bs.loft(6, [[0, .06, .06, 0, .8], [.04, .03, .03, .2, 1], [.22, .015, .015, .8, 1]], {}); Sh.loft(8, [[.2, .09, .09, 0, 1], [.32, .05, .05, 1, 1]], { cap: 'top' });
+    const L = g.group(); L.position.set(s * 1.38, .77, bz - .05); car.add(L); lamps.push(L);
+    const cp = R.geo().smooth(1).loft(8, [[0, .03, .03, 0, .8], [.07, .045, .045, 1, 1]], { cap: 'bot' }).mesh(T.fabric({ c: '#f4ecd8', pattern: 'plain' })); cp.position.set(s * .9, .77, bz + (i % 2 ? .2 : -.15)); car.add(cp); cups.push(cp); } });
+// 天井のあかり（すりガラスの おわん。光る）と、主役のまわりの PointLight 3 つ
+bays.forEach(bz => { const m = R.geo().smooth(1).loft(8, [[-.12, .02, .02, 0, 1], [0, .24, .24, 1, 1.1]], { cap: 'bot' }).mesh(T.lamp({}), { glow: true }); m.position.set(0, 2.62, bz); car.add(m); });
+const PL = [0, 1, 2].map(() => { const L = new THREE.PointLight(0xffb070, 3.2, 6, 1.6); car.add(L); return L; });
+
+// ---- 窓の外：月夜の野原。流れる電信柱、遠くの丘、町のあかり ----
+const outside = new THREE.Group(); scene.add(outside);
+const land = R.ground({ w: 300, d: 420, cell: 4, H: (x, z) => Math.abs(x) < 8 ? -1.2 : -1.2 + Math.sin(x * .03) * 2 + Math.sin(z * .021 + x * .01) * 3 * Math.min(1, (Math.abs(x) - 8) / 30), layers: [T.grass({ c: '#3a4a6a', flowers: 0 }), T.dirt({ c: '#4a4a62' })], mix: (x, z) => [Math.abs(x - 4.2) < 1.2 || Math.abs(x + 4.2) < 1.2 ? 1 : 0, 0], shade: () => [.42, .46, .62] }); scene.add(land.mesh); land.follow(0, -60);
+scene.add(R.backdrop({ c: '#1c2448', haze: '#2a3664', r: 300, h: 40, y: -6, rep: 3, seed: 5 }));
+const poles = []; for (let k = 0; k < 8; k++) { const g = R.parts(), Wd = g.g(T.bark({ c: '#2a2a3a' })); Wd.loft(5, [[-2, .12, .12, 0, 1], [7, .09, .09, 1, 1]], { cap: 'top' }); Wd.box(1.6, .1, .1, 0, 6.2, 0, {}); const p = g.group(); p.position.set(-5.4, -1, 0); scene.add(p); poles.push(p); }
+const town = []; for (let k = 0; k < 26; k++) { const h = D.halo({ c: k % 4 ? '#ffc070' : '#ffe8b0', r: 1.4 + hash(k, 2) * 1.2, k: .85 }); h.position.set(-80 - hash(k, 1) * 50, 2 + hash(k, 3) * 6, -60 + (k - 13) * 9 + hash(k, 4) * 6); scene.add(h); town.push(h); }
+const trees = []; for (let k = 0; k < 14; k++) { const t = R.tree({ kind: k % 3 ? 'round' : 'pine', h: 5 + hash(k, 5) * 4, c: '#223a4a', seed: k }); t.position.set(k % 2 ? 22 + hash(k, 6) * 30 : -20 - hash(k, 6) * 30, -1, 0); scene.add(t); trees.push(t); }
+
+// ---- 人：主役・すわった客・給仕 ----
+const SK = ['#f0c8a0', '#d8a880', '#e8b890'], HR = ['#2a2420', '#8a8a88', '#5a3a2a'];
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#c8382e' } }); car.add(hero);
+const seat = (p, s, bz, dz) => { const sh = (p.userData.build && p.userData.build.shin) || .4; p.position.set(s * 1.12, .43 - sh, bz + dz * .85); p.rotation.y = dz > 0 ? PI : 0; car.add(p); return p; };
+const guests = [[-1, 1, 1, { outfit: 'robe', colors: { tunic: '#4a4a6a' } }], [1, 2, -1, { hat: 'beret', hatC: '#7a2a30', colors: { tunic: '#e0d0b0' } }], [1, 2, 1, { colors: { tunic: '#2e4a6a' } }], [-1, 4, -1, { hat: 'cap', colors: { tunic: '#5a4a3a' } }], [1, 6, 1, { outfit: 'robe', colors: { tunic: '#6a3a4a' } }], [-1, 7, 1, { size: 'child', colors: { tunic: '#c8803a' } }], [-1, 7, -1, { colors: { tunic: '#3a5a4a' } }]].map(([s, b, dz, o], i) => seat(TL.person({ hair: ['center', 'wolf', 'swept'][i % 3], head: { hair: HR[i % 3], skin: SK[i % 3], eyes: i % 3 === 1 ? 'half' : 'round', mouth: 'smile' }, ...o }), s, bays[b], dz));
+const waiter = TL.person({ size: 'tall', hair: 'swept', outfit: 'apron', head: { hair: '#2a2420', skin: '#e8b890', eyes: 'round' }, colors: { tunic: '#f0ece0', apron: '#2a2a34', pants: '#2a2a34' } }); car.add(waiter);
+const steam = C.steam({ n: 6, r: .08, rise: .5, spread: .05, speed: .3, c: '#ffffff', a: .4 }); scene.add(steam);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const SP = .9, Z0 = 4.5, LOOP = 26, VT = 26, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // VT ＝ 列車の速さ m/s。?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, sway = Math.sin(t * 1.7) * .006 + Math.sin(t * 4.3) * .002;
+  car.rotation.z = sway; car.position.y = Math.max(0, Math.sin(t * 9)) * .004;
+  hero.position.set(.1 + Math.sin(t * .6) * .04, 0, z); hero.rotation.y = PI; R.walk(hero, t * SP * 4.2, .7); hero.userData.J.armL.rotation.z = .25;
+  const tall = innerWidth < innerHeight; cam.position.set(.4, tall ? 1.8 : 1.85, z + (tall ? 2.6 : 3)); cam.lookAt(0, tall ? 1.1 : .85, z - 6); cam.rotation.z += sway * 1.5;
+  PL.forEach((L, k) => { const bz = Math.round((z - 1.25 - ZA) / 2.5 + k - 1) * 2.5 + ZA - 1.25; L.position.set(0, 1.55, bz); });
+  guests.forEach((p, i) => { MO.play(p, 'sit', t + i); const J = p.userData.J; J.head.rotation.y = Math.sin(t * .3 + i * 2) * .6 + (i % 2 ? .5 : -.5); if (i % 3 === 0) { J.armR.rotation.x = -1 - Math.max(0, Math.sin(t * .8 + i)) * .5; J.foreR.rotation.x = -1.2; } });
+  { waiter.position.set(-.52, 0, bays[5] + .1); waiter.rotation.y = -PI / 2 + Math.sin(t * .4) * .3; R.idle(waiter, t, 0); const J = waiter.userData.J; J.armR.rotation.set(-1.2 - Math.max(0, Math.sin(t * .7)) * .2, 0, 0); J.foreR.rotation.x = -.4; J.torso.rotation.x = .12 + Math.max(0, Math.sin(t * .7)) * .15; }   // テーブルに皿を出す給仕
+  steam.position.set(cups[4].position.x, .9, cups[4].position.z);
+  lamps.forEach((L, i) => { L.rotation.z = sway * 4; });
+  const off = t * VT; poles.forEach((p, k) => { p.position.z = 40 - ((off + k * 30) % 240); }); trees.forEach((tr, k) => { tr.position.z = 60 - ((off * .5 + k * 37) % 520); });
+  town.forEach((h, k) => { h.position.z = 140 - ((off * .06 + k * 9) % 260); });
+  C.update(t, cam); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
