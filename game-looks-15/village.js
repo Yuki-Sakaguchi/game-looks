@@ -1,8 +1,9 @@
 // 第 15 集の見本の場面「見下ろしの RPG の村」。pix2d.js のあとに読み、VILLAGE(PIX2D({ machine })) で動かす。
 // 同じ村を、機械の決まり（色の数・画面の大きさ・仕上げ）だけ変えて出す。地面・家・木・人は、素材と明るさの段で手で打ち、色は部品集にまかせる。
+// ファミコンふう（古い 8 ビット機）は、タイルのくり返し・平らな色・マス目にそろう木・いつも足ぶみする人・追いかけない（ぴったり付いてくる）画面で、もっと古く見せる。
 // 主人公が村をひとまわりし、井戸のそばの長老と、桟橋の つり人に話しかける。ほかに、広場を歩く人、走る子、畑の人、ちょうちょう、えんとつのけむり、水のきらめき。
 window.VILLAGE = P => {
-  const { hash } = P, TS = 16, MW = 32, MH = 24, PW = MW * TS, PH = MH * TS, M = P.machine, ctx = P.ctx;
+  const { hash } = P, OLD = P.machine === 'fc', TS = 16, MW = 32, MH = 24, PW = MW * TS, PH = MH * TS, M = P.machine, ctx = P.ctx;
   // ---- 地図（ピクセルの座標で、道・広場・池・畑の はんいを決める） ----
   const POND = { x: 408, y: 86, rx: 66, ry: 48 };
   const inPond = (x, y, k = 1) => ((x - POND.x) / (POND.rx * k)) ** 2 + ((y - POND.y) / (POND.ry * k)) ** 2 < 1;
@@ -33,7 +34,21 @@ window.VILLAGE = P => {
     // 桟橋の板
     for (let y = 88; y < 104; y++) for (let x = 340; x < 372; x++) S.set(x, y, 'wood', y === 88 || y === 103 ? 1 : (x % 6 === 0 ? 1 : y < 91 ? 3 : 2));
     return S.toCanvas(fr); }
-  const ground = [0, 1, 2, 3].map(paintGround);
+  // ファミコンふう（古い 8 ビット機）：16×16 のタイルを くり返す。面は平らな 1 色に決まった小さな模様、さかいはマス目にそろう。池のふちも 8 ドットの段になる
+  function paintGroundOld(fr) { const S = P.surface(PW, PH), cell = (x, y) => [(x >> 3) * 8 + 4, (y >> 3) * 8 + 4];
+    S.each((x, y) => { const lx = x & 15, ly = y & 15, tx = x >> 4, ty = y >> 4, [bx, by] = cell(x, y);
+      if (inPond(bx, by)) { const rim = !inPond(bx - 8, by) || !inPond(bx + 8, by) || !inPond(bx, by - 8) || !inPond(bx, by + 8), lx8 = x & 7, ly8 = y & 7;
+        if (rim && ((!inPond(bx - 8, by) && lx8 === 0) || (!inPond(bx + 8, by) && lx8 === 7) || (!inPond(bx, by - 8) && ly8 === 0) || (!inPond(bx, by + 8) && ly8 === 7))) return ['outline', 0];
+        const wx = (lx + (fr % 2) * 4) & 15; return ['water', (ly === 4 && wx > 2 && wx < 7) || (ly === 11 && wx > 9 && wx < 14) ? 3 : 2]; }
+      if (onPlaza(x, y)) return ['stone', ly % 8 === 7 || (lx + (ly >> 3) * 8) % 16 === 15 ? 1 : 2];
+      if (onField(x, y)) { const r = (y - FIELD[1]) % 12; return r < 3 ? ['dirt', 1] : ['crop', (x & 7) === 3 || (x & 7) === 4 ? 3 : 1]; }
+      if (onPath(x, y)) return ['path', (lx === 3 && ly === 4) || (lx === 11 && ly === 9) || (lx === 6 && ly === 13) ? 2 : 3];
+      if (hash(tx, ty, 21) < .07 && !forest(x, y)) { if (lx >= 6 && lx <= 8 && ly >= 6 && ly <= 8) return lx === 7 && ly === 7 ? ['yellow', 3] : (lx === 7 || ly === 7) ? ['red', 3] : ['grass', 2]; }
+      if ((lx === 3 && ly === 5) || (lx === 4 && ly === 4) || (lx === 5 && ly === 5) || (lx === 11 && ly === 12) || (lx === 12 && ly === 11) || (lx === 13 && ly === 12)) return ['grass', 1];
+      return ['grass', 2]; });
+    for (let y = 88; y < 104; y++) for (let x = 336; x < 368; x++) S.set(x, y, 'wood', y === 88 || y === 103 || x % 8 === 0 ? 0 : 2);
+    return S.toCanvas(fr); }
+  const ground = [0, 1, 2, 3].map(OLD ? paintGroundOld : paintGround);
 
   // ---- 物（それぞれ 1 枚の絵にしておく） ----
   function tree(seed) { const S = P.surface(32, 40);
@@ -59,17 +74,24 @@ window.VILLAGE = P => {
     S.disc(14, 22, 11, 7, 'stone', 2); S.disc(14, 20, 11, 4, 'stone', 3); S.disc(14, 20, 7, 2.5, 'water', 1); for (let x = 4; x < 25; x += 4) S.set(x, 24, 'stone', 1); S.rect(13, 6, 2, 10, 'wood', 3); S.rect(12, 14, 4, 3, 'wood', 1); S.outline(); return S.toCanvas(2); }
   function sign() { const S = P.surface(16, 18); S.rect(7, 8, 2, 10, 'wood', 1); S.rect(1, 1, 14, 8, 'wood', 2); S.rect(1, 1, 14, 2, 'wood', 3); for (const y of [4, 6]) S.rect(3, y, 10, 1, 'ink', 1); S.outline(); return S.toCanvas(3); }
   function fence(vert) { const S = P.surface(16, 16); if (vert) { S.rect(6, 0, 4, 16, 'wood', 2); S.rect(6, 0, 1, 16, 'wood', 3); } else { for (const x of [1, 13]) { S.rect(x, 3, 2, 11, 'wood', 2); S.set(x, 3, 'wood', 3); } S.rect(0, 5, 16, 2, 'wood', 3); S.rect(0, 10, 16, 2, 'wood', 2); } S.outline(); return S.toCanvas(4); }
-  const TREE = [tree(1), tree(2), tree(3)], HOUSE_R = house('roof', 1), HOUSE_B = house('roofB', 2), WELL = well(), SIGN = sign(), FENCE = fence(false), FENCEV = fence(true);
+  // ファミコンふうの木と家：平らな色に黒いりんかく。決まった点だけで光を打つ
+  function treeOld() { const S = P.surface(16, 18); S.disc(8, 7, 7.5, 7, 'leaf', 1); for (const [x, y] of [[4, 4], [5, 3], [9, 6], [10, 5], [6, 9], [11, 9]]) S.set(x, y, 'leaf', 2); S.rect(7, 13, 3, 4, 'trunk', 2); S.outline(); return S.toCanvas(1); }
+  function houseOld(roofM) { const S = P.surface(64, 56); for (let y = 6; y < 28; y++) { const ins = Math.max(0, 8 - y); S.rect(ins, y, 64 - ins * 2, 1, roofM, (y - 6) % 4 === 3 ? 1 : 2); }
+    S.rect(44, 0, 8, 10, 'stone', 2); S.rect(4, 28, 56, 26, 'wall', 3); S.rect(26, 36, 12, 18, 'wood', 1); S.set(35, 45, 'yellow', 3);
+    for (const x of [9, 45]) { S.rect(x, 33, 10, 9, 'outline', 0); S.rect(x + 1, 34, 8, 7, 'water', 3); S.rect(x + 4, 34, 1, 7, 'outline', 0); S.rect(x + 1, 37, 8, 1, 'outline', 0); }
+    S.outline(); return S.toCanvas(1); }
+  const TREE = OLD ? [treeOld(), treeOld(), treeOld()] : [tree(1), tree(2), tree(3)], HOUSE_R = OLD ? houseOld('roof') : house('roof', 1), HOUSE_B = OLD ? houseOld('roofB') : house('roofB', 2), WELL = well(), SIGN = sign(), FENCE = fence(false), FENCEV = fence(true);
 
   // ---- 物の置き場所（y でならべて描く。y は足もと） ----
   const things = [];
   const put = (img, x, y, base) => things.push({ img, x, y, base: y + (base ?? img.height) });
-  put(HOUSE_R, 64, 40); put(HOUSE_B, 160, 40); put(HOUSE_B, 64, 232); put(HOUSE_R, 336, 232);
+  { const d = OLD ? 8 : 0; put(HOUSE_R, 64, 40 + d); put(HOUSE_B, 160, 40 + d); put(HOUSE_B, 64, 232 + d); put(HOUSE_R, 336, 232 + d); }
   put(WELL, 276, 150); put(SIGN, 220, 194);
   for (let x = FIELD[0] - 8; x < FIELD[2] + 8; x += 16) { put(FENCE, x, FIELD[1] - 12); if (x < 440 || x > 452) put(FENCE, x, FIELD[3]); }
   for (let y = FIELD[1]; y < FIELD[3]; y += 16) { put(FENCEV, FIELD[0] - 12, y); put(FENCEV, FIELD[2] + 4, y); }
   const blocked = (x, y) => onPath(x, y) || onPlaza(x, y) || inPond(x, y, 1.25) || onField(x - 10, y) || onField(x + 10, y + 12) || (x > 52 && x < 236 && y > 30 && y < 112) || (x > 52 && x < 140 && y > 222 && y < 304) || (x > 324 && x < 412 && y > 222 && y < 304);
-  for (let ty = 0; ty < MH + 1; ty++) for (let tx = 0; tx < MW + 1; tx++) { const x = tx * TS + (hash(tx, ty, 11) - .5) * 8, y = ty * TS + 8 + (hash(tx, ty, 12) - .5) * 8;
+  if (OLD) { for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) { const x = tx * TS + 8, y = ty * TS + 8; if ((forest(x, y) || (hash(tx, ty, 14) < .05 && !blocked(x, y) && !blocked(x, y + 16))) && !onPath(x, y) && !inPond(x, y, 1.1)) put(TREE[0], tx * TS, ty * TS - 2, 18); } }   // 古い機械：木はマス目に 1 本ずつ
+  else for (let ty = 0; ty < MH + 1; ty++) for (let tx = 0; tx < MW + 1; tx++) { const x = tx * TS + (hash(tx, ty, 11) - .5) * 8, y = ty * TS + 8 + (hash(tx, ty, 12) - .5) * 8;
     if ((forest(x, y) && hash(tx, ty, 13) < .85) || (!blocked(x, y) && hash(tx, ty, 14) < .045 && !blocked(x, y + 16))) put(TREE[Math.floor(hash(tx, ty, 15) * 3)], x - 16, y - 34, 36); }
 
   // ---- 人（16×16。下・上・横の 3 つの向きに、足のちがう 2 コマ） ----
@@ -105,21 +127,21 @@ window.VILLAGE = P => {
     else { const w = TOUR[hero.i]; hero.target = w; if (step(hero, dt, SPEED)) { const op = w[2]; hero.i = (hero.i + 1) % TOUR.length; if (op && op.talk !== undefined) { hero.wait = 5.2; hero.talk = op; hero.shown = 0; hero.dir = op.face; } } }
     for (const n of NPCS) { if (n.still) continue; n.target = n.path[(n.u + 1) % n.path.length]; if (step(n, dt, n.speed)) n.u = (n.u + 1) % n.path.length; }
     // カメラ（主人公を まん中に。地図の外は見せない。ドットにそろえる）
-    const tx = Math.max(0, Math.min(PW - P.W, hero.x - P.W / 2)), ty = Math.max(0, Math.min(PH - P.H, hero.y - P.H / 2 - 8)); camX += (tx - camX) * Math.min(1, dt * 5); camY += (ty - camY) * Math.min(1, dt * 5); const cx = Math.round(camX), cy = Math.round(camY);
-    ctx.drawImage(ground[Math.floor(t * 3) % 4], -cx, -cy);
+    const tx = Math.max(0, Math.min(PW - P.W, hero.x - P.W / 2)), ty = Math.max(0, Math.min(PH - P.H, hero.y - P.H / 2 - 8)); const ck = OLD ? 1 : Math.min(1, dt * 5); camX += (tx - camX) * ck; camY += (ty - camY) * ck; const cx = Math.round(camX), cy = Math.round(camY);
+    ctx.drawImage(ground[OLD ? Math.floor(t * 2) % 2 : Math.floor(t * 3) % 4], -cx, -cy);
     // かげ（スーファミふうは半透明。ファミコン・ゲームボーイふうは無し）
     const list = things.map(o => ({ ...o, kind: 'thing' }));
     for (const a of [hero, ...NPCS]) list.push({ kind: 'char', a, base: a.y + 1 });
     list.sort((p, q) => p.base - q.base);
     if (M === 'sfc') { ctx.fillStyle = 'rgba(20,30,40,.28)'; for (const o of list) { if (o.kind === 'char') { ctx.beginPath(); ctx.ellipse(Math.round(o.a.x) - cx, Math.round(o.a.y) - cy, 6, 2.5, 0, 0, 7); ctx.fill(); } else if (o.img.width === 32) { ctx.beginPath(); ctx.ellipse(o.x + 18 - cx, o.base - 1 - cy, 13, 4, 0, 0, 7); ctx.fill(); } } }
     for (const o of list) { if (o.kind === 'thing') { if (o.x - cx > P.W || o.x + o.img.width - cx < 0 || o.y - cy > P.H || o.y + o.img.height - cy < 0) continue; ctx.drawImage(o.img, Math.round(o.x) - cx, Math.round(o.y) - cy); continue; }
-      const a = o.a, still = a === hero ? hero.wait > 0 : a.still, fr = still ? 0 : Math.floor(a.ph) % 2, img = a.spr ? a.spr[a.dir][fr] : HERO[a.dir][fr], bob = !still && fr ? -1 : 0; ctx.drawImage(img, Math.round(a.x) - 8 - cx, Math.round(a.y) - 15 + bob - cy); }
+      const a = o.a, still = a === hero ? hero.wait > 0 : a.still, fr = OLD ? Math.floor(t * 4 + a.x * .01) % 2 : still ? 0 : Math.floor(a.ph) % 2, img = a.spr ? a.spr[a.dir][fr] : HERO[a.dir][fr], bob = !OLD && !still && fr ? -1 : 0; ctx.drawImage(img, Math.round(a.x) - 8 - cx, Math.round(a.y) - 15 + bob - cy); }
     // けむり
     for (const [sx, sy] of SMOKE) for (let k = 0; k < 3; k++) { const f = ((t * .45 + k / 3 + sx * .01) % 1), x = sx + Math.sin(f * 6 + k) * 3 + f * 6 - cx, y = sy - f * 26 - cy, r = 2 + f * 4;
       if (M === 'sfc') { ctx.globalAlpha = .55 * (1 - f); ctx.fillStyle = '#f0f0f8'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.globalAlpha = 1; }
       else if (f < .75) { ctx.fillStyle = M === 'gb' ? P.GB[3] : '#bcbcbc'; ctx.fillRect(Math.round(x - r / 2), Math.round(y - r / 2), Math.round(r), Math.round(r)); ctx.fillStyle = M === 'gb' ? P.GB[2] : '#fcfcfc'; ctx.fillRect(Math.round(x - r / 2), Math.round(y - r / 2), Math.max(1, Math.round(r / 2)), 1); } }
     // ちょうちょう
-    for (const b of BUTTER) { const x = b.x + Math.sin(t * .7 + b.i) * 30 - cx, y = b.y + Math.sin(t * 1.3 + b.i * 2) * 12 - cy, open = Math.floor(t * 8 + b.i) % 2;
+    if (!OLD) for (const b of BUTTER) { const x = b.x + Math.sin(t * .7 + b.i) * 30 - cx, y = b.y + Math.sin(t * 1.3 + b.i * 2) * 12 - cy, open = Math.floor(t * 8 + b.i) % 2;
       ctx.fillStyle = M === 'gb' ? P.GB[3] : M === 'fc' ? '#fcfcfc' : ['#f8f8f8', '#f8e070', '#f8a8c8'][b.i]; if (open) { ctx.fillRect(Math.round(x) - 2, Math.round(y), 2, 2); ctx.fillRect(Math.round(x) + 1, Math.round(y), 2, 2); } else ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 2); ctx.fillStyle = M === 'gb' ? P.GB[0] : '#202020'; ctx.fillRect(Math.round(x), Math.round(y), 1, 2); }
     // 雲のかげ（スーファミふう）
     if (M === 'sfc') { ctx.fillStyle = 'rgba(10,20,40,.13)'; for (let k = 0; k < 3; k++) { const x = ((t * 9 + k * 210) % (PW + 240)) - 120 - cx, y = 60 + k * 120 - cy; ctx.beginPath(); ctx.ellipse(x, y, 70, 26, 0, 0, 7); ctx.ellipse(x + 40, y + 10, 50, 20, 0, 0, 7); ctx.fill(); } }
