@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-17 輪の惑星の下のすすきの高原 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1e2a44;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-17 ─ 輪の惑星の下のすすきの高原 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-11/pack-sand1.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 秋の昼さがり。見わたすかぎり すすきの高原を、荷を積んだらくだと巡礼の人たちが、地平線の白い塔へ向かって歩く。昼の青空には、輪のある大きな惑星が うすく うかぶ。
+// 色の組は「空の青・すすきの銀と麦わら色・惑星の クリームと だいだいの しま」＋差し色の 巡礼の赤い えりまき。すすきの穂は 3 コマで風になびく。
+// 主役は第 13 集の TL.person（4.5 頭身）。列のうしろを歩く。らくだ、巡礼の人、風になびく すすき、わたり鳥の列、雲が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), A = PACK_SAND1(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, Px = R.Px, ramp = R.ramp;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#2456b0'], [.45, '#4a86d0'], [.8, '#a8c8e4'], [1, '#ecdcbc']], { r: 470 })); scene.fog = new THREE.Fog('#d8d0bc', 110, 520);
+const SUN = new THREE.Vector3(-.5, .6, .35).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xe8f0ff, ground: 0xb8a070, amb: 1.4, sun: 0xfff0d0, power: 2.3, range: 30, map: 2048 });
+
+// ---- 地面：ゆるい起伏の高原。まん中を -z へ のびる 土の道（はば 3 m）。道のまわりは かれ草 ----
+const PX = z => Math.sin(z * .025) * 4 + Math.sin(z * .061) * 1.2;   // 道のまん中の x
+const H = (x, z) => (R.tn(x * 1.4 + 400, z * 1.4 + 400, 30, 30, 1200, 1200, 5) - .5) * 5 + Math.max(0, Math.abs(x - PX(z)) - 40) * .05;
+const land = R.ground({ w: 300, d: 360, cell: 2, cz: -90, H, layers: [T.grass({ c: '#a8a060', blades: 1 }), T.dirt({ c: '#b0906a', pebbles: .5 }), T.grass({ c: '#7a9050' })],
+  mix: (x, z) => { const d = Math.abs(x - PX(z)); return [d < 1.5 ? 1 : 0, d > 3 && hash(Math.floor(x / 6), Math.floor(z / 6), 3) > .8 ? 1 : 0]; } }); scene.add(land.mesh);
+
+// ---- すすき：手で打った 32×48 の切りぬき（くき・葉・銀の穂）。3 コマで穂の かたむきを変え、風になびかせる ----
+const SG = ramp('#a8a060'), SL = ramp('#8a9a58'), SW = ['#fffaf0', '#f4ead8', '#dcccb0', '#b8a488'];
+const susukiF = [0, 1, 2].map(f => { const P = Px(32, 48); P.clip = true;
+  for (let k = 0; k < 7; k++) { const bx = 3 + k * 4 + (hash(k, 1) - .5) * 2, ht = 30 + hash(k, 2) * 15, lean = 3 + hash(k, 3) * 3 + f * 1.5 + (k % 2) * .8, back = k % 3 === 1;
+    for (let s = 0; s <= ht; s++) { const u = s / ht, x = Math.round(bx + lean * u * u * u), y = 47 - s; if (u < .6) { P.set(x, y, s < 3 ? SG[1] : back ? SG[2] : SG[3]); continue; }
+      const w = Math.round(.4 + Math.sin((u - .6) / .4 * PI * .9) * 1.7); for (let i = -w; i <= w + 1; i++) P.set(x + i, y, i === -w ? SW[2] : i === w + 1 ? SW[3] : (i + s) % 3 === 0 ? SW[1] : back ? SW[1] : SW[0]); } }
+  for (let k = 0; k < 7; k++) { const bx = 3 + k * 4 + hash(k, 5) * 2, L = 12 + hash(k, 6) * 8, dir = k % 2 ? 1 : -1;   // 下の葉：長くて しなる
+    for (let s = 0; s < L; s++) { const u = s / L, x = Math.round(bx + dir * s * .7), y = Math.round(47 - s * 1.2 + u * u * 10); P.set(x, y, u > .6 ? SL[4] : SL[3]); if (u < .5) P.set(x, y + 1, SL[1]); } }
+  return T.from(P, { m: 1, cut: true }); });
+const sus = R.geo().normal([0, 1, 0]);
+for (let i = 0; i < 6000; i++) { const z = 30 - hash(i, 11) * 240, side = hash(i, 12) > .5 ? 1 : -1, d = 2.2 + Math.pow(hash(i, 13), 1.8) * 70, x = PX(z) + side * d; if (hash(Math.floor(x / 5), Math.floor(z / 5), 4) > .9) continue;
+  const s = .9 + hash(i, 14) * .5 + Math.min(.5, d * .012), y = H(x, z) - .05, a = hash(i, 15) * PI; for (const b of [a, a + PI / 2]) { const cx = Math.cos(b) * s * .38, cz = Math.sin(b) * s * .38; sus.quad([x - cx, y, z - cz], [x + cx, y, z + cz], [x + cx, y + s * 1.14, z + cz], [x - cx, y + s * 1.14, z - cz], [0, 0, 1, 1]); } }
+const susM = sus.mesh(susukiF[0]); susM.material = susM.material.clone(); susM.castShadow = false; scene.add(susM);
+
+// ---- 道ぞいの物：石を積んだ道しるべ、低い石がき、遠くの白い塔（巡礼の行き先） ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+for (let z = 10; z > -200; z -= 26) { const x = PX(z) + 2.6 * (z % 52 ? 1 : -1); for (let k = 0; k < 3; k++) put(R.rock({ s: .6 - k * .14, c: '#a8a49a', moss: .2, seed: k + z }), x, z, k, H(x, z) + k * .26 - .1); }
+for (let i = 0; i < 30; i++) { const z = 20 - hash(i, 21) * 200, x = PX(z) + (hash(i, 22) > .5 ? 1 : -1) * (8 + hash(i, 23) * 40); put(R.rock({ s: 1.5 + hash(i, 24) * 3, c: '#9a968c', moss: .4, seed: i }), x, z, i, H(x, z) - .4); }
+for (let i = 0; i < 8; i++) { const z = -40 - i * 18, x = PX(z) - 14 - hash(i, 25) * 20; put(R.tree({ kind: 'round', h: 5 + hash(i, 26) * 3, c: ['#c8783a', '#d8a040', '#b85a34'][i % 3], seed: i }), x, z, i); }
+const stone = F.tex.ashlar({ c: '#e8e0d0', moss: .1 });
+{ const tw = F.tower({ kind: 'round', r: 5, h: 34, stone, roof: F.tex.slate({ c: '#5a6a9a' }), top: 'cone', roofH: 12, wins: true, flag: { c: '#c8402e', c2: '#f0e4c8', crest: 'star' } }); put(tw, PX(-300) - 6, -300, 0, H(PX(-300), -300) - 2);
+  for (const [dx, h] of [[-12, 14], [10, 18]]) put(F.tower({ kind: 'round', r: 3, h, stone, roof: F.tex.slate({ c: '#5a6a9a' }), top: 'cone', roofH: 6 }), PX(-300) - 6 + dx, -296, 0, H(PX(-300), -300) - 2); }
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#8a90a8', haze: '#d8d0bc', r: 430, h: 40, y: -4, rep: 3, seed: 5 }));
+const clouds = []; for (let i = 0; i < 7; i++) { const a = -PI / 2 + (i - 3) * .55, c = R.cloud({ s: 60 + hash(i, 3) * 40, c: '#fffaf0', shade: '#c8d4e4', seed: i }); c.position.set(Math.cos(a) * 400, 70 + hash(i, 5) * 50, Math.sin(a) * 400); c.lookAt(0, 50, 0); scene.add(c); clouds.push([c, a]); }
+
+// ---- 惑星：しまもようの球（64×32 を手で打つ）と、ななめの輪（64×64 の切りぬき）。霧をかけず、太陽の向きで かげる ----
+const PL = ramp('#f0e0c8'), PO = ramp('#e0b088');
+const planetT = (() => { const P = Px(64, 32); P.each((x, y) => { const w = y + Math.sin(x / 64 * PI * 4 + y * .3) * 1.4, b = Math.floor(w / 3) % 5; return [PL[4], PL[3], PO[3], PL[4], PO[2]][(b + 5) % 5]; });
+  for (let x = 40; x < 50; x++) for (let y = 18; y < 22; y++) if (Math.hypot((x - 45) / 5, (y - 20) / 2) < 1) P.set(x, y, Math.hypot((x - 45) / 5, (y - 20) / 2) < .5 ? PO[1] : PO[2]);   // 大きなうず
+  return T.from(P, { m: 1 }); })();
+const ringT = (() => { const P = Px(64); P.clip = true; P.each((x, y) => { const d = Math.hypot(x - 31.5, y - 31.5) / 32; if (d < .56 || d > .98) return null; const b = Math.floor(d * 40) % 4; return d > .78 && d < .8 ? null : ['#f0e4cc', '#d8c8a8', '#c8b08a', '#e8d8b8'][b]; }); return T.from(P, { m: 1, cut: true }); })();
+const planet = new THREE.Group();
+{ const pm = R.mat(planetT).clone(); pm.fog = false; const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), pm); ball.rotation.z = .35; planet.add(ball);
+  const rm = R.mat(ringT, { side: true }).clone(); rm.fog = false; const ring = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 4.2), rm); ring.rotation.set(-PI / 2 + .62, .3, 0); planet.add(ring); }
+planet.scale.setScalar(40); planet.position.set(-70, 200, -380); scene.add(planet);
+for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), (() => { const q = R.mat('#e8e4f0').clone(); q.fog = false; return q; })()); m.scale.setScalar(4 + i * 2); m.position.set(-150 + i * 40, 230 + i * 22, -380 + i * 10); scene.add(m); }   // 小さな月たち
+
+// ---- 巡礼のキャラバン：荷を積んだらくだ 3 頭と、それを引く人・杖の人 ----
+const camels = [0, 1, 2].map(i => { const c = A.camel({ c: ['#c8a070', '#b8905e', '#d0aa7c'][i], load: true, cloth: ['#c8402e', '#3a5a9a', '#d8a030'][i], cloth2: '#f0e4c8', s: 1 }); scene.add(c); return c; });
+const SK = ['#d8a078', '#c08860', '#e8b48c', '#b07850'], HR = ['#2a2420', '#5a3a28', '#1e1a18', '#8a6a4a'];
+const pilgrims = [0, 1, 2, 3, 4].map(i => { const p = TL.person({ size: i === 4 ? 'child' : i === 2 ? 'tall' : 'normal', outfit: i % 2 ? 'robe' : 'traveler', hair: ['center', 'wolf', 'swept'][i % 3], hat: ['hood', 'straw', 'hood', undefined, 'kerchief'][i], hatC: ['#e8dcc4', '#d8c080', '#8a6a50', '#fff', '#c8402e'][i], hold: i === 1 || i === 2 ? 'staff' : undefined, sword: false,
+  head: { hair: HR[i % 4], skin: SK[i % 4], eyes: 'round', mouth: i % 2 ? 'smile' : 'flat' }, colors: { tunic: ['#e8dcc4', '#6a7a5a', '#8a5a3a', '#d8c8a8', '#3a5a9a'][i], scarf: '#c8402e', pants: '#6a5a48' } }); scene.add(p); return p; });
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#c8402e' } }); scene.add(hero);
+// わたり鳥の列（く の字）
+const geese = [...Array(9)].map(() => { const b = R.bird({ c: '#6a6a72', belly: '#e8e4dc', s: 2.2 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.05, Z0 = 14, LOOP = 120, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+// 列の並び：主役の前を、人・らくだ・人…の順に（主役からの距離 m、道のまん中からのずれ）
+const ORDER = [[pilgrims[0], 3.4, .7], [camels[0], 6.2, -.9], [pilgrims[1], 8.6, .2], [camels[1], 11.8, .9], [pilgrims[4], 13.2, -.6], [pilgrims[2], 16.4, -.9], [camels[2], 19.6, .4], [pilgrims[3], 22.6, -.3]];
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, x = PX(z) - .5, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI + Math.atan(PX(z - 1) - PX(z)); R.walk(hero, t * SP * 3.6, .85);
+  ORDER.forEach(([o, d, off], i) => { const oz = z - d, ox = PX(oz) + off; o.position.set(ox, H(ox, oz), oz); o.rotation.y = PI + Math.atan(PX(oz - 1) - PX(oz)); if (camels.includes(o)) A.pose(o, 'walk', t * SP * 1.25 + i); else R.walk(o, t * SP * 3.6 + i * .7, .8); });
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .9 : 1.5), y + (tall ? 2.1 : 1.65), z + (tall ? 3.4 : 4.6)); cam.lookAt(x - (tall ? .6 : 1), y + (tall ? 3.4 : 2.3), z - 14);   // 少し見上げて、空の惑星を入れる
+  sun.position.set(x + SUN.x * 60, y + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, y, z - 6);
+  R.flip(susM.material, susukiF, t, 1.6);
+  planet.position.set(x - 95, 112, z - 380); planet.children[0].rotation.y = t * .01;
+  geese.forEach((b, i) => { const k = Math.ceil(i / 2) * (i % 2 ? 1 : -1); b.position.set(x - 20 + t * 2.2 % 90 - 30 + Math.abs(k) * -2.2, y + 26 + Math.sin(t * .6) * .5, z - 50 + k * 2.4); b.rotation.y = -PI / 2; R.birdPose(b, 'fly', t * .9 + i * .3); });
+  clouds.forEach(([c, a], i) => c.position.set(x + Math.cos(a + t * .002) * 400, c.position.y, z + Math.sin(a + t * .002) * 400));
+  crt.render(scene, cam, t);
+});
+</script>
+</html>
