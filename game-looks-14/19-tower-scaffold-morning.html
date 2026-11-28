@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-19 朝の建てかけの大塔の足場 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#2a3438;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-19 ─ 朝の建てかけの大塔の足場 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 朝。町のまん中で 何十年もかけて建てている、白い石の大きな塔。高さ 40 m の木の足場を、塔のまわりに そって歩く。
+// 下は 朝もやに しずむ屋根の町。上では 大きな ふみ車のクレーンが、石を つり上げている。「ものを作っている とちゅうの場所」への挑戦。
+// 色の組は「白い石・足場の木の茶・朝もやの うすい青みどり」＋差し色の 職人の 赤と青。主役は第 13 集の TL.person（4.5 頭身）。
+// 職人（かなづち・運ぶ・つなを引く）、回るふみ車と、上り下りする石、ゆれる つな、つばめ が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 1000, aa: false, fitAspect: .9, maxFov: 80 });
+scene.add(R.skyDome([[0, '#4a7ac0'], [.5, '#8ab4d8'], [.82, '#d8e4dc'], [1, '#f4e8c8']], { r: 470 })); scene.fog = new THREE.Fog('#c8d8d4', 70, 520);
+const SUN = new THREE.Vector3(.7, .38, .55).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xe8f0ff, ground: 0x9aa890, amb: 1.4, sun: 0xfff0d0, power: 2.4, range: 26, map: 2048 });
+
+// ---- 塔：半径 12 m の円柱（切り石）。高さ WY+3.5 で とぎれ、上のふちに 積みかけの石 ----
+const TR0 = 12, WY = 38, TOP = WY + 3.5, fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const stone = F.tex.ashlar({ c: '#d4cab8', moss: .05 });
+{ const G = R.geo(); G.loft(28, [[0, TR0 + .6, TR0 + .6, 0, .85], [4, TR0 + .6, TR0 + .6, 2, .9], [4.6, TR0, TR0, 2.3, 1], [TOP, TR0, TR0, TOP / 2, 1.05]], { ur: 26 }); fixed.push(G.mesh(stone));
+  const Tp = R.geo().normal([0, 1, 0]); Tp.loft(28, [[TOP, TR0, TR0, 0, 1], [TOP, TR0 - 1.4, TR0 - 1.4, .7, 1]], { ur: 26 }); fixed.push(Tp.mesh(stone));   // かべの上の面（中は空どう）
+  const In = R.geo(); In.loft(28, [[TOP - 14, TR0 - 1.4, TR0 - 1.4, 0, .6], [TOP, TR0 - 1.4, TR0 - 1.4, 7, .8]], { ur: 26 }); const im = In.mesh(stone, { side: true }); fixed.push(im);
+  for (let i = 0; i < 26; i++) { const a = hash(i, 1) * PI * 2, r = TR0 - .7, s = .8 + hash(i, 2) * .5; if (hash(i, 3) > .55) continue; const B = R.geo(); B.box(s * 1.6, s * .7, s * .9, 0, 0, 0, { m: 1.5 }); put(B.mesh(stone), Math.cos(a) * r, Math.sin(a) * r, -a, TOP); } }
+// 窓（細長いアーチ）を かべに
+for (let lv = 0; lv < 4; lv++) for (let k = 0; k < 10; k++) { const a = k / 10 * PI * 2 + lv * .3, w = F.tex.glass({ cs: ['#3a5a8a', '#c8a040', '#a83a3a'], kind: 'lancet' }), m = R.geo().quad([-.6, 0, 0], [.6, 0, 0], [.6, 2.6, 0], [-.6, 2.6, 0], [0, 0, 1, 1]).mesh(w);
+  put(m, Math.cos(a) * (TR0 + .04), Math.sin(a) * (TR0 + .04), PI / 2 - a, 6 + lv * 9); }
+
+// ---- 足場：塔のまわりに 4 だんの板の通路（10・20・30・WY m）と、たての丸太、ななめの すじかい、つなの手すり ----
+const plank = T.planks({ c: '#a87a4a' }), pole = T.bark({ c: '#8a6440' }), N = 56;
+{ const D = R.geo().normal([0, 1, 0]), P = R.geo().smooth(1), Rl = R.geo();
+  for (const y of [10, 20, 30, WY]) { for (let k = 0; k < N; k++) { const a0 = k / N * PI * 2, a1 = (k + 1) / N * PI * 2, q = (a, r) => [Math.cos(a) * r, y, Math.sin(a) * r]; D.quad(q(a0, TR0 + .05), q(a0, TR0 + 2.6), q(a1, TR0 + 2.6), q(a1, TR0 + .05), [0, 0, 1, 1]); }
+    for (let k = 0; k < N; k++) { const a0 = k / N * PI * 2, a1 = (k + 1) / N * PI * 2, r = TR0 + 2.5; for (const h of [.55, 1.05]) Rl.quad([Math.cos(a0) * r, y + h, Math.sin(a0) * r], [Math.cos(a1) * r, y + h, Math.sin(a1) * r], [Math.cos(a1) * r, y + h + .07, Math.sin(a1) * r], [Math.cos(a0) * r, y + h + .07, Math.sin(a0) * r], [0, 0, 1, .1]); } }
+  for (let k = 0; k < N; k += 4) { const a = k / N * PI * 2, x = Math.cos(a) * (TR0 + 2.6), z = Math.sin(a) * (TR0 + 2.6); P.loft(5, [[-2, .13, .13, 0, .9, x, z], [WY + 1.3, .11, .11, 14, 1, x, z]], { ur: 1 });
+    const a2 = (k + 4) / N * PI * 2, x2 = Math.cos(a2) * (TR0 + 2.6), z2 = Math.sin(a2) * (TR0 + 2.6); for (const y of [0, 10, 20, 30]) { const B = R.geo().smooth(1).loft(4, [[0, .07, .07, 0, 1], [Math.hypot(x2 - x, z2 - z, 10), .07, .07, 4, 1]], {}); const m = B.mesh(pole); m.position.set(x, y, z); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x2 - x, 10, z2 - z).normalize()); fixed.push(m); } }
+  fixed.push(D.mesh(plank, { side: true }), P.mesh(pole), Rl.mesh(T.planks({ c: '#c8a070' }), { side: true })); }
+// はしご と、通路の上の道具・石・おけ
+for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + .2, r = TR0 + 2.9; for (const y of [0, 10, 20, 30]) put(F.ladder({ h: 10.4, kind: 'wood' }), Math.cos(a) * r, Math.sin(a) * r, PI / 2 - a, y); }
+for (let i = 0; i < 14; i++) { const a = i / 14 * PI * 2 + .5, r = TR0 + .7; if (i % 3 === 0) put(R.barrel({ h: .7, r: .32, c: '#8a6440' }), Math.cos(a) * r, Math.sin(a) * r, i, WY); else if (i % 3 === 1) put(R.crate({ s: .55 }), Math.cos(a) * r, Math.sin(a) * r, -a, WY); else { const B = R.geo(); B.box(1, .5, .6, 0, .25, 0, { m: 1.5 }); put(B.mesh(stone), Math.cos(a) * r, Math.sin(a) * r, -a, WY); } }
+
+// ---- 下の町：朝もやの屋根の海。まわりの塔と、遠くの丘 ----
+const WALLS = [T.plaster({ frame: 'beam', c: '#f0e4cc', wood: '#6a4a34' }), T.plaster({ frame: 'cross', c: '#e8dcc4', wood: '#5a3a28' }), T.stone({ c: '#c8beb0' })], ROOFS = [T.roof({ c: '#b85a3a' }), T.roof({ c: '#8a4a3a', kind: 'wave' }), F.tex.slate({ c: '#4a6a8a' })];
+const ground = R.ground({ w: 900, d: 900, cell: 8, layers: [T.cobble({ c: '#b8ae9c' }), T.grass({ c: '#7a9a5a' })], mix: (x, z) => [Math.hypot(x, z) > 220 ? 1 : 0, 0] }); scene.add(ground.mesh);
+for (let i = 0; i < 620; i++) { const a = hash(i, 1) * PI * 2, d = 22 + Math.pow(hash(i, 2), 1.3) * 190, x = Math.cos(a) * d, z = Math.sin(a) * d;
+  put(R.house({ w: 6 + hash(i, 3) * 3, d: 7, h: 4 + hash(i, 4) * 4, h2: hash(i, 5) > .5 ? 3 : 0, wall: WALLS[i % 3], roof: ROOFS[i % 3], pitch: 1.2, chimney: i % 3 === 0, seed: i }), x, z, a + (hash(i, 6) - .5) * .4); }
+for (const [a, d, h, r] of [[.4, 110, 36, 5], [2.2, 150, 30, 6], [3.6, 120, 44, 4], [5.1, 170, 26, 5]]) put(F.tower({ kind: 'round', r, h, stone: F.tex.ashlar({ c: '#d8d0c0' }), roof: ROOFS[2], top: 'cone', roofH: r * 2.4, wins: true, flag: { c: '#c8402e', c2: '#f0e4c8', crest: 'star' } }), Math.cos(a) * d, Math.sin(a) * d, a);
+scene.add(R.merge(fixed));
+scene.add(R.backdrop({ c: '#7a9a8a', haze: '#d0dcd4', r: 430, h: 50, y: -4, rep: 3, seed: 3 }));
+for (let i = 0; i < 8; i++) { const a = i * .8, c = R.cloud({ s: 60 + hash(i, 3) * 40, c: '#fffaf0', shade: '#c8d4e0', seed: i }); c.position.set(Math.cos(a) * 400, 90 + hash(i, 5) * 50, Math.sin(a) * 400); c.lookAt(0, 60, 0); scene.add(c); }
+
+// ---- ふみ車のクレーン：塔の上のふちに立つ。大きな車（中で人が歩いて回す）と、うで木。うで木はゆっくり回り、先のつなで石を上げ下げする ----
+const crane = new THREE.Group(); crane.position.set(0, TOP, 0); scene.add(crane);
+const wheel = new THREE.Group(), boomG = new THREE.Group(), WR = 3;
+{ const B = R.parts(), W = B.g(T.planks({ c: '#9a6a40' })), Pl = B.g(pole);
+  for (const s of [-1, 1]) W.at(R.TR(0, 0, s * .9, 0, PI / 2, 0)).loft(18, [[-.12, WR, WR, 0, 1], [.12, WR, WR, .3, 1], [.12, WR - .35, WR - .35, .6, .9], [-.12, WR - .35, WR - .35, .9, .9], [-.12, WR, WR, 1.2, 1]], { ur: 8 }).at(null);
+  for (let k = 0; k < 18; k++) { const a = k / 18 * PI * 2; W.box(.22, .14, 1.9, Math.cos(a) * (WR - .2), Math.sin(a) * (WR - .2), 0, { m: 1 }); }   // ふみ板
+  for (let k = 0; k < 6; k++) { const a = k / 6 * PI; Pl.at(R.TR(0, 0, .9, 0, 0, a)).loft(5, [[-WR, .08, .08, 0, 1], [WR, .08, .08, 2, 1]], {}).at(null); Pl.at(R.TR(0, 0, -.9, 0, 0, a)).loft(5, [[-WR, .08, .08, 0, 1], [WR, .08, .08, 2, 1]], {}).at(null); }
+  wheel.add(B.group()); wheel.position.set(0, WR + 1, 0); }
+{ const B = R.parts(), Pl = B.g(pole);
+  for (const s of [-1, 1]) Pl.at(R.TR(0, 0, s * 1.3, 0, 0, 0)).loft(5, [[0, .16, .16, 0, 1], [WR + 2.2, .14, .14, 3, 1]], { cap: 'top' }).at(null);   // 車をささえる はしら
+  Pl.at(R.TR(0, WR + 2, 0, 0, 0, -PI / 2 + .5)).loft(5, [[0, .2, .2, 0, 1], [17, .13, .13, 8, 1]], { cap: 'top' }).at(null);   // うで木（外へ のびる）
+  boomG.add(B.group()); }
+crane.add(boomG); boomG.add(wheel);
+const BOOM_TIP = new THREE.Vector3(Math.sin(PI / 2 - .5) * 17, WR + 2 + Math.cos(PI / 2 - .5) * 17, 0);
+const rope = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, 1, 4), R.mat('#5a4a3a')); rope.geometry.translate(0, -.5, 0); rope.position.copy(BOOM_TIP); boomG.add(rope);
+const block = (() => { const B = R.geo(); B.box(1.8, .9, 1.1, 0, -.9, 0, { m: 1.5 }); return B.mesh(stone); })(); boomG.add(block);
+const walkerIn = TL.person({ outfit: 'worker', hair: 'wolf', hat: 'cap', hatC: '#3a5a9a', sword: false, head: { hair: '#2a2420', skin: '#d8a078', eyes: 'round' }, colors: { tunic: '#c8402e', pants: '#5a4a3a' } }); walkerIn.position.set(0, -WR + .3, 0); walkerIn.rotation.y = PI / 2; wheel.parent.add(walkerIn); walkerIn.position.set(0, 1.3, 0);
+
+// ---- 職人：通路の上で、石を たたく人・板を運ぶ人・つなを引く人。主役 ----
+const SK = ['#e8b48c', '#c88a60', '#d8a078', '#b07850'], HR = ['#2a2420', '#5a3a28', '#8a5a30', '#1e1a18'], CL = ['#c8402e', '#3a5a9a', '#6a8a4a', '#e8b040', '#8a6a4a'];
+const workers = [...Array(7)].map((_, i) => { const p = TL.person({ outfit: i % 3 ? 'worker' : 'apron', hair: ['wolf', 'center', 'swept'][i % 3], hat: ['cap', 'kerchief', undefined, 'straw'][i % 4], hatC: CL[(i + 2) % 5], sword: false, bulk: 1.05,
+  head: { hair: HR[i % 4], skin: SK[i % 4], eyes: 'round', mouth: i % 2 ? 'smile' : 'flat', beard: i === 3 }, colors: { tunic: CL[i % 5], apron: '#d8c8a8', pants: '#5a4a3a' } }); scene.add(p); p.userData.a = .55 + i * .5; p.userData.job = i % 3; return p; });
+const hammer = () => R.geo().smooth(1).loft(4, [[-.25, .03, .03, 0, 1], [.12, .03, .03, 1, 1], [.12, .09, .09, 1, 1], [.24, .09, .09, 1.2, 1]], { cap: 'both' }).mesh(T.metal({ c: '#6a6a70' }));
+workers.forEach(p => { if (p.userData.job === 0) { const h = hammer(); h.rotation.x = PI / 2; h.position.y = -.3; p.userData.J.foreR.add(h); } else if (p.userData.job === 1) { const B = R.geo(); B.box(.25, .06, 2.4, 0, 0, 0, { m: 1 }); const pl = B.mesh(plank); pl.position.set(.25, .2, 0); p.userData.J.torso.add(pl); p.userData.pl = pl; } });
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#3a5a9a' } }); scene.add(hero);
+const swifts = [...Array(8)].map(() => { const b = R.bird({ c: '#3a3a48', belly: '#e8e4dc', s: 1.1 }); scene.add(b); return b; });
+
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const RW = TR0 + 1.35, SP = 1.1, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+const atA = (a, r = RW) => [Math.cos(a) * r, Math.sin(a) * r], v = new THREE.Vector3();
+K.loop((dt, t) => {
+  t += T0; const a = -.2 + t * SP / RW, [x, z] = atA(a), tx = -Math.sin(a), tz = Math.cos(a), ox = Math.cos(a), oz = Math.sin(a);   // 塔のまわりを 左回りに歩く（外がわ＝ox, oz）
+  hero.position.set(x, WY, z); hero.rotation.y = Math.atan2(tx, tz); R.walk(hero, t * SP * 3.6, .85);
+  const tall = innerWidth < innerHeight, D = tall ? 3.6 : 4.4, O = tall ? 1 : 1.5; cam.position.set(x - tx * D + ox * O, WY + (tall ? 2.1 : 2), z - tz * D + oz * O);
+  const [lx, lz] = atA(a + 8 / RW, RW + (tall ? 1 : 3)); cam.lookAt(lx, WY + (tall ? 1.4 : .4), lz);   // 少し外へふって、もやの町を見下ろす
+  sun.position.set(x + SUN.x * 60, WY + SUN.y * 60, z + SUN.z * 60); sun.target.position.set(x, WY, z);
+  workers.forEach((p, i) => { const u = p.userData, J = u.J; let pa = a + u.a;
+    if (u.job === 1) { pa = a + u.a + Math.sin(t * .15 + i) * .3; } const [px, pz] = atA(pa, RW + (i % 2 ? .4 : -.3)); p.position.set(px, WY, pz);
+    if (u.job === 0) { p.rotation.y = Math.atan2(-Math.cos(pa), -Math.sin(pa)); R.idle(p, t + i, 0); J.torso.rotation.x = .35; J.armR.rotation.x = -1.4 + Math.abs(Math.sin(t * 3 + i)) * 1.1; J.foreR.rotation.x = -.3; }
+    else if (u.job === 1) { const dir = Math.cos(t * .15 + i) > 0 ? 1 : -1; p.rotation.y = Math.atan2(-Math.sin(pa) * dir, Math.cos(pa) * dir); R.walk(p, t * 3.4 + i, .7); J.armR.rotation.x = -2.6; J.foreR.rotation.x = -.3; }
+    else { p.rotation.y = Math.atan2(Math.cos(pa), Math.sin(pa)); R.idle(p, t + i, 0); const k = Math.sin(t * 1.6 + i); J.torso.rotation.x = -.2 + k * .1; J.armL.rotation.x = J.armR.rotation.x = -1.5 + k * .3; J.foreL.rotation.x = J.foreR.rotation.x = -.3; } });
+  // クレーン：うで木が ゆっくり回り、車が回り、石が 上り下りする（25 秒でひと回り）
+  boomG.rotation.y = -a - .6 + Math.sin(t * .08) * .2; wheel.rotation.z = t * .5; R.walk(walkerIn, t * 3, .7);
+  const k = (t % 25) / 25, L = 4 + (k < .5 ? k * 2 : 2 - k * 2) * (WY + 4); rope.scale.y = L; block.position.set(BOOM_TIP.x, BOOM_TIP.y - L, 0); block.rotation.y = Math.sin(t * .5) * .3;
+  swifts.forEach((b, i) => { const q = t * (.7 + i * .05) + i * .8, r = 18 + i * 1.6; b.position.set(Math.cos(q) * r, WY + 6 + Math.sin(t * 1.3 + i) * 3, Math.sin(q) * r); b.rotation.y = -q; R.birdPose(b, 'fly', t * 2 + i); });
+  F.tick(t); crt.render(scene, cam, t);
+});
+</script>
+</html>
