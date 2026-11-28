@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-14 初夏の朝の山岳ラック鉄道 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1e2a3a;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#fffaf0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-14 ─ 初夏の朝の山岳ラック鉄道 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-11/pack-sand1.js"></script>
+<script src="../game-looks-11/pack-steam2.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 初夏の晴れた朝。花のさく高原の急な坂を、歯車でレールをかむ山岳鉄道がのぼる。坂の上には大きな歯車を回す駅、その向こうに雪をかぶった とがった山。
+// 色の組は「草の緑・空の青・岩の灰と雪の白」＋差し色の 客車の赤と、蒸気の白。坂でもボイラーが水平になるよう、機関車は前のめりに作る。
+// 主役は第 13 集の TL.person（4.5 頭身）。線路ぞいの小道を坂の上へ歩く。下りてくる汽車とけむり、回る駅の歯車、草を食べる ひつじ、空を回る大きな鳥が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), A = PACK_SAND1(THREE, K, R), S = PACK_STEAM2(THREE, K, R), TL = PACK_TALE(THREE, K, R);
+const T = R.tex, { hash } = K, PI = Math.PI, TR = R.TR;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 50, far: 1000, aa: false, fitAspect: .9, maxFov: 78 });
+scene.add(R.skyDome([[0, '#2a64c8'], [.5, '#5a9ae0'], [.85, '#b8daf0'], [1, '#e8f2f4']], { r: 460 })); scene.fog = new THREE.Fog('#c8def0', 160, 950);
+const SUN = new THREE.Vector3(.55, .62, .3).normalize(), { sun } = K.lights(scene, renderer, { sky: 0xe8f2ff, ground: 0x8aa070, amb: 1.6, sun: 0xfff2d8, power: 2.5, range: 32, map: 2048 });
+
+// ---- 地面：-z へ のぼる坂（こう配 16%）。両がわは さらに もり上がる谷。線路（x=3.4）と小道（x=0） ----
+const G = .16, TXz = z => 3.4 + 11 * (1 - Math.exp(-Math.max(0, -z - 4) / 18)), H = (x, z) => -z * G + Math.max(0, Math.abs(x) - 16) ** 1.4 * .12 + (R.tn(x * 2 + 300, z * 2 + 300, 24, 24, 900, 900, 3) - .5) * 1.4 * Math.min(1, Math.abs(x - 1.7) / 6, Math.abs(x - TXz(z)) / 5);
+const land = R.ground({ w: 260, d: 300, cell: 2, cz: -60, H, layers: [T.grass({ c: '#6aa848', flowers: .35, fc: ['#ffffff', '#f6d040', '#c88ae0'] }), T.dirt({ c: '#a88a64', pebbles: .6 }), T.rock({ c: '#8a8a88' })],
+  mix: (x, z) => [Math.abs(x) < .9 ? 1 : 0, Math.abs(x) > 34 ? 1 : 0] }); scene.add(land.mesh);
+
+// ---- 線路：まくら木、2 本のレール、まん中の歯のレール（ラック） ----
+const fixed = [], put = (o, x, z, ry = 0, y = H(x, z)) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+{ const Sl = R.geo(), Rl = R.geo(), Rk = R.geo(), y = z => H(TXz(z), z) + .02, at = (z, d) => { const x = TXz(z), dx = TXz(z - .5) - x, L = Math.hypot(dx, .5), nx = .5 / L, nz = dx / L; return [x + nx * d, y(z), z + nz * d]; };
+  for (let z = 30; z > -110; z -= .9) { const ry = Math.atan2(TXz(z - .5) - TXz(z), -.5); Sl.at(TR(TXz(z), y(z), z, ry)).box(2.4, .14, .28, 0, 0, 0, { m: 1 }).at(null); }
+  for (let z = 30; z > -110; z -= 2) { const z1 = z - 2; for (const dx of [-.62, .62]) { const a = at(z, dx - .05), b = at(z, dx + .05), c = at(z1, dx + .05), d = at(z1, dx - .05); for (const q of [a, b, c, d]) q[1] += .2; Rl.quad(a, b, c, d, [0, 0, .2, 1]); }
+    { const a = at(z, -.1), b = at(z, .1), c = at(z1, .1), d = at(z1, -.1); for (const q of [a, b, c, d]) q[1] += .26; Rk.quad(a, b, c, d, [0, 0, .2, 4]); } }
+  fixed.push(Sl.mesh(T.planks({ c: '#6a5038' })), Rl.mesh(T.metal({ c: '#8a8890' })), Rk.mesh(T.metal({ c: '#5a5860' }))); }
+// 小道のさくと、道しるべ
+for (let z = 26; z > -100; z -= 4) put(R.fence({ len: 4, kind: 'rail', c: '#8a6a48' }), 1.75, z - 2, PI / 2).rotation.x = Math.atan(G);
+put(R.roadSign({ kind: 'arrow', h: 1.8 }), -1.3, 4, .3);
+// 花と岩と木
+for (let i = 0; i < 260; i++) { const x = (hash(i, 1) - .5) * 70, z = 30 - hash(i, 2) * 150; if (x > -1.4 && x < 5.2) continue; put(R.tuft({ kind: i % 3 ? 'flower' : 'grass', s: .7 + hash(i, 3) * .5, fc: [['#ffffff'], ['#f6d040'], ['#c88ae0'], ['#ff8a7a']][i % 4], seed: i % 3 }), x, z, i); }
+for (let i = 0; i < 26; i++) { const x = (hash(i, 4) - .5) * 90, z = 20 - hash(i, 5) * 130; if (x > -4 && x < 8) continue; put(R.rock({ s: 1 + hash(i, 6) * 2.4, c: '#9a9894', moss: .3, seed: i }), x, z, i, H(x, z) - .3); }
+for (let i = 0; i < 40; i++) { const s = i % 2 ? 1 : -1, x = s * (16 + hash(i, 7) * 30), z = 26 - hash(i, 8) * 140; put(R.tree({ kind: 'pine', h: 6 + hash(i, 9) * 7, c: '#2e6a48', seed: i }), x, z, i); }
+// 山の牧場の小屋
+for (const [x, z, i] of [[-12, -18, 0], [-18, -46, 1], [14, -36, 2]]) put(R.house({ w: 5, d: 4.5, h: 2.4, wall: T.boards({ c: '#8a6440' }), base: T.stone({ c: '#a8a49a' }), roof: T.shingle({ c: '#5a4a44' }), pitch: .7, eave: .7, win: T.window({ bars: 'cross', frame: '#f0e8d8', curtain: '#e8483c' }), chimney: i === 0, seed: i + 3 }), x, z, x < 0 ? PI / 2 : -PI / 2, H(x, z) - .2);
+
+// ---- 坂の上の駅：石の土台に木の駅舎。かべの大きな歯車が回る（ケーブルを巻く機械の見立て） ----
+const SZ = -92, gears = [];
+put(R.house({ w: 12, d: 7, h: 4.2, wall: T.plaster({ frame: 'beam', c: '#f0e6d0', wood: '#6a4a30' }), base: T.stone({ c: '#a8a49a' }), roof: T.shingle({ c: '#a83a30' }), pitch: .9, eave: .8, win: T.window({ bars: 'cross', frame: '#6a4a30', curtain: '#f6d040' }), door: T.door({ style: 'plank', c: '#6a4a30' }), seed: 9 }), 6, SZ, 0, H(6, SZ) - .3);
+scene.add(R.merge(fixed));
+{ const g1 = S.gear({ r: 3.2, th: .5, c: '#c89a48', speed: .4 }), g2 = S.gear({ r: 1.6, th: .45, c: '#8a8890', speed: -.8 }); g1.position.set(3, H(6, SZ) + 5.6, SZ + 3.7); g2.position.set(7.4, H(6, SZ) + 6.4, SZ + 3.75); S.mesh(g1, g2); scene.add(g1, g2); gears.push(g1, g2); }
+
+// ---- 遠くの山：雪をかぶった とがった山（R.geo の loft。下は岩、上は雪）と、山なみ ----
+const peak = (x, z, h, r, sd) => { const B = R.parts(), Rk = B.g(T.rock({ c: '#6a6a74', seed: sd })), Sn = B.g(T.snow({ c: '#e4ecf6' })), ring = (u, k) => [u * h, r * (1 - u) ** 1.15 * (1 + (hash(k, sd) - .5) * .25), r * (1 - u) ** 1.15 * (1 + (hash(k, sd, 2) - .5) * .25), u * 8, .7 + u * .5, (hash(k, sd, 3) - .5) * r * .12 * (1 - u), (hash(k, sd, 4) - .5) * r * .1 * (1 - u)];
+  Rk.loft(6, [0, 1, 2, 3, 4].map(k => ring(k * .17, k)), { ur: 4 }); Sn.loft(6, [4, 5, 6].map(k => ring(k === 6 ? .995 : k * .17, k)), { ur: 3 }); const g = B.group(); g.position.set(x, 0, z); scene.add(g); return g; };
+peak(-30, -330, 190, 120, 1); peak(90, -300, 130, 90, 2); peak(-150, -280, 110, 90, 3); peak(170, -360, 160, 110, 4);
+scene.add(R.backdrop({ c: '#6a7a90', haze: '#c8def0', r: 420, h: 70, y: 0, rep: 4, seed: 7 }));
+for (let i = 0; i < 6; i++) { const a = -PI / 2 + (i - 2.5) * .45, c = R.cloud({ s: 80 + hash(i, 3) * 50, c: '#ffffff', shade: '#c8dcf0', seed: i }); c.position.set(Math.cos(a) * 380, 150 + hash(i, 5) * 60, Math.sin(a) * 380); c.lookAt(0, 80, 0); scene.add(c); }
+
+// ---- 汽車：前のめりの小さな機関車（坂の下がわ）が、赤い客車（坂の上がわ）をおす。全体を坂の角度にかたむける ----
+const ramp = R.ramp, Px = R.Px, BK = ramp('#2e2e3a'), BRS = ramp('#c8963a'), MR = ramp('#b8382c'), CR = ramp('#f0e4c8');
+const boilerT = (() => { const P = Px(32, 16); P.each((x, y) => y < 2 ? BK[1] : y === 2 ? BRS[4] : (x % 8 === 0 ? BRS[3] : y < 7 ? BK[4] : BK[2])); return T.from(P, { m: 2 }); })();
+const coachT = (() => { const P = Px(64, 32); P.each((x, y) => y < 3 ? BK[2] : y < 15 ? CR[3] : y < 17 ? BRS[4] : y < 29 ? (x % 16 === 0 ? MR[1] : y === 17 ? MR[4] : MR[3]) : BK[1]);
+  for (let k = 0; k < 4; k++) { const x = k * 16 + 3; P.rect(x, 5, 10, 8, CR[0]); P.rect(x + 1, 6, 8, 6, '#9ac8e8'); P.rect(x + 1, 6, 8, 1, '#e8f4fc'); } return T.from(P, { m: 3 }); })();
+const GN = ramp('#2e6a50'), cabT = (() => { const P = Px(32, 32); P.each((x, y) => y < 2 ? BK[2] : y < 4 ? BRS[4] : y > 28 ? BK[1] : y > 26 ? BRS[3] : (x % 16 === 0 ? GN[1] : x % 16 === 1 ? GN[4] : GN[3]));
+  for (const x0 of [4, 20]) { P.rect(x0, 7, 9, 10, BRS[2]); P.rect(x0 + 1, 8, 7, 8, '#9ac8e8'); P.rect(x0 + 1, 8, 7, 1, '#e8f4fc'); P.rect(x0 + 1, 15, 7, 1, '#5a7a9a'); } return T.from(P, { m: 2.2 }); })();
+const train = new THREE.Group(), body = new THREE.Group(); train.add(body); body.rotation.x = Math.atan(G); scene.add(train);
+{ const B = R.parts(), Bo = B.g(boilerT), Mt = B.g(T.metal({ c: '#34343e' })), Rd = B.g(T.metal({ c: '#a83a30' })), Wh = B.g(T.wheel({ kind: 'wood', c: '#a83a30' })), Cs = B.g(coachT, { side: true }), Rf = B.g(T.metal({ c: '#5a5058' }));
+  // 機関車（z = 0〜5）。ボイラーは坂でも水平になるよう、車体に対して -こう配 だけ かたむける
+  Bo.at(TR(0, 1.7, 2.1, 0, -PI / 2 - Math.atan(G), 0)).loft(10, [[0, .7, .7, 0, 1], [3.2, .7, .7, 2, 1]], { cap: 'top' }).at(null);
+  Mt.at(TR(0, 2.4, -.6)).loft(8, [[0, .24, .24, 0, .9], [.9, .2, .2, .5, 1], [1.15, .32, .32, .8, 1.1]], { cap: 'top' }).at(null);
+  B.g(cabT).box(2.2, 2.2, 1.8, 0, 1, 2.9, { m: 2.2 }); Rf.box(2.6, .2, 2.2, 0, 3.2, 2.9, { m: 2 }); B.g('#ffd890', { glow: true }).quad([-1.11, 2, 2.2], [-1.11, 2, 3.6], [-1.11, 2.7, 3.6], [-1.11, 2.7, 2.2]);
+  Rd.box(2, .4, 5.2, 0, .55, 1.6, { m: 1.5 });
+  for (const s of [-1, 1]) [-.2, 1.6, 3.2].forEach(z => Wh.at(TR(s * .75, .45, z, 0, 0, s * PI / 2)).loft(10, [[0, .45, .45, 0, 1]], { cap: 'top' }).at(null));
+  // 客車（z = -1.2〜-10）。窓の多い赤い車体、屋根
+  for (const s of [-1, 1]) Cs.quad([s * 1.25, .8, s > 0 ? -10.4 : -1.6], [s * 1.25, .8, s > 0 ? -1.6 : -10.4], [s * 1.25, 2.9, s > 0 ? -1.6 : -10.4], [s * 1.25, 2.9, s > 0 ? -10.4 : -1.6], [0, 0, 3.2, 1]);
+  Cs.quad([-1.25, .8, -10.4], [1.25, .8, -10.4], [1.25, 2.9, -10.4], [-1.25, 2.9, -10.4], [0, 0, 1, 1]); Rf.box(9.2, .3, 2.8, 0, 2.9, -6, { m: 2 }); Mt.box(2.4, .5, 8.8, 0, .55, -6, { m: 2 });
+  for (const s of [-1, 1]) [-3, -9].forEach(z => Wh.at(TR(s * .75, .4, z, 0, 0, s * PI / 2)).loft(10, [[0, .4, .4, 0, 1]], { cap: 'top' }).at(null));
+  body.add(B.group()); }
+const smoke = C.steam({ n: 16, r: 1.2, rise: 8, a: .8, speed: .2, c: '#f4f4f0', spread: 1, wind: [2, .4] }); smoke.position.set(0, 3.5, -.6); body.add(smoke);
+const riders = [0, 1].map(i => { const p = TL.person({ size: i ? 'child' : 'normal', hair: i ? 'center' : 'wolf', hat: i ? undefined : 'cap', head: { hair: '#3a2a20', skin: '#e8b48c', eyes: 'round', mouth: 'smile' }, outfit: 'worker', colors: { tunic: i ? '#f6d040' : '#3a5a8a' } }); p.position.set(1.1, .6, i ? -4.4 : 2.6); p.rotation.y = PI / 2; body.add(p); return p; });
+
+// ---- 生きもの：ひつじの群れ、空を回る大きな鳥 ----
+const sheep = [...Array(9)].map((_, i) => { const s = A.sheep({ c: i % 4 ? '#f0ece0' : '#5a4a40', s: 1 }); const x = -6 - hash(i, 1) * 14, z = 6 - hash(i, 2) * 40; s.position.set(x, H(x, z), z); s.rotation.y = hash(i, 3) * PI * 2; scene.add(s); return s; });
+const hawks = [0, 1].map(() => { const b = R.bird({ c: '#6a5040', belly: '#c8b090', s: 3 }); scene.add(b); return b; });
+
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#e8483c' } }); scene.add(hero);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = 1.2, Z0 = 22, LOOP = 80, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, x = -.1 + Math.sin(t * .4) * .1, y = H(x, z);
+  hero.position.set(x, y, z); hero.rotation.y = PI; R.walk(hero, t * SP * 3.6, .85); hero.userData.J.torso.rotation.x = .1;
+  const tall = innerWidth < innerHeight; cam.position.set(x - (tall ? .5 : 1), y + (tall ? 1.9 : 1.75), z + (tall ? 3.6 : 4.6)); cam.lookAt(x + (tall ? 1 : 1.8), y + (tall ? 3.6 : 2.15), z - 14);
+  sun.position.set(x + SUN.x * 70, y + SUN.y * 70, z + SUN.z * 70); sun.target.position.set(x, y, z - 6);
+  // 汽車：坂の上から下りてきて、主役とすれちがう（25 秒でひと回り）
+  const tz = Z0 - 38 + (t % 30) * 1.6, tx = TXz(tz); train.position.set(tx, H(tx, tz) + .3, tz); train.rotation.y = Math.atan2(-(TXz(tz - .5) - tx), .5);
+  riders.forEach((p, i) => R.idle(p, t + i, Math.sin(t * .5 + i) * .4));
+  sheep.forEach((s, i) => A.pose(s, i % 3 ? 'graze' : 'stand', t + i * 1.3));
+  hawks.forEach((b, i) => { const a = t * .15 + i * PI, r = 24 + i * 8; b.position.set(Math.cos(a) * r - 6, y + 24 + i * 6, z - 40 + Math.sin(a) * r); b.rotation.y = -a; R.birdPose(b, 'fly', t * .25 + i); });
+  S.tick(t); C.update(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
