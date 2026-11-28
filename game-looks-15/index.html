@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ドット絵の 2D ゲーム 一覧</title>
+<style>
+html,body{margin:0;background:#15161a;color:#e8e6df;font:13px/1.5 "Hiragino Sans","Yu Gothic",system-ui,sans-serif}
+header{padding:18px 20px 6px}
+h1{margin:0;font-size:18px;font-weight:700}
+header p{margin:4px 0 0;color:#9a988f;font-size:12px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;padding:14px 20px 40px}
+a.card{display:block;color:inherit;text-decoration:none;background:#1e2026;border:1px solid #2c2f38;border-radius:6px;overflow:hidden}
+a.card:hover,a.card:focus-visible{border-color:#e8b44a;outline:none}
+.view{position:relative;aspect-ratio:8/5;background:#0c0d10;overflow:hidden}
+.view img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.meta{display:flex;gap:10px;padding:8px 10px 9px;align-items:baseline}
+.no{font:700 15px ui-monospace,Menlo,monospace;color:#e8b44a}
+.genre{color:#9a988f;font-size:11px}
+.look{font-weight:600}
+.tag{margin-left:auto;font:10px ui-monospace,Menlo,monospace;color:#7fa8d8;border:1px solid #3a4a60;border-radius:3px;padding:0 4px;white-space:nowrap}
+</style>
+<header>
+  <h1>ドット絵の 2D ゲーム</h1>
+  <p>第 15 集。テイスト C「ドット絵の 2D」の見くらべ。昔の家庭用ゲーム機の しばり（画面の大きさ・色の数・タイルとスプライト）を部品集 pix2d.js が守り、同じ場面を ファミコンふう・スーファミふう・ゲームボーイふう で出す。three.js は使わない。</p>
+</header>
+<div id="grid"></div>
+<script>
+// [ファイル名, 場面, ルック, 3D なら 1]
+const LOOKS = [
+  ['01-village-fc', '見下ろしの RPG の村', 'ファミコンふう：54 色の表から、タイルは黒＋3 色、人は 3 色。ブラウン管', 0],
+  ['02-village-sfc', '見下ろしの RPG の村', 'スーファミふう：素材ごとに 8 段。中間の色・むら・半透明のかげと雲のかげ。ブラウン管', 0],
+  ['03-village-gb', '見下ろしの RPG の村', 'ゲームボーイふう：緑がかった 4 段だけ。液晶のドットのすきまと残像', 0],
+];
+const grid = document.getElementById('grid');
+for (const [file, genre, look, is3d] of LOOKS) {
+  const a = document.createElement('a'); a.className = 'card'; a.href = file + '.html'; a.target = '_blank';
+  a.innerHTML = `<div class="view"><img loading="lazy" src="thumbs/${file.split('-')[0]}.gif" alt="${look}"></div><div class="meta"><span class="no">${file.split('-')[0]}</span><span><span class="look">${look}</span><br><span class="genre">${genre}</span></span>${is3d ? '<span class="tag">3D</span>' : ''}</div>`;
+  grid.appendChild(a);
+}
+</script>
+</html>
