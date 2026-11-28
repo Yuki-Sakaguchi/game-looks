@@ -85,20 +85,22 @@ window.PIX2D = (o = {}) => {
   const low = document.createElement('canvas'); low.width = P.W; low.height = P.H; const ctx = low.getContext('2d'); ctx.imageSmoothingEnabled = false; P.ctx = ctx; P.canvas = low;
   const ghost = document.createElement('canvas'); ghost.width = P.W; ghost.height = P.H; const gctx = ghost.getContext('2d');
   const out = document.createElement('canvas'); out.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;display:block'; document.body.prepend(out); const octx = out.getContext('2d');
+  // ファミコンふうは ドットが少し横長（8:7）のテレビの見え方にする
+  const AX = M === 'fc' ? 8 / 7 : 1;
   let sc = 1, ox = 0, oy = 0, scan = null, vig = null, grid = null;
   // 拡大：液晶（gb）はドットのすきまを出すので整数倍。ブラウン管（fc・sfc）は画面いっぱい
   function resize() { const dpr = Math.min(devicePixelRatio || 1, 2); out.width = Math.round(innerWidth * dpr); out.height = Math.round(innerHeight * dpr);
-    const f = Math.min(out.width / P.W, out.height / P.H); sc = M === 'gb' && f >= 2 ? Math.floor(f) : f; ox = Math.round((out.width - P.W * sc) / 2); oy = Math.round((out.height - P.H * sc) / 2);
+    const f = Math.min(out.width / (P.W * AX), out.height / P.H); sc = M === 'gb' && f >= 2 ? Math.floor(f) : f; ox = Math.round((out.width - P.W * sc * AX) / 2); oy = Math.round((out.height - P.H * sc) / 2);
     const s2 = Math.max(1, Math.round(sc)); scan = document.createElement('canvas'); scan.width = 4; scan.height = s2; const sg = scan.getContext('2d'); if (s2 >= 3) { sg.fillStyle = 'rgba(0,0,0,.28)'; sg.fillRect(0, s2 - 1, 4, 1); if (s2 >= 5) { sg.fillStyle = 'rgba(0,0,0,.12)'; sg.fillRect(0, s2 - 2, 4, 1); } }
     grid = document.createElement('canvas'); grid.width = s2; grid.height = s2; const gg = grid.getContext('2d'); if (s2 >= 3) { gg.fillStyle = 'rgba(30,50,20,.16)'; gg.fillRect(s2 - 1, 0, 1, s2); gg.fillRect(0, s2 - 1, s2, 1); }
     vig = null; }
   addEventListener('resize', resize); resize();
-  P.present = () => { const W = P.W * sc, H = P.H * sc; octx.fillStyle = M === 'gb' ? '#3a4232' : '#08080c'; octx.fillRect(0, 0, out.width, out.height);
+  P.present = () => { const W = P.W * sc * AX, H = P.H * sc; octx.fillStyle = M === 'gb' ? '#3a4232' : '#08080c'; octx.fillRect(0, 0, out.width, out.height);
     octx.imageSmoothingEnabled = false;
     if (M === 'gb') { gctx.globalAlpha = .62; gctx.drawImage(low, 0, 0); gctx.globalAlpha = 1; octx.drawImage(ghost, ox, oy, W, H); octx.fillStyle = octx.createPattern(grid, 'repeat'); octx.save(); octx.translate(ox, oy); octx.fillRect(0, 0, W, H); octx.restore(); return; }
     octx.drawImage(low, ox, oy, W, H);
     // ブラウン管：横のにじみ（なめらかに広げた絵を うすく重ねる）、走査線、すみの暗がり。強くしすぎない
-    octx.imageSmoothingEnabled = true; octx.globalAlpha = .28; octx.drawImage(low, ox + sc * .5, oy, W, H); octx.drawImage(low, ox - sc * .5, oy, W, H); octx.globalAlpha = 1;
+    octx.imageSmoothingEnabled = true; octx.globalAlpha = .28; octx.drawImage(low, ox + sc * AX * .5, oy, W, H); octx.drawImage(low, ox - sc * AX * .5, oy, W, H); octx.globalAlpha = 1;
     if (scan.height >= 3) { octx.fillStyle = octx.createPattern(scan, 'repeat'); octx.save(); octx.translate(ox, oy); octx.fillRect(0, 0, W, H); octx.restore(); }
     if (!vig) { vig = octx.createRadialGradient(out.width / 2, out.height / 2, Math.min(W, H) * .35, out.width / 2, out.height / 2, Math.max(W, H) * .75); vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,.35)'); }
     octx.fillStyle = vig; octx.fillRect(ox, oy, W, H); };
@@ -108,7 +110,7 @@ window.PIX2D = (o = {}) => {
   P.FS = M === 'gb' ? 10 : 12;
   const glyphs = new Map();
   function glyph(s, col) { const key = s + col; let g = glyphs.get(key); if (g) return g; const m = document.createElement('canvas').getContext('2d', { willReadFrequently: true }); m.font = `${P.FS}px ${FONT}`; const w = Math.ceil(m.measureText(s).width) + 2, h = P.FS + 4; m.canvas.width = w; m.canvas.height = h; m.font = `${P.FS}px ${FONT}`; m.textBaseline = 'top'; m.fillStyle = '#fff'; m.fillText(s, 0, 1);
-    const im = m.getImageData(0, 0, w, h), d = im.data, [r, g2, b] = rgb(col); for (let i = 0; i < d.length; i += 4) { if (d[i + 3] >= 115) { d[i] = r; d[i + 1] = g2; d[i + 2] = b; d[i + 3] = 255; } else d[i + 3] = 0; } m.putImageData(im, 0, 0); glyphs.set(key, m.canvas); return m.canvas; }
+    const im = m.getImageData(0, 0, w, h), d = im.data, [r, g2, b] = rgb(col); for (let i = 0; i < d.length; i += 4) { if (d[i + 3] >= (M === 'fc' ? 70 : 115)) { d[i] = r; d[i + 1] = g2; d[i + 2] = b; d[i + 3] = 255; } else d[i + 3] = 0; } m.putImageData(im, 0, 0); glyphs.set(key, m.canvas); return m.canvas; }
   P.textWidth = s => { const m = document.createElement('canvas').getContext('2d'); m.font = `${P.FS}px ${FONT}`; return Math.ceil(m.measureText(s).width); };
   // 窓の色：fc＝黒に白い 2 本線、sfc＝深い青のグラデーションに明るいふち（少しすける）、gb＝いちばん明るい色に黒いふち
   const WIN = { fc: { bg: '#000000', fg: '#fcfcfc', name: '#fcfcfc', b1: '#fcfcfc', b2: '#000000' }, sfc: { bg: ['#28307c', '#10143c'], fg: '#f8f8f8', name: '#f8e088', b1: '#e8e8f0', b2: '#787898' }, gb: { bg: GB[3], fg: GB[0], name: GB[0], b1: GB[0], b2: GB[3] } }[M];
