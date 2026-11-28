@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-12 嵐の夕方の麦畑と遠くの竜巻 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#1a2018;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#f0ecd8;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-12 ─ 嵐の夕方の麦畑と遠くの竜巻 / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 夏のおわりの夕方。黒みどりの雲が空をふさぎ、地平線のすきまだけ 夕日が黄色く もれる。その光が 実った麦を金色にてらす。
+// 色の組は「雲の黒みどり・麦の金・地平線の黄」＋差し色の 納屋の赤と ランタンのだいだい。遠くの丘の上を、灰色の竜巻が ゆっくり横切る。
+// 主役は第 13 集の TL.person（4.5 頭身）。ランタンをさげて、麦畑のまん中の道を 赤い納屋へいそぐ。竜巻・まいあがる土けむり・雨・いなずま・回る風車・からすの群れ・納屋へ走る家族が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 900, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#d8402e' } }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 30, hillsY: -3,
+  sky: ['#141c18', '#2c3a30', '#5e6a4a', '#f0c060'], fog: ['#5a6248', 40, 260], hemi: ['#b8c4a0', '#3a3a2c', 1.35], key: ['#ffc870', 2.1, [.75, .16, -.62]], fill: ['#7a8a80', .5], hills: '#262e24', base: [1.02, .98, .86], glow: '#ffb060', flash: '#f0f4e0', skyFlash: 2 });
+
+// ---- 地面：麦畑の土と、まっすぐな わだちの道（x≈0、-z へ） ----
+const pathX = z => Math.sin(z * .04) * 1.2, cl = v => Math.max(0, Math.min(1, v)), BZ = -46;
+const land = R.ground({ w: 160, d: 180, cell: 2, cz: -30, layers: [T.dirt({ c: '#6a5a3a' }), T.dirt({ c: '#9a8058', pebbles: .5 }), T.grass({ c: '#6a7a40' })],
+  mix: (x, z) => [cl(1.6 - Math.abs(x - pathX(z)) / 1.2), cl(Math.abs(x) > 30 ? 1 : 0)], shade: mood.shade([{ x: 7, z: BZ + 5, r: 6, c: '#ffb050', k: .8 }]) }); scene.add(land.mesh);
+
+// ---- 麦：道の両がわに うねを何列も。夕日の側（+x）から光をうけて金色。ところどころ風でたおれて低い ----
+const wheat = [T.tuft({ kind: 'wheat', c: '#d8a838' }), T.tuft({ kind: 'wheat', c: '#b88a30', seed: 2 })], GW = [R.geo().normal([0, 1, 0]), R.geo().normal([0, 1, 0])];
+for (let i = -40; i <= 40; i++) { if (Math.abs(i) < 2) continue; const dx = i * .8 + (i > 0 ? .4 : -.4); for (let z = 24; z > -90; z -= 2.4) { if (z < BZ + 9 && z > BZ - 9 && i > 3 && i < 18) continue; const x0 = pathX(z) + dx, x1 = pathX(z - 2.4) + dx, n = R.tn(x0 * 3 + 200, z * 3 + 300, 14, 14, 600, 600, 6), h = n > .74 ? .4 : 1 + hash(i, Math.round(z)) * .5, sh = .7 + hash(i, z | 0, 3) * .2;
+  const a = [x0, 0, z], b = [x1, 0, z - 2.4], c = [x1 - .25, h, z - 2.4], d = [x0 - .25, h, z], uv = [0, 0, 2.4 / (h > .6 ? 1 : .6), 1], vc = [sh, sh, 1.12, 1.12]; if (i < 0) GW[(i + 40) % 2].quad(a, b, c, d, uv, vc); else GW[(i + 40) % 2].quad(b, a, d, c, uv, vc); } }   // 風で -x へ少しなびく
+const fixed = GW.map((g, i) => { const m = g.mesh(wheat[i], { side: true }); m.castShadow = false; return m; }), put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+
+// ---- 農家：赤い納屋（あかりの窓）、母屋、さく、干し草のたば、荷車 ----
+put(R.house({ w: 9, d: 7, h: 4.6, wall: T.boards({ c: '#a8382c' }), roof: T.shingle({ c: '#3a3430' }), roofKind: 'gable', pitch: 1.15, ridge: 'z', door: T.door({ style: 'plank', c: '#e8dcc0' }), win: T.window({ bars: 'cross', frame: '#e8dcc0' }), winLit: T.window({ bars: 'cross', lit: 1, frame: '#e8dcc0', curtain: '#ffd890' }), lit: .8, seed: 5 }), 9, BZ, -PI / 2);
+put(R.house({ w: 7, d: 5.5, h: 3, wall: T.plaster({ frame: 'beam', c: '#d8ccb0', wood: '#4a3a2a' }), roof: T.thatch({ c: '#8a7a50' }), pitch: .95, chimney: true, win: T.window({ bars: 'cross', frame: '#4a3a2a' }), winLit: T.window({ bars: 'cross', lit: 1, frame: '#4a3a2a', curtain: '#ffe0a0' }), lit: .9, seed: 7 }), 12, BZ - 13, -PI / 2 - .2);
+for (const [x, z, ry] of [[4.2, BZ + 8, PI / 2], [4.2, BZ + 3, PI / 2], [6, BZ + 10, 0], [11, BZ + 10, 0]]) put(R.fence({ len: 4.5, kind: 'rail', c: '#6a5440' }), x, z, ry);
+for (const [x, z] of [[5.4, BZ - 6], [6.6, BZ - 7.6], [-4, -10], [-6.5, -26]]) put(R.barrel({ h: 1.1, r: .7, c: '#c8a048' }), x, z, x);   // 干し草のたば（まるい たる形）
+put(R.cart({ load: 'barrels' }), 4.8, BZ + 6.4, .4);
+const mill = F.windmill({ h: 12, stone: '#5a5448', roof: '#3a342e', c: '#d8d0b8', speed: 1.4 }); mill.position.set(-14, 0, -58); mill.rotation.y = .6; scene.add(mill);
+for (const [x, z, h, i] of [[-20, -8, 9, 1], [22, -20, 11, 2], [-30, -44, 10, 3], [30, -70, 12, 4], [-9, -80, 8, 5]]) put(R.tree({ kind: 'round', h, c: '#3a4a30', seed: i }), x, z, i);
+const poles = []; for (let k = 0; k < 7; k++) poles.push([-3.2, 20 - k * 14]);
+{ const G = R.geo().smooth(1); for (const [x, z] of poles) { G.loft(5, [[0, .1, .1, 0, .8, x, z], [6, .08, .08, 4, 1, x, z]], { cap: 'top' }); G.box(1.6, .12, .12, x, 5.6, z, { m: 1 }); } fixed.push(G.mesh(T.planks({ c: '#5a4a38' }))); }
+scene.add(R.merge(fixed));
+
+// ---- 竜巻：ねじれた じょうご（R.geo の loft）。手で打った しまのテクスチャを流して回す。足もとに土けむり ----
+const funnelTex = (() => { const P = R.Px(32, 64), G = R.ramp('#6a6e5e', 6, { contrast: .85 }); P.each((x, y) => { const s = Math.sin((x / 32) * PI * 6 + y * .55) * .5 + .5, n = hash(x >> 1, y >> 2, 3); return s > .78 ? G[4] : s > .5 ? G[3] : s > .22 + n * .1 ? G[2] : G[1]; });
+  for (let k = 0; k < 40; k++) { const x = Math.floor(hash(k, 1) * 32), y = Math.floor(hash(k, 2) * 64); P.set(x, y, G[5]); P.set((x + 1) % 32, y, G[4]); } const t = R.tex.from(P, { m: 1 }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+const tornado = new THREE.Group(), TW = [];
+for (let L = 0; L < 2; L++) { const rings = []; for (let k = 0; k <= 14; k++) { const u = k / 14, y = u * 78, r = (L ? 1.15 : 1) * (2.2 + Math.pow(u, 2.2) * 26), bx = Math.sin(u * 3.2) * 6 * (1 - u) + u * u * 8; rings.push([y, r, r, u * 6, .75 + u * .35, bx, 0]); }
+  const m = R.geo().loft(12, rings, { ur: 3 }).mesh(funnelTex, { side: true }); m.material = m.material.clone(); m.material.transparent = true; m.material.opacity = L ? .4 : 1; m.material.depthWrite = !L; tornado.add(m); TW.push(m); }
+const TX0 = -70, TZ = -150; tornado.position.set(TX0, -2, TZ); scene.add(tornado);
+scene.add(D.lightning(mood, { first: 3.8, every: 5.5, az: -30, spread: 30, dist: 170 }));
+scene.add(D.rain({ n: 600, box: [26, 13, 26], speed: 20, slant: [-.5, .1], c: '#c8d0c0', a: .26, len: .6 }), D.flakes({ kind: 'dust', n: 180, c: '#d8b860', box: [24, 6, 24], size: 1.4, vy: .1, wind: [-3, .4] }));
+scene.add(D.flock({ n: 14, r: 10, h: 4, center: [-8, 12, -30], s: 1.5, speed: .9 }));
+const fx = K.fx(scene, 120); let em = 0;
+
+// ---- 納屋へ走る家族（父と子ども 2 人） ----
+const SK = ['#e8b48c', '#d8a078', '#f0c49c'];
+const family = [[{ hair: 'wolf', hat: 'straw', outfit: 'worker', colors: { tunic: '#4a5a7a', pants: '#6a5a44' } }, 1], [{ size: 'child', hair: 'center', outfit: 'apron', colors: { tunic: '#e8c048', apron: '#f0e8d0' } }, .8], [{ size: 'child', hair: 'swept', outfit: 'worker', colors: { tunic: '#48885a', pants: '#5a4a3a' } }, .85]]
+  .map(([o, k], i) => { const p = TL.person({ head: { hair: ['#3a2a20', '#7a4a2a', '#2a2420'][i], skin: SK[i], eyes: 'round', mouth: 'open' }, ...o }); scene.add(p); return p; });
+
+// ランタン：手で打った 8×8 の光る板と、点の光、足もとの光の輪（D.lantern は R.actor の手の形が前提なので、TL.person にはページで付ける）
+const lampT = (() => { const P = R.Px(8, 8); P.each((x, y) => { if (y < 1) return x > 2 && x < 5 ? '#3a3028' : null; if (y > 6) return x > 1 && x < 6 ? '#3a3028' : null; const d = Math.hypot((x - 3.5) * 1.3, y - 4); return x < 1 || x > 6 ? null : d < 1.3 ? '#fff8d0' : d < 2.4 ? '#ffc050' : '#d07a30'; }); return T.from(P, { m: 1, cut: true }); })();
+{ const g = new THREE.Group(), m = new THREE.Mesh(new THREE.PlaneGeometry(.26, .26), R.mat(lampT, { glow: true, side: true })), pl = new THREE.PointLight('#ffc060', 8, 7, 1.6); pl.position.set(0, 0, .1); g.add(m, pl, D.halo({ c: '#ffc060', r: .9, k: .7, flicker: true })); g.position.set(0, -.34, .05); hero.userData.J.foreL.add(g); }
+const ring = D.spot({ r: 2.2, c: '#ffb050', k: .3, flicker: true }); scene.add(ring);
+const crt = R.crt(renderer, { noise: 0, bright: 1.05 }); onResize(crt.resize);
+const Z0 = 16, LEN = 52, SPEED = 1.7, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SPEED) % LEN, x = pathX(z);
+  hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SPEED * 3.4, 1); { const J = hero.userData.J; J.armL.rotation.x = -.55; J.foreL.rotation.x = -.45; J.torso.rotation.x = .16; } ring.position.set(x - .2, .04, z - .6);
+  const tall = innerWidth < innerHeight; cam.position.set(x + (tall ? .9 : 1.3), tall ? 2 : 1.75, z + (tall ? 3.3 : 3.9)); cam.lookAt(x - (tall ? 1.2 : 2.2), tall ? 3.4 : 2.05, z - 12);
+  // 竜巻：ゆっくり横切る。じょうごは回り、根もとは ゆれる
+  tornado.position.x = TX0 + Math.sin(t * .05) * 14 + t * .25; TW.forEach((m, i) => { m.rotation.y = t * (i ? 1.6 : 2.4); m.material.map.offset.y = -t * .4; }); tornado.rotation.z = Math.sin(t * .4) * .04;
+  if ((em += dt) > .08) { em = 0; const a = hash(t, 1) * PI * 2; fx.emit('smoke', tornado.position.x + Math.cos(a) * 5, 1, TZ + Math.sin(a) * 5, { size: 4, life: 2.4, vy: 4, vx: Math.cos(a + 1.6) * 3, grow: 2, spread: 2, tint: '#7a7058' }); }
+  family.forEach((p, i) => { const fz = z - 9 - i * 1.7 - (t * .35) % 8, fx2 = pathX(fz) + (i - 1) * .6; p.position.set(fx2, 0, fz); p.rotation.y = PI; (TL.dash || R.walk)(p, t * 9 + i * 2, 1); });
+  D.tick(t, cam); F.tick(t); fx.update(dt); crt.render(scene, cam, t);
+});
+</script>
+</html>
