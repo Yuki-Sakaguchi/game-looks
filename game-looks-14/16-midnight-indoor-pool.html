@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-16 真夜中の屋内プール 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#0a1418;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e0f4f4;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-16 ─ 真夜中の屋内プール / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-city.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 真夜中の、だれもいない屋内プール。天井の あかりは消えていて、水の中の照明だけが ついている。水色の光が ゆれながら、白いタイルのかべと天井を てらす。
+// 色の組は「水の光の水色・タイルの白・夜の窓の紺」＋差し色の コースロープの赤と、出口の非常灯の緑。何も起きない、とても静かな場面への挑戦。
+// 主役は第 13 集の TL.person（4.5 頭身）。プールサイドを奥へ ゆっくり歩く。水面のゆれ、天井とかべに映る光のあみ、うかぶ ビーチボール、時計の針、湯気が ゆっくり動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), C = PACK_CITY(THREE, K, R), D = PACK_DARK(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI, Px = R.Px, ramp = R.ramp;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 54, far: 300, aa: false, fitAspect: .9, maxFov: 80 });
+scene.fog = new THREE.Fog('#08161e', 26, 90); renderer.setClearColor('#08161e');
+scene.add(new THREE.HemisphereLight('#6aa8c0', '#14202a', .75), new THREE.AmbientLight('#2a3a48', .45));
+
+// ---- テクスチャ（手で打つ）：白いタイル、プールの底の水色タイル（コースの線）、光る水面（3 コマ）、夜の窓、時計 ----
+const Wt = ramp('#e8f0ee', 6, { contrast: .8 }), Bt = ramp('#5ac8d8', 6, { contrast: .85 }), Nv = ramp('#1a3a8a');
+const tileT = (() => { const P = Px(32); P.each((x, y) => (x % 8 === 0 || y % 8 === 0) ? Wt[1] : (x % 8 === 1 || y % 8 === 1) ? Wt[4] : hash(x >> 3, y >> 3, 2) > .85 ? Wt[2] : Wt[3]); return T.from(P, { m: 1.6 }); })();
+const wallT = (() => { const P = Px(32); P.each((x, y) => y < 2 ? Bt[1] : y < 4 ? Bt[3] : (x % 8 === 0 || y % 8 === 4) ? Wt[1] : hash(x >> 3, (y + 4) >> 3, 5) > .9 ? Bt[4] : Wt[3]); return T.from(P, { m: 1.6 }); })();
+const waterF = [0, 1, 2].map(f => { const P = Px(32); P.each((x, y) => { const w = Math.sin(x * .55 + f * 2.1 + Math.sin(y * .4 + f) * 1.6) + Math.sin(y * .5 - f * 1.7 + Math.sin(x * .35) * 1.4); const lane = (x % 32) >= 14 && (x % 32) <= 17;
+  return w > 1.6 ? '#e8fcff' : w > .9 ? Bt[4] : lane ? Nv[3] : w < -1.1 ? Bt[1] : Bt[3]; }); return T.from(P, { m: 2.5 }); });
+const winT = (() => { const P = Px(32, 64); P.each((x, y) => (x < 2 || x > 29 || y < 2 || y > 61 || y % 20 < 2 || x === 15 || x === 16) ? '#3a4a52' : (hash(x, y, 7) > .985 ? '#e8f0ff' : y < 22 ? '#0e1a3a' : y < 42 ? '#14244a' : '#1c2e5a')); return T.from(P, { m: 1 }); })();
+const clockT = (() => { const P = Px(16); P.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); if (d > 7.6) return null; if (d > 6.6) return '#3a3a40'; const a = Math.atan2(y - 7.5, x - 7.5); return d > 5.4 && Math.abs(((a / PI * 6) % 1 + 1) % 1 - .5) > .42 ? '#2a2a30' : '#f0ece0'; }); return T.from(P, { m: 1, cut: true }); })();
+
+// ---- 建物：はば 24 m・長さ 56 m・高さ 9 m。まん中に 12×25 m のプール（深さ 1.4 m）。左のかべは大きな窓、右は白いタイルのかべ ----
+const PX0 = -4, PX1 = 8, PZ0 = -2, PZ1 = -27, HW = 12, ZB = 10, ZE = -46, CH = 9;
+const B = R.parts(), Fl = B.g(tileT), Wl = B.g(wallT), Pb = B.g(T.from((() => { const P = Px(32); P.each((x, y) => (x % 8 === 0 || y % 8 === 0) ? Bt[2] : (x >= 14 && x <= 17) ? Nv[2] : Bt[4]); return P; })(), { m: 2.5 }));
+const quadXZ = (G, x0, z0, x1, z1, y) => { for (let z = z0; z > z1; z -= 2) for (let x = x0; x < x1; x += 2) { const xe = Math.min(x + 2, x1), ze = Math.max(z - 2, z1); G.quad([x, y, z], [xe, y, z], [xe, y, ze], [x, y, ze], [x / 1.6, -z / 1.6, xe / 1.6, -ze / 1.6]); } };
+quadXZ(Fl, -HW, ZB, PX0, ZE, 0); quadXZ(Fl, PX1, ZB, HW, ZE, 0); quadXZ(Fl, PX0, ZB, PX1, PZ0, 0); quadXZ(Fl, PX0, PZ1, PX1, ZE, 0);   // 床（プールの穴をあける）
+quadXZ(Pb, PX0, PZ0, PX1, PZ1, -1.4);   // プールの底
+for (const [a, b] of [[[PX0, PZ0], [PX1, PZ0]], [[PX1, PZ1], [PX0, PZ1]], [[PX1, PZ0], [PX1, PZ1]], [[PX0, PZ1], [PX0, PZ0]]]) Pb.quad([a[0], -1.4, a[1]], [b[0], -1.4, b[1]], [b[0], 0, b[1]], [a[0], 0, a[1]], [0, 0, Math.hypot(b[0] - a[0], b[1] - a[1]) / 2.5, .6]);   // プールの内がわのかべ
+for (let z = ZB; z > ZE; z -= 4) { Wl.quad([HW, 0, z - 4], [HW, 0, z], [HW, CH, z], [HW, CH, z - 4], [0, 0, 2.5, CH / 1.6]); Wl.quad([-HW, 0, z], [-HW, 0, z - 4], [-HW, 2.2, z - 4], [-HW, 2.2, z], [0, 0, 2.5, 1.4]); }   // 面は部屋の内がわへ向ける   // 右のかべ・左の窓の下
+for (let x = -HW; x < HW; x += 4) { Wl.quad([x, 0, ZE], [x + 4, 0, ZE], [x + 4, CH, ZE], [x, CH, ZE], [0, 0, 2.5, CH / 1.6]); Wl.quad([x + 4, 0, ZB], [x, 0, ZB], [x, CH, ZB], [x + 4, CH, ZB], [0, 0, 2.5, CH / 1.6]); }
+{ const Cl = B.g(T.planks({ c: '#7a8a90' })); for (let z = ZB; z > ZE; z -= 4) Cl.quad([-HW, CH, z - 4], [HW, CH, z - 4], [HW, CH, z], [-HW, CH, z], [0, 0, 8, 1.4]);   // 天井（光を受ける板）
+  const Bm = B.g(T.metal({ c: '#9aa8b0' })); for (let z = ZB - 4; z > ZE; z -= 8) Bm.box(HW * 2, .5, .4, 0, CH - .5, z, { m: 1 }); }
+// 左の大きな窓（夜の空と星。光る材質）
+{ const Wg = B.g(winT, { glow: true }); for (let z = ZB - 1; z > ZE + 1; z -= 3.2) Wg.quad([-HW + .02, 2.2, z], [-HW + .02, 2.2, z - 3], [-HW + .02, CH - .3, z - 3], [-HW + .02, CH - .3, z], [0, 0, 1, 1]); }
+// 飛びこみ台・はしご・ベンチ・タオルの棚
+const St = B.g(T.metal({ c: '#c8d0d4' })), Rd = B.g(T.metal({ c: '#c8402e' }));
+for (const z of [PZ0 - 3, PZ1 + 3]) for (const dx of [-.3, .3]) St.at(R.TR(PX0 + .5, 0, z + dx)).loft(5, [[-1.2, .04, .04, 0, 1], [.9, .04, .04, 1, 1]], {}).at(null);
+const fixed = [B.group()];
+for (let z = 2; z > ZE + 4; z -= 9) { const b = R.bench({ w: 2.4, c: '#d8d0c0' }); b.position.set(HW - 1, 0, z); b.rotation.y = -PI / 2; fixed.push(b); }
+scene.add(R.merge(fixed));
+// コースロープ（赤と白の玉の列）
+{ const G = R.geo(); for (let k = 1; k < 6; k++) { const x = PX0 + k * 2; for (let z = PZ0 - .3; z > PZ1 + .3; z -= .34) G.loft(6, [[-.06, .07, .07, 0, 1, x, z], [.06, .07, .07, 1, 1, x, z]], { cap: 'both' }); }
+  const lane = G.mesh(T.fabric({ c: '#c8402e', c2: '#f0ece0', pattern: 'stripe', w: 4 })); lane.position.y = -.2; scene.add(lane); }
+
+// ---- 水面：光る水色（水の中の照明の見立て）。3 コマを送る ----
+const water = R.geo().normal([0, 1, 0]); quadXZ(water, PX0, PZ0, PX1, PZ1, -.25); const wm = water.mesh(waterF[0], { glow: true }); wm.material = wm.material.clone(); scene.add(wm);
+const ball = R.geo().smooth(1).loft(8, [[-.3, .02, .02, 0, 1], [-.2, .22, .22, .2, 1], [0, .3, .3, .5, 1], [.2, .22, .22, .8, 1], [.3, .02, .02, 1, 1]], { ur: 3 }).mesh(T.fabric({ c: '#f6c83a', c2: '#e8483c', pattern: 'stripe', w: 6 })); scene.add(ball);
+// 水の光：水色の点の光をプールの上に。天井とかべに ゆれる光の輪
+const plights = [[PX0 + 3, -8], [PX1 - 3, -20], [2, -14]].map(([x, z]) => { const l = new THREE.PointLight('#5ae0f0', 26, 26, 1.4); l.position.set(x, .3, z); scene.add(l); return l; });
+const glints = []; for (let i = 0; i < 14; i++) { const s = D.spot({ r: 2.6 + hash(i, 1) * 2, c: '#7ae8f4', k: .35, flicker: false }); s.rotation.x = PI; s.position.set(PX0 + hash(i, 2) * 12, CH - .05, PZ0 - hash(i, 3) * 25); scene.add(s); glints.push(s); }
+// 非常灯・時計・湯気
+const exit = D.exitLamp({ c: '#58e8a0', w: .7 }); exit.position.set(0, 3.2, ZE + .05); scene.add(exit);
+const clock = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), R.mat(clockT, { side: true })); clock.position.set(HW - .05, 5.6, -18); clock.rotation.y = -PI / 2; scene.add(clock);
+const hands = [0, 1].map(i => { const h = new THREE.Mesh(new THREE.PlaneGeometry(.05, i ? .55 : .4), R.mat('#2a2a30')); h.geometry.translate(0, i ? .27 : .2, 0); h.position.set(HW - .08, 5.6, -18); h.rotation.y = -PI / 2; scene.add(h); return h; });
+const steam = C.steam({ n: 10, r: .9, rise: 1.6, spread: 4, speed: .1, c: '#c8f0f4', a: .1, wind: [.2, -.1] }); steam.position.set(2, -.1, -14); scene.add(steam);
+const towel = R.geo().quad([-.5, 0, 0], [.5, 0, 0], [.5, .8, 0], [-.5, .8, 0], [0, 0, 1, 1]).mesh(T.fabric({ c: '#e8483c', c2: '#f0ece0', pattern: 'stripe' }), { side: true }); towel.position.set(HW - 1.05, .55, -16); towel.rotation.y = -PI / 2; scene.add(towel);
+
+// ---- 主役：プールサイド（x = -7）を奥へ ゆっくり歩く ----
+const hero = TL.person({ ...TL.cast('hero'), colors: { ...TL.cast('hero').colors, scarf: '#e8483c' } }); scene.add(hero);
+const crt = R.crt(renderer, { noise: 0 }); onResize(crt.resize);
+const SP = .8, Z0 = 1, LOOP = 30, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, x = -5.3;
+  hero.position.set(x, 0, z); hero.rotation.y = PI; R.walk(hero, t * SP * 4, .7);
+  const tall = innerWidth < innerHeight; cam.position.set(x - (tall ? .6 : 1.2), tall ? 2.6 : 2.8, z + (tall ? 3.4 : 4)); cam.lookAt(x + (tall ? 2.2 : 3.6), tall ? 1.4 : .2, z - 8);
+  R.flip(wm.material, waterF, t, 2);
+  plights.forEach((l, i) => { l.intensity = 24 + Math.sin(t * 1.3 + i * 2) * 3; });
+  glints.forEach((s, i) => { s.position.x += Math.sin(t * .6 + i) * .004; s.material.opacity = .25 + Math.sin(t * 1.1 + i * 1.7) * .15; s.scale.setScalar(1 + Math.sin(t * .8 + i) * .12); });
+  ball.position.set(5 + Math.sin(t * .1) * 1.2, -.2 + Math.sin(t * 1.2) * .04, -10 + Math.cos(t * .08) * 2); ball.rotation.set(Math.sin(t * .5) * .3, t * .1, 0);
+  hands[0].rotation.x = -t * .02; hands[1].rotation.x = -t * .2;
+  C.update(t, cam); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>

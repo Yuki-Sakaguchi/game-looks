@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>14-15 雨の夜の大城壁の見回り 描きこんだテクスチャとブラウン管</title>
+<style>
+html,body{margin:0;height:100%;background:#10141e;overflow:hidden}
+canvas{display:block}
+#cap{position:fixed;left:12px;bottom:10px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#e8e4f0;opacity:.9;text-shadow:0 1px 0 #000}
+</style>
+<div id="cap">14-15 ─ 雨の夜の大城壁の見回り / 描きこんだテクスチャと、ブラウン管　｜　見るだけ（自動で歩く）</div>
+<script src="../game-looks-7/kit.js"></script>
+<script src="../game-looks-7/retro.js"></script>
+<script src="../game-looks-8/pack-fantasy-town.js"></script>
+<script src="../game-looks-9/pack-dark.js"></script>
+<script src="../game-looks-13/pack-tale.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// 雨の夜。国ざかいの高い城壁（高さ 16 m）の上の通路を、ランタンを持って見回る。右の外がわは 暗い平原で、遠くに 数えきれない かがり火がならぶ（向こうの陣）。左の内がわの下には、あかりの窓の町。
+// 色の組は「雨の夜の青むらさき・ぬれた石の灰」＋差し色の かがり火と窓の だいだい。D.mood の 'storm' に、いなずまと雨。
+// 主役は第 13 集の TL.person（4.5 頭身）。城壁の上を うしろから追う。雨・いなずま・ゆれる かがり火・やりを持った見張り・塔の旗・遠くの火の列が動く。
+import * as THREE from 'three';
+const K = KIT(THREE), R = RETRO(THREE, K), F = PACK_FTOWN(THREE, K, R), D = PACK_DARK(THREE, K, R), TL = PACK_TALE(THREE, K, R), T = R.tex, { hash } = K, PI = Math.PI;
+const { scene, cam, renderer, onResize } = K.stage({ fov: 52, far: 1000, aa: false, fitAspect: .9, maxFov: 78 });
+const hero = TL.person({ ...TL.cast('hero'), outfit: 'guard', hat: 'hood', hatC: '#3a4a6a', colors: { ...TL.cast('hero').colors, scarf: '#d8402e' } }); scene.add(hero);
+const mood = D.mood(scene, renderer, 'storm', { follow: hero, range: 30, dir: [.7, .45, -.5], fog: ['#2a3450', 30, 420], hillsY: -2 });
+
+// ---- 地面：外がわ（x>0）は平原、内がわ（x<0）は町の土。城壁は x=0 を z の向きに ----
+const WH = 16, WT = 6, fires = [];
+for (let i = 0; i < 90; i++) { const d = 60 + Math.pow(hash(i, 1), .7) * 380, a = -1.35 + hash(i, 2) * 1.5; fires.push([Math.cos(a) * d + 30, Math.sin(a) * d - 60, i]); }
+const land = R.ground({ w: 900, d: 900, cell: 8, cz: -100, layers: [T.grass({ c: '#3a4a3a' }), T.dirt({ c: '#4a4040' })], mix: x => [x < 0 ? 1 : 0, 0], shade: mood.shade(fires.slice(0, 30).map(([x, z]) => ({ x, z, r: 9, c: '#ff9a40', k: .8 }))) }); scene.add(land.mesh);
+
+// ---- 城壁：切り石のかべ（はば 6 m）を 20 m ずつ。40 m ごとに四角い塔（旗とあかり）。通路の上は石だたみ ----
+const fixed = [], put = (o, x, z, ry = 0, y = 0) => { o.position.set(x, y, z); o.rotation.y = ry; fixed.push(o); return o; };
+const stone = F.tex.ashlar({ c: '#6a6e80', moss: .4 }), towers = [];
+for (let z = 40; z > -360; z -= 20) put(F.wall({ len: 20.05, h: WH, th: WT, stone }), 0, z - 10, PI / 2);
+{ const G = R.geo().normal([0, 1, 0]); for (let z = 40; z > -360; z -= 4) G.quad([-WT / 2 + .3, WH + .01, z], [WT / 2 - .3, WH + .01, z], [WT / 2 - .3, WH + .01, z - 4], [-WT / 2 + .3, WH + .01, z - 4], [0, 0, 2, 2]); fixed.push(G.mesh(T.cobble({ c: '#5a5e6e', kind: 'slab' }))); }
+for (let z = -30; z > -360; z -= 44) { const tw = F.tower({ kind: 'square', r: 5, h: 10, stone, roof: F.tex.slate({ c: '#3a3e52' }), top: 'cone', roofH: 7, lit: 1, wins: true, flag: { c: '#b8382e', c2: '#e8dcc0', crest: 'ring' } }); tw.position.set(WT / 2 + 4.6, WH - 1, z); scene.add(tw); towers.push(tw); }
+// 外がわの平原：ところどころの岩と、遠くの山
+for (let i = 0; i < 30; i++) { const x = 20 + hash(i, 4) * 200, z = 20 - hash(i, 5) * 360; put(R.rock({ s: 2 + hash(i, 6) * 5, c: '#4a4e5a', seed: i }), x, z, i, -1); }
+// 内がわの町：城壁の下に、あかりの窓の家々
+for (let i = 0; i < 40; i++) { const x = -10 - (i % 4) * 9 - hash(i, 7) * 3, z = 30 - Math.floor(i / 4) * 14 - hash(i, 8) * 4;
+  put(R.house({ w: 6, d: 5, h: 3 + hash(i, 9) * 2.4, wall: T.plaster({ frame: 'beam', c: '#a8a0a0', wood: '#3a3038' }), roof: T.shingle({ c: '#3e3a4a', seed: i % 3 }), pitch: 1, chimney: i % 3 === 0, win: T.window({ bars: 'cross' }), winLit: T.window({ bars: 'cross', lit: 1, curtain: '#ffc070' }), lit: .7, seed: i }), x, z, PI / 2 + (hash(i, 10) - .5) * .3); }
+scene.add(R.merge(fixed));
+
+// ---- あかり：通路の かがり火、遠くの陣の火（光るにじみ＋小さな火）、町の窓の輪 ----
+const braz = []; for (let z = 30; z > -340; z -= 14) { const b = D.brazier({ s: .9, light: Math.abs(z - 10) < 30 }); b.position.set(WT / 2 - .9, WH, z); scene.add(b); braz.push(b); }
+const camp = new THREE.Group(); fires.forEach(([x, z, i]) => { const h = D.halo({ c: '#ff9040', r: 5 + hash(i, 3) * 4, k: .9, flicker: true }); h.position.set(x, 2, z); camp.add(h); if (hash(i, 4) > .5) { const f = D.flame({ s: 3 }); f.position.set(x, 0, z); camp.add(f); } }); scene.add(camp);
+scene.add(D.lightning(mood, { first: 4.2, every: 6, az: 60, spread: 50, dist: 220 }));
+{ const rain = D.rain({ n: 900, box: [26, 14, 26], speed: 24, slant: [.4, .1], c: '#c0d0f0', a: .38, len: .8 }); rain.position.y = WH; scene.add(rain); }   // 雨の箱は y=0〜14 なので、城壁の上へ上げる
+
+// ---- 見張り：やりを持って塔の前に立つ人、すれちがう人 ----
+const guard = o => { const p = TL.person({ outfit: 'guard', hat: 'helm', hold: 'spear', hair: 'wolf', head: { hair: '#2a2420', skin: '#d8a078', eyes: 'round', mouth: 'flat' }, colors: { tunic: '#3a4a6a', scarf: '#b8382e' }, ...o }); scene.add(p); return p; };
+const posts = [-30, -74, -118].map((z, i) => { const p = guard({}); p.position.set(1.9, WH, z + 3.6); p.rotation.y = -PI / 2 + .4; return p; });
+const walker = guard({ hair: 'center' });
+
+// ---- ランタン（TL.person の左手に、光る板と点の光） ----
+const lampT = (() => { const P = R.Px(8, 8); P.each((x, y) => { if (y < 1) return x > 2 && x < 5 ? '#2a2830' : null; if (y > 6) return x > 1 && x < 6 ? '#2a2830' : null; const d = Math.hypot((x - 3.5) * 1.3, y - 4); return x < 1 || x > 6 ? null : d < 1.3 ? '#fff8d0' : d < 2.4 ? '#ffc050' : '#d07a30'; }); return T.from(P, { m: 1, cut: true }); })();
+{ const g = new THREE.Group(), m = new THREE.Mesh(new THREE.PlaneGeometry(.26, .26), R.mat(lampT, { glow: true, side: true })), pl = new THREE.PointLight('#ffc060', 9, 8, 1.6); pl.position.set(0, 0, .1); g.add(m, pl, D.halo({ c: '#ffc060', r: .9, k: .7, flicker: true })); g.position.set(0, -.34, .05); hero.userData.J.foreL.add(g); }
+const ring = D.spot({ r: 2.4, c: '#ffb050', k: .35, flicker: true }); scene.add(ring);
+
+const crt = R.crt(renderer, { noise: 0, bright: 1.06 }); onResize(crt.resize);
+const SP = 1.3, Z0 = 20, LOOP = 120, T0 = +(new URLSearchParams(location.search).get('t') || 0);   // ?t=秒 で途中から
+K.loop((dt, t) => {
+  t += T0; const z = Z0 - (t * SP) % LOOP, x = -.6;
+  hero.position.set(x, WH, z); hero.rotation.y = PI; R.walk(hero, t * SP * 3.6, .85); { const J = hero.userData.J; J.armL.rotation.x = -.55; J.foreL.rotation.x = -.45; } ring.position.set(x - .2, WH + .05, z - .6);
+  const tall = innerWidth < innerHeight; cam.position.set(x - (tall ? .8 : 1.4), WH + (tall ? 2 : 1.9), z + (tall ? 3.4 : 3.9)); cam.lookAt(x + (tall ? 1.4 : 3), WH + (tall ? 2.4 : 1.05), z - 12);   // 少し右（外の平原）へふって、遠くの火の列を見せる
+  posts.forEach((p, i) => R.idle(p, t + i * 2, Math.sin(t * .3 + i) * .6));
+  { const wz = -40 + (t * 1.1) % 60; walker.position.set(.9, WH, wz); walker.rotation.y = 0; R.walk(walker, t * 4, .8); }
+  F.tick(t); D.tick(t, cam); crt.render(scene, cam, t);
+});
+</script>
+</html>
